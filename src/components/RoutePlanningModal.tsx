@@ -4,8 +4,11 @@ import {
   Vehicle, 
   RouteModality 
 } from '../types';
-import { generateRouteAlternatives, RouteOptionCalculated } from '../services/routeCalculator';
+import { getPlanningAlternatives, buildPlannedTrip, type RoutePlanningInput } from '../services/routeCalculator';
 import { InteractiveMap } from './InteractiveMap';
+import { FuelComparisonPanel } from './FuelComparisonPanel';
+import type { AppliedFuelPrice } from '../types/fuel';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { 
   X, 
   Users, 
@@ -30,6 +33,8 @@ interface RoutePlanningModalProps {
   origin: string;
   destination: string;
   destinationCoords?: [number, number];
+  originCoords?: [number, number];
+  presetTrip?: TripPlan;
   vehicle: Vehicle;
   isOpen: boolean;
   onClose: () => void;
@@ -42,6 +47,8 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   origin,
   destination,
   destinationCoords = [-22.7394, -45.5914],
+  originCoords = [-23.5505, -46.6333],
+  presetTrip,
   vehicle,
   isOpen,
   onClose,
@@ -49,28 +56,28 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   onSaveTrip,
   onOpenShareModal
 }) => {
-  const [selectedModality, setSelectedModality] = useState<RouteModality>('equilibrada');
-  const [peopleCount, setPeopleCount] = useState(1);
+  const [selectedModality, setSelectedModality] = useState<RouteModality>(presetTrip?.modality || 'equilibrada');
+  const [peopleCount, setPeopleCount] = useState(presetTrip?.peopleCount || 1);
   const [vehicleGroupType, setVehicleGroupType] = useState<'single_vehicle' | 'multi_vehicle'>('single_vehicle');
   const [groupVehiclesCount, setGroupVehiclesCount] = useState(1);
   const [splitExpenses, setSplitExpenses] = useState(true);
   const [foodCostPerPerson, setFoodCostPerPerson] = useState(50);
-  const [fuelPrice, setFuelPrice] = useState(5.89);
-  const [returnModality, setReturnModality] = useState<'rapida' | 'turistica' | 'economica' | 'auto'>('rapida');
+  const [fuelPrice, setFuelPrice] = useState(0);
+  const [appliedFuelPrice, setAppliedFuelPrice] = useState<AppliedFuelPrice | undefined>();
+  const [returnModality, setReturnModality] = useState<'rapida' | 'turistica' | 'economica' | 'auto'>(presetTrip?.returnModality || 'rapida');
   const [showRainLayer, setShowRainLayer] = useState(false);
   const [showGroupDetails, setShowGroupDetails] = useState(false);
   const [showReturnOptions, setShowReturnOptions] = useState(false);
+  useModalScrollLock(isOpen);
 
   if (!isOpen) return null;
 
-  const originCoords: [number, number] = [-23.5505, -46.6333];
-
-  const alternatives = generateRouteAlternatives({
+  const planningInput: RoutePlanningInput = {
     originName: origin,
     originCoords,
     destinationName: destination,
     destinationCoords,
-    vehicle,
+    vehicle: appliedFuelPrice ? { ...vehicle, consumption: { ...vehicle.consumption, userConfigured: appliedFuelPrice.consumptionKmPerLiter } } : vehicle,
     peopleCount,
     vehicleGroupType,
     groupVehiclesCount,
@@ -78,48 +85,13 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
     foodCostPerPerson,
     fuelPricePerLiter: fuelPrice,
     returnModality
-  });
+  };
+  const alternatives = getPlanningAlternatives(planningInput, presetTrip);
 
   const activeOption = alternatives.find(a => a.modality === selectedModality) || alternatives[0];
 
   const handleBuildTripPlan = (): TripPlan => {
-    return {
-      id: `trip-${Date.now()}`,
-      title: `${activeOption.title}: ${origin.split('-')[0].trim()} até ${destination.split('-')[0].trim()}`,
-      originName: origin,
-      originCoords,
-      destinationName: destination,
-      destinationCoords,
-      modality: activeOption.modality,
-      returnModality,
-      isCircular: false,
-      distanceKm: activeOption.distanceKm,
-      durationMinutes: activeOption.durationMinutes,
-      vehicleId: vehicle.id,
-      routePath: activeOption.routePath,
-      stops: activeOption.stops,
-      weatherPoints: activeOption.weatherPoints,
-      hasRainRisk: activeOption.hasRainRisk,
-      peopleCount,
-      vehicleGroupType,
-      groupVehiclesCount,
-      participants: Array.from({ length: peopleCount }).map((_, i) => ({
-        id: `p-${i + 1}`,
-        name: i === 0 ? 'Você' : `Participante ${i + 1}`
-      })),
-      splitExpenses,
-      foodCostPerPerson,
-      fuelPricePerLiter: fuelPrice,
-      estimatedFuelLiters: activeOption.fuelLiters,
-      estimatedFuelCost: activeOption.fuelCost,
-      knownTollsCost: activeOption.tollsCost,
-      totalFoodCost: activeOption.totalFoodCost,
-      totalEstimatedCost: activeOption.totalCost,
-      costPerPerson: activeOption.costPerPerson,
-      capacityWarning: activeOption.capacityWarning,
-      status: 'planned',
-      createdAt: new Date().toISOString()
-    };
+    return { ...buildPlannedTrip(planningInput, activeOption, presetTrip), fuelPriceSource: appliedFuelPrice };
   };
 
   const handleStart = () => {
@@ -138,14 +110,14 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Planejamento da viagem" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in">
       <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[92vh] flex flex-col">
         {/* TOP BAR */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Compass className="w-5 h-5 text-emerald-600" />
-              <span>Comparação de Roteiros</span>
+              <span>{presetTrip ? 'Configurar Passeio' : 'Comparação de Roteiros'}</span>
             </h2>
             <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {origin.split('-')[0].trim()} ➡️ {destination.split('-')[0].trim()} · Veículo: <strong className="text-slate-800 dark:text-slate-200">{vehicle.nickname || vehicle.model}</strong>
@@ -162,6 +134,9 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
 
         {/* MODAL BODY (SCROLLABLE) */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            Prévia de planejamento: os trajetos, paradas, clima e pedágios ainda são ilustrativos.
+          </p>
           {/* CAPACITY WARNING IF APPLICABLE */}
           {activeOption.capacityWarning && (
             <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200">
@@ -255,7 +230,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <span className="text-slate-500 block">Combustível ({activeOption.fuelLiters} L)</span>
-                    <strong className="text-slate-900 dark:text-white">R$ {activeOption.fuelCost.toFixed(2)}</strong>
+                    <strong className="text-slate-900 dark:text-white">{fuelPrice > 0 ? `R$ ${activeOption.fuelCost.toFixed(2)}` : 'Preço não informado'}</strong>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Pedágios Estimados</span>
@@ -271,6 +246,12 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                   )}
                 </div>
               </div>
+
+              <label className="block p-3 rounded-xl border border-slate-200 text-xs font-semibold">
+                Preço de planejamento (R$/L)
+                <input aria-label="Preço de planejamento" type="number" min="0.1" max="50" step="0.001" value={fuelPrice || ''} onChange={e => { setFuelPrice(Number(e.target.value)); setAppliedFuelPrice(undefined); }} placeholder="Informe ou escolha um posto" className="mt-1 w-full p-2 border rounded-lg" />
+                <span className="block mt-2 font-normal text-slate-500">{appliedFuelPrice ? `${appliedFuelPrice.stationName} · visto em ${new Date(appliedFuelPrice.observedAt).toLocaleString('pt-BR')}` : fuelPrice > 0 ? 'Estimativa com preço informado manualmente.' : 'Os totais ainda não incluem combustível.'}</span>
+              </label>
 
               {/* WEATHER ALONG ROUTE */}
               <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 space-y-2">
@@ -329,6 +310,8 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
               )}
             </div>
           </div>
+
+          <FuelComparisonPanel vehicle={vehicle} routePath={activeOption.routePath} onApply={price => { setFuelPrice(price.price); setAppliedFuelPrice(price); }} />
 
           {/* GROUP & PEOPLE CONFIGURATION (Requirement: QUANTIDADE DE PESSOAS NA VIAGEM) */}
           <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-850/50 space-y-3">

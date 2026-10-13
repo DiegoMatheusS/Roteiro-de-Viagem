@@ -305,7 +305,7 @@ export function generateRouteAlternatives(input: RoutePlanningInput): RouteOptio
 
     // Fuel calculation
     const fuelLiters = parseFloat(((distKm / kmPerLiter) * vehiclesCount).toFixed(2));
-    const fuelCost = parseFloat((fuelLiters * fuelPricePerLiter).toFixed(2));
+    const fuelCost = parseFloat((distKm / kmPerLiter * vehiclesCount * fuelPricePerLiter).toFixed(2));
 
     // Toll calculation
     const tollsCost = parseFloat((((distKm / 100) * baseTollPer100Km * m.tollFactor) * vehiclesCount).toFixed(2));
@@ -315,7 +315,7 @@ export function generateRouteAlternatives(input: RoutePlanningInput): RouteOptio
 
     // Total cost
     const totalCost = parseFloat((fuelCost + tollsCost + totalFood).toFixed(2));
-    const costPerPerson = parseFloat((totalCost / Math.max(1, peopleCount)).toFixed(2));
+    const costPerPerson = splitExpenses ? parseFloat((totalCost / Math.max(1, peopleCount)).toFixed(2)) : totalCost;
 
     // Construct realistic intermediate polyline coordinates
     const routePath: [number, number][] = [];
@@ -396,6 +396,75 @@ export function generateRouteAlternatives(input: RoutePlanningInput): RouteOptio
       explanation: m.explanation
     };
   });
+}
+
+export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: TripPlan): RouteOptionCalculated[] {
+  if (!presetTrip) return generateRouteAlternatives(input);
+  const vehiclesCount = input.vehicleGroupType === 'multi_vehicle' ? Math.max(1, input.groupVehiclesCount) : 1;
+  const consumption = input.vehicle.consumption.userConfigured || input.vehicle.consumption.referenceAverage || 15;
+  const fuelLiters = Number((presetTrip.distanceKm / consumption * vehiclesCount).toFixed(2));
+  const fuelCost = Number((presetTrip.distanceKm / consumption * vehiclesCount * input.fuelPricePerLiter).toFixed(2));
+  const tollsCost = Number((presetTrip.knownTollsCost / Math.max(1, presetTrip.groupVehiclesCount) * vehiclesCount).toFixed(2));
+  const totalFoodCost = input.peopleCount * input.foodCostPerPerson;
+  const totalCost = Number((fuelCost + tollsCost + totalFoodCost).toFixed(2));
+  const capacityWarning = input.vehicleGroupType === 'single_vehicle' && input.peopleCount > input.vehicle.maxPassengers
+    ? `O veículo comporta ${input.vehicle.maxPassengers} pessoas, mas o grupo possui ${input.peopleCount}.` : undefined;
+  return [{
+    modality: presetTrip.modality,
+    title: presetTrip.title,
+    badge: presetTrip.isCircular ? 'Ida e volta' : 'Só ida',
+    description: 'Mantém a distância, o tempo e as paradas do passeio que você escolheu.',
+    distanceKm: presetTrip.distanceKm,
+    durationMinutes: presetTrip.durationMinutes,
+    stopsCount: presetTrip.stops.length,
+    fuelLiters, fuelCost, tollsCost, totalFoodCost, totalCost,
+    costPerPerson: input.splitExpenses ? Number((totalCost / Math.max(1, input.peopleCount)).toFixed(2)) : totalCost,
+    scenicQualityStars: 4,
+    hasRainRisk: presetTrip.hasRainRisk,
+    weatherSummary: 'Previsão de exemplo; consulte dados atualizados antes de sair.',
+    routePath: presetTrip.routePath,
+    stops: presetTrip.stops,
+    weatherPoints: presetTrip.weatherPoints,
+    capacityWarning,
+    explanation: 'Roteiro ilustrativo do passeio selecionado. Distância e tempo preservados.'
+  }];
+}
+
+export function buildPlannedTrip(input: RoutePlanningInput, option: RouteOptionCalculated, presetTrip?: TripPlan): TripPlan {
+  return {
+    id: presetTrip?.id || `trip-${Date.now()}`,
+    title: presetTrip?.title || `${option.title}: ${input.originName} até ${input.destinationName}`,
+    originName: input.originName,
+    originCoords: input.originCoords,
+    destinationName: input.destinationName,
+    destinationCoords: input.destinationCoords,
+    modality: option.modality,
+    returnModality: input.returnModality,
+    isCircular: presetTrip?.isCircular ?? false,
+    distanceKm: option.distanceKm,
+    durationMinutes: option.durationMinutes,
+    vehicleId: input.vehicle.id,
+    routePath: option.routePath,
+    stops: option.stops,
+    weatherPoints: option.weatherPoints,
+    hasRainRisk: option.hasRainRisk,
+    peopleCount: input.peopleCount,
+    vehicleGroupType: input.vehicleGroupType,
+    groupVehiclesCount: input.groupVehiclesCount,
+    participants: Array.from({ length: input.peopleCount }, (_, i) => ({ id: `p-${i + 1}`, name: i === 0 ? 'Você' : `Participante ${i + 1}` })),
+    splitExpenses: input.splitExpenses,
+    foodCostPerPerson: input.foodCostPerPerson,
+    fuelPricePerLiter: input.fuelPricePerLiter,
+    estimatedFuelLiters: option.fuelLiters,
+    estimatedFuelCost: option.fuelCost,
+    knownTollsCost: option.tollsCost,
+    totalFoodCost: option.totalFoodCost,
+    totalEstimatedCost: option.totalCost,
+    costPerPerson: option.costPerPerson,
+    capacityWarning: option.capacityWarning,
+    status: 'planned',
+    createdAt: presetTrip?.createdAt || new Date().toISOString()
+  };
 }
 
 export interface TouristCircuitInput {

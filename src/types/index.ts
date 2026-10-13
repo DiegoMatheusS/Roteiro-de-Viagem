@@ -141,6 +141,7 @@ export interface TripPlan {
   foodCostPerPerson: number;
   // Financial breakdown
   fuelPricePerLiter: number;
+  fuelPriceSource?: import('./fuel').AppliedFuelPrice;
   estimatedFuelLiters: number;
   estimatedFuelCost: number;
   knownTollsCost: number;

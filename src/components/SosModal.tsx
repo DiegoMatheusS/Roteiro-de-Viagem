@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { EmergencyContact } from '../types';
+import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import { 
   AlertOctagon, 
   Phone, 
@@ -23,14 +24,16 @@ export const SosModal: React.FC<SosModalProps> = ({
   onClose
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
+  const location = useDeviceLocation(isOpen, 'sos');
 
   if (!isOpen) return null;
 
-  const currentCoords = [-23.5505, -46.6333]; // current device coords or approximation
-  const mapsLink = `https://maps.google.com/?q=${currentCoords[0]},${currentCoords[1]}`;
+  const canShare = location.status === 'ready' && !!location.position;
+  const mapsLink = location.position ? `https://maps.google.com/?q=${location.position.coords[0]},${location.position.coords[1]}` : '';
   const sosMessage = `🚨 Preciso de ajuda na estrada. Esta é minha localização atual: ${mapsLink} · Mensagem enviada pelo aplicativo Roteiro de Viagem.`;
 
   const handleShareLocationWhatsApp = (phone?: string) => {
+    if (!canShare || Date.now() - location.position!.timestamp > 60000) return;
     const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
     const url = cleanPhone 
       ? `https://api.whatsapp.com/send?phone=55${cleanPhone}&text=${encodeURIComponent(sosMessage)}`
@@ -38,8 +41,9 @@ export const SosModal: React.FC<SosModalProps> = ({
     window.open(url, '_blank');
   };
 
-  const handleCopyCoords = () => {
-    navigator.clipboard.writeText(sosMessage);
+  const handleCopyCoords = async () => {
+    if (!canShare || Date.now() - location.position!.timestamp > 60000) return;
+    try { await navigator.clipboard.writeText(sosMessage); } catch { return; }
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
@@ -66,6 +70,10 @@ export const SosModal: React.FC<SosModalProps> = ({
         </div>
 
         <div className="p-6 overflow-y-auto space-y-5 text-xs">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200" role="status">
+            {canShare ? `Localização obtida pelo GPS (precisão aproximada: ${Math.round(location.position!.accuracyMeters)} m).` : location.error || 'Buscando sua localização pelo GPS...'}
+            {location.error && <button onClick={location.retry} className="block mt-2 text-rose-700 font-bold">Tentar novamente</button>}
+          </div>
           {/* Direct Public Emergency Hotlines in Brazil */}
           <div className="space-y-2">
             <span className="font-bold text-slate-800 uppercase tracking-wider block text-[10px]">
@@ -147,6 +155,7 @@ export const SosModal: React.FC<SosModalProps> = ({
                       </a>
                       <button
                         onClick={() => handleShareLocationWhatsApp(c.phone)}
+                        disabled={!canShare}
                         className="p-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                         title="Enviar localização no WhatsApp"
                       >
@@ -163,6 +172,7 @@ export const SosModal: React.FC<SosModalProps> = ({
           <div className="pt-2 border-t border-slate-100 space-y-2">
             <button
               onClick={handleCopyCoords}
+              disabled={!canShare}
               className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
             >
               {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}

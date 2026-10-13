@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
 import { Layers, Mountain, Eye, Sparkles } from 'lucide-react';
+import { useFuelStations } from '../hooks/useFuelStations';
+import { FuelStationModal } from './FuelStationModal';
 
 export type MapStyleType = 'voyager' | 'satellite' | 'topo' | 'osm';
 
@@ -22,7 +24,10 @@ interface InteractiveMapProps {
   interactive?: boolean;
   className?: string;
   onSelectCoordinates?: (coords: [number, number], placeName?: string) => void;
+  showFuelStations?: boolean;
 }
+
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
   voyager: {
@@ -78,6 +83,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   focusedCoords,
   convoyParticipants = [],
   meetingPoints = [],
+  onSelectCoordinates,
+  showFuelStations = true,
   className = 'w-full h-full'
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +92,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const currentTileLayerRef = useRef<L.TileLayer | null>(null);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const fuel = useFuelStations(routePath.length ? routePath : [originCoords], showFuelStations);
+  const [selectedStation, setSelectedStation] = useState<string | null>(null);
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('voyager');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
@@ -118,6 +128,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     const rainGroup = L.layerGroup().addTo(map);
     rainLayerGroupRef.current = rainGroup;
+    fuelLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -137,6 +148,27 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !onSelectCoordinates) return;
+    const handleClick = (event: L.LeafletMouseEvent) => onSelectCoordinates([event.latlng.lat, event.latlng.lng]);
+    map.on('click', handleClick);
+    return () => { map.off('click', handleClick); };
+  }, [onSelectCoordinates]);
+
+  useEffect(() => {
+    const group = fuelLayerGroupRef.current;
+    if (!group) return;
+    group.clearLayers();
+    for (const station of fuel.stations) {
+      const icon = L.divIcon({ className: 'fuel-station-marker', html: '<div style="background:white;border:2px solid #059669;border-radius:50%;padding:5px;font-size:18px">⛽</div>', iconSize: [36, 36], iconAnchor: [18, 18] });
+      const marker = L.marker([station.lat, station.lng], { icon, title: station.name, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
+      const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
+      marker.bindTooltip(tooltip);
+      marker.on('click', () => setSelectedStation(station.id));
+    }
+  }, [fuel.stations]);
 
   // Switch map tiles when user changes style
   useEffect(() => {
@@ -203,9 +235,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             box-shadow: 0 4px 14px rgba(0,0,0,0.3);
             border: 2px solid white;
             white-space: nowrap;
+            max-width: 160px;
           ">
             <span>${iconHtml}</span>
-            <span>${text}</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;max-width:115px">${escapeHtml(text)}</span>
           </div>
         `,
         iconSize: [110, 32],
@@ -217,7 +250,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (originCoords) {
       const originIcon = createHtmlIcon('#059669', originLabel, '🟢');
       const originMarker = L.marker(originCoords, { icon: originIcon }).addTo(group);
-      originMarker.bindPopup(`<b>Partida:</b> ${originLabel}`);
+      originMarker.bindPopup(`<b>Partida:</b> ${escapeHtml(originLabel)}`);
       bounds.push(originCoords);
     }
 
@@ -225,7 +258,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (destinationCoords) {
       const destIcon = createHtmlIcon('#2563eb', destinationLabel, '🏁');
       const destMarker = L.marker(destinationCoords, { icon: destIcon }).addTo(group);
-      destMarker.bindPopup(`<b>Chegada:</b> ${destinationLabel}`);
+      destMarker.bindPopup(`<b>Chegada:</b> ${escapeHtml(destinationLabel)}`);
       bounds.push(destinationCoords);
     }
 
@@ -288,7 +321,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 4. Scenic Stops Markers
     if (stops && stops.length > 0) {
-      stops.forEach((stop, index) => {
+      stops.filter(stop => stop.category !== 'posto').forEach((stop, index) => {
         let emoji = '📍';
         let color = '#d97706';
         if (stop.category === 'mirante') { emoji = '🌄'; color = '#059669'; }
@@ -317,7 +350,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               white-space: nowrap;
             ">
               <span>${emoji}</span>
-              <span>${index + 1}. ${stop.name.substring(0, 20)}</span>
+              <span>${index + 1}. ${escapeHtml(stop.name.substring(0, 20))}</span>
             </div>
           `,
           iconSize: [95, 26],
@@ -327,8 +360,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         const m = L.marker([stop.lat, stop.lng], { icon: stopIcon }).addTo(group);
         m.bindPopup(`
           <div style="font-family: system-ui; max-width: 220px;">
-            <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px;">${stop.name}</div>
-            <div style="font-size: 11px; color: #475569; margin-bottom: 6px;">${stop.description}</div>
+            <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px;">${escapeHtml(stop.name)}</div>
+            <div style="font-size: 11px; color: #475569; margin-bottom: 6px;">${escapeHtml(stop.description)}</div>
             <div style="font-size: 10px; color: #059669; font-weight: 700;">Parada recomendada: ${stop.recommendedMinutes} min</div>
           </div>
         `);
@@ -409,10 +442,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         m.bindPopup(`
           <div style="font-family: system-ui; max-width: 240px;">
             <div style="font-weight: bold; font-size: 13px; color: ${bgMarkerColor}; margin-bottom: 2px;">
-              ${catIcon} Ponto de Encontro: ${mp.title}
+              ${catIcon} Ponto de Encontro: ${escapeHtml(mp.title)}
             </div>
-            ${addressParts ? `<div style="font-size: 10px; color: #334155; font-weight: 600; margin-bottom: 4px; background: #f1f5f9; padding: 3px 6px; border-radius: 6px;">📍 ${addressParts}</div>` : ''}
-            <div style="font-size: 11px; color: #475569; margin-bottom: 6px;">${mp.description || 'Ponto de parada e reagrupamento do comboio.'}</div>
+            ${addressParts ? `<div style="font-size: 10px; color: #334155; font-weight: 600; margin-bottom: 4px; background: #f1f5f9; padding: 3px 6px; border-radius: 6px;">📍 ${escapeHtml(addressParts)}</div>` : ''}
+            <div style="font-size: 11px; color: #475569; margin-bottom: 6px;">${escapeHtml(mp.description || 'Ponto de parada e reagrupamento do comboio.')}</div>
             <div style="font-size: 11px; font-weight: 600; color: #059669;">
               ${arrivedCount > 0 ? `✓ ${arrivedCount} participante(s) confirmaram chegada` : 'Nenhum participante chegou ainda'}
             </div>
@@ -450,7 +483,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 white-space: nowrap;
               ">
                 <span>${vehicleEmoji}</span>
-                <span>${p.name.split(' ')[0]}</span>
+                <span>${escapeHtml(p.name.split(' ')[0])}</span>
                 ${isStale ? '<span style="font-size: 8px; opacity: 0.85;">⚠️ Sinal antigo</span>' : ''}
               </div>
             `,
@@ -514,6 +547,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     <div className={`relative overflow-hidden ${className}`}>
       {/* MAP CANVAS */}
       <div ref={mapContainerRef} className="w-full h-full" />
+      {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}
+      {fuel.error && <div className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-amber-50 rounded-xl p-2 shadow">{fuel.error}<button type="button" onClick={fuel.retry} className="ml-2 font-bold">Tentar novamente</button></div>}
+      {selectedStation && <FuelStationModal stationId={selectedStation} onClose={() => setSelectedStation(null)} />}
 
       {/* MAP STYLE SWITCHER CONTROL (Requirement: Colorido, Satélite, Relevo) */}
       <div className="absolute bottom-5 left-4 z-30">

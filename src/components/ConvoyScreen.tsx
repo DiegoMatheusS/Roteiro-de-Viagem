@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ConvoySession, ConvoyParticipant, MeetingPoint, Vehicle } from '../types';
 import { convoyService } from '../services/convoyService';
 import { InteractiveMap } from './InteractiveMap';
+import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import { getCurrentDeviceLocation } from '../services/locationService';
 import { 
   Users, 
   MapPin, 
@@ -56,6 +58,12 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   const [newDescription, setNewDescription] = useState('');
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [focusedCoords, setFocusedCoords] = useState<[number, number] | null>(null);
+  const [newMeetingPointCoords, setNewMeetingPointCoords] = useState<[number, number] | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [showEndConvoyConfirm, setShowEndConvoyConfirm] = useState(false);
+  const [showLeaveConvoyConfirm, setShowLeaveConvoyConfirm] = useState(false);
+  const sharingEnabled = !!convoy?.participants.find(p => p.id === currentUserId)?.isSharingLocation;
+  const location = useDeviceLocation(sharingEnabled, convoyId);
 
   // Load convoy session
   useEffect(() => {
@@ -64,6 +72,25 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
       setConvoy(session);
     }
   }, [convoyId]);
+
+  useEffect(() => {
+    if (location.position && location.status === 'ready' && sharingEnabled) {
+      const updated = convoyService.updateParticipantLocation(convoyId, currentUserId, location.position.coords);
+      if (updated) setConvoy(updated);
+    }
+  }, [location.position, location.status, sharingEnabled, convoyId, currentUserId]);
+
+  useEffect(() => {
+    if (location.error && sharingEnabled) {
+      setLocationError(location.error);
+      const updated = convoyService.toggleParticipantLocation(convoyId, currentUserId, false);
+      if (updated) setConvoy(updated);
+    }
+  }, [location.error, sharingEnabled, convoyId, currentUserId]);
+
+  useEffect(() => () => {
+    convoyService.toggleParticipantLocation(convoyId, currentUserId, false);
+  }, [convoyId, currentUserId]);
 
   if (!convoy) {
     return (
@@ -82,35 +109,8 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
 
   // Toggle user's live location sharing (Requirement #3)
   const handleToggleLocation = () => {
-    const nextState = !isSharingLocation;
-    let mockCoords: [number, number] | undefined = undefined;
-
-    if (nextState) {
-      // Use device GPS if available, else approximate near route start
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const updated = convoyService.toggleParticipantLocation(
-              convoy.id, 
-              currentUserId, 
-              true, 
-              [pos.coords.latitude, pos.coords.longitude]
-            );
-            if (updated) setConvoy({ ...updated });
-          },
-          () => {
-            // fallback coords near route
-            mockCoords = convoy.routePath[0] || [-23.5505, -46.6333];
-            const updated = convoyService.toggleParticipantLocation(convoy.id, currentUserId, true, mockCoords);
-            if (updated) setConvoy({ ...updated });
-          }
-        );
-        return;
-      }
-      mockCoords = convoy.routePath[0] || [-23.5505, -46.6333];
-    }
-
-    const updated = convoyService.toggleParticipantLocation(convoy.id, currentUserId, nextState, mockCoords);
+    setLocationError(null);
+    const updated = convoyService.toggleParticipantLocation(convoy.id, currentUserId, !isSharingLocation);
     if (updated) setConvoy({ ...updated });
   };
 
@@ -149,8 +149,8 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
     const finalTitle = newMeetingPointTitle.trim() || newStreet.trim() || 'Ponto Customizado';
     if (!finalTitle) return;
 
-    // Default coordinates: along convoy route or near start
-    const defaultCoords: [number, number] = convoy.routePath[Math.min(convoy.routePath.length - 1, 2)] || [-23.2, -45.9];
+    if (!newMeetingPointCoords) { setLocationError('Selecione o ponto no mapa ou use sua posição GPS.'); return; }
+    const defaultCoords = newMeetingPointCoords;
 
     const updated = convoyService.addMeetingPoint(convoy.id, {
       title: finalTitle,
@@ -175,6 +175,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
       setNewNeighborhood('');
       setNewCity('');
       setNewDescription('');
+      setNewMeetingPointCoords(null);
       setShowAddMeetingPoint(false);
     }
   };
@@ -186,9 +187,6 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2500);
   };
-
-  const [showEndConvoyConfirm, setShowEndConvoyConfirm] = useState(false);
-  const [showLeaveConvoyConfirm, setShowLeaveConvoyConfirm] = useState(false);
 
   // Leave convoy
   const handleLeave = () => {
@@ -208,14 +206,16 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   };
 
   const executeEndConvoy = () => {
-    convoyService.endConvoy(convoy.id);
+    if (!convoyService.endConvoy(convoy.id, currentUserId)) return;
     setShowEndConvoyConfirm(false);
     onEndConvoy?.();
     onBack();
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-slate-50 overflow-hidden">
+      <p className="px-4 py-2 text-xs bg-amber-50 text-amber-900">Comboio local de demonstração: a sincronização entre celulares ainda não está disponível.</p>
+      {locationError && <p role="alert" className="px-4 py-2 text-xs text-rose-700">{locationError}</p>}
       {/* Top Header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
@@ -256,13 +256,13 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
             <span className="hidden sm:inline">Sair</span>
           </button>
 
-          <button
+          {isOrganizer && <button
             onClick={handleEndConvoy}
             className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
             title="Encerrar comboio para todos"
           >
             <span>Encerrar Comboio</span>
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -275,6 +275,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
             convoyParticipants={convoy.participants}
             meetingPoints={convoy.meetingPoints}
             focusedCoords={focusedCoords}
+            onSelectCoordinates={showAddMeetingPoint ? coords => { setNewMeetingPointCoords(coords); setFocusedCoords(coords); } : undefined}
             className="w-full h-full"
           />
 
@@ -291,7 +292,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
               {isSharingLocation ? (
                 <>
                   <Eye className="w-4 h-4 text-white animate-pulse" />
-                  <span>Localização Ativa (Visível ao grupo)</span>
+                  <span>{location.status === 'ready' ? 'Localização ativa' : 'Buscando GPS...'}</span>
                 </>
               ) : (
                 <>
@@ -499,20 +500,20 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
                 {/* Botão de Localização GPS */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition((pos) => {
-                        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+                  onClick={async () => {
+                    try {
+                        const { coords } = await getCurrentDeviceLocation();
+                        setNewMeetingPointCoords(coords);
                         setFocusedCoords(coords);
                         if (!newMeetingPointTitle) setNewMeetingPointTitle('Minha Localização GPS Atual');
-                      });
-                    }
+                    } catch (error) { setLocationError((error as Error).message); }
                   }}
                   className="text-[11px] font-semibold text-violet-700 hover:text-violet-900 flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <Crosshair className="w-3.5 h-3.5 text-violet-600" />
                   <span>Usar Coordenadas da Minha Posição GPS Atual</span>
                 </button>
+                <p className="text-[11px] text-slate-600">{newMeetingPointCoords ? `Ponto escolhido: ${newMeetingPointCoords.map(c => c.toFixed(5)).join(', ')}` : 'Toque no mapa para escolher a localização do ponto.'}</p>
 
                 {/* Ações Salvar / Cancelar */}
                 <div className="flex items-center gap-2 pt-1 border-t border-violet-100">
@@ -526,6 +527,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
                   <button
                     type="button"
                     onClick={handleAddMeetingPoint}
+                    disabled={!newMeetingPointCoords}
                     className="flex-1 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-violet-600/20 cursor-pointer"
                   >
                     Salvar Ponto

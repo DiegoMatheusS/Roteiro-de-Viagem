@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Vehicle, TripPlan } from '../types';
 import { PRESET_DESTINATIONS } from '../data/sampleRoutes';
 import { generateTouristCircuitByKmOrHours } from '../services/routeCalculator';
-import { convoyService } from '../services/convoyService';
+import { getCurrentDeviceLocation } from '../services/locationService';
 import { 
   Navigation, 
   MapPin, 
@@ -32,7 +32,7 @@ interface HomeTabProps {
   currentVehicle: Vehicle | null;
   vehicles: Vehicle[];
   onSelectVehicle: (id: string) => void;
-  onOpenRoutePlanner: (origin: string, destination: string, destinationCoords?: [number, number]) => void;
+  onOpenRoutePlanner: (origin: string, destination: string, destinationCoords?: [number, number], originCoords?: [number, number]) => void;
   onLaunchTouristCircuit: (trip: TripPlan) => void;
   onOpenConvoyList: () => void;
   onNavigateToMapTab: () => void;
@@ -75,10 +75,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
 
   // Traditional Origin & Destination state
   const [origin, setOrigin] = useState('São Paulo - SP (Centro)');
-  const [originCoords, setOriginCoords] = useState<[number, number]>([-23.5505, -46.6333]);
+  const [originCoords, setOriginCoords] = useState<[number, number] | undefined>([-23.5505, -46.6333]);
   const [destination, setDestination] = useState('Campos do Jordão - SP');
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>([-22.7394, -45.5914]);
   const [isGettingGps, setIsGettingGps] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Toggle interest in multi-select list (allows unchecking all)
   const toggleInterest = (id: string) => {
@@ -105,24 +106,17 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   };
 
   // Use current GPS location
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     setIsGettingGps(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setIsGettingGps(false);
-          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          setOriginCoords(coords);
-          setOrigin(`Sua Localização (${coords[0].toFixed(3)}, ${coords[1].toFixed(3)})`);
-        },
-        () => {
-          setIsGettingGps(false);
-          setOrigin('São Paulo - SP (Localização atual)');
-        }
-      );
-    } else {
+    setLocationError(null);
+    try {
+      const position = await getCurrentDeviceLocation();
+      setOriginCoords(position.coords);
+      setOrigin(`Sua Localização (${position.coords[0].toFixed(3)}, ${position.coords[1].toFixed(3)})`);
+    } catch (error) {
+      setLocationError((error as Error).message);
+    } finally {
       setIsGettingGps(false);
-      setOrigin('São Paulo - SP (Localização atual)');
     }
   };
 
@@ -130,9 +124,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     const tempOrigin = origin;
     const tempCoords = originCoords;
     setOrigin(destination);
-    if (destinationCoords) {
-      setOriginCoords(destinationCoords);
-    }
+    setOriginCoords(destinationCoords);
     setDestination(tempOrigin);
     setDestinationCoords(tempCoords);
   };
@@ -146,6 +138,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const handleGenerateByKm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentVehicle) return;
+    if (!originCoords) { setLocationError('Use o GPS para definir sua origem.'); return; }
     const trip = generateTouristCircuitByKmOrHours({
       mode: 'km',
       targetValue: customKm,
@@ -163,6 +156,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const handleGenerateByHours = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentVehicle) return;
+    if (!originCoords) { setLocationError('Use o GPS para definir sua origem.'); return; }
     const trip = generateTouristCircuitByKmOrHours({
       mode: 'hours',
       targetValue: customHours,
@@ -180,7 +174,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const handleDestinationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin.trim() || !destination.trim()) return;
-    onOpenRoutePlanner(origin, destination, destinationCoords);
+    onOpenRoutePlanner(origin, destination, destinationCoords, originCoords);
   };
 
   return (
@@ -229,6 +223,13 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       </div>
 
       <div className="max-w-xl mx-auto p-4 sm:p-5 space-y-5">
+        <div className="flex items-center justify-between gap-3 text-xs bg-white border border-slate-200 rounded-xl p-3">
+          <span className="truncate text-slate-600">Origem: {origin || 'Não definida'}</span>
+          <button type="button" onClick={handleUseCurrentLocation} disabled={isGettingGps} className="shrink-0 text-emerald-700 font-bold disabled:opacity-50">
+            {isGettingGps ? 'Buscando GPS...' : 'Usar minha localização'}
+          </button>
+        </div>
+        {locationError && <p role="alert" className="text-xs text-rose-700">{locationError}</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}
         {activeConvoyId && (
           <div className="w-full p-3 rounded-2xl bg-violet-600 text-white text-xs font-bold flex items-center justify-between shadow-md transition-all gap-2">
@@ -246,17 +247,6 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 className="py-1 px-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-[11px] font-extrabold cursor-pointer transition-colors"
               >
                 Abrir
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  convoyService.endConvoy(activeConvoyId);
-                  onEndConvoy?.();
-                }}
-                className="py-1 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-extrabold cursor-pointer transition-colors shadow-2xs"
-                title="Encerrar comboio imediatamente"
-              >
-                Encerrar
               </button>
             </div>
           </div>
@@ -776,7 +766,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     <input
                       type="text"
                       value={origin}
-                      onChange={(e) => setOrigin(e.target.value)}
+                      onChange={(e) => { setOrigin(e.target.value); setOriginCoords(undefined); }}
                       placeholder="De onde você vai sair?"
                       className="w-full text-xs font-semibold text-slate-800 bg-slate-50 rounded-xl px-2.5 py-2.5 pr-16 border border-slate-200 focus:outline-none focus:border-emerald-500"
                     />
@@ -784,7 +774,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                       {origin.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setOrigin('')}
+                          onClick={() => { setOrigin(''); setOriginCoords(undefined); }}
                           className="w-5 h-5 rounded-full bg-slate-200/90 hover:bg-slate-300 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
                           title="Excluir texto da origem"
                         >
@@ -828,7 +818,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     <input
                       type="text"
                       value={destination}
-                      onChange={(e) => setDestination(e.target.value)}
+                      onChange={(e) => { setDestination(e.target.value); setDestinationCoords(undefined); }}
                       placeholder="Para onde quer viajar?"
                       className="w-full text-xs font-semibold text-slate-800 bg-slate-50 rounded-xl px-2.5 py-2.5 pr-9 border border-slate-200 focus:outline-none focus:border-blue-500"
                     />
