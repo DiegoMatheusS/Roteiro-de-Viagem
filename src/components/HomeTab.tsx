@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Vehicle, TripPlan } from '../types';
 import { PRESET_DESTINATIONS } from '../data/sampleRoutes';
-import { generateTouristCircuitByKmOrHours } from '../services/routeCalculator';
+import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
 import { LocationSearch } from './LocationSearch';
 import { ManualStopsEditor } from './ManualStopsEditor';
 import type { MandatoryStop, PlanningLimits } from '../types/itinerary';
@@ -84,6 +84,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [manualStops, setManualStops] = useState<MandatoryStop[]>([]);
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Toggle interest in multi-select list (allows unchecking all)
   const toggleInterest = (id: string) => {
@@ -150,49 +151,62 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     setLocationError(null); onLaunchTouristCircuit(trip);
   };
 
-  // Generate Tourist Circuit by KM (NO origin/destination needed!)
-  const handleGenerateByKm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentVehicle) return;
-    if (!originCoords) { setLocationError('Use o GPS para definir sua origem.'); return; }
-    const trip = generateTouristCircuitByKmOrHours({
-      mode: 'km',
-      targetValue: customKm,
-      tripType,
-      departureTime: getEffectiveDepartureTime(),
-      originName: origin,
-      originCoords,
-      vehicle: currentVehicle,
-      interests: touristInterests
-    });
-    launchWithStops(trip, { mode: 'km', target: customKm });
+  const handleTouristGeneration = async (mode: 'km' | 'hours', target: number) => {
+    if (!currentVehicle || isGenerating) return;
+    if (!originCoords) { setLocationError('Selecione a origem ou use sua localização.'); return; }
+    if (destination.trim() && !destinationCoords) { setLocationError('Escolha um destino válido na busca.'); return; }
+    if (manualStops.some(stop => !stop.location.id || !stop.location.coords)) {
+      setLocationError('Pesquise e selecione um local real para cada parada.'); return;
+    }
+    const limits: PlanningLimits = { mode, target };
+    setIsGenerating(true); setLocationError(null);
+    try {
+      if (destinationCoords || manualStops.length) {
+        // User-chosen points are mandatory; the server calculates them via OSRM.
+        const end = destinationCoords || (tripType === 'round_trip' ? originCoords : manualStops.at(-1)?.location.coords);
+        if (!end) throw new Error('Selecione um destino para o passeio só de ida.');
+        const draft = createRoadDraft({
+          originName: origin, originCoords, destinationName: destinationCoords ? destination : tripType === 'round_trip' ? origin : manualStops.at(-1)!.location.name,
+          destinationCoords: end, vehicle: currentVehicle, circular: tripType === 'round_trip', limits
+        });
+        launchWithStops(draft, limits);
+      } else {
+        const verified = await generateVerifiedTouristCircuit({
+          mode, target, tripType, originName: origin, originCoords,
+          interests: touristInterests, vehicle: currentVehicle
+        });
+        launchWithStops(verified, limits);
+      }
+    } catch (error) {
+      setLocationError((error as Error).message);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  // Generate Tourist Circuit by Hours (NO origin/destination needed!)
-  const handleGenerateByHours = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentVehicle) return;
-    if (!originCoords) { setLocationError('Use o GPS para definir sua origem.'); return; }
-    const trip = generateTouristCircuitByKmOrHours({
-      mode: 'hours',
-      targetValue: customHours,
-      tripType,
-      departureTime: getEffectiveDepartureTime(),
-      originName: origin,
-      originCoords,
-      vehicle: currentVehicle,
-      interests: touristInterests
-    });
-    launchWithStops(trip, { mode: 'hours', target: customHours });
+  const handleGenerateByKm = (event: React.FormEvent) => {
+    event.preventDefault();
+    void handleTouristGeneration('km', customKm);
   };
 
-  // Traditional destination submit
-  const handleDestinationSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!origin.trim() || !destination.trim()) return;
-    if (!originCoords || !destinationCoords) { setLocationError('Pesquise e selecione origem e destino no mapa.'); return; }
-    const trip = generateTouristCircuitByKmOrHours({ mode: 'km', targetValue: 100, tripType: 'one_way', departureTime: getEffectiveDepartureTime(), originName: origin, originCoords, vehicle: currentVehicle!, interests: touristInterests });
-    launchWithStops(trip, { mode: 'destination' });
+  const handleGenerateByHours = (event: React.FormEvent) => {
+    event.preventDefault();
+    void handleTouristGeneration('hours', customHours);
+  };
+
+  const handleDestinationSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!currentVehicle || !originCoords || !destinationCoords) {
+      setLocationError('Pesquise e selecione uma origem e um destino reais.'); return;
+    }
+    if (manualStops.some(stop => !stop.location.id || !stop.location.coords)) {
+      setLocationError('Selecione um local válido para cada parada.'); return;
+    }
+    const draft = createRoadDraft({
+      originName: origin, originCoords, destinationName: destination, destinationCoords,
+      vehicle: currentVehicle, circular: false, limits: { mode: 'destination' }
+    });
+    launchWithStops(draft, { mode: 'destination' });
   };
 
   return (
@@ -248,6 +262,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </button>
         </div>
         {locationError && <p role="alert" className="text-xs text-rose-700">{locationError}</p>}
+        {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">Buscando atrações reais e verificando estradas. Aguarde...</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}
         {activeConvoyId && (
           <div className="w-full p-3 rounded-2xl bg-violet-600 text-white text-xs font-bold flex items-center justify-between shadow-md transition-all gap-2">
@@ -329,7 +344,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           {/* MODO 1: POR KM (SEM PONTO DE PARTIDA OU DESTINO!) */}
           {/* ======================================================== */}
           {plannerMode === 'km' && (
-            <form onSubmit={handleGenerateByKm} className="space-y-4 animate-in fade-in">
+            <form onSubmit={handleGenerateByKm} aria-busy={isGenerating} className="space-y-4 animate-in fade-in">
               {/* TIPO DE PERCURSO: IDA E VOLTA (PADRÃO) OU SÓ IDA */}
               <div>
                 <span className="text-[11px] font-bold text-slate-700 block mb-1.5">
@@ -531,7 +546,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           {/* MODO 2: POR HORAS (COM AGORA VS HORÁRIO PROGRAMADO) */}
           {/* ======================================================== */}
           {plannerMode === 'horas' && (
-            <form onSubmit={handleGenerateByHours} className="space-y-4 animate-in fade-in">
+            <form onSubmit={handleGenerateByHours} aria-busy={isGenerating} className="space-y-4 animate-in fade-in">
               {/* TIPO DE PERCURSO: IDA E VOLTA OU SÓ IDA */}
               <div>
                 <span className="text-[11px] font-bold text-slate-700 block mb-1.5">

@@ -14,6 +14,7 @@ import { stationDetails } from './prices';
 import { sanitizePhoto } from './photos';
 import { registerAdminRoutes } from './admin';
 import { registerItineraryRoutes } from './itinerary';
+import { registerTouristRoutes } from './tourist';
 import { registerSharingRoutes } from './sharing';
 import { ApiError, asyncRoute, auth, administrator, user, now, validate, observationDate } from './http';
 import { stationOpeningStatus } from './openingHours';
@@ -76,6 +77,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
 
   registerAdminRoutes(app, { db, mapFetch: options.mapFetch, limit });
   registerItineraryRoutes(app, { db, mapFetch: options.mapFetch, limit });
+  registerTouristRoutes(app, { db, mapFetch: options.mapFetch, limit });
   registerSharingRoutes(app, db, limit);
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
