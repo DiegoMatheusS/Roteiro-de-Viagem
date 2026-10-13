@@ -15,6 +15,10 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
     { geometry: { type: 'Point', coordinates: [-46.60, -23.53] }, properties: { osm_type: 'N', osm_id: 902, name: 'Parada Beta de teste', city: 'São Paulo', osm_value: 'restaurant' } }
   ] }));
   if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('node(456)')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 456, lat: -23.585, lon: -46.629, tags: { amenity: 'restaurant', name: 'Restaurante de teste da interface', 'addr:street': 'Rua de teste' } }] }));
+  if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('nwr(around:')) return new Response(JSON.stringify({ elements: [
+    { type: 'node', id: 991, lat: -23.46, lon: -46.52, tags: { tourism: 'viewpoint', name: 'Mirante verificado no teste' } },
+    { type: 'node', id: 992, lat: -23.43, lon: -46.48, tags: { amenity: 'cafe', name: 'Café verificado no teste' } }
+  ] }));
   if (String(url).includes('/interpreter')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 123, lat: -23.551, lon: -46.629, tags: { amenity: 'fuel', name: 'Posto de teste de interface', opening_hours: '24/7' } }] }));
   const coordinates = String(url).split('/driving/')[1].split('?')[0].split(';');
   const geometric = String(url).includes('geometries=geojson');
@@ -51,7 +55,7 @@ try {
   await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
-  await planner.getByText(/100 km/).first().waitFor();
+  await planner.getByText(/Percurso rodoviário calculado com suas paradas/).first().waitFor();
   await page.locator('.fuel-station-marker').first().click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByText('Ainda não há preços informados para este posto.').waitFor();
@@ -122,7 +126,7 @@ try {
   await planner.waitFor({ state: 'hidden' });
   const trips = await page.evaluate(() => JSON.parse(localStorage.getItem('rdv_trips_v1') || '[]'));
   const saved = trips.find((trip: any) => trip.fuelPriceSource?.stationId === 'osm:node:123');
-  assert.equal(saved.distanceKm, 100); assert.equal(saved.isCircular, true); assert.equal(saved.fuelPricePerLiter, 5.899);
+  assert.ok(saved.distanceKm > 0); assert.equal(saved.routingSource, 'OSRM'); assert.equal(saved.isCircular, true); assert.equal(saved.fuelPricePerLiter, 5.899);
   await page.getByRole('button', { name: 'Comboio', exact: true }).first().click();
   await page.getByText('Comboio local de demonstração: a sincronização entre celulares ainda não está disponível.').waitFor();
   await page.getByRole('button', { name: 'Compartilhar Localização', exact: true }).click();
