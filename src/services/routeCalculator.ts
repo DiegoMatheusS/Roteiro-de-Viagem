@@ -426,7 +426,7 @@ export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: 
     stops: presetTrip.stops,
     weatherPoints: presetTrip.weatherPoints,
     capacityWarning,
-    explanation: 'Roteiro ilustrativo do passeio selecionado. Distância e tempo preservados.'
+    explanation: presetTrip.routingSource ? 'Percurso rodoviário com a sequência de paradas escolhida por você.' : 'Roteiro ilustrativo do passeio selecionado. Distância e tempo preservados.'
   }];
 }
 
@@ -444,6 +444,13 @@ export function buildPlannedTrip(input: RoutePlanningInput, option: RouteOptionC
     distanceKm: option.distanceKm,
     durationMinutes: option.durationMinutes,
     vehicleId: input.vehicle.id,
+    manualStops: presetTrip?.manualStops,
+    acceptedSuggestions: presetTrip?.acceptedSuggestions,
+    planningLimits: presetTrip?.planningLimits,
+    waypointOrder: presetTrip?.waypointOrder,
+    routingSource: presetTrip?.routingSource,
+    tollsStatus: presetTrip?.tollsStatus,
+    routeWarnings: presetTrip?.routeWarnings,
     routePath: option.routePath,
     stops: option.stops,
     weatherPoints: option.weatherPoints,

@@ -13,12 +13,11 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:ui": "node --import tsx tests/ui-smoke.ts"
+    "test:ui": "node --import tsx tests/ui-smoke.ts",
+    "admin": "node --import tsx server/moderator.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@tesseract.js-data/eng": "^1.0.0",
     "@vitejs/plugin-react": "^6.1.1",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.2.3",
@@ -31,7 +30,6 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "sharp": "^0.35.5",
-    "tesseract.js": "^7.0.0",
     "tsx": "^4.21.0",
     "tz-lookup": "^6.1.25",
     "vite": "^8.3.0"

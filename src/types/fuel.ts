@@ -10,13 +10,13 @@ export const FUEL_OPTIONS = [
 ] as const;
 
 export type FuelKind = typeof FUEL_OPTIONS[number]['id'];
-export type FuelUser = { id: string; displayName: string; role: 'user' | 'moderator' };
+export type FuelUser = { id: string; displayName: string; role: 'user' | 'admin' };
 export type PriceDraft = { fuelType: FuelKind; price: number; customLabel?: string };
 export interface FuelPrice extends PriceDraft {
   id: string;
   observedAt: string;
   publishedAt: string;
-  source: 'manual' | 'photo';
+  source: 'manual' | 'photo' | 'admin';
   photoId?: string;
   confirmations: number;
   contests: number;

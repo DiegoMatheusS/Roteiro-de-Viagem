@@ -4,6 +4,9 @@ import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality
 import { Layers, Mountain, Eye, Sparkles } from 'lucide-react';
 import { useFuelStations } from '../hooks/useFuelStations';
 import { FuelStationModal } from './FuelStationModal';
+import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
+import { PlaceModal } from './PlaceModal';
+import { PLACE_KINDS, type Place } from '../types/admin';
 
 export type MapStyleType = 'voyager' | 'satellite' | 'topo' | 'osm';
 
@@ -94,7 +97,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuel = useFuelStations(routePath.length ? routePath : [originCoords], showFuelStations);
+  const places = useNearbyPlaces(routePath.length ? routePath : [originCoords], showFuelStations);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('voyager');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
@@ -108,6 +113,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       center: originCoords,
       zoom: 11,
       zoomControl: false,
+      zoomAnimation: false,
+      fadeAnimation: false,
       attributionControl: true
     });
 
@@ -138,12 +145,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     });
     resizeObserver.observe(mapContainerRef.current);
 
-    setTimeout(() => {
+    const resizeTimer = setTimeout(() => {
       map.invalidateSize();
     }, 200);
 
     return () => {
+      clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      map.stop();
       map.remove();
       mapInstanceRef.current = null;
     };
@@ -167,8 +176,23 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => setSelectedStation(station.id));
+      marker.on('keypress', event => {
+        const original = (event as L.LeafletKeyboardEvent).originalEvent;
+        if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedStation(station.id); }
+      });
     }
-  }, [fuel.stations]);
+    for (const place of places) {
+      const emoji = PLACE_KINDS.find(kind => kind.id === place.kind)?.icon || '📍';
+      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:white;border:2px solid #ea580c;border-radius:50%;padding:5px;font-size:18px">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
+      const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
+      marker.bindTooltip(tooltip); marker.on('click', () => setSelectedPlace(place));
+      marker.on('keypress', event => {
+        const original = (event as L.LeafletKeyboardEvent).originalEvent;
+        if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
+      });
+    }
+  }, [fuel.stations, places]);
 
   // Switch map tiles when user changes style
   useEffect(() => {
@@ -190,9 +214,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     newTileLayer.bringToBack();
     currentTileLayerRef.current = newTileLayer;
 
-    setTimeout(() => {
-      map.invalidateSize();
+    const timer = setTimeout(() => {
+      if (mapInstanceRef.current === map) map.invalidateSize();
     }, 100);
+    return () => clearTimeout(timer);
   }, [currentStyle]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
@@ -321,7 +346,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 4. Scenic Stops Markers
     if (stops && stops.length > 0) {
-      stops.filter(stop => stop.category !== 'posto').forEach((stop, index) => {
+      stops.filter(stop => stop.category !== 'posto' || Boolean(stop.type)).forEach((stop, index) => {
         let emoji = '📍';
         let color = '#d97706';
         if (stop.category === 'mirante') { emoji = '🌄'; color = '#059669'; }
@@ -358,6 +383,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         });
 
         const m = L.marker([stop.lat, stop.lng], { icon: stopIcon }).addTo(group);
+        if (stop.category === 'posto' && stop.sourceUrl) {
+          const reference = stop.sourceUrl.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/);
+          if (reference) m.on('click', () => setSelectedStation(`osm:${reference[1]}:${reference[2]}`));
+        }
         m.bindPopup(`
           <div style="font-family: system-ui; max-width: 220px;">
             <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px;">${escapeHtml(stop.name)}</div>
@@ -423,7 +452,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               white-space: nowrap;
             ">
               <span>${catIcon}</span>
-              <span>${mp.title}</span>
+              <span>${escapeHtml(mp.title)}</span>
               <span style="background: rgba(255,255,255,0.25); padding: 1px 4px; border-radius: 6px; font-size: 9px;">${arrivedCount} no local</span>
             </div>
           `,
@@ -524,7 +553,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       map.fitBounds(bounds as L.LatLngBoundsExpression, {
         padding: [60, 60],
         maxZoom: 13,
-        animate: true
+        animate: false
       });
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 12);
@@ -549,6 +578,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       <div ref={mapContainerRef} className="w-full h-full" />
       {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}
       {fuel.error && <div className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-amber-50 rounded-xl p-2 shadow">{fuel.error}<button type="button" onClick={fuel.retry} className="ml-2 font-bold">Tentar novamente</button></div>}
+      {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
       {selectedStation && <FuelStationModal stationId={selectedStation} onClose={() => setSelectedStation(null)} />}
 
       {/* MAP STYLE SWITCHER CONTROL (Requirement: Colorido, Satélite, Relevo) */}

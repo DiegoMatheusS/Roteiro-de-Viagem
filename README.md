@@ -13,21 +13,39 @@ npm run dev
 
 Abra `http://localhost:3000`. O comando inicia o frontend e a API na porta 3001. O banco SQLite é criado automaticamente em `data/roteiro.sqlite`. Contas, sessões, postos reais, preços, votos, denúncias, ações de moderação e conteúdo das fotografias ficam no banco. O diretório `data/` é privado e não entra no Git.
 
-O OCR usa Tesseract local e um modelo distribuído nas dependências. **Não precisa de chave do Gemini ou OpenAI.** A primeira leitura pode levar alguns segundos.
+**Os preços são conferidos manualmente pelo administrador. Não há Gemini, OCR, reconhecimento de texto ou serviços pagos de leitura de imagens.**
 
 ## Como contribuir
 
 1. Abra o mapa e toque no ícone de um posto real.
 2. Confira preços, tipo de combustível, data de observação, origem, confiabilidade e horário conhecido.
 3. Entre na conta ou cadastre uma conta para informar um preço, enviar foto, confirmar, contestar ou denunciar.
-4. Ao enviar foto, confira e corrija os valores lidos. A publicação exige o botão **Confirmar e publicar**.
+4. Use **Enviar foto dos preços**, tire uma foto ou escolha da galeria, informe a data da fotografia e confirme que ela corresponde ao posto selecionado. A mensagem **Foto enviada para análise** confirma o envio; nenhum valor é identificado automaticamente.
 5. Fotos ficam privadas até aprovação da moderação. Elas são reprocessadas sem EXIF, GPS ou nome original. O dono pode remover suas fotos.
 
-Nunca há preços pré-cadastrados ou inferidos quando a informação não existe. A ausência aparece como **sem preço informado**. Preços observados há mais de 72 horas continuam visíveis como **desatualizados**, mas não entram na comparação. Valores incompatíveis com a faixa de validação ou com contribuições recentes aguardam moderação.
+Nunca há preços pré-cadastrados ou inferidos quando a informação não existe. A ausência aparece como **sem preço informado**. Preços observados há mais de 72 horas continuam visíveis como **desatualizados**, mas não entram na comparação. Todas as novas contribuições de preço aguardam aprovação administrativa. Valores ausentes nunca são preenchidos; preços anteriores aprovados permanecem até a aprovação de novos valores.
 
 A confiabilidade considera idade da observação, confirmações, contestações e histórico de contribuições confirmadas. Cada conta pode ter um voto por preço e não pode confirmar o próprio preço. Há limites por usuário/IP, intervalo entre contribuições iguais, limite diário e fila de denúncias.
 
 Fotografe e use os controles somente com o veículo parado. Evite imagens com rostos, placas de veículos e dados pessoais.
+
+## Paradas manuais no Início
+
+Os campos **Origem**, **Destino** e **+ Adicionar parada** ficam na tela Início, sem nova aba. Pesquise explicitamente cidades, endereços, restaurantes, postos e atrações e selecione um resultado real. Alterar o texto invalida a localização anterior. O GPS também pode definir a origem.
+
+Até 12 paradas obrigatórias podem ser adicionadas entre origem e destino, com tempo opcional de permanência (0 a 1440 minutos). Arraste o controle ☰ pelo mouse/toque ou use as setas para mudar a sequência; edite ou remova apenas os itens que desejar. Inverter origem/destino também inverte a ordem das paradas.
+
+Nos modos **Por Km**, **Por Horas** e **Com Destino**, paradas escolhidas ou destino explícito acionam cálculo rodoviário no OSRM, com todos os pontos na ordem escolhida. O tempo total inclui deslocamento e permanência. O combustível e o orçamento acompanham a distância calculada. Limites incompatíveis geram aviso e exigem confirmação para continuar acima do limite; o aplicativo nunca elimina paradas para ajustar o orçamento. Um percurso menor que o alvo de km informa o espaço disponível para ampliar o passeio.
+
+Depois de gerar o roteiro, é possível adicionar, editar, ordenar e remover paradas na mesma tela de planejamento. O cálculo é atualizado com debounce/cancelamento de resultados anteriores. Salvar, iniciar e compartilhar ficam indisponíveis enquanto o cálculo estiver pendente ou inválido. Falhas dos provedores são exibidas, sem substituir a distância por uma estimativa em linha reta.
+
+Sugestões reais são apresentadas separadamente, a partir dos estabelecimentos cadastrados próximos ao percurso. Elas só entram na rota quando aceitas e podem ser descartadas/removidas. A inserção não reordena nem exclui as paradas obrigatórias. A estrutura mantém essa separação para uma futura integração de IA; **esta versão não chama serviços de IA para sugerir atrações**.
+
+A busca usa [Photon](https://github.com/komoot/photon/blob/master/docs/api-v1.md), com cache de 24 horas, consulta explícita, limites por IP e no máximo uma solicitação externa por segundo/instância. O serviço público é demonstrativo e pode limitar consultas; configure uma instância apropriada em `GEOCODING_URL` para maior volume. O roteamento usa [OSRM](https://project-osrm.org/docs/v5.24.0/api/#route-service), sem trânsito em tempo real. Esses provedores **não retornam tarifas de pedágio**: rotas rodoviárias mostram o valor como indisponível e identificam o orçamento como parcial, sem cobrar um valor inventado.
+
+Salvar conserva identidades, ordem, permanências, obrigatórias/sugestões aceitas, limites e pontos rodoviários. Em **Compartilhar Rota**, escolha a proteção de origem e use **Gerar link do roteiro**. O link armazenado no banco abre em outros dispositivos sem login, preserva todas as paradas e dura 90 dias. A proteção aproxima a origem e oculta pontos do desenho a menos de 2 km dela; paradas no próprio ponto de partida também são aproximadas. As demais paradas escolhidas são compartilhadas. O link não inclui contas, veículos, participantes ou localização ao vivo. Links vinculados à conta são removidos quando o administrador exclui a conta.
+
+O motor ilustrativo anterior continua disponível para passeios sem paradas/destino definidos, com o aviso de demonstração já existente. Não há geração artificial de distância para encaixar paradas obrigatórias no alvo.
 
 ## Comparar postos e calcular custos
 
@@ -37,17 +55,29 @@ O comparador usa postos do OpenStreetMap/Overpass e distâncias rodoviárias do 
 
 A consulta é limitada a oito postos com preços recentes por comparação, e a tela informa candidatos não consultados e desvios indisponíveis. Não há substituição por distância em linha reta quando a API de roteamento falha. **Usar preço no cálculo da viagem** atualiza o orçamento e guarda o posto, a contribuição e a data usados. Sem preço escolhido ou informado, o orçamento é identificado como parcial.
 
-## Moderação
+## Painel administrativo web
 
-Crie primeiro a conta do moderador pelo aplicativo. Depois, no terminal do servidor:
+Acesse `/admin` no mesmo endereço do aplicativo, pelo computador ou celular. A área tem páginas para **Preços de combustíveis**, estabelecimentos/unidades, usuários, comentários, denúncias e histórico de ações. O frontend do administrador é carregado separadamente do aplicativo. Cada API administrativa verifica a sessão e a permissão no servidor.
+
+Cadastre sua conta pelo aplicativo e, no terminal do servidor, autorize-a:
 
 ```bash
-npm run moderator -- email-da-conta
+npm run admin -- email-da-conta
 ```
 
-Entre novamente ou atualize a página. O botão **Moderação** abre fotos pendentes, preços incompatíveis e denúncias. Revisores podem aprovar/rejeitar e registrar uma nota. Fotos só devem ser aprovadas quando os preços estiverem legíveis e não houver dados pessoais expostos. Denunciar uma foto a torna privada novamente até revisão. Na ficha do posto, o moderador também pode registrar um horário confirmado diretamente com o estabelecimento.
+Entre novamente ou atualize a página. Cadastros públicos não recebem privilégios; não existe senha administrativa padrão. O comando antigo `npm run moderator` continua como alias. Contas antigas de moderador são migradas para administrador.
 
-Cadastros públicos nunca recebem permissão de moderador automaticamente. Sessões usam cookies HttpOnly e as senhas ficam protegidas por scrypt. A API valida identidade, limites, valores, datas, origem das solicitações e permissão em cada alteração.
+A fila de fotos mostra as mais recentes primeiro, com posto, endereço, autor, data de envio, data da fotografia e histórico de valores. Confira a imagem e preencha apenas os preços legíveis. **Aprovar e publicar** registra os valores e o revisor em uma transação; **Rejeitar** e **Solicitar nova foto** registram o motivo. O viajante acompanha o estado e o motivo em **Minhas fotos neste posto**. Aprovar uma foto não reconhece nem preenche preços automaticamente. Fotos denunciadas voltam a ficar privadas até revisão.
+
+É possível corrigir preços pelo cadastro do posto: cada alteração cria uma atualização ligada ao valor anterior, preservando o histórico. Preços antigos publicados automaticamente na versão anterior e sem aprovação registrada retornam à fila de revisão na migração. Valores que já tinham aprovação administrativa permanecem publicados.
+
+Cada unidade é vinculada a um ponto real do OpenStreetMap. Cole seu link para cadastrar; a API de mapas verifica a existência e a categoria. O administrador pode editar nome, endereço, descrição, telefone/site do estabelecimento, estado ativo e horário confirmado. Excluir um estabelecimento o retira do mapa e das comparações, mas preserva o histórico; a atualização do provedor não o reativa. Use **Editar** para reativar um cadastro. Restaurantes e outras atrações ativas aparecem como marcadores no mapa do aplicativo.
+
+Comentários de estabelecimentos são armazenados no servidor e aguardam aprovação. O painel permite aprovar, rejeitar ou excluir, e viajantes podem denunciar comentários publicados. Avaliações privadas de viagens antigas no navegador continuam separadas.
+
+O administrador pode bloquear/desbloquear ou excluir contas. Bloqueio e exclusão revogam sessões; exclusão remove fotos, votos e conteúdo de comentários, elimina nome/e-mail/senha e mantém preços aprovados no histórico sem identificação pessoal. Sua própria conta e o último administrador ativo são protegidos. Exclusões exigem confirmação na interface e no servidor. As ações ficam na auditoria.
+
+Fotos têm limite de envio de 8 MB/24 MP, são redimensionadas até 1600 px e comprimidas em JPEG sem EXIF/GPS/nome original (máximo de 1 MB armazenado). Há limite de 3 tentativas por 10 minutos e 10 fotos por dia por conta, além de bloqueio de duplicatas recentes. Filas são paginadas em 20 registros, indexadas, e não carregam os bytes da imagem até sua visualização. Fotografe somente com o veículo parado e não publique dados pessoais.
 
 ## Configuração e execução em servidor
 
@@ -70,7 +100,7 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-O GitHub Actions executa tipos, regressões, OCR real, build e fluxo mobile. Os testes de interface usam provedores de mapas controlados **apenas dentro dos testes**, sem inserir postos fictícios no aplicativo real.
+O GitHub Actions executa tipos, regressões de permissões/moderação, build e fluxos mobile e administrativo no navegador, incluindo paradas reais, arrastar/recalcular, salvar e compartilhar entre páginas. Os testes de interface usam provedores de mapas controlados **apenas dentro dos testes**, sem inserir postos fictícios no aplicativo real.
 
 ## Limites atuais do restante do aplicativo
 

@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Fuel, Search } from 'lucide-react';
 import type { Vehicle } from '../types';
 import { FUEL_OPTIONS, type AppliedFuelPrice, type FuelKind, type FuelComparisonResult } from '../types/fuel';
+import { sampleRoutePath } from '../types/itinerary';
 import { fuelApi } from '../services/fuelApi';
 import { FuelStationModal } from './FuelStationModal';
 
 const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export function FuelComparisonPanel({ vehicle, routePath, onApply }: { vehicle: Vehicle; routePath: [number, number][]; onApply: (price: AppliedFuelPrice) => void }) {
+export function FuelComparisonPanel({ vehicle, routePath, routeWaypoints, onApply }: { vehicle: Vehicle; routePath: [number, number][]; routeWaypoints?: [number, number][]; onApply: (price: AppliedFuelPrice) => void }) {
   const [open, setOpen] = useState(false);
   const [fuelType, setFuelType] = useState<FuelKind>(vehicle.fuelType === 'etanol' ? 'etanol' : vehicle.fuelType === 'diesel' ? 'diesel_s10' : 'gasolina_comum');
   const [remaining, setRemaining] = useState('');
@@ -19,11 +20,12 @@ export function FuelComparisonPanel({ vehicle, routePath, onApply }: { vehicle: 
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
   const [departureAt, setDepartureAt] = useState('');
+  useEffect(() => { setResult(null); setApplied(null); }, [JSON.stringify(routePath)]);
   const compatible = FUEL_OPTIONS.filter(fuel => vehicle.fuelType === 'diesel' ? ['diesel_comum', 'diesel_s10'].includes(fuel.id) : vehicle.fuelType === 'etanol' ? fuel.id === 'etanol' : vehicle.fuelType === 'flex' ? ['gasolina_comum', 'gasolina_aditivada', 'etanol'].includes(fuel.id) : ['gasolina_comum', 'gasolina_aditivada'].includes(fuel.id));
   const compare = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(''); setResult(null); setApplied(null);
     try {
-      const value = await fuelApi<FuelComparisonResult>('/fuel/compare', { method: 'POST', body: JSON.stringify({ routePath, fuelType, consumptionKmPerLiter: Number(consumption), remainingFuelLiters: Number(remaining), litersToBuy: Number(liters), tankCapacityLiters: vehicle.tankCapacityLiters, departureAt: departureAt ? new Date(departureAt).toISOString() : undefined }) });
+      const value = await fuelApi<FuelComparisonResult>('/fuel/compare', { method: 'POST', body: JSON.stringify({ routePath: routeWaypoints || sampleRoutePath(routePath), fuelType, consumptionKmPerLiter: Number(consumption), remainingFuelLiters: Number(remaining), litersToBuy: Number(liters), tankCapacityLiters: vehicle.tankCapacityLiters, departureAt: departureAt ? new Date(departureAt).toISOString() : undefined }) });
       setResult(value);
     } catch (error) { setError((error as Error).message); } finally { setBusy(false); }
   };

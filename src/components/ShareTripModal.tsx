@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { TripPlan, Vehicle } from '../types';
+import { fuelApi } from '../services/fuelApi';
+import { sampleRoutePath } from '../types/itinerary';
 import { convoyService } from '../services/convoyService';
 import { 
   Share2, 
@@ -36,6 +38,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
   const [selectedMode, setSelectedMode] = useState<'menu' | 'share_route' | 'create_convoy'>('menu');
   const [copiedLink, setCopiedLink] = useState(false);
   const [sanitizeHome, setSanitizeHome] = useState(true);
+  const [shareUrl, setShareUrl] = useState(''), [shareError, setShareError] = useState(''), [shareBusy, setShareBusy] = useState(false);
 
   // Convoy creation form
   const [convoyTitle, setConvoyTitle] = useState(`Comboio: ${trip.title}`);
@@ -44,13 +47,19 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
 
   if (!isOpen) return null;
 
-  const payload = convoyService.generateRouteSharePayload(trip, sanitizeHome);
+  const payload = convoyService.generateRouteSharePayload(trip, sanitizeHome, shareUrl);
   const whatsAppUrl = convoyService.getWhatsAppShareUrl(payload);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(payload.shareableUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+  const generateLink = async () => {
+    setShareBusy(true); setShareError('');
+    try {
+      const result = await fuelApi<{ id: string }>('/routes/share', { method: 'POST', body: JSON.stringify({ protectOrigin: sanitizeHome, trip: { title: trip.title, originName: trip.originName, destinationName: trip.destinationName, originCoords: trip.originCoords, destinationCoords: trip.destinationCoords, routePath: sampleRoutePath(trip.routePath, 400), distanceKm: trip.distanceKm, durationMinutes: trip.durationMinutes, stops: trip.stops, routingSource: trip.routingSource } }) });
+      setShareUrl(`${window.location.origin}/#roteiro=${result.id}`);
+    } catch (error) { setShareError((error as Error).message); } finally { setShareBusy(false); }
+  };
+  const handleCopyLink = async () => {
+    try { await navigator.clipboard.writeText(shareUrl); setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2500); }
+    catch { setShareError('Não foi possível copiar. Selecione e copie o link exibido.'); }
   };
 
   const handleCreateConvoy = () => {
@@ -82,7 +91,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Compartilhar viagem" className="fixed inset-0 z-60 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in">
       <div className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
@@ -102,6 +111,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
             </h3>
           </div>
           <button 
+            aria-label="Fechar compartilhamento"
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition-colors"
           >
@@ -186,7 +196,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
                 <div className="flex items-center gap-4 text-xs text-slate-600 pt-2 border-t border-slate-200">
                   <span>Distância: <strong className="text-slate-900">{trip.distanceKm} km</strong></span>
                   <span>·</span>
-                  <span>Duração: <strong className="text-slate-900">{Math.round(trip.durationMinutes / 60)}h</strong></span>
+                  <span>Duração: <strong className="text-slate-900">{Math.floor(trip.durationMinutes / 60)}h{trip.durationMinutes % 60}min</strong></span>
                   <span>·</span>
                   <span>Paradas: <strong className="text-slate-900">{trip.stops.length}</strong></span>
                 </div>
@@ -197,19 +207,23 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
                 <input 
                   type="checkbox" 
                   checked={sanitizeHome}
-                  onChange={(e) => setSanitizeHome(e.target.checked)}
+                  onChange={(e) => { setSanitizeHome(e.target.checked); setShareUrl(''); }}
                   className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
                 />
                 <div className="text-xs text-slate-700">
                   <span className="font-semibold block text-emerald-950">Proteger endereço residencial</span>
-                  Se a rota começar em casa, exibe apenas a cidade e região pública, sem revelar seu endereço exato.
+                  Aproxima a origem e oculta o trecho inicial próximo a ela. As demais paradas escolhidas serão compartilhadas.
                 </div>
               </label>
 
+              {shareError && <p role="alert" className="text-xs text-rose-700">{shareError}</p>}
+              <button disabled={shareBusy} onClick={generateLink} className="w-full py-3 border rounded-xl text-emerald-700 text-xs font-bold">{shareBusy ? 'Gerando link...' : shareUrl ? 'Gerar novo link do roteiro' : 'Gerar link do roteiro'}</button>
+              {shareUrl && <label className="block text-xs text-slate-500">Link válido por 90 dias<input aria-label="Link do roteiro" readOnly value={shareUrl} className="w-full border rounded-xl p-3 mt-1" /></label>}
               {/* Action Buttons */}
               <div className="space-y-3 pt-2">
                 <a
-                  href={whatsAppUrl}
+                  href={shareUrl ? whatsAppUrl : undefined}
+                  aria-disabled={!shareUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
@@ -219,6 +233,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
                 </a>
 
                 <button
+                  disabled={!shareUrl || shareBusy}
                   onClick={handleCopyLink}
                   className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
                 >
@@ -228,7 +243,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
               </div>
 
               <div className="text-[11px] text-slate-400 text-center leading-normal">
-                Quem abrir o link poderá visualizar todas as paradas e salvar o roteiro em sua própria conta. Nenhuma localização pessoal é transmitida.
+                Quem abrir o link poderá visualizar o percurso e todas as paradas escolhidas. O compartilhamento não transmite localização ao vivo.
               </div>
             </div>
           )}
