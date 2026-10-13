@@ -8,7 +8,7 @@ export async function calculateItinerary(trip: TripPlan, manualStops: MandatoryS
     roundTrip: trip.isCircular, manualStops: manualStops.map(stop => ({ id: stop.id, locationId: stop.location.id, stayMinutes: stop.stayMinutes })),
     acceptedSuggestions: acceptedSuggestions.map(stop => ({ id: stop.id, locationId: stop.location.id, stayMinutes: stop.stayMinutes, afterIndex: stop.afterIndex })), limits: trip.planningLimits || { mode: 'destination' } }) });
 }
-const category = (value?: string): RouteStop['category'] => ({ fuel: 'posto', restaurant: 'restaurante', cafe: 'restaurante', hotel: 'hotel', viewpoint: 'mirante', park: 'parque', museum: 'museu', city: 'cidade', town: 'cidade' } as Record<string, RouteStop['category']>)[value || ''] || 'endereco';
+const category = (value?: string): RouteStop['category'] => ({ fuel: 'posto', restaurant: 'restaurante', cafe: 'restaurante', hotel: 'hotel', viewpoint: 'mirante', park: 'parque', museum: 'museu', city: 'cidade', town: 'cidade', mirante: 'mirante', restaurante: 'restaurante', museu: 'museu', parque: 'parque', monumento: 'monumento', cidade_historica: 'cidade_historica' } as Record<string, RouteStop['category']>)[value || ''] || 'endereco';
 export function applyItinerary(trip: TripPlan, result: ItineraryResult): TripPlan {
   const stops: RouteStop[] = [];
   const append = (stop: MandatoryStop | SuggestedStop, type: 'mandatory' | 'suggested') => stops.push({ id: stop.id, name: stop.location.name, category: category(stop.location.category), lat: stop.location.coords![0], lng: stop.location.coords![1], description: stop.location.address || '', recommendedMinutes: stop.stayMinutes, type, sourceUrl: stop.location.sourceUrl });
