@@ -419,14 +419,14 @@ export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: 
     stopsCount: presetTrip.stops.length,
     fuelLiters, fuelCost, tollsCost, totalFoodCost, totalCost,
     costPerPerson: input.splitExpenses ? Number((totalCost / Math.max(1, input.peopleCount)).toFixed(2)) : totalCost,
-    scenicQualityStars: 4,
+    scenicQualityStars: presetTrip.routingSource === 'OSRM' ? 0 : 4,
     hasRainRisk: presetTrip.hasRainRisk,
-    weatherSummary: 'Previsão de exemplo; consulte dados atualizados antes de sair.',
+    weatherSummary: presetTrip.routingSource === 'OSRM' ? 'Clima ainda não integrado; consulte a previsão antes de sair.' : 'Previsão de exemplo; consulte dados atualizados antes de sair.',
     routePath: presetTrip.routePath,
     stops: presetTrip.stops,
     weatherPoints: presetTrip.weatherPoints,
     capacityWarning,
-    explanation: presetTrip.routingSource ? 'Percurso rodoviário com a sequência de paradas escolhida por você.' : 'Roteiro ilustrativo do passeio selecionado. Distância e tempo preservados.'
+    explanation: presetTrip.routingSource ? 'Percurso calculado por vias reais com paradas verificáveis. A distância e a duração podem variar da preferência inicial.' : 'Roteiro ilustrativo do passeio selecionado. Distância e tempo preservados.'
   }];
 }
 
