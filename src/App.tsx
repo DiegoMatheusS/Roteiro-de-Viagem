@@ -24,8 +24,14 @@ import { ShareTripModal } from './components/ShareTripModal';
 import { ConvoyScreen } from './components/ConvoyScreen';
 import { ActiveTripModal } from './components/ActiveTripModal';
 import { SosModal } from './components/SosModal';
+import { useTripTracking } from './hooks/useTripTracking';
+import { getCurrentDeviceLocation } from './services/locationService';
+import { useAuth } from './contexts/AuthContext';
+import { FuelModerationPanel } from './components/FuelModerationPanel';
 
 export default function App() {
+  const auth = useAuth();
+  const [isModerationOpen, setIsModerationOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<MainTabType>('inicio');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
@@ -39,11 +45,16 @@ export default function App() {
   const [planningOrigin, setPlanningOrigin] = useState('São Paulo - SP (Centro)');
   const [planningDestination, setPlanningDestination] = useState('Campos do Jordão - SP');
   const [planningDestinationCoords, setPlanningDestinationCoords] = useState<[number, number]>([-22.7394, -45.5914]);
+  const [planningOriginCoords, setPlanningOriginCoords] = useState<[number, number]>([-23.5505, -46.6333]);
+  const [planningTrip, setPlanningTrip] = useState<TripPlan | undefined>();
 
   const [shareTripTarget, setShareTripTarget] = useState<TripPlan | null>(null);
   const [activeTrip, setActiveTrip] = useState<TripPlan | null>(null);
   const [activeConvoyId, setActiveConvoyId] = useState<string | null>(null);
   const [isSosOpen, setIsSosOpen] = useState(false);
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [appError, setAppError] = useState<string | null>(null);
+  const tracking = useTripTracking(activeTrip?.id);
 
   // Initialize data on mount
   useEffect(() => {
@@ -55,7 +66,9 @@ export default function App() {
     setFuelLogs(storageService.getFuelLogs());
     setAchievements(storageService.getAchievements());
     setTrips(storageService.getTrips());
-    setActiveTrip(storageService.getActiveTrip());
+    const loadedActiveTrip = storageService.getActiveTrip();
+    setActiveTrip(loadedActiveTrip);
+    setIsNavigationOpen(!!loadedActiveTrip);
     const activeConv = convoyService.getActiveConvoy();
     if (activeConv) setActiveConvoyId(activeConv.id);
   }, []);
@@ -91,19 +104,31 @@ export default function App() {
   };
 
   // Open Route Planning Modal
-  const handleOpenRoutePlanner = (origin: string, dest: string, coords?: [number, number]) => {
+  const handleOpenRoutePlanner = (origin: string, dest: string, coords?: [number, number], originCoords?: [number, number]) => {
+    if (!coords || !originCoords) {
+      setAppError('Escolha pontos com localização conhecida para planejar esta rota. A busca de endereços ainda não está disponível.');
+      return;
+    }
     setPlanningOrigin(origin);
     setPlanningDestination(dest);
-    if (coords) setPlanningDestinationCoords(coords);
+    setPlanningDestinationCoords(coords);
+    setPlanningOriginCoords(originCoords);
+    setPlanningTrip(undefined);
+    setIsNavigationOpen(false);
+    setAppError(null);
     setIsPlanningOpen(true);
   };
 
   // Start a trip
   const handleStartTrip = (trip: TripPlan) => {
     setIsPlanningOpen(false);
-    storageService.saveTrip(trip);
-    storageService.setActiveTrip(trip);
-    setActiveTrip(trip);
+    const startedTrip: TripPlan = trip.status === 'completed'
+      ? { ...trip, id: `trip-${Date.now()}`, status: 'in_progress', createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
+      : { ...trip, status: 'in_progress' };
+    storageService.saveTrip(startedTrip);
+    storageService.setActiveTrip(startedTrip);
+    setActiveTrip(startedTrip);
+    setIsNavigationOpen(true);
     setTrips(storageService.getTrips());
   };
 
@@ -123,6 +148,7 @@ export default function App() {
     setVehicles(storageService.getVehicles());
     setTrips(storageService.getTrips());
     setActiveTrip(null);
+    setIsNavigationOpen(false);
     return {
       newAchievements: res.newAchievementsUnlocked,
       leveledUp: false
@@ -152,21 +178,35 @@ export default function App() {
       dest = 'Passeio Surpresa: Rota das Curvas & Mirantes';
     }
 
-    handleOpenRoutePlanner(origin, dest, coords);
+    handleOpenRoutePlanner(origin, dest, coords, [-23.5505, -46.6333]);
   };
 
   // Return home action ("Quero voltar pra casa" - Requirement #11)
-  const handleReturnHome = () => {
-    const home = profile.homeAddress || 'Av. Paulista, 1578 - São Paulo - SP';
-    handleOpenRoutePlanner(
-      'Sua Localização Atual',
-      `Casa (${home})`,
-      profile.homeCoordinates || [-23.5614, -46.6559]
-    );
+  const handleReturnHome = async () => {
+    if (!profile.homeCoordinates || !profile.homeAddress) {
+      setAppError('Cadastre o endereço e a localização da sua casa antes de calcular o retorno.');
+      return;
+    }
+    try {
+      const position = await getCurrentDeviceLocation();
+      handleOpenRoutePlanner('Sua Localização Atual', `Casa (${profile.homeAddress})`, profile.homeCoordinates, position.coords);
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+      <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
+        {auth.user ? <><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'moderator' && <button onClick={() => setIsModerationOpen(true)} className="font-bold text-emerald-700">Moderação</button>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
+      </div>
+      {isModerationOpen && auth.user?.role === 'moderator' && <FuelModerationPanel onClose={() => setIsModerationOpen(false)} />}
+      {appError && (
+        <div role="alert" className="fixed top-3 left-3 right-3 z-70 mx-auto max-w-xl p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-3 shadow-lg">
+          <span className="flex-1">{appError}</span>
+          <button aria-label="Fechar aviso" onClick={() => setAppError(null)}>✕</button>
+        </div>
+      )}
       {/* If Convoy Screen is active, display Convoy view with full screen */}
       {activeConvoyId ? (
         <ConvoyScreen 
@@ -190,19 +230,20 @@ export default function App() {
                 onSelectVehicle={handleSelectVehicle}
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onLaunchTouristCircuit={(circuitTrip) => {
-                  storageService.saveTrip(circuitTrip);
-                  setTrips(storageService.getTrips());
                   setPlanningOrigin(circuitTrip.originName);
-                  setPlanningDestination(circuitTrip.title);
+                  setPlanningOriginCoords(circuitTrip.originCoords);
+                  setPlanningDestination(circuitTrip.destinationName);
                   setPlanningDestinationCoords(circuitTrip.destinationCoords);
+                  setPlanningTrip(circuitTrip);
+                  setIsNavigationOpen(false);
                   setIsPlanningOpen(true);
                 }}
                 onOpenConvoyList={() => {
-                  const firstConv = convoyService.getConvoys()[0];
+                  const firstConv = convoyService.getActiveConvoy() || convoyService.getConvoys().find(c => c.status === 'active' && c.participants.some(p => p.id === profile.id));
                   if (firstConv) setActiveConvoyId(firstConv.id);
                 }}
                 onNavigateToMapTab={() => setActiveTab('mapa')}
-                activeConvoyId={activeConvoyId}
+                activeConvoyId={convoyService.getActiveConvoy()?.id}
               />
             )}
 
@@ -255,7 +296,8 @@ export default function App() {
                   handleOpenRoutePlanner(
                     'São Paulo - SP',
                     'Campos do Jordão (Rota Comunitária)',
-                    [-22.7394, -45.5914]
+                    [-22.7394, -45.5914],
+                    [-23.5505, -46.6333]
                   );
                 }}
               />
@@ -331,6 +373,8 @@ export default function App() {
           origin={planningOrigin}
           destination={planningDestination}
           destinationCoords={planningDestinationCoords}
+          originCoords={planningOriginCoords}
+          presetTrip={planningTrip}
           vehicle={currentVehicle}
           isOpen={isPlanningOpen}
           onClose={() => setIsPlanningOpen(false)}
@@ -357,12 +401,13 @@ export default function App() {
       )}
 
       {/* ACTIVE TRIP NAVIGATION HUD */}
-      {activeTrip && currentVehicle && (
+      {activeTrip && currentVehicle && isNavigationOpen && !activeConvoyId && (
         <ActiveTripModal
           trip={activeTrip}
-          vehicle={currentVehicle}
+          vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
+          tracking={tracking}
           isOpen={!!activeTrip}
-          onClose={() => setActiveTrip(null)}
+          onClose={() => setIsNavigationOpen(false)}
           onCompleteTrip={handleCompleteTrip}
           onOpenSos={() => setIsSosOpen(true)}
           onReturnHome={handleReturnHome}

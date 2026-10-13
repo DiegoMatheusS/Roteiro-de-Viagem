@@ -27,7 +27,7 @@ interface MapTabProps {
   currentVehicle: Vehicle | null;
   activeTrip: TripPlan | null;
   activeConvoyId?: string | null;
-  onOpenRoutePlanner: (origin: string, dest: string, coords?: [number, number]) => void;
+  onOpenRoutePlanner: (origin: string, dest: string, coords?: [number, number], originCoords?: [number, number]) => void;
   onNavigateHome: () => void;
   onOpenSos: () => void;
   onStartTrip?: (trip: TripPlan) => void;
@@ -180,6 +180,7 @@ export const MapTab: React.FC<MapTabProps> = ({
         routeModality={tripToDisplay.modality}
         stops={activeStops}
         showRainLayer={showRainRadar}
+        showFuelStations={showGasStations}
         className="w-full h-full"
       />
 
@@ -329,7 +330,7 @@ export const MapTab: React.FC<MapTabProps> = ({
       {/* BOTTOM FLOATING "TRAÇAR ROTA" CTA */}
       <div className="absolute bottom-5 right-4 z-30 pointer-events-auto">
         <button
-          onClick={() => onOpenRoutePlanner(tripToDisplay.originName, tripToDisplay.destinationName, tripToDisplay.destinationCoords)}
+          onClick={() => onOpenRoutePlanner(tripToDisplay.originName, tripToDisplay.destinationName, tripToDisplay.destinationCoords, tripToDisplay.originCoords)}
           className="px-5 py-3 rounded-2xl bg-white hover:bg-slate-50 active:scale-95 text-slate-900 border border-slate-200 font-extrabold text-xs flex items-center gap-2 shadow-xl transition-all cursor-pointer"
         >
           <Navigation className="w-4 h-4 text-emerald-600 fill-emerald-600" />

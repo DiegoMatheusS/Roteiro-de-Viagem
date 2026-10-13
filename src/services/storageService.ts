@@ -7,6 +7,7 @@ import {
   TripPlan, 
   EmergencyContact 
 } from '../types';
+import { calculateObservedConsumption } from './fuelConsumption';
 
 const STORAGE_KEYS = {
   VEHICLES: 'rdv_vehicles_v1',
@@ -420,32 +421,14 @@ export const storageService = {
     logs.sort((a, b) => a.odometerKm - b.odometerKm);
     this.saveFuelLogs(logs);
 
-    // Calculate real observed consumption if there are consecutive full-tank refills
-    const vehicleLogs = logs.filter(l => l.vehicleId === log.vehicleId && l.fullTank);
-    let observedAvg: number | undefined = undefined;
-
-    if (vehicleLogs.length >= 2) {
-      let totalDistance = 0;
-      let totalLiters = 0;
-      for (let i = 1; i < vehicleLogs.length; i++) {
-        const deltaKm = vehicleLogs[i].odometerKm - vehicleLogs[i - 1].odometerKm;
-        const liters = vehicleLogs[i].liters;
-        if (deltaKm > 0 && liters > 0) {
-          totalDistance += deltaKm;
-          totalLiters += liters;
-        }
-      }
-      if (totalLiters > 0 && totalDistance > 0) {
-        observedAvg = parseFloat((totalDistance / totalLiters).toFixed(2));
-        // Update vehicle with this observed average
-        const vehicles = this.getVehicles();
-        const vIdx = vehicles.findIndex(v => v.id === log.vehicleId);
-        if (vIdx >= 0) {
-          vehicles[vIdx].consumption.observedAverage = observedAvg;
-          // By requirement #5: Prioritize observed consumption when there is sufficient data
-          vehicles[vIdx].consumption.userConfigured = observedAvg;
-          this.saveVehicles(vehicles);
-        }
+    const observedAvg = calculateObservedConsumption(logs.filter(l => l.vehicleId === log.vehicleId));
+    if (observedAvg !== undefined) {
+      const vehicles = this.getVehicles();
+      const vehicle = vehicles.find(v => v.id === log.vehicleId);
+      if (vehicle) {
+        vehicle.consumption.observedAverage = observedAvg;
+        vehicle.consumption.userConfigured = observedAvg;
+        this.saveVehicles(vehicles);
       }
     }
 
@@ -597,14 +580,20 @@ export const storageService = {
     updatedProfile: TravelerProfile;
     newAchievementsUnlocked: Achievement[];
   } {
+    if (!Number.isFinite(actualDistanceKm) || actualDistanceKm <= 0) {
+      throw new Error('Informe uma distância percorrida válida.');
+    }
     const trips = this.getTrips();
     const tripIdx = trips.findIndex(t => t.id === tripId);
     let trip = tripIdx >= 0 ? trips[tripIdx] : null;
 
     if (!trip) {
       // If it was only an active transient trip
-      trip = this.getActiveTrip();
+      const active = this.getActiveTrip();
+      trip = active?.id === tripId ? active : null;
     }
+
+    if (!trip) throw new Error('Viagem não encontrada.');
 
     if (trip && trip.status === 'completed') {
       // Prevent double counting (Requirement #7)

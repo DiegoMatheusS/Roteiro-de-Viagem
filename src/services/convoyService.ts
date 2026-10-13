@@ -264,7 +264,7 @@ export const convoyService = {
   ): ConvoySession | null {
     const convoys = this.getConvoys();
     const convoy = convoys.find(c => c.id === convoyId);
-    if (!convoy) return null;
+    if (!convoy || convoy.status !== 'active') return null;
 
     const participant = convoy.participants.find(p => p.id === participantId);
     if (!participant) return null;
@@ -272,7 +272,7 @@ export const convoyService = {
     participant.isSharingLocation = enable;
     if (enable && coords) {
       participant.coords = coords;
-      participant.lastLocationTimestamp = 'agora';
+      participant.lastLocationTimestamp = new Date().toISOString();
       participant.isStale = false;
     } else if (!enable) {
       participant.coords = undefined;
@@ -280,6 +280,19 @@ export const convoyService = {
       participant.isStale = false;
     }
 
+    convoy.updatedAt = new Date().toISOString();
+    this.saveConvoys(convoys);
+    return convoy;
+  },
+
+  updateParticipantLocation(convoyId: string, participantId: string, coords: [number, number]): ConvoySession | null {
+    const convoys = this.getConvoys();
+    const convoy = convoys.find(c => c.id === convoyId && c.status === 'active');
+    const participant = convoy?.participants.find(p => p.id === participantId && p.isSharingLocation);
+    if (!convoy || !participant) return null;
+    participant.coords = coords;
+    participant.lastLocationTimestamp = new Date().toISOString();
+    participant.isStale = false;
     convoy.updatedAt = new Date().toISOString();
     this.saveConvoys(convoys);
     return convoy;
@@ -346,15 +359,18 @@ export const convoyService = {
   },
 
   // 8. ENCERRAR COMBOIO (Organizador ou Encerramento Geral)
-  endConvoy(convoyId?: string): boolean {
+  endConvoy(convoyId: string, actorId: string): boolean {
     const convoys = this.getConvoys();
+    const target = convoys.find(c => c.id === convoyId);
+    if (!target || target.organizerId !== actorId) return false;
     convoys.forEach(c => {
-      if (!convoyId || c.id === convoyId) {
+      if (c.id === convoyId) {
         c.status = 'completed';
         // Immediately terminate all location sharing (Requirement #3)
         c.participants.forEach(p => {
           p.isSharingLocation = false;
           p.coords = undefined;
+          p.lastLocationTimestamp = undefined;
         });
         c.updatedAt = new Date().toISOString();
       }

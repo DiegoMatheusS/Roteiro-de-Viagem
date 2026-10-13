@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement } from '../types';
 import { InteractiveMap } from './InteractiveMap';
+import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
   Navigation, 
   MapPin, 
@@ -20,6 +21,7 @@ import {
 interface ActiveTripModalProps {
   trip: TripPlan;
   vehicle: Vehicle;
+  tracking: ReturnType<typeof useTripTracking>;
   isOpen: boolean;
   onClose: () => void;
   onCompleteTrip: (tripId: string, actualKm: number, verifiedGps: boolean) => { newAchievements: Achievement[]; leveledUp: boolean };
@@ -30,38 +32,34 @@ interface ActiveTripModalProps {
 export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   trip,
   vehicle,
+  tracking,
   isOpen,
   onClose,
   onCompleteTrip,
   onOpenSos,
   onReturnHome
 }) => {
-  const [currentSpeed, setCurrentSpeed] = useState(78); // km/h simulated driving speed
-  const [elapsedMinutes, setElapsedMinutes] = useState(15);
-  const [distanceTraveledKm, setDistanceTraveledKm] = useState(Math.round(trip.distanceKm * 0.15));
   const [notifyArrival, setNotifyArrival] = useState(true);
-  const [isGpsActive, setIsGpsActive] = useState(true);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
-  const [completionGpsVerified, setCompletionGpsVerified] = useState(true);
+  const [manualCompletion, setManualCompletion] = useState(false);
+  const [manualDistance, setManualDistance] = useState('');
   const [unlockedCelebration, setUnlockedCelebration] = useState<Achievement[] | null>(null);
-
-  // Speed simulation jitter
-  useEffect(() => {
-    if (!isOpen) return;
-    const interval = setInterval(() => {
-      setCurrentSpeed(prev => Math.max(45, Math.min(105, prev + Math.floor(Math.random() * 7) - 3)));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const currentSpeed = tracking.speedKmH;
+  const isGpsActive = tracking.status === 'ready';
+  const distanceTraveledKm = tracking.distanceKm;
   const remainingKm = Math.max(0, trip.distanceKm - distanceTraveledKm);
+  const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
+  const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
+  const canFinish = Number.isFinite(actualKm) && actualKm > 0;
   const nextStop = trip.stops[0];
 
   const handleFinish = () => {
-    const res = onCompleteTrip(trip.id, trip.distanceKm, completionGpsVerified);
+    if (!canFinish) return;
+    const res = onCompleteTrip(trip.id, Number(actualKm.toFixed(3)), completionGpsVerified);
     if (res.newAchievements.length > 0 || res.leveledUp) {
       setUnlockedCelebration(res.newAchievements);
       confetti({
@@ -91,7 +89,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
               </h2>
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              {vehicle.nickname || vehicle.model} · {currentSpeed} km/h
+              {vehicle.nickname || vehicle.model} · {currentSpeed ?? '—'} km/h
             </div>
           </div>
         </div>
@@ -124,6 +122,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </button>
         </div>
       </div>
+      {tracking.error && <div role="alert" className="px-4 py-2 text-xs bg-amber-50 text-amber-900 flex items-center justify-between gap-2">{tracking.error}<button onClick={tracking.retry} className="font-bold">Tentar GPS novamente</button></div>}
 
       {/* MOTORCYCLE RAIN WEATHER ALERT IF APPLICABLE (Requirement #23) */}
       {trip.hasRainRisk && vehicle.type === 'motorcycle' && (
@@ -142,7 +141,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
           stops={trip.stops}
-          userLiveCoords={trip.routePath[1] || trip.originCoords}
+          userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
           showRainLayer={trip.hasRainRisk}
           className="w-full h-full"
         />
@@ -151,7 +150,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <div className="absolute top-4 left-4 z-30 flex flex-col gap-2">
           <div className="p-3 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl flex items-center gap-3">
             <div className="text-3xl font-black text-emerald-700 font-mono tabular-nums">
-              {currentSpeed}
+              {currentSpeed ?? '—'}
             </div>
             <div className="text-[10px] text-slate-500 uppercase font-extrabold leading-tight">
               KM/H<br />VELOCIDADE
@@ -165,7 +164,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
           <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
             <span className="text-[10px] text-slate-500 font-bold block">RESTANTE</span>
-            <strong className="text-sm font-extrabold text-slate-900">{remainingKm} km</strong>
+            <strong className="text-sm font-extrabold text-slate-900">{remainingKm.toFixed(1)} km</strong>
           </div>
           <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
             <span className="text-[10px] text-slate-500 font-bold block">TEMPO RESTANTE</span>
@@ -245,7 +244,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
                 <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Quilometragem realizada:</span>
-                    <strong className="text-slate-900 text-sm">{trip.distanceKm} km</strong>
+                    <strong className="text-slate-900 text-sm">{distanceTraveledKm.toFixed(2)} km pelo GPS</strong>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Veículo utilizado:</span>
@@ -257,17 +256,19 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
                 <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100 text-xs cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={completionGpsVerified}
-                    onChange={(e) => setCompletionGpsVerified(e.target.checked)}
+                    checked={manualCompletion || distanceTraveledKm === 0}
+                    onChange={(e) => setManualCompletion(e.target.checked)}
+                    disabled={distanceTraveledKm === 0}
                     className="mt-0.5 rounded text-emerald-600"
                   />
                   <div>
-                    <span className="font-bold text-emerald-950 block">Distância verificada por GPS</span>
+                    <span className="font-bold text-emerald-950 block">Informar distância manualmente</span>
                     <span className="text-[11px] text-slate-600">
-                      Computa como quilometragem auditada e oficial do viajante.
+                      {distanceTraveledKm > 0 ? 'Desmarque para usar somente a distância medida pelo GPS nesta sessão.' : 'Nenhum deslocamento foi medido pelo GPS nesta sessão.'}
                     </span>
                   </div>
                 </label>
+                {!completionGpsVerified && <label className="block text-xs font-semibold text-slate-700">Distância percorrida (km)<input aria-label="Distância percorrida manualmente" type="number" min="0.001" step="0.001" value={manualDistance} onChange={e => setManualDistance(e.target.value)} className="mt-1 w-full border rounded-xl p-3" placeholder="Informe a distância que percorreu" /></label>}
 
                 <div className="flex items-center gap-2 pt-2">
                   <button
@@ -278,6 +279,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
                   </button>
                   <button
                     onClick={handleFinish}
+                    disabled={!canFinish}
                     className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700"
                   >
                     Confirmar Chegada
