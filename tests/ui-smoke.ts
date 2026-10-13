@@ -193,7 +193,8 @@ try {
   const link = await sharing.getByLabel('Link do roteiro', { exact: true }).inputValue();
   const reader = await adminContext.newPage();
   await reader.route('https://**', route => route.abort());
-  await reader.goto(link);
+  await reader.goto('http://127.0.0.1:3000');
+  await reader.evaluate(link => { window.location.hash = link.split('#')[1]; }, link);
   await reader.getByRole('heading', { name: 'Sequência das paradas', exact: true }).waitFor();
   await reader.getByText('1. Parada Alfa de teste', { exact: true }).last().waitFor();
   await reader.getByText('2. Parada Beta de teste', { exact: true }).last().waitFor();
