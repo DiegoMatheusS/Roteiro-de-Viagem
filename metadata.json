@@ -1,0 +1,6 @@
+{
+  "name": "Roteiro de Viagem",
+  "description": "Aplicativo inteligente de viagens, turismo e navegação para celular com perfil do viajante, garagem e rotas cênicas.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
