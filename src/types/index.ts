@@ -95,7 +95,7 @@ export type RouteModality =
 export interface RouteStop {
   id: string;
   name: string;
-  category: 'mirante' | 'monumento' | 'restaurante' | 'posto' | 'hotel' | 'cidade_historica' | 'parque' | 'museu';
+  category: 'mirante' | 'monumento' | 'restaurante' | 'posto' | 'hotel' | 'cidade_historica' | 'parque' | 'museu' | 'cidade' | 'endereco';
   lat: number;
   lng: number;
   description: string;
@@ -103,6 +103,8 @@ export interface RouteStop {
   rating?: number;
   imageUrl?: string;
   estimatedArrivalHour?: string;
+  type?: 'mandatory' | 'suggested';
+  sourceUrl?: string;
 }
 
 export interface WeatherPoint {
@@ -129,6 +131,13 @@ export interface TripPlan {
   durationMinutes: number;
   vehicleId: string;
   routePath: [number, number][]; // coordinates for Leaflet polyline
+  manualStops?: import('./itinerary').MandatoryStop[];
+  acceptedSuggestions?: import('./itinerary').SuggestedStop[];
+  planningLimits?: import('./itinerary').PlanningLimits;
+  waypointOrder?: [number, number][];
+  routingSource?: 'OSRM';
+  tollsStatus?: 'unknown';
+  routeWarnings?: string[];
   stops: RouteStop[];
   weatherPoints: WeatherPoint[];
   hasRainRisk: boolean;
@@ -189,7 +198,7 @@ export interface RouteSharePayload {
   distanceKm: number;
   durationMinutes: number;
   modality: RouteModality;
-  stops: { name: string; category: string; description: string }[];
+  stops: { name: string; category: string; description: string; type?: 'mandatory' | 'suggested'; stayMinutes?: number }[];
   scenicHighlights: string[];
   createdAt: string;
   shareableUrl: string;

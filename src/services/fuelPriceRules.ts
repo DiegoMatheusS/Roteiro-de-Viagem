@@ -21,27 +21,3 @@ export function priceReliability(observedAt: string, confirmations: number, cont
   return { stale, disputed: contests > 0 && contests >= confirmations, reliabilityScore: score,
     reliability: (score >= 75 ? 'Alta' : score >= 45 ? 'Média' : 'Baixa') as 'Alta' | 'Média' | 'Baixa' };
 }
-
-export function parseFuelPriceText(text: string): PriceDraft[] {
-  const lines = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().split(/\r?\n/);
-  const drafts = new Map<FuelKind, PriceDraft>();
-  const ambiguous = new Set<FuelKind>();
-  lines.forEach((line, i) => {
-    let fuelType: FuelKind | undefined;
-    if (/GASOLINA|GASOLINE/.test(line)) fuelType = /ADITIV/.test(line) ? 'gasolina_aditivada' : 'gasolina_comum';
-    else if (/ETANOL|ALCOOL/.test(line)) fuelType = 'etanol';
-    else if (/DIESEL/.test(line)) fuelType = /S\s*10/.test(line) ? 'diesel_s10' : 'diesel_comum';
-    else if (/\bGNV\b/.test(line)) fuelType = 'gnv';
-    if (!fuelType) return;
-    if (ambiguous.has(fuelType)) return;
-    const priceText = line.match(/\b\d{1,2}[,.]\d{2,3}\b/)?.[0] || lines[i + 1]?.match(/^\s*(?:R\$\s*)?(\d{1,2}[,.]\d{2,3})\s*$/)?.[1];
-    if (!priceText) return;
-    try {
-      const draft = validatePriceDraft({ fuelType, price: Number(priceText.replace(',', '.')) });
-      // Ambiguous duplicate labels are left for manual entry, never guessed.
-      if (drafts.has(fuelType)) { drafts.delete(fuelType); ambiguous.add(fuelType); }
-      else drafts.set(fuelType, draft);
-    } catch { /* Unreadable or incompatible values require manual correction. */ }
-  });
-  return [...drafts.values()];
-}

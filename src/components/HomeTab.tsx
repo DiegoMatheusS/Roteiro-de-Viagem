@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Vehicle, TripPlan } from '../types';
 import { PRESET_DESTINATIONS } from '../data/sampleRoutes';
 import { generateTouristCircuitByKmOrHours } from '../services/routeCalculator';
+import { LocationSearch } from './LocationSearch';
+import { ManualStopsEditor } from './ManualStopsEditor';
+import type { MandatoryStop, PlanningLimits } from '../types/itinerary';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { 
   Navigation, 
@@ -76,8 +79,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   // Traditional Origin & Destination state
   const [origin, setOrigin] = useState('São Paulo - SP (Centro)');
   const [originCoords, setOriginCoords] = useState<[number, number] | undefined>([-23.5505, -46.6333]);
-  const [destination, setDestination] = useState('Campos do Jordão - SP');
-  const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>([-22.7394, -45.5914]);
+  const [destination, setDestination] = useState('');
+  const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>();
+  const [manualStops, setManualStops] = useState<MandatoryStop[]>([]);
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
@@ -127,11 +131,23 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     setOriginCoords(destinationCoords);
     setDestination(tempOrigin);
     setDestinationCoords(tempCoords);
+    setManualStops(value => [...value].reverse());
   };
 
   const handleSelectPreset = (preset: typeof PRESET_DESTINATIONS[0]) => {
     setDestination(`${preset.name} - ${preset.state}`);
     setDestinationCoords(preset.coords);
+  };
+
+  const launchWithStops = (trip: TripPlan, limits: PlanningLimits) => {
+    if (destination.trim() && !destinationCoords) { setLocationError('Pesquise e selecione o destino digitado.'); return; }
+    if (manualStops.some(stop => !stop.location.id || !stop.location.coords)) { setLocationError('Pesquise e escolha um local real para cada parada.'); return; }
+    if (manualStops.length || destinationCoords || limits.mode === 'destination') {
+      const end = destinationCoords || (trip.isCircular ? originCoords : manualStops.at(-1)?.location.coords);
+      if (!end) { setLocationError('Escolha um destino ou uma parada final.'); return; }
+      trip = { ...trip, destinationCoords: end, destinationName: destinationCoords ? destination : trip.isCircular ? origin : manualStops.at(-1)!.location.name, manualStops, planningLimits: limits };
+    } else trip = { ...trip, planningLimits: limits };
+    setLocationError(null); onLaunchTouristCircuit(trip);
   };
 
   // Generate Tourist Circuit by KM (NO origin/destination needed!)
@@ -149,7 +165,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       vehicle: currentVehicle,
       interests: touristInterests
     });
-    onLaunchTouristCircuit(trip);
+    launchWithStops(trip, { mode: 'km', target: customKm });
   };
 
   // Generate Tourist Circuit by Hours (NO origin/destination needed!)
@@ -167,14 +183,16 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       vehicle: currentVehicle,
       interests: touristInterests
     });
-    onLaunchTouristCircuit(trip);
+    launchWithStops(trip, { mode: 'hours', target: customHours });
   };
 
   // Traditional destination submit
   const handleDestinationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin.trim() || !destination.trim()) return;
-    onOpenRoutePlanner(origin, destination, destinationCoords, originCoords);
+    if (!originCoords || !destinationCoords) { setLocationError('Pesquise e selecione origem e destino no mapa.'); return; }
+    const trip = generateTouristCircuitByKmOrHours({ mode: 'km', targetValue: 100, tripType: 'one_way', departureTime: getEffectiveDepartureTime(), originName: origin, originCoords, vehicle: currentVehicle!, interests: touristInterests });
+    launchWithStops(trip, { mode: 'destination' });
   };
 
   return (
@@ -251,6 +269,13 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </div>
           </div>
         )}
+
+        <section aria-label="Origem, paradas e destino" className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
+          <LocationSearch label="Origem" value={{ name: origin, coords: originCoords }} bias={originCoords} onChange={value => { setOrigin(value.name); setOriginCoords(value.coords); }} />
+          <ManualStopsEditor value={manualStops} onChange={setManualStops} bias={originCoords} hideAddButton />
+          <LocationSearch label="Destino" value={{ name: destination, coords: destinationCoords }} bias={originCoords} placeholder={plannerMode === 'destino' ? 'Escolha o destino' : 'Opcional no passeio por km ou horas'} onChange={value => { setDestination(value.name); setDestinationCoords(value.coords); }} />
+          <div className="flex justify-between gap-3"><button type="button" disabled={manualStops.length >= 12} onClick={() => setManualStops(value => [...value, { id: crypto.randomUUID(), location: { name: '' }, stayMinutes: 0 }])} className="text-sm font-bold text-emerald-700">+ Adicionar parada</button><button type="button" onClick={handleSwap} title="Inverter origem e destino" className="text-xs text-slate-500"><ArrowUpDown className="w-4 h-4" /></button></div>
+        </section>
 
         {/* MODE SELECTOR (POR KM, POR HORAS, COM DESTINO FIXO) */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
@@ -753,92 +778,6 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           {/* ======================================================== */}
           {plannerMode === 'destino' && (
             <form onSubmit={handleDestinationSubmit} className="space-y-4 animate-in fade-in">
-              <div className="space-y-2 relative">
-                {/* Origin */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Ponto de Partida (Origem)
-                  </label>
-                  <div className="relative flex items-center">
-                    <div className="w-9 flex items-center justify-center text-emerald-600 shrink-0">
-                      <div className="w-2.5 h-2.5 rounded-full border-2 border-emerald-600 bg-emerald-100" />
-                    </div>
-                    <input
-                      type="text"
-                      value={origin}
-                      onChange={(e) => { setOrigin(e.target.value); setOriginCoords(undefined); }}
-                      placeholder="De onde você vai sair?"
-                      className="w-full text-xs font-semibold text-slate-800 bg-slate-50 rounded-xl px-2.5 py-2.5 pr-16 border border-slate-200 focus:outline-none focus:border-emerald-500"
-                    />
-                    <div className="absolute right-2 flex items-center gap-1">
-                      {origin.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => { setOrigin(''); setOriginCoords(undefined); }}
-                          className="w-5 h-5 rounded-full bg-slate-200/90 hover:bg-slate-300 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
-                          title="Excluir texto da origem"
-                        >
-                          <X className="w-3 h-3 stroke-[2.5]" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleUseCurrentLocation}
-                        disabled={isGettingGps}
-                        className="text-slate-400 hover:text-emerald-600 p-1 rounded-md cursor-pointer"
-                        title="Usar minha localização GPS"
-                      >
-                        <Crosshair className={`w-4 h-4 ${isGettingGps ? 'animate-spin text-emerald-600' : ''}`} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Swap Button */}
-                <div className="flex justify-end pr-3 -my-1">
-                  <button 
-                    type="button" 
-                    onClick={handleSwap}
-                    className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 cursor-pointer shadow-2xs"
-                    title="Inverter origem e destino"
-                  >
-                    <ArrowUpDown className="w-3 h-3" />
-                  </button>
-                </div>
-
-                {/* Destination */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Destino da Viagem
-                  </label>
-                  <div className="relative flex items-center">
-                    <div className="w-9 flex items-center justify-center text-blue-600 shrink-0">
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <input
-                      type="text"
-                      value={destination}
-                      onChange={(e) => { setDestination(e.target.value); setDestinationCoords(undefined); }}
-                      placeholder="Para onde quer viajar?"
-                      className="w-full text-xs font-semibold text-slate-800 bg-slate-50 rounded-xl px-2.5 py-2.5 pr-9 border border-slate-200 focus:outline-none focus:border-blue-500"
-                    />
-                    {destination.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDestination('');
-                          setDestinationCoords(undefined);
-                        }}
-                        className="absolute right-2.5 w-6 h-6 rounded-full bg-slate-200/90 hover:bg-slate-300 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
-                        title="Excluir texto do destino"
-                      >
-                        <X className="w-3.5 h-3.5 stroke-[2.5]" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Botão Traçar Rota com Destino */}
               <button
                 type="submit"

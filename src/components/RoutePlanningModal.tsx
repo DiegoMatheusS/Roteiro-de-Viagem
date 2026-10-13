@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   TripPlan, 
   Vehicle, 
@@ -8,6 +8,9 @@ import { getPlanningAlternatives, buildPlannedTrip, type RoutePlanningInput } fr
 import { InteractiveMap } from './InteractiveMap';
 import { FuelComparisonPanel } from './FuelComparisonPanel';
 import type { AppliedFuelPrice } from '../types/fuel';
+import { ManualStopsEditor } from './ManualStopsEditor';
+import { calculateItinerary, applyItinerary } from '../services/itinerary';
+import type { MandatoryStop, SuggestedStop } from '../types/itinerary';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { 
   X, 
@@ -68,6 +71,31 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   const [showRainLayer, setShowRainLayer] = useState(false);
   const [showGroupDetails, setShowGroupDetails] = useState(false);
   const [showReturnOptions, setShowReturnOptions] = useState(false);
+  const [workingTrip, setWorkingTrip] = useState(presetTrip);
+  const [routeAnchor, setRouteAnchor] = useState(presetTrip);
+  const [manualStops, setManualStops] = useState<MandatoryStop[]>(presetTrip?.manualStops || []);
+  const [acceptedSuggestions, setAcceptedSuggestions] = useState<SuggestedStop[]>(presetTrip?.acceptedSuggestions || []);
+  const [suggestions, setSuggestions] = useState<SuggestedStop[]>([]);
+  const [discarded, setDiscarded] = useState<string[]>([]);
+  const [useRoad, setUseRoad] = useState(presetTrip?.manualStops !== undefined);
+  const [isRouting, setIsRouting] = useState(false), [routeError, setRouteError] = useState('');
+  const [exceedsLimit, setExceedsLimit] = useState(false), [limitAccepted, setLimitAccepted] = useState(false);
+  const [calculatedKey, setCalculatedKey] = useState(''), [routingAttempt, setRoutingAttempt] = useState(0);
+  const routingKey = JSON.stringify([manualStops, acceptedSuggestions, routeAnchor?.originCoords, routeAnchor?.destinationCoords, routingAttempt]);
+  const staleRoute = useRoad && calculatedKey !== routingKey;
+  useEffect(() => {
+    if (!useRoad || !routeAnchor || !isOpen) return;
+    const controller = new AbortController();
+    setIsRouting(true); setRouteError(''); setLimitAccepted(false);
+    const timer = setTimeout(() => {
+      calculateItinerary(routeAnchor, manualStops, acceptedSuggestions, controller.signal).then(result => {
+        if (controller.signal.aborted) return;
+        setWorkingTrip(applyItinerary(routeAnchor, result)); setSuggestions(result.suggestions); setExceedsLimit(result.exceedsLimit); setCalculatedKey(routingKey);
+      }).catch(error => { if (!controller.signal.aborted) setRouteError(error.message); })
+        .finally(() => { if (!controller.signal.aborted) setIsRouting(false); });
+    }, 400);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [routingKey, useRoad, routeAnchor, isOpen]);
   useModalScrollLock(isOpen);
 
   if (!isOpen) return null;
@@ -86,25 +114,34 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
     fuelPricePerLiter: fuelPrice,
     returnModality
   };
-  const alternatives = getPlanningAlternatives(planningInput, presetTrip);
+  const alternatives = getPlanningAlternatives(planningInput, workingTrip);
 
   const activeOption = alternatives.find(a => a.modality === selectedModality) || alternatives[0];
 
   const handleBuildTripPlan = (): TripPlan => {
-    return { ...buildPlannedTrip(planningInput, activeOption, presetTrip), fuelPriceSource: appliedFuelPrice };
+    return { ...buildPlannedTrip(planningInput, activeOption, workingTrip), fuelPriceSource: appliedFuelPrice };
   };
 
+  const changeStops = (stops: MandatoryStop[]) => {
+    if (!routeAnchor) setRouteAnchor(handleBuildTripPlan());
+    setUseRoad(true); setManualStops(stops);
+    setAcceptedSuggestions(current => current.map(stop => ({ ...stop, afterIndex: Math.min(stop.afterIndex, Math.max(-1, stops.length - 1)) })));
+  };
+  const blocked = isRouting || staleRoute || Boolean(routeError) || exceedsLimit && !limitAccepted;
   const handleStart = () => {
+    if (blocked) return;
     const trip = handleBuildTripPlan();
     onStartTrip(trip);
   };
 
   const handleSave = () => {
+    if (blocked) return;
     const trip = handleBuildTripPlan();
     onSaveTrip(trip);
   };
 
   const handleShare = () => {
+    if (blocked) return;
     const trip = handleBuildTripPlan();
     onOpenShareModal(trip);
   };
@@ -135,8 +172,18 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
         {/* MODAL BODY (SCROLLABLE) */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            Prévia de planejamento: os trajetos, paradas, clima e pedágios ainda são ilustrativos.
+            {useRoad ? 'Percurso rodoviário calculado com suas paradas. Tempo estimado sem trânsito ao vivo. Tarifas de pedágio indisponíveis; orçamento parcial.' : 'Prévia de planejamento: os trajetos, paradas, clima e pedágios ainda são ilustrativos.'}
           </p>
+          <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Paradas obrigatórias</h3><ManualStopsEditor value={manualStops} onChange={changeStops} bias={originCoords} />
+            {isRouting && <p role="status" className="text-xs text-emerald-700">Recalculando o percurso com todas as paradas...</p>}
+            {routeError && <div role="alert" className="text-xs text-rose-700">{routeError}<button type="button" onClick={() => setRoutingAttempt(value => value + 1)} className="ml-3 underline">Recalcular rota</button></div>}
+            {workingTrip?.routeWarnings?.map(warning => <p key={warning} className="text-xs bg-amber-50 text-amber-800 rounded-xl p-3">{warning}</p>)}
+            {exceedsLimit && <label className="flex gap-2 text-xs text-amber-800"><input type="checkbox" checked={limitAccepted} onChange={e => setLimitAccepted(e.target.checked)} />Quero continuar com as paradas escolhidas, mesmo acima do limite.</label>}
+          </section>
+          {useRoad && (suggestions.length > 0 || acceptedSuggestions.length > 0) && <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Paradas sugeridas</h3><p className="text-xs text-slate-500">Locais reais próximos ao percurso. Aceitar uma sugestão mantém a ordem das suas paradas obrigatórias e recalcula os custos.</p>
+            {acceptedSuggestions.map(stop => <div key={stop.id} className="flex justify-between gap-3 text-xs bg-emerald-50 rounded-xl p-3"><span>✓ {stop.location.name} · {stop.stayMinutes} min</span><button type="button" onClick={() => setAcceptedSuggestions(value => value.filter(s => s.id !== stop.id))} className="text-rose-700">Remover sugestão</button></div>)}
+            {suggestions.filter(stop => !discarded.includes(stop.id) && !acceptedSuggestions.some(s => s.id === stop.id)).map(stop => <div key={stop.id} className="flex flex-wrap justify-between gap-3 text-xs border rounded-xl p-3"><span>{stop.location.name} · {stop.stayMinutes} min</span><div className="flex gap-3"><button type="button" onClick={() => setAcceptedSuggestions(value => [...value, stop])} className="text-emerald-700 font-bold">Aceitar</button><button type="button" onClick={() => setDiscarded(value => [...value, stop.id])} className="text-slate-500">Descartar</button></div></div>)}
+          </section>}
           {/* CAPACITY WARNING IF APPLICABLE */}
           {activeOption.capacityWarning && (
             <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200">
@@ -173,7 +220,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                       {alt.title}
                     </h4>
                     <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">
-                      {alt.distanceKm} km · {Math.round(alt.durationMinutes / 60)}h{alt.durationMinutes % 60}m
+                      {alt.distanceKm} km · {Math.floor(alt.durationMinutes / 60)}h{alt.durationMinutes % 60}m
                     </div>
                   </button>
                 );
@@ -219,7 +266,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                     {activeOption.title}
                   </span>
                   <span className="text-xs text-amber-500 font-bold">
-                    {'★'.repeat(activeOption.scenicQualityStars)} Cênica
+                    {useRoad ? 'Percurso rodoviário' : `${'★'.repeat(activeOption.scenicQualityStars)} Cênica`}
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -233,8 +280,8 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                     <strong className="text-slate-900 dark:text-white">{fuelPrice > 0 ? `R$ ${activeOption.fuelCost.toFixed(2)}` : 'Preço não informado'}</strong>
                   </div>
                   <div>
-                    <span className="text-slate-500 block">Pedágios Estimados</span>
-                    <strong className="text-slate-900 dark:text-white">R$ {activeOption.tollsCost.toFixed(2)}</strong>
+                    <span className="text-slate-500 block">{useRoad ? 'Pedágios' : 'Pedágios Estimados'}</span>
+                    <strong className="text-slate-900 dark:text-white">{useRoad ? 'Tarifas não disponíveis' : `R$ ${activeOption.tollsCost.toFixed(2)}`}</strong>
                   </div>
                   {peopleCount > 1 && (
                     <div className="col-span-2 pt-1">
@@ -254,7 +301,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
               </label>
 
               {/* WEATHER ALONG ROUTE */}
-              <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 space-y-2">
+              {activeOption.weatherPoints.length > 0 && <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
                   <span className="flex items-center gap-1.5">
                     {activeOption.hasRainRisk ? <CloudRain className="w-4 h-4 text-blue-500" /> : <Sun className="w-4 h-4 text-amber-500" />}
@@ -272,7 +319,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                     </div>
                   ))}
                 </div>
-              </div>
+              </div>}
 
               {/* ATRAÇÕES TURÍSTICAS INCLUÍDAS (Requirement #6) */}
               {activeOption.stops && activeOption.stops.length > 0 && (
@@ -280,7 +327,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                   <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
                     <span className="flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4 text-emerald-600" />
-                      Atrações & Paradas Sugeridas ({activeOption.stops.length})
+                      {useRoad ? 'Sequência das paradas' : 'Atrações & Paradas Sugeridas'} ({activeOption.stops.length})
                     </span>
                     <span className="text-[10px] text-slate-500 font-normal">Roteiro selecionado</span>
                   </div>
@@ -289,7 +336,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                       <div key={stop.id || i} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/60 text-xs space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-900 dark:text-white">
-                            {i + 1}. {stop.name}
+                            {i + 1}. {stop.name}{stop.type && <span className="block text-[10px] text-emerald-700">{stop.type === 'mandatory' ? 'Obrigatória · definida por você' : 'Sugestão aceita'}</span>}
                           </span>
                           {stop.estimatedArrivalHour && (
                             <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md">
@@ -301,7 +348,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                           {stop.description}
                         </p>
                         <div className="text-[10px] text-slate-400">
-                          Visita recomendada: {stop.recommendedMinutes} min
+                          {stop.type === 'mandatory' ? 'Permanência definida' : 'Visita recomendada'}: {stop.recommendedMinutes} min
                         </div>
                       </div>
                     ))}
@@ -311,7 +358,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
             </div>
           </div>
 
-          <FuelComparisonPanel vehicle={vehicle} routePath={activeOption.routePath} onApply={price => { setFuelPrice(price.price); setAppliedFuelPrice(price); }} />
+          <FuelComparisonPanel vehicle={vehicle} routePath={activeOption.routePath} routeWaypoints={workingTrip?.waypointOrder} onApply={price => { setFuelPrice(price.price); setAppliedFuelPrice(price); }} />
 
           {/* GROUP & PEOPLE CONFIGURATION (Requirement: QUANTIDADE DE PESSOAS NA VIAGEM) */}
           <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-850/50 space-y-3">
@@ -455,6 +502,8 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
         <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
+              disabled={blocked}
+              title={blocked ? 'Aguarde o cálculo e confira os limites do roteiro' : undefined}
               onClick={handleSave}
               className="py-2.5 px-3 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
             >
@@ -463,6 +512,8 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
             </button>
 
             <button
+              disabled={blocked}
+              title={blocked ? 'Aguarde o cálculo e confira os limites do roteiro' : undefined}
               onClick={handleShare}
               className="py-2.5 px-3 rounded-xl border border-slate-200 hover:border-emerald-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
             >
@@ -472,7 +523,9 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
           </div>
 
           <button
-            onClick={handleStart}
+            disabled={blocked}
+              title={blocked ? 'Aguarde o cálculo e confira os limites do roteiro' : undefined}
+              onClick={handleStart}
             className="flex-1 py-3 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer min-h-[44px]"
           >
             <Play className="w-4 h-4 fill-white" />

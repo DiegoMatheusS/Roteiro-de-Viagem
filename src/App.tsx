@@ -27,11 +27,9 @@ import { SosModal } from './components/SosModal';
 import { useTripTracking } from './hooks/useTripTracking';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
-import { FuelModerationPanel } from './components/FuelModerationPanel';
 
 export default function App() {
   const auth = useAuth();
-  const [isModerationOpen, setIsModerationOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<MainTabType>('inicio');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
@@ -198,9 +196,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
-        {auth.user ? <><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'moderator' && <button onClick={() => setIsModerationOpen(true)} className="font-bold text-emerald-700">Moderação</button>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
+        {auth.user ? <><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
       </div>
-      {isModerationOpen && auth.user?.role === 'moderator' && <FuelModerationPanel onClose={() => setIsModerationOpen(false)} />}
       {appError && (
         <div role="alert" className="fixed top-3 left-3 right-3 z-70 mx-auto max-w-xl p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-3 shadow-lg">
           <span className="flex-1">{appError}</span>

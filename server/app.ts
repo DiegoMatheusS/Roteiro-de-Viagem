@@ -11,27 +11,29 @@ import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { compareStationCost } from '../src/services/fuelComparison';
 import { discoverStations, roadRoute, validateCoordinates, type MapFetch } from './maps';
 import { stationDetails } from './prices';
-import { extractPrices, sanitizePhoto } from './photos';
+import { sanitizePhoto } from './photos';
+import { registerAdminRoutes } from './admin';
+import { registerItineraryRoutes } from './itinerary';
+import { registerSharingRoutes } from './sharing';
+import { ApiError, asyncRoute, auth, administrator, user, now, validate, observationDate } from './http';
 import { stationOpeningStatus } from './openingHours';
 
 const scryptAsync = promisify(scrypt);
-class ApiError extends Error { constructor(message: string, public status = 400) { super(message); } }
-const asyncRoute = (handler: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => { handler(req, res).catch(next); };
-const user = (res: Response): FuelUser => res.locals.user;
-const auth = (_req: Request, res: Response, next: NextFunction) => user(res) ? next() : next(new ApiError('Entre na sua conta para contribuir.', 401));
-const moderator = (_req: Request, res: Response, next: NextFunction) => user(res)?.role === 'moderator' ? next() : next(new ApiError('Acesso reservado à moderação.', 403));
-const now = () => new Date().toISOString();
-const validate = <T,>(callback: () => T): T => { try { return callback(); } catch (error) { throw new ApiError((error as Error).message); } };
-
-export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; ocr?: typeof extractPrices }) {
+export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch }) {
   const { db } = options;
   const photosDir = path.resolve(options.photoDirectory || process.env.PHOTO_DIRECTORY || './data/photos');
-  fs.mkdirSync(photosDir, { recursive: true });
+  fs.mkdirSync(photosDir, { recursive: true, mode: 0o700 });
   // Preserve any earlier local photo records while moving image content into the database.
   for (const photo of db.prepare('SELECT id,filename FROM photos WHERE image_data IS NULL').all() as any[]) {
     if (/^[a-f0-9-]+\.jpg$/.test(photo.filename) && fs.existsSync(path.join(photosDir, photo.filename))) {
       db.prepare('UPDATE photos SET image_data=? WHERE id=?').run(fs.readFileSync(path.join(photosDir, photo.filename)), photo.id);
+      fs.rmSync(path.join(photosDir, photo.filename));
     }
+  }
+  for (const filename of fs.readdirSync(photosDir)) {
+    if (!/^[a-f0-9-]+\.jpg$/.test(filename)) continue;
+    const saved = db.prepare('SELECT length(image_data) AS bytes FROM photos WHERE filename=?').get(filename) as any;
+    if (saved?.bytes) fs.rmSync(path.join(photosDir, filename));
   }
   const app = express();
   app.disable('x-powered-by');
@@ -55,7 +57,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
       }
       const token = req.headers.cookie?.split(';').map(c => c.trim()).find(c => c.startsWith('rdv_session='))?.slice(12);
       if (token && /^[a-f0-9]{64}$/.test(token)) {
-        const row = db.prepare(`SELECT u.id,u.display_name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).get(createHash('sha256').update(token).digest('hex'), now()) as any;
+        const row = db.prepare(`SELECT u.id,u.display_name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.blocked_at IS NULL AND u.deleted_at IS NULL`).get(createHash('sha256').update(token).digest('hex'), now()) as any;
         if (row) res.locals.user = { id: row.id, displayName: row.display_name, role: row.role };
       }
       next();
@@ -69,8 +71,12 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     return { id: account.id, displayName: account.display_name, role: account.role };
   };
   const station = (id: string) => {
-    if (!db.prepare('SELECT id FROM stations WHERE id=?').get(id)) throw new ApiError('Posto não encontrado na base de mapas.', 404);
+    if (!db.prepare("SELECT id FROM stations WHERE id=? AND active=1 AND kind='fuel'").get(id)) throw new ApiError('Posto não encontrado na base de mapas.', 404);
   };
+
+  registerAdminRoutes(app, { db, mapFetch: options.mapFetch, limit });
+  registerItineraryRoutes(app, { db, mapFetch: options.mapFetch, limit });
+  registerSharingRoutes(app, db, limit);
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/auth/me', (_req, res) => res.json({ user: user(res) || null }));
@@ -84,7 +90,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     const salt = randomBytes(16).toString('hex');
     const hash = (await scryptAsync(password, salt, 64) as Buffer).toString('hex');
     const account = { id: randomUUID(), display_name: displayName, role: 'user' };
-    try { db.prepare('INSERT INTO users VALUES(?,?,?,?,?,?)').run(account.id, email, displayName, `${salt}:${hash}`, 'user', now()); }
+    try { db.prepare('INSERT INTO users(id,email,display_name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)').run(account.id, email, displayName, `${salt}:${hash}`, 'user', now()); }
     catch { throw new ApiError('Este e-mail já possui uma conta.', 409); }
     res.status(201).json({ user: setSession(res, account) });
   }));
@@ -93,7 +99,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = req.body.password;
     if (typeof password !== 'string' || password.length > 128 || email.length > 180) throw new ApiError('E-mail ou senha incorretos.', 401);
-    const account = db.prepare('SELECT * FROM users WHERE email=?').get(email) as any;
+    const account = db.prepare('SELECT * FROM users WHERE email=? AND blocked_at IS NULL AND deleted_at IS NULL').get(email) as any;
     const [salt, expected] = (account?.password_hash || `${'0'.repeat(32)}:${'0'.repeat(128)}`).split(':');
     const actual = await scryptAsync(password, salt, 64) as Buffer;
     if (!account || !timingSafeEqual(actual, Buffer.from(expected, 'hex'))) throw new ApiError('E-mail ou senha incorretos.', 401);
@@ -123,37 +129,33 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   });
   app.get('/api/stations/:id/my-photos', auth, (req, res) => {
     station(req.params.id);
-    res.json(db.prepare('SELECT id,status,created_at FROM photos WHERE station_id=? AND user_id=? ORDER BY created_at DESC LIMIT 20').all(req.params.id, user(res).id));
+    res.json(db.prepare("SELECT ph.id,ph.status,ph.created_at,(SELECT notes FROM moderation_actions WHERE target_type='photos' AND target_id=ph.id ORDER BY created_at DESC,rowid DESC LIMIT 1) AS reviewNote FROM photos ph WHERE station_id=? AND user_id=? ORDER BY created_at DESC,ph.rowid DESC LIMIT 20").all(req.params.id, user(res).id));
   });
   app.post('/api/stations/:id/prices', auth, (req, res) => {
     const stationId = req.params.id;
     station(stationId);
     limit(`prices:${user(res).id}`, 10, 60000);
-    if (!Array.isArray(req.body.prices) || req.body.prices.length < 1 || req.body.prices.length > 8 || req.body.confirmed !== true) throw new ApiError('Confira os valores e confirme a publicação.');
+    if (!Array.isArray(req.body.prices) || req.body.prices.length < 1 || req.body.prices.length > 8 || req.body.confirmed !== true) throw new ApiError('Confira os valores e confirme o envio para análise.');
     const prices = req.body.prices.map((price: unknown) => validate(() => validatePriceDraft(price)));
     if (new Set(prices.map((p: any) => `${p.fuelType}:${p.customLabel || ''}`)).size !== prices.length) throw new ApiError('Informe cada combustível apenas uma vez.');
-    const observedAt = new Date(req.body.observedAt);
-    if (!Number.isFinite(observedAt.getTime()) || observedAt.getTime() > Date.now() + 300000 || observedAt.getTime() < Date.now() - 90 * 86400000) throw new ApiError('Informe quando viu este preço (até 90 dias atrás, sem data futura).');
+    const observedAt = observationDate(req.body.observedAt);
     const daily = db.prepare('SELECT COUNT(*) AS count FROM prices WHERE user_id=? AND created_at>?').get(user(res).id, new Date(Date.now() - 86400000).toISOString()) as any;
     if (daily.count + prices.length > 20) throw new ApiError('Limite diário de contribuições atingido. Tente amanhã.', 429);
     const photoId = req.body.photoId || null;
     if (photoId) {
       if (typeof photoId !== 'string' || photoId.length > 40) throw new ApiError('Foto inválida.');
-      const photo = db.prepare('SELECT * FROM photos WHERE id=?').get(photoId) as any;
-      if (!photo || photo.user_id !== user(res).id || photo.station_id !== stationId || photo.status === 'rejected') throw new ApiError('A foto não está disponível para esta contribuição.');
+      const photo = db.prepare('SELECT id,user_id,station_id,status FROM photos WHERE id=?').get(photoId) as any;
+      if (!photo || photo.user_id !== user(res).id || photo.station_id !== stationId || !['pending', 'approved'].includes(photo.status)) throw new ApiError('A foto não está disponível para esta contribuição.');
     }
     const entries = prices.map((price: any) => {
       const recent = db.prepare('SELECT id FROM prices WHERE station_id=? AND user_id=? AND fuel_type=? AND created_at>?').get(stationId, user(res).id, price.fuelType, new Date(Date.now() - 10 * 60000).toISOString());
       if (recent) throw new ApiError('Você já informou este combustível neste posto. Aguarde 10 minutos.', 429);
-      const previous = stationDetails(db, stationId)?.prices.find(p => p.fuelType === price.fuelType && !p.stale && !p.disputed);
-      const liquid = !['gnv', 'eletrico'].includes(price.fuelType);
-      const unusual = liquid && (price.price < 1 || price.price > 20) || previous && Math.abs(price.price - previous.price) / previous.price > 0.35;
-      return { ...price, id: randomUUID(), status: unusual ? 'pending_review' : 'published' };
+      return { ...price, id: randomUUID(), status: 'pending_review' };
     });
     db.exec('BEGIN');
     try {
-      const insert = db.prepare('INSERT INTO prices VALUES(?,?,?,?,?,?,?,?,?,?,?)');
-      entries.forEach((price: any) => insert.run(price.id, stationId, user(res).id, price.fuelType, price.customLabel || null, price.price, observedAt.toISOString(), now(), photoId ? 'photo' : 'manual', photoId, price.status));
+      const insert = db.prepare('INSERT INTO prices(id,station_id,user_id,fuel_type,custom_label,price,observed_at,created_at,source,photo_id,status) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+      entries.forEach((price: any) => insert.run(price.id, stationId, user(res).id, price.fuelType, price.customLabel || null, price.price, observedAt, now(), photoId ? 'photo' : 'manual', photoId, price.status));
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
     res.status(201).json({ entries: entries.map((p: any) => ({ id: p.id, status: p.status })), station: stationDetails(db, stationId, user(res).id) });
@@ -168,30 +170,44 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.json(stationDetails(db, price.station_id, user(res).id));
   });
 
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 2 } });
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 3 } });
   app.post('/api/stations/:id/photos', auth, (req, res, next) => {
     try { station(req.params.id); limit(`upload:${user(res).id}`, 3, 10 * 60000); next(); } catch (error) { next(error); }
   }, upload.single('photo'), asyncRoute(async (req, res) => {
     if (!req.file) throw new ApiError('Envie uma foto da placa do posto.');
+    if (req.body.confirmedStation !== 'true') throw new ApiError('Confirme que a foto corresponde ao posto selecionado.');
+    const observedAt = observationDate(req.body.observedAt);
+    db.prepare('DELETE FROM photo_uploads WHERE created_at<?').run(new Date(Date.now() - 7 * 86400000).toISOString());
+    const daily = db.prepare('SELECT COUNT(*) AS count FROM photo_uploads WHERE user_id=? AND created_at>?').get(user(res).id, new Date(Date.now() - 86400000).toISOString()) as any;
+    if (daily.count >= 10) throw new ApiError('Limite diário de fotos atingido.', 429);
     let cleaned: Buffer;
     try { cleaned = await sanitizePhoto(req.file.buffer); } catch { throw new ApiError('Foto inválida. Envie um JPG, PNG ou WEBP de até 24 megapixels.'); }
+    if (cleaned.length > 1024 * 1024) throw new ApiError('A foto ainda está muito grande após a compressão. Escolha uma imagem menor.');
+    const hash = createHash('sha256').update(cleaned).digest('hex');
+    if (db.prepare('SELECT id FROM photos WHERE user_id=? AND station_id=? AND content_hash=? AND created_at>?').get(user(res).id, req.params.id, hash, new Date(Date.now() - 10 * 60000).toISOString())) throw new ApiError('Esta foto já foi enviada para este posto. Aguarde a revisão.', 429);
     const id = randomUUID();
     const filename = `${id}.jpg`;
-    db.prepare('INSERT INTO photos(id,station_id,user_id,filename,status,created_at,image_data) VALUES(?,?,?,?,?,?,?)').run(id, req.params.id, user(res).id, filename, 'pending', now(), cleaned);
-    const extraction = await (options.ocr || extractPrices)(cleaned);
-    res.status(201).json({ photoId: id, previewUrl: `/api/photos/${id}`, status: 'pending', ...extraction });
+    db.exec('BEGIN');
+    try {
+      const used = db.prepare('SELECT COUNT(*) AS count FROM photo_uploads WHERE user_id=? AND created_at>?').get(user(res).id, new Date(Date.now() - 86400000).toISOString()) as any;
+      if (used.count >= 10) throw new ApiError('Limite diário de fotos atingido.', 429);
+      db.prepare('INSERT INTO photos(id,station_id,user_id,filename,status,created_at,image_data,observed_at,content_hash) VALUES(?,?,?,?,?,?,?,?,?)').run(id, req.params.id, user(res).id, filename, 'pending', now(), cleaned, observedAt, hash);
+      db.prepare('INSERT INTO photo_uploads VALUES(?,?,?)').run(id, user(res).id, now());
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    res.status(201).json({ photoId: id, status: 'pending', message: 'Foto enviada para análise' });
   }));
   app.get('/api/photos/:id', (req, res) => {
     const photo = db.prepare('SELECT * FROM photos WHERE id=?').get(req.params.id) as any;
-    const isPublic = photo?.status === 'approved' && db.prepare('SELECT id FROM prices WHERE photo_id=? AND status=? LIMIT 1').get(photo.id, 'published');
-    if (!photo || photo.status === 'rejected' || !isPublic && photo.user_id !== user(res)?.id && user(res)?.role !== 'moderator') throw new ApiError('Foto não disponível.', 404);
+    const isPublic = photo?.status === 'approved' && db.prepare("SELECT p.id FROM prices p JOIN stations s ON s.id=p.station_id WHERE p.photo_id=? AND p.status='published' AND s.active=1 LIMIT 1").get(photo.id);
+    if (!photo || !isPublic && photo.user_id !== user(res)?.id && user(res)?.role !== 'admin') throw new ApiError('Foto não disponível.', 404);
     if (!photo.image_data) throw new ApiError('Foto não disponível.', 404);
     res.setHeader('Content-Type', 'image/jpeg');
     res.send(Buffer.from(photo.image_data));
   });
   app.delete('/api/photos/:id', auth, (req, res) => {
     const photo = db.prepare('SELECT * FROM photos WHERE id=?').get(req.params.id) as any;
-    if (!photo || photo.user_id !== user(res).id && user(res).role !== 'moderator') throw new ApiError('Foto não encontrada.', 404);
+    if (!photo || photo.user_id !== user(res).id && user(res).role !== 'admin') throw new ApiError('Foto não encontrada.', 404);
     db.prepare('DELETE FROM photos WHERE id=?').run(photo.id);
     fs.rmSync(path.join(photosDir, photo.filename), { force: true });
     res.json({ ok: true });
@@ -210,33 +226,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.status(201).json({ ok: true });
   });
 
-  app.get('/api/moderation', auth, moderator, (_req, res) => res.json({
-    photos: db.prepare('SELECT ph.id,ph.created_at,s.name AS stationName FROM photos ph JOIN stations s ON s.id=ph.station_id WHERE ph.status=? ORDER BY ph.created_at').all('pending'),
-    prices: db.prepare('SELECT p.id,p.fuel_type,p.price,p.observed_at,p.photo_id,s.name AS stationName FROM prices p JOIN stations s ON s.id=p.station_id WHERE p.status=? ORDER BY p.created_at').all('pending_review'),
-    reports: (db.prepare('SELECT id,target_type,target_id,reason,details,created_at FROM reports WHERE status=? ORDER BY created_at').all('open') as any[]).map(report => {
-      const target = db.prepare(`SELECT * FROM ${report.target_type === 'prices' ? 'prices' : 'photos'} WHERE id=?`).get(report.target_id) as any;
-      return { ...report, stationName: target ? stationDetails(db, target.station_id)?.name : undefined,
-        fuelType: target?.fuel_type, price: target?.price, observedAt: target?.observed_at };
-    })
-  }));
-  app.post('/api/moderation/:targetType(prices|photos|reports)/:id', auth, moderator, (req, res) => {
-    const table = req.params.targetType;
-    if (!['approve', 'reject', 'resolve'].includes(req.body.action)) throw new ApiError('Ação inválida.');
-    const notes = String(req.body.notes || '').trim();
-    if (notes.length > 300) throw new ApiError('Use até 300 caracteres.');
-    if (!db.prepare(`SELECT id FROM ${table} WHERE id=?`).get(req.params.id)) throw new ApiError('Item não encontrado.', 404);
-    if (table === 'reports') {
-      if (req.body.action !== 'resolve') throw new ApiError('Resolva a denúncia após revisar a contribuição.');
-      db.prepare('UPDATE reports SET status=? WHERE id=?').run('resolved', req.params.id);
-    } else {
-      if (req.body.action === 'resolve') throw new ApiError('Escolha aprovar ou rejeitar.');
-      const status = req.body.action === 'reject' ? 'rejected' : table === 'photos' ? 'approved' : 'published';
-      db.prepare(`UPDATE ${table} SET status=? WHERE id=?`).run(status, req.params.id);
-    }
-    db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)').run(randomUUID(), user(res).id, table, req.params.id, req.body.action, notes, now());
-    res.json({ ok: true });
-  });
-  app.post('/api/moderation/stations/:id/hours', auth, moderator, (req, res) => {
+  app.post('/api/admin/stations/:id/hours', auth, administrator, (req, res) => {
     station(req.params.id);
     const hours = String(req.body.openingHours || '').trim();
     if (!hours || hours.length > 200 || req.body.confirmed !== true) throw new ApiError('Confira e confirme o horário de funcionamento.');

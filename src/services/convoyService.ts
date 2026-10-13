@@ -137,9 +137,9 @@ export const convoyService = {
   },
 
   // 1. COMPARTILHAR ROTA (Somente dados públicos do trajeto, sem localização e sem endereço privado)
-  generateRouteSharePayload(trip: TripPlan, isPublicOrigin: boolean = true): RouteSharePayload {
+  generateRouteSharePayload(trip: TripPlan, isPublicOrigin: boolean = true, shareableUrl?: string): RouteSharePayload {
     // Sanitizes residential address if it starts from home (Requirement #1 & #28)
-    const sanitizedOrigin = isPublicOrigin ? trip.originName.split('-')[0].trim() : trip.originName;
+    const sanitizedOrigin = isPublicOrigin ? 'Região de partida' : trip.originName;
 
     const payload: RouteSharePayload = {
       shareId: `share-${trip.id}-${Date.now().toString(36)}`,
@@ -152,11 +152,13 @@ export const convoyService = {
       stops: trip.stops.map(s => ({
         name: s.name,
         category: s.category,
-        description: s.description
+        description: s.description,
+        type: s.type,
+        stayMinutes: s.recommendedMinutes
       })),
       scenicHighlights: trip.stops.map(s => s.name),
       createdAt: new Date().toISOString(),
-      shareableUrl: `${window.location.origin}/#roteiro=${trip.id}`
+      shareableUrl: shareableUrl || `${window.location.origin}/#roteiro=${trip.id}`
     };
 
     return payload;
@@ -170,7 +172,7 @@ export const convoyService = {
     const text = `🗺️ *Roteiro de Viagem:* ${payload.tripTitle}\n\n` +
       `📍 *De:* ${payload.originName} ➡️ *Para:* ${payload.destinationName}\n` +
       `📏 *Distância:* ${payload.distanceKm} km · *Tempo:* ${timeStr}\n` +
-      `✨ *Paradas sugeridas:* ${payload.stops.map(s => s.name).slice(0, 3).join(', ')}\n\n` +
+      `📍 *Paradas do percurso:*\n${payload.stops.map((s, i) => `${i + 1}. ${s.name}${s.type === 'mandatory' ? ' (obrigatória)' : ''} · ${s.stayMinutes || 0} min`).join('\n')}\n\n` +
       `📲 Acesse o roteiro completo aqui: ${payload.shareableUrl}\n` +
       `_O melhor da viagem também está no caminho._`;
 

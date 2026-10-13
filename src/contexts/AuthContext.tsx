@@ -3,17 +3,18 @@ import { fuelApi } from '../services/fuelApi';
 import type { FuelUser } from '../types/fuel';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
-const AuthContext = createContext<{ user: FuelUser | null; promptLogin: () => void; logout: () => Promise<void> }>({ user: null, promptLogin: () => {}, logout: async () => {} });
+const AuthContext = createContext<{ user: FuelUser | null; loading: boolean; promptLogin: () => void; logout: () => Promise<void> }>({ user: null, loading: true, promptLogin: () => {}, logout: async () => {} });
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FuelUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   useModalScrollLock(open);
   const [register, setRegister] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { fuelApi<{ user: FuelUser | null }>('/auth/me').then(result => setUser(result.user)).catch(() => {}); }, []);
+  useEffect(() => { fuelApi<{ user: FuelUser | null }>('/auth/me').then(result => setUser(result.user)).catch(() => {}).finally(() => setLoading(false)); }, []);
   const logout = async () => { await fuelApi('/auth/logout', { method: 'POST', body: '{}' }); setUser(null); };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   };
-  return <AuthContext.Provider value={{ user, promptLogin: () => { setError(''); setOpen(true); }, logout }}>
+  return <AuthContext.Provider value={{ user, loading, promptLogin: () => { setError(''); setOpen(true); }, logout }}>
     {children}
     {open && <div className="fixed inset-0 z-90 bg-slate-900/60 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Conta do viajante">
       <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4 shadow-xl">
