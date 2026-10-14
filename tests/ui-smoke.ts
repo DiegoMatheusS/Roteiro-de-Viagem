@@ -20,6 +20,7 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
     { type: 'node', id: 992, lat: -23.43, lon: -46.48, tags: { amenity: 'cafe', name: 'Café verificado no teste' } }
   ] }));
   if (String(url).includes('/interpreter')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 123, lat: -23.551, lon: -46.629, tags: { amenity: 'fuel', name: 'Posto de teste de interface', opening_hours: '24/7' } }] }));
+  if (String(url).includes('open-meteo')) return new Response(JSON.stringify({ error: true }), { status: 503 });
   const coordinates = String(url).split('/driving/')[1].split('?')[0].split(';');
   const geometric = String(url).includes('geometries=geojson');
   const distance = geometric ? (coordinates.length - 1) * 20000 : coordinates.includes('-46.629,-23.551') ? 102000 : 100000;
@@ -65,10 +66,12 @@ try {
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
+  await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
+  await page.getByText(/Origem: Sua Localização/).waitFor();
   await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
-  await planner.getByText(/Percurso rodoviário calculado com suas paradas/).first().waitFor();
+  await planner.getByText(/Percurso por estradas reais/).first().waitFor();
   await page.locator('.fuel-station-marker').first().click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByText('Ainda não há preços informados para este posto.').waitFor();
@@ -187,6 +190,8 @@ try {
   await page.getByRole('button', { name: 'Arrastar parada 1', exact: true }).dragTo(page.getByRole('button', { name: 'Arrastar parada 2', exact: true }));
   assert.equal(await page.getByLabel('Parada 1', { exact: true }).inputValue(), 'Parada Beta de teste');
   await page.screenshot({ path: 'test-results/stops-home-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
+  await page.getByText(/Origem: Sua Localização/).waitFor();
   await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
   await planner.getByText(/1\. Parada Beta de teste/).last().waitFor();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).waitFor();
@@ -260,6 +265,23 @@ try {
     assert.equal(restored.vehicles.length, 1);
     assert.ok(restored.trips.some((trip: any) => trip.manualStops?.length === 2));
   } finally { await secondDevice.close(); }
+  // Navigation controls preserve the active trip in the menu and can end a planned trip.
+  await page.getByRole('button', { name: 'Mapa', exact: true }).click();
+  const alter = await page.getByRole('button', { name: 'Alterar rota', exact: true }).boundingBox();
+  const zoom = await page.locator('.leaflet-control-zoom-out').boundingBox();
+  assert.ok(alter && zoom && (alter.x + alter.width <= zoom.x || zoom.x + zoom.width <= alter.x || alter.y + alter.height <= zoom.y || zoom.y + zoom.height <= alter.y));
+  await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+  await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
+  await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
+  const runningId = await page.evaluate(async () => { const me = await (await fetch('/api/auth/me')).json(); return JSON.parse(localStorage.getItem('rdv_private_v2_' + me.user.id + '_active_trip')!).id; });
+  assert.ok(runningId);
+  await page.getByRole('button', { name: 'Retomar mapa', exact: true }).click();
+  await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Mapa', exact: true }).click();
+  await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log('UI: paradas reais, drag, recálculo, compartilhamento entre dispositivos, envio privado sem OCR, revisão manual no admin, publicação, cadastro real, comentários, exclusão de usuário, comparação, orçamento, circuito e consentimento passaram.');
 } catch (error) {
@@ -274,3 +296,4 @@ try {
   await new Promise<void>(resolve => server.close(() => resolve())); db.close();
   fs.rmSync(directory, { recursive: true, force: true });
 }
+

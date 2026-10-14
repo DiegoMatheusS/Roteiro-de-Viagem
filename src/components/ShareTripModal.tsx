@@ -54,7 +54,8 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
     setShareBusy(true); setShareError('');
     try {
       const result = await fuelApi<{ id: string }>('/routes/share', { method: 'POST', body: JSON.stringify({ protectOrigin: sanitizeHome, trip: { title: trip.title, originName: trip.originName, destinationName: trip.destinationName, originCoords: trip.originCoords, destinationCoords: trip.destinationCoords, routePath: sampleRoutePath(trip.routePath, 400), distanceKm: trip.distanceKm, durationMinutes: trip.durationMinutes, stops: trip.stops, routingSource: trip.routingSource } }) });
-      setShareUrl(`${window.location.origin}/#roteiro=${result.id}`);
+      const config = await fuelApi<{ appOrigin: string }>('/public-config');
+      setShareUrl(`${config.appOrigin}/#roteiro=${result.id}`);
     } catch (error) { setShareError((error as Error).message); } finally { setShareBusy(false); }
   };
   const handleCopyLink = async () => {
@@ -62,8 +63,10 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
     catch { setShareError('Não foi possível copiar. Selecione e copie o link exibido.'); }
   };
 
-  const handleCreateConvoy = () => {
-    const newConvoy = convoyService.createConvoy({
+  const handleCreateConvoy = async () => {
+    if (shareBusy) return; setShareBusy(true);
+    try {
+    const newConvoy = await convoyService.createConvoy({
       title: convoyTitle,
       trip,
       organizerUser: {
@@ -88,6 +91,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
 
     onClose();
     onOpenConvoy(newConvoy.id);
+    } catch (error) { setShareError((error as Error).message); } finally { setShareBusy(false); }
   };
 
   return (
@@ -304,7 +308,7 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
               </div>
 
               <button
-                onClick={handleCreateConvoy}
+                disabled={shareBusy} onClick={() => void handleCreateConvoy()}
                 className="w-full py-3 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
               >
                 <Users className="w-4 h-4" />
@@ -317,3 +321,4 @@ export const ShareTripModal: React.FC<ShareTripModalProps> = ({
     </div>
   );
 };
+

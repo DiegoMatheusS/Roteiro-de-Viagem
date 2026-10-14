@@ -1,3 +1,5 @@
+import { Geolocation as NativeGeolocation } from '@capacitor/geolocation';
+import { isNativeApp } from './nativeApp';
 export interface DeviceLocation {
   coords: [number, number];
   accuracyMeters: number;
@@ -25,6 +27,7 @@ export function readDeviceLocation(position: GeolocationPosition): DeviceLocatio
 }
 
 export function getCurrentDeviceLocation(geolocation = globalThis.navigator?.geolocation): Promise<DeviceLocation> {
+  if (isNativeApp()) return NativeGeolocation.getCurrentPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }).then(position => readDeviceLocation(position as unknown as GeolocationPosition)).catch(() => { throw new Error('Não foi possível obter GPS recente. Confira as permissões e o GPS do celular.'); });
   return new Promise((resolve, reject) => {
     if (!geolocation) {
       reject(new Error('Este dispositivo não disponibilizou o GPS.'));
@@ -44,6 +47,11 @@ export function watchDeviceLocation(
   onPosition: (position: DeviceLocation) => void,
   onError: (message: string) => void
 ): () => void {
+  if (isNativeApp()) {
+    let stopped = false; let id: string | null = null;
+    void NativeGeolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }, (position, error) => { if (stopped) return; if (error || !position) { onError('Confira a permissão de localização precisa e o GPS.'); return; } try { onPosition(readDeviceLocation(position as unknown as GeolocationPosition)); } catch (error) { onError((error as Error).message); } }).then(watchId => { id = watchId; if (stopped) void NativeGeolocation.clearWatch({ id }); }).catch(error => { if (!stopped) onError(error.message); });
+    return () => { stopped = true; if (id) void NativeGeolocation.clearWatch({ id }); };
+  }
   let stopped = false;
   const watchId = geolocation.watchPosition(position => {
     if (stopped) return;
@@ -58,3 +66,4 @@ export function watchDeviceLocation(
     geolocation.clearWatch(watchId);
   };
 }
+

@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "roteiro-de-viagem",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,9 +14,15 @@
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:ui": "node --import tsx tests/ui-smoke.ts",
-    "admin": "node --import tsx server/moderator.ts"
+    "admin": "node --import tsx server/moderator.ts",
+    "android:sync": "node scripts/android-sync.mjs",
+    "android:open": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/geolocation": "^8.2.3",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "canvas-confetti": "^1.9.4",

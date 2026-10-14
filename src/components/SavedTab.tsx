@@ -99,6 +99,7 @@ export const SavedTab: React.FC<SavedTabProps> = ({
         ) : (
           filteredTrips.map(trip => {
             const isCompleted = trip.status === 'completed';
+                const isCancelled = trip.status === 'cancelled';
             const isGpsVerified = trip.actualTraveledVerifiedGps;
 
             return (
@@ -113,7 +114,7 @@ export const SavedTab: React.FC<SavedTabProps> = ({
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {isCompleted ? 'Viagem Realizada' : 'Planejada'}
+                        {isCompleted ? 'Viagem Realizada' : isCancelled ? 'Encerrada' : trip.status === 'in_progress' ? 'Em andamento' : 'Planejada'}
                       </span>
                       {isCompleted && (
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
@@ -204,7 +205,7 @@ export const SavedTab: React.FC<SavedTabProps> = ({
                       className="py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
                     >
                       <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Iniciar Agora</span>
+                      <span>{isCancelled ? 'Viajar novamente' : trip.status === 'in_progress' ? 'Retomar mapa' : 'Iniciar Agora'}</span>
                     </button>
                   )}
                 </div>
@@ -216,3 +217,4 @@ export const SavedTab: React.FC<SavedTabProps> = ({
     </div>
   );
 };
+

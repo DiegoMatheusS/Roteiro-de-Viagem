@@ -8,6 +8,7 @@ let activeAccount: FuelUser | null = null;
 let generation = 0;
 let revision = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
 let blocked = false;
 let initialized = false;
@@ -17,6 +18,7 @@ function status(state: SyncState, message?: string) { onStatus?.(state, message)
 function cancel() {
   generation++;
   if (timer) clearTimeout(timer);
+  if (pollTimer) clearInterval(pollTimer); pollTimer = null;
   timer = null; activeAccount = null; blocked = false; initialized = false; inFlight = false; revision = 0;
   storageService.setChangeListener(null);
 }
@@ -56,6 +58,18 @@ async function flush() {
   }
 }
 
+async function pull() {
+  if (!activeAccount || !initialized || blocked || inFlight || localStorage.getItem(key(activeAccount.id, 'dirty')) === 'true') return;
+  const token = generation, account = activeAccount;
+  try {
+    const remote = await fuelApi<AccountState>('/me/state');
+    if (token !== generation || inFlight || localStorage.getItem(key(account.id, 'dirty')) === 'true' || remote.revision === revision) return;
+    if (remote.state) storageService.replaceSnapshot(remote.state);
+    revision = remote.revision; localStorage.setItem(key(account.id, 'revision'), String(revision));
+    window.dispatchEvent(new Event('rdv:remote-state'));
+  } catch { /* Preserve the last authoritative state; local writes report errors separately. */ }
+}
+
 export const cloudState = {
   stop() { cancel(); onStatus = null; },
   async connect(account: FuelUser | null, notify: (state: SyncState, message?: string) => void): Promise<void> {
@@ -91,6 +105,7 @@ export const cloudState = {
       });
       if (localDirty) { status('pending'); schedule(); }
       else status('synced');
+      pollTimer = setInterval(() => { void pull(); }, 15000);
     } catch (error) {
       if (token !== generation) return;
       status('error', 'Não foi possível carregar os dados do servidor. Confira a conexão e tente novamente.');
@@ -104,6 +119,7 @@ export const cloudState = {
       const remote = await fuelApi<AccountState>('/me/state');
       if (token !== generation) return;
       revision = remote.revision;
+      if (!pollTimer) pollTimer = setInterval(() => { void pull(); }, 15000);
       if (preference === 'server') {
         // Preserve the unsent local snapshot before accepting a newer server copy.
         localStorage.setItem(key(account.id, 'conflict_backup'), JSON.stringify(storageService.getSnapshot(account.displayName)));
@@ -146,3 +162,4 @@ export const cloudState = {
     }
   }
 };
+

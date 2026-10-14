@@ -178,7 +178,16 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     if (account.role === 'admin' && action !== 'unblock' && (db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin' AND blocked_at IS NULL AND deleted_at IS NULL").get() as any).count <= 1) throw new ApiError('Mantenha pelo menos um administrador ativo.');
     transaction(() => {
       if (action !== 'unblock') db.prepare('DELETE FROM sessions WHERE user_id=?').run(account.id);
+      if (action !== 'unblock') {
+        db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE user_id=?').run(account.id);
+        db.prepare("UPDATE convoys SET status='completed',updated_at=? WHERE organizer_id=?").run(now(), account.id);
+        db.prepare("UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE convoy_id IN (SELECT id FROM convoys WHERE organizer_id=?)").run(account.id);
+      }
       if (action === 'delete') {
+        db.prepare('DELETE FROM traveler_states WHERE user_id=?').run(account.id);
+        db.prepare("UPDATE toll_entries SET image_data=NULL,notes='',status=CASE WHEN status='pending' THEN 'rejected' ELSE status END WHERE user_id=?").run(account.id);
+        db.prepare('DELETE FROM convoy_members WHERE user_id=?').run(account.id);
+        db.prepare('UPDATE convoys SET snapshot=? WHERE organizer_id=?').run(JSON.stringify({ title: 'Comboio encerrado', tripTitle: '', originName: '', destinationName: '', routePath: [], meetingPoints: [] }), account.id);
         db.prepare('DELETE FROM shared_routes WHERE user_id=?').run(account.id);
         db.prepare('DELETE FROM photo_uploads WHERE user_id=?').run(account.id);
         db.prepare('DELETE FROM photos WHERE user_id=?').run(account.id);
@@ -230,3 +239,4 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     'SELECT m.id,m.target_type AS targetType,m.target_id AS targetId,m.action,m.notes,m.created_at AS createdAt,u.display_name AS administrator FROM moderation_actions m JOIN users u ON u.id=m.moderator_id ORDER BY m.created_at DESC,m.rowid DESC',
     'SELECT COUNT(*) AS count FROM moderation_actions')));
 }
+

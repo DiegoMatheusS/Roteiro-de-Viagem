@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Vehicle } from '../types';
-import { INITIAL_COMMUNITY_ROUTES } from '../data/sampleRoutes';
+import type { CommunityRoute } from '../types';
+const INITIAL_COMMUNITY_ROUTES: CommunityRoute[] = [];
 import { 
   Search, 
   SlidersHorizontal, 
@@ -440,3 +441,4 @@ export const ToursTab: React.FC<ToursTabProps> = ({
     </div>
   );
 };
+

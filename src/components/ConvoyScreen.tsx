@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ConvoySession, ConvoyParticipant, MeetingPoint, Vehicle } from '../types';
 import { convoyService } from '../services/convoyService';
 import { InteractiveMap } from './InteractiveMap';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import { isNativeApp } from '../services/nativeApp';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { 
   Users, 
@@ -65,32 +66,25 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   const sharingEnabled = !!convoy?.participants.find(p => p.id === currentUserId)?.isSharingLocation;
   const location = useDeviceLocation(sharingEnabled, convoyId);
 
-  // Load convoy session
+  const lastSent = useRef(0);
   useEffect(() => {
-    const session = convoyService.getConvoys().find(c => c.id === convoyId);
-    if (session) {
-      setConvoy(session);
-    }
+    let disposed = false;
+    const load = () => { void convoyService.getConvoy(convoyId).then(session => { if (!disposed) setConvoy(session); }).catch(error => { if (!disposed) setLocationError(error.message); }); };
+    load(); const timer = window.setInterval(load, 5000);
+    return () => { disposed = true; clearInterval(timer); };
   }, [convoyId]);
-
   useEffect(() => {
-    if (location.position && location.status === 'ready' && sharingEnabled) {
-      const updated = convoyService.updateParticipantLocation(convoyId, currentUserId, location.position.coords);
-      if (updated) setConvoy(updated);
-    }
+    if (isNativeApp() || !location.position || location.status !== 'ready' || !sharingEnabled || Date.now() - lastSent.current < 5000) return;
+    lastSent.current = Date.now();
+    void convoyService.updateParticipantLocation(convoyId, currentUserId, location.position.coords, location.position.timestamp, location.position.accuracyMeters)
+      .then(setConvoy).catch(error => setLocationError(error.message));
   }, [location.position, location.status, sharingEnabled, convoyId, currentUserId]);
-
   useEffect(() => {
-    if (location.error && sharingEnabled) {
-      setLocationError(location.error);
-      const updated = convoyService.toggleParticipantLocation(convoyId, currentUserId, false);
-      if (updated) setConvoy(updated);
-    }
+    if (!location.error || !sharingEnabled) return;
+    setLocationError(location.error);
+    void convoyService.toggleParticipantLocation(convoyId, currentUserId, false).then(setConvoy).catch(() => {});
   }, [location.error, sharingEnabled, convoyId, currentUserId]);
-
-  useEffect(() => () => {
-    convoyService.toggleParticipantLocation(convoyId, currentUserId, false);
-  }, [convoyId, currentUserId]);
+  useEffect(() => () => { void convoyService.toggleParticipantLocation(convoyId, currentUserId, false).catch(() => {}); }, [convoyId, currentUserId]);
 
   if (!convoy) {
     return (
@@ -108,16 +102,20 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   const isSharingLocation = currentUserParticipant?.isSharingLocation ?? false;
 
   // Toggle user's live location sharing (Requirement #3)
-  const handleToggleLocation = () => {
+  const handleToggleLocation = async () => {
+    try {
     setLocationError(null);
-    const updated = convoyService.toggleParticipantLocation(convoy.id, currentUserId, !isSharingLocation);
+    const updated = await convoyService.toggleParticipantLocation(convoy.id, currentUserId, !isSharingLocation);
     if (updated) setConvoy({ ...updated });
+    } catch (error) { setLocationError((error as Error).message); }
   };
 
   // Toggle check-in at a meeting point
-  const handleToggleCheckIn = (mpId: string) => {
-    const updated = convoyService.checkInMeetingPoint(convoy.id, mpId, currentUserId);
+  const handleToggleCheckIn = async (mpId: string) => {
+    try {
+    const updated = await convoyService.checkInMeetingPoint(convoy.id, mpId, currentUserId);
     if (updated) setConvoy({ ...updated });
+    } catch (error) { setLocationError((error as Error).message); }
   };
 
   // Search CEP from ViaCEP API
@@ -145,14 +143,15 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   };
 
   // Add new meeting point with address details & Minha Escolha option
-  const handleAddMeetingPoint = () => {
+  const handleAddMeetingPoint = async () => {
+    try {
     const finalTitle = newMeetingPointTitle.trim() || newStreet.trim() || 'Ponto Customizado';
     if (!finalTitle) return;
 
     if (!newMeetingPointCoords) { setLocationError('Selecione o ponto no mapa ou use sua posição GPS.'); return; }
     const defaultCoords = newMeetingPointCoords;
 
-    const updated = convoyService.addMeetingPoint(convoy.id, {
+    const updated = await convoyService.addMeetingPoint(convoy.id, {
       title: finalTitle,
       category: newMeetingPointCategory,
       coords: defaultCoords,
@@ -178,6 +177,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
       setNewMeetingPointCoords(null);
       setShowAddMeetingPoint(false);
     }
+    } catch (error) { setLocationError((error as Error).message); }
   };
 
   // Copy invitation link
@@ -193,11 +193,13 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
     setShowLeaveConvoyConfirm(true);
   };
 
-  const executeLeave = () => {
-    convoyService.leaveConvoy(convoy.id, currentUserId);
+  const executeLeave = async () => {
+    try {
+    await convoyService.leaveConvoy(convoy.id, currentUserId);
     setShowLeaveConvoyConfirm(false);
     onEndConvoy?.();
     onBack();
+    } catch (error) { setLocationError((error as Error).message); }
   };
 
   // End convoy (Organizador ou qualquer participante confirmando encerramento)
@@ -205,17 +207,20 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
     setShowEndConvoyConfirm(true);
   };
 
-  const executeEndConvoy = () => {
-    if (!convoyService.endConvoy(convoy.id, currentUserId)) return;
+  const executeEndConvoy = async () => {
+    try {
+    if (!await convoyService.endConvoy(convoy.id, currentUserId)) return;
     setShowEndConvoyConfirm(false);
     onEndConvoy?.();
     onBack();
+    } catch (error) { setLocationError((error as Error).message); }
   };
 
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-50 overflow-hidden">
-      <p className="px-4 py-2 text-xs bg-amber-50 text-amber-900">Comboio local de demonstração: a sincronização entre celulares ainda não está disponível.</p>
+      <p className="px-4 py-2 text-xs bg-amber-50 text-amber-900">Comboio sincronizado entre celulares. Atualização a cada 5 segundos; sua localização só aparece após você ativar o compartilhamento.</p>
       {locationError && <p role="alert" className="px-4 py-2 text-xs text-rose-700">{locationError}</p>}
+      {convoy.status !== 'active' && <p className="p-3 bg-slate-200 text-sm">Este comboio foi encerrado. A localização de todos foi ocultada.<button onClick={onBack} className="ml-3 underline">Voltar ao menu</button></p>}
       {/* Top Header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
@@ -793,3 +798,4 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
     </div>
   );
 };
+

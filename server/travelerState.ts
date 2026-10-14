@@ -42,7 +42,7 @@ function validateState(value: unknown, accountId: string): Json {
     object(trip) && textField(trip.id, 120) && textField(trip.title, 400) &&
     coords(trip.originCoords) && coords(trip.destinationCoords) &&
     count(trip.distanceKm, 50000) && count(trip.durationMinutes, 500000) &&
-    ['planned', 'in_progress', 'completed'].includes(String(trip.status)) &&
+    ['planned', 'in_progress', 'completed', 'cancelled'].includes(String(trip.status)) &&
     list(trip.routePath, 2500) && (trip.routePath as unknown[]).every(coords) &&
     list(trip.stops, 80) && textField(trip.vehicleId, 120);
   if (!list(convoys ?? [], 30) || !(convoys as unknown[] || []).every(item => object(item) && textField(item.id, 120) &&
@@ -94,3 +94,4 @@ export function registerTravelerStateRoutes(app: Express, db: FuelDatabase,
     res.json({ revision, updatedAt: changedAt });
   });
 }
+

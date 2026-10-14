@@ -421,7 +421,7 @@ export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: 
     costPerPerson: input.splitExpenses ? Number((totalCost / Math.max(1, input.peopleCount)).toFixed(2)) : totalCost,
     scenicQualityStars: presetTrip.routingSource === 'OSRM' ? 0 : 4,
     hasRainRisk: presetTrip.hasRainRisk,
-    weatherSummary: presetTrip.routingSource === 'OSRM' ? 'Clima ainda não integrado; consulte a previsão antes de sair.' : 'Previsão de exemplo; consulte dados atualizados antes de sair.',
+    weatherSummary: presetTrip.weatherSource ? `Previsão real · ${presetTrip.weatherSource}` : 'Previsão indisponível; consulte novamente antes de sair.',
     routePath: presetTrip.routePath,
     stops: presetTrip.stops,
     weatherPoints: presetTrip.weatherPoints,
@@ -450,6 +450,7 @@ export function buildPlannedTrip(input: RoutePlanningInput, option: RouteOptionC
     waypointOrder: presetTrip?.waypointOrder,
     routingSource: presetTrip?.routingSource,
     tollsStatus: presetTrip?.tollsStatus,
+    tolls: presetTrip?.tolls, weatherSource: presetTrip?.weatherSource, weatherUpdatedAt: presetTrip?.weatherUpdatedAt, departureAt: presetTrip?.departureAt,
     routeWarnings: presetTrip?.routeWarnings,
     routePath: option.routePath,
     stops: option.stops,
@@ -1060,5 +1061,6 @@ export function generateTouristCircuitByKmOrHours(input: TouristCircuitInput): T
     createdAt: new Date().toISOString()
   };
 }
+
 
 

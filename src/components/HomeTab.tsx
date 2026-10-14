@@ -77,8 +77,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [showVehicleSwitcher, setShowVehicleSwitcher] = useState(false);
 
   // Traditional Origin & Destination state
-  const [origin, setOrigin] = useState('São Paulo - SP (Centro)');
-  const [originCoords, setOriginCoords] = useState<[number, number] | undefined>([-23.5505, -46.6333]);
+  const [origin, setOrigin] = useState('');
+  const [originCoords, setOriginCoords] = useState<[number, number] | undefined>();
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>();
   const [manualStops, setManualStops] = useState<MandatoryStop[]>([]);
@@ -939,3 +939,4 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     </div>
   );
 };
+

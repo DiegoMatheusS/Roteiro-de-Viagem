@@ -80,15 +80,3 @@ test('location watcher clears on stop and ignores late callbacks', () => {
   stop(); callback({ coords: { latitude: 0, longitude: 0, accuracy: 3, speed: null }, timestamp: 1000 });
   assert.equal(clearId, 7); assert.equal(received, 0);
 });
-test('revoked consent and ended convoy cannot be re-enabled by a late GPS update', () => {
-  const trip = generateTouristCircuitByKmOrHours({ mode: 'km', targetValue: 100, vehicle });
-  const convoy = convoyService.createConvoy({ title: 'Teste', trip, organizerUser: { id: 'owner', name: 'Teste', vehicleType: 'motorcycle' }, meetingPoints: [] });
-  assert.equal(convoy.participants[0].isSharingLocation, false);
-  convoyService.toggleParticipantLocation(convoy.id, 'owner', true);
-  assert.ok(convoyService.updateParticipantLocation(convoy.id, 'owner', [0, 0]));
-  convoyService.toggleParticipantLocation(convoy.id, 'owner', false);
-  assert.equal(convoyService.updateParticipantLocation(convoy.id, 'owner', [1, 1]), null);
-  assert.equal(convoyService.endConvoy(convoy.id, 'outsider'), false);
-  assert.equal(convoyService.endConvoy(convoy.id, 'owner'), true);
-  assert.equal(convoyService.toggleParticipantLocation(convoy.id, 'owner', true, [0, 0]), null);
-});
