@@ -1,4 +1,4 @@
-import { Vehicle, FuelLog, TravelerProfile, TravelerTier, Achievement, TripPlan } from '../types';
+import { Vehicle, FuelLog, TravelerProfile, TravelerTier, Achievement, TripPlan, ConvoySession } from '../types';
 import { calculateObservedConsumption } from './fuelConsumption';
 
 export interface TravelerSnapshot {
@@ -9,6 +9,8 @@ export interface TravelerSnapshot {
   trips: TripPlan[];
   activeTrip: TripPlan | null;
   selectedVehicleId: string;
+  convoys: ConvoySession[];
+  activeConvoyId: string | null;
 }
 
 
@@ -99,7 +101,9 @@ const scoped = {
   profile: () => key('profile'),
   achievements: () => key('achievements'),
   trips: () => key('trips'),
-  activeTrip: () => key('active_trip')
+  activeTrip: () => key('active_trip'),
+  convoys: () => key('convoys'),
+  activeConvoyId: () => key('active_convoy')
 };
 let changeListener: (() => void) | null = null;
 const write = (name: string, value: string) => { localStorage.setItem(name, value); changeListener?.(); };
@@ -116,7 +120,8 @@ export const storageService = {
   setChangeListener(listener: (() => void) | null) { changeListener = listener; },
   getSnapshot(name?: string): TravelerSnapshot {
     return { profile: this.getProfile(name), vehicles: this.getVehicles(), fuelLogs: this.getFuelLogs(), achievements: this.getAchievements(),
-      trips: this.getTrips(), activeTrip: this.getActiveTrip(), selectedVehicleId: this.getSelectedVehicleId() };
+      trips: this.getTrips(), activeTrip: this.getActiveTrip(), selectedVehicleId: this.getSelectedVehicleId(),
+      convoys: this.getConvoys(), activeConvoyId: this.getActiveConvoyId() };
   },
   replaceSnapshot(state: TravelerSnapshot) {
     // Read-only remote hydration: never emit local-change events during initialization.
@@ -128,11 +133,19 @@ export const storageService = {
     localStorage.setItem(scoped.vehicleId(), state.selectedVehicleId);
     if (state.activeTrip) localStorage.setItem(scoped.activeTrip(), JSON.stringify(state.activeTrip));
     else localStorage.removeItem(scoped.activeTrip());
+    localStorage.setItem(scoped.convoys(), JSON.stringify(state.convoys || []));
+    if (state.activeConvoyId) localStorage.setItem(scoped.activeConvoyId(), state.activeConvoyId);
+    else localStorage.removeItem(scoped.activeConvoyId());
   },
   resetScope(name?: string) {
     this.replaceSnapshot({ profile: newProfile(storageOwner || crypto.randomUUID(), name), vehicles: [], fuelLogs: [],
-      achievements: EMPTY_ACHIEVEMENTS.map(item => ({ ...item })), trips: [], activeTrip: null, selectedVehicleId: '' });
+      achievements: EMPTY_ACHIEVEMENTS.map(item => ({ ...item })), trips: [], activeTrip: null, selectedVehicleId: '',
+      convoys: [], activeConvoyId: null });
   },
+  getConvoys(): ConvoySession[] { return readList<ConvoySession>(scoped.convoys()); },
+  saveConvoys(convoys: ConvoySession[]) { write(scoped.convoys(), JSON.stringify(convoys)); },
+  getActiveConvoyId(): string | null { return localStorage.getItem(scoped.activeConvoyId()); },
+  setActiveConvoyId(id: string | null) { if (id) write(scoped.activeConvoyId(), id); else drop(scoped.activeConvoyId()); },
   // VEHICLES
   getVehicles(): Vehicle[] {
     return readList<Vehicle>(scoped.vehicles());
