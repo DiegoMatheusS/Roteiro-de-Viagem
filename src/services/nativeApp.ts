@@ -5,8 +5,8 @@ export const TravelNative = registerPlugin<{
   request(options: { path: string; method: string; body?: string; form?: { name: string; value?: string; data?: string; mime?: string }[]; binary?: boolean }): Promise<{ status: number; body: string }>;
   startTracking(options: { tripId: string; distanceKm: number }): Promise<void>;
   stopTracking(): Promise<void>;
-  state(): Promise<{ tripId: string; distanceKm: number; running: boolean; position?: DeviceLocation }>;
-  setConvoy(options: { convoyId: string; enabled: boolean }): Promise<void>;
+  state(): Promise<{ tripId: string; convoyId?: string; stoppedLocationToken?:string; distanceKm: number; running: boolean; position?: DeviceLocation }>;
+  setConvoy(options: { convoyId: string; enabled: boolean; locationToken?: string }): Promise<void>;
 }>('TravelNative');
 export async function nativeRequest(path: string, options: RequestInit = {}) {
   const form: { name: string; value?: string; data?: string; mime?: string }[] = [];

@@ -91,6 +91,7 @@ export function registerTravelerStateRoutes(app: Express, db: FuelDatabase,
         .run(owner, snapshot, revision, changedAt);
       if (!inserted.changes) throw new ApiError('Conflito na sincronização.', 409);
     }
+    db.prepare('UPDATE users SET display_name=? WHERE id=?').run(String((state.profile as Json).name).trim(),owner);
     res.json({ revision, updatedAt: changedAt });
   });
 }

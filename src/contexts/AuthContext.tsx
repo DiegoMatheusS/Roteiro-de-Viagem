@@ -1,5 +1,6 @@
+import { convoyService } from '../services/convoyService';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { fuelApi } from '../services/fuelApi';
+import { fuelApi,FuelApiError } from '../services/fuelApi';
 import type { FuelUser } from '../types/fuel';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
@@ -14,15 +15,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [register, setRegister] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { fuelApi<{ user: FuelUser | null }>('/auth/me').then(result => setUser(result.user)).catch(() => {}).finally(() => setLoading(false)); }, []);
-  const logout = async () => { await fuelApi('/auth/logout', { method: 'POST', body: '{}' }); setUser(null); };
+  const remember=(value:FuelUser|null)=>{if(value)localStorage.setItem('rdv_auth_cache_v1',JSON.stringify({user:value,until:Date.now()+7*86400000}));else localStorage.removeItem('rdv_auth_cache_v1');setUser(value);};
+  useEffect(()=>{
+    let disposed=false;
+    const load=async()=>{try{const result=await fuelApi<{user:FuelUser|null}>('/auth/me');if(!disposed)remember(result.user);}catch(error){if(disposed)return;if(error instanceof FuelApiError&&error.status<500)return;try{const cached=JSON.parse(localStorage.getItem('rdv_auth_cache_v1')||'null');if(cached?.until>Date.now()&&typeof cached.user?.id==='string'&&typeof cached.user?.displayName==='string')setUser({...cached.user,role:'user'});}catch{}}finally{if(!disposed)setLoading(false);}};
+    void load();const resume=()=>{if(!document.hidden)void load();};window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+    return()=>{disposed=true;window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
+  },[]);
+  const logout = async () => { await convoyService.stopSharing(); await fuelApi('/auth/logout', { method: 'POST', body: '{}' }); remember(null); };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true); setError('');
     try {
       const result = await fuelApi<{ user: FuelUser }>(register ? '/auth/register' : '/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(form)) });
-      setUser(result.user); setOpen(false);
+      remember(result.user); setOpen(false);
     } catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   };
@@ -42,3 +49,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </div>}
   </AuthContext.Provider>;
 }
+

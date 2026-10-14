@@ -28,7 +28,8 @@ import java.util.concurrent.Executors;
 public class TravelLocationService extends Service implements LocationListener {
   public static volatile boolean running=false;
   public static volatile JSObject lastPosition=null;
-  private String tripId="",convoyId="",origin="",cookie="";
+  public static volatile String activeConvoyId="";
+  private volatile String tripId="",convoyId="",locationToken="",origin="",cookie="";
   private double distanceKm=0;
   private Location previous;
   private long lastSend=0;
@@ -43,9 +44,9 @@ public class TravelLocationService extends Service implements LocationListener {
   @Override public int onStartCommand(Intent intent,int flags,int startId) {
     if(intent==null) { stopSelf(); return START_NOT_STICKY; }
     String action=intent.getAction();
-    if("STOP_ALL".equals(action)) { revoke(); tripId=""; convoyId=""; stopSelf(); return START_NOT_STICKY; }
+    if("STOP_ALL".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).apply(); revoke(); tripId=""; convoyId=""; activeConvoyId=""; stopSelf(); return START_NOT_STICKY; }
     if("STOP_TRIP".equals(action)) { tripId=""; previous=null; }
-    if("STOP_CONVOY".equals(action)) { revoke(); convoyId=""; }
+    if("STOP_CONVOY".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).apply(); revoke(); convoyId=""; activeConvoyId=""; }
     if("TRIP".equals(action)) {
       String next=intent.getStringExtra("tripId"); if(next==null || next.length()>300) { stopSelf(); return START_NOT_STICKY; }
       if(!next.equals(tripId)) {
@@ -54,7 +55,11 @@ public class TravelLocationService extends Service implements LocationListener {
         persist();
       }
     }
-    if("CONVOY".equals(action)) { convoyId=intent.getStringExtra("convoyId"); origin=intent.getStringExtra("origin"); cookie=intent.getStringExtra("cookie"); }
+    if("CONVOY".equals(action)) {
+      String next=intent.getStringExtra("convoyId"), nextToken=intent.getStringExtra("locationToken");
+      if(!java.util.Objects.equals(next,convoyId) || !java.util.Objects.equals(nextToken,locationToken)) { revoke(); lastSend=0; }
+      convoyId=next; locationToken=nextToken==null?"":nextToken; activeConvoyId=next==null?"":next; origin=intent.getStringExtra("origin"); cookie=intent.getStringExtra("cookie");
+    }
     if(tripId.isEmpty() && (convoyId==null || convoyId.isEmpty())) { stopSelf(); return START_NOT_STICKY; }
     if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED) { stopSelf(); return START_NOT_STICKY; }
     Intent stop=new Intent(this,TravelLocationService.class).setAction("STOP_ALL");
@@ -80,22 +85,22 @@ public class TravelLocationService extends Service implements LocationListener {
       else if(seconds>30 || meters/Math.max(seconds,0.001)*3.6>200) previous=location;
     } else previous=location;
     if(convoyId!=null && !convoyId.isEmpty() && System.currentTimeMillis()-lastSend>=5000) {
-      lastSend=System.currentTimeMillis(); String group=convoyId;
-      JSObject data=new JSObject(); data.put("enabled",true); data.put("coords",coords); data.put("accuracyMeters",location.getAccuracy()); java.text.SimpleDateFormat format=new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",java.util.Locale.US); format.setTimeZone(java.util.TimeZone.getTimeZone("UTC")); data.put("timestamp",format.format(new java.util.Date(location.getTime())));
-      io.execute(() -> { int status=send(group,data.toString()); if(status==401 || status==403 || status==404 || status==409) { convoyId=""; if(tripId.isEmpty()) stopSelf(); } });
+      lastSend=System.currentTimeMillis(); String group=convoyId, token=locationToken, targetOrigin=origin, targetCookie=cookie;
+      JSObject data=new JSObject(); data.put("enabled",true); data.put("locationToken",token); data.put("coords",coords); data.put("accuracyMeters",location.getAccuracy()); java.text.SimpleDateFormat format=new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",java.util.Locale.US); format.setTimeZone(java.util.TimeZone.getTimeZone("UTC")); data.put("timestamp",format.format(new java.util.Date(location.getTime())));
+      io.execute(() -> { int status=send(group,data.toString(),targetOrigin,targetCookie); if((status==401 || status==403 || status==404 || status==409) && group.equals(convoyId) && token.equals(locationToken)) { convoyId=""; activeConvoyId=""; if(tripId.isEmpty()) stopSelf(); } });
     }
   }
-  private int send(String group,String data) {
+  private int send(String group,String data,String targetOrigin,String targetCookie) {
     HttpURLConnection conn=null;
     try {
-      URL url=new URL(origin+"/api/convoys/"+group+"/location"); if(!url.getProtocol().equals("https")) return 400;
+      URL url=new URL(targetOrigin+"/api/convoys/"+group+"/location"); if(!url.getProtocol().equals("https")) return 400;
       conn=(HttpURLConnection)url.openConnection(); conn.setInstanceFollowRedirects(false); conn.setConnectTimeout(10000); conn.setReadTimeout(10000); conn.setRequestMethod("PUT"); conn.setDoOutput(true);
-      if(cookie!=null) conn.setRequestProperty("Cookie",cookie); conn.setRequestProperty("Content-Type","application/json"); conn.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8)); return conn.getResponseCode();
+      if(targetCookie!=null) conn.setRequestProperty("Cookie",targetCookie); conn.setRequestProperty("Content-Type","application/json"); conn.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8)); return conn.getResponseCode();
     } catch(Exception error) { return 0; } finally { if(conn!=null) conn.disconnect(); }
   }
-  private void revoke() { if(convoyId!=null && !convoyId.isEmpty()) { String group=convoyId; io.execute(() -> send(group,"{\"enabled\":false}")); } }
+  private void revoke() { if(convoyId!=null && !convoyId.isEmpty()) { String group=convoyId,targetOrigin=origin,targetCookie=cookie; JSObject data=new JSObject();data.put("enabled",false);data.put("locationToken",locationToken);String body=data.toString();io.execute(() -> send(group,body,targetOrigin,targetCookie)); } }
   @Override public void onProviderDisabled(String provider) { previous=null; lastPosition=null; }
   @Override public void onProviderEnabled(String provider) {}
   @Override public void onStatusChanged(String provider,int status,Bundle extras) {}
-  @Override public void onDestroy() { running=false; lastPosition=null; if(manager!=null) manager.removeUpdates(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }
+  @Override public void onDestroy() { running=false; activeConvoyId=""; lastPosition=null; if(manager!=null) manager.removeUpdates(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }
 }
