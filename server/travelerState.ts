@@ -87,8 +87,9 @@ export function registerTravelerStateRoutes(app: Express, db: FuelDatabase,
         .run(snapshot, revision, changedAt, owner, expectedRevision);
       if (!result.changes) throw new ApiError('Conflito na sincronização.', 409);
     } else {
-      db.prepare('INSERT INTO traveler_states(user_id,snapshot,revision,updated_at) VALUES(?,?,?,?)')
+      const inserted = db.prepare('INSERT OR IGNORE INTO traveler_states(user_id,snapshot,revision,updated_at) VALUES(?,?,?,?)')
         .run(owner, snapshot, revision, changedAt);
+      if (!inserted.changes) throw new ApiError('Conflito na sincronização.', 409);
     }
     res.json({ revision, updatedAt: changedAt });
   });
