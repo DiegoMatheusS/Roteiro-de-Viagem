@@ -169,7 +169,7 @@ export const SavedTab: React.FC<SavedTabProps> = ({
                 {trip.fuelPriceSource && <p className="text-[11px] text-slate-500">Combustível: {trip.fuelPriceSource.stationName} · preço visto em {new Date(trip.fuelPriceSource.observedAt).toLocaleString('pt-BR')}{Date.now() - Date.parse(trip.fuelPriceSource.observedAt) > 72 * 3600000 ? ' · Preço desatualizado: confira novamente antes de viajar.' : ''}</p>}
                 {trip.fuelPricePerLiter <= 0 && <p className="text-[11px] text-amber-800">Estimativa parcial: preço do combustível ainda não informado.</p>}
 
-                {trip.tollsStatus === 'unknown' && <p className="text-[11px] text-amber-800">Orçamento parcial: tarifas de pedágio não informadas.</p>}
+                {trip.tollsStatus !== 'available' && <p className="text-[11px] text-amber-800">Orçamento parcial: tarifas de pedágio não informadas.</p>}
                 {trip.manualStops?.length ? <p className="text-[11px] text-emerald-700">{trip.manualStops.length} paradas obrigatórias preservadas.</p> : null}
 
                 {/* Review if completed */}

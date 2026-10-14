@@ -1,3 +1,5 @@
+import type { RouteToll } from '../types/tolls';
+import { TollModal } from './TollModal';
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
@@ -19,6 +21,8 @@ interface InteractiveMapProps {
   routeModality?: RouteModality;
   stops?: RouteStop[];
   weatherPoints?: WeatherPoint[];
+  tolls?: RouteToll[];
+  tollVehicleType?: 'car' | 'motorcycle';
   showRainLayer?: boolean;
   userLiveCoords?: [number, number];
   focusedCoords?: [number, number] | null;
@@ -83,6 +87,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   stops = [],
   showRainLayer = false,
   weatherPoints = [],
+  tolls = [],
+  tollVehicleType,
   userLiveCoords,
   focusedCoords,
   convoyParticipants = [],
@@ -97,9 +103,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
+  const [selectedTollId,setSelectedTollId]=useState<string|null>(null);
+  const selectedToll=tolls.find(t => t.id === selectedTollId);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('voyager');
@@ -137,6 +146,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const rainGroup = L.layerGroup().addTo(map);
     rainLayerGroupRef.current = rainGroup;
     fuelLayerGroupRef.current = L.layerGroup().addTo(map);
+    tollLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -158,6 +168,19 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const group=tollLayerGroupRef.current;
+    if(!group)return;group.clearLayers();
+    if(!tollVehicleType)return;
+    for(const toll of tolls) {
+      const icon=L.divIcon({className:'toll-marker',html:'<div style="background:white;border:2px solid #0e7490;border-radius:50%;padding:5px;font-size:18px">🛣️</div>',iconSize:[36,36],iconAnchor:[18,18]});
+      const marker=L.marker(toll.coords,{icon,title:toll.name,zIndexOffset:1700}).addTo(group);
+      const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
+      marker.on('click',() => setSelectedTollId(toll.id));
+      marker.on('keypress',event => {const original=(event as L.LeafletKeyboardEvent).originalEvent;if(original.key==='Enter'||original.key===' '){original.preventDefault();setSelectedTollId(toll.id);}});
+    }
+  },[tolls,tollVehicleType]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -529,8 +552,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // Actual provider forecast samples, without an invented radar polygon.
     if (showRainLayer) for (const point of weatherPoints || []) {
       if (!point.coords) continue;
-      L.circleMarker(point.coords, { radius: 9, color: point.rainProb >= 50 ? '#0284c7' : '#475569', fillOpacity: 0.7 }).addTo(rainGroup)
-        .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · ${escapeHtml(point.passTime)}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
+      L.circleMarker(point.coords, { className: 'weather-forecast-marker', radius: 9, color: point.rainProb >= 50 ? '#0284c7' : '#475569', fillOpacity: 0.7 }).addTo(rainGroup)
+        .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h · ${escapeHtml(new Date(point.forecastAt || point.passTime).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}${point.warning ? `<br>${escapeHtml(point.warning)}` : ''}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
     }
 
     // Fit map bounds
@@ -564,6 +587,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       <div ref={mapContainerRef} className="w-full h-full" />
       {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}
       {fuel.error && <div className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-amber-50 rounded-xl p-2 shadow">{fuel.error}<button type="button" onClick={fuel.retry} className="ml-2 font-bold">Tentar novamente</button></div>}
+      {selectedToll && tollVehicleType && <TollModal toll={selectedToll} vehicleType={tollVehicleType} onClose={() => setSelectedTollId(null)} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
       {selectedStation && <FuelStationModal stationId={selectedStation} onClose={() => setSelectedStation(null)} />}
 

@@ -110,6 +110,14 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     return `${h}:${m}`;
   };
 
+  const getScheduledDepartureAt=() => {
+    if(departureMode !== 'scheduled')return undefined;
+    const [hours,minutes]=scheduledTime.split(':').map(Number);
+    if(!scheduledTime||!Number.isInteger(hours)||!Number.isInteger(minutes)||hours<0||hours>23||minutes<0||minutes>59)return undefined;
+    const date=new Date();date.setHours(hours,minutes,0,0);if(date.getTime() <= Date.now())date.setDate(date.getDate()+1);
+    return date.toISOString();
+  };
+
   // Use current GPS location
   const handleUseCurrentLocation = async () => {
     setIsGettingGps(true);
@@ -148,7 +156,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       if (!end) { setLocationError('Escolha um destino ou uma parada final.'); return; }
       trip = { ...trip, destinationCoords: end, destinationName: destinationCoords ? destination : trip.isCircular ? origin : manualStops.at(-1)!.location.name, manualStops, planningLimits: limits };
     } else trip = { ...trip, planningLimits: limits };
-    setLocationError(null); onLaunchTouristCircuit(trip);
+    try { const departureAt=getScheduledDepartureAt();if(departureMode==='scheduled' && !departureAt)throw new Error('Escolha um horário de saída válido.');trip={...trip,departureAt};setLocationError(null);onLaunchTouristCircuit(trip); } catch(error){setLocationError((error as Error).message);}
   };
 
   const handleTouristGeneration = async (mode: 'km' | 'hours', target: number) => {
@@ -631,6 +639,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   </button>
                 </div>
 
+                {departureMode === 'scheduled' && <p className="text-xs text-slate-500">Saída prevista: {getScheduledDepartureAt() ? new Date(getScheduledDepartureAt()!).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'escolha um horário válido'}. Horários que já passaram valem para amanhã.</p>}
                 {departureMode === 'scheduled' && (
                   <div className="flex items-center gap-3 pt-1">
                     <span className="text-xs text-slate-600">Horário previsto de saída:</span>

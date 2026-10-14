@@ -1,3 +1,4 @@
+import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement } from '../types';
@@ -22,6 +23,7 @@ interface ActiveTripModalProps {
   trip: TripPlan;
   vehicle: Vehicle;
   tracking: ReturnType<typeof useTripTracking>;
+  conditions: ConditionsStatus;
   isOpen: boolean;
   onClose: () => void;
   onEndTrip: () => void;
@@ -34,6 +36,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   trip,
   vehicle,
   tracking,
+  conditions,
   isOpen,
   onClose,
   onEndTrip,
@@ -126,11 +129,11 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       {tracking.error && <div role="alert" className="px-4 py-2 text-xs bg-amber-50 text-amber-900 flex items-center justify-between gap-2">{tracking.error}<button onClick={tracking.retry} className="font-bold">Tentar GPS novamente</button></div>}
 
       {/* MOTORCYCLE RAIN WEATHER ALERT IF APPLICABLE (Requirement #23) */}
-      {trip.hasRainRisk && vehicle.type === 'motorcycle' && (
+      {(trip.hasRainRisk || trip.weatherPoints.some(p => p.warning)) && vehicle.type === 'motorcycle' && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-2">
             <CloudRain className="w-4 h-4 shrink-0" />
-            <span>Alerta Piloto: Chuva e pista molhada prevista no trecho da serra. Mantenha distância do veículo à frente.</span>
+            <span>Condições meteorológicas adversas previstas no percurso. Confira a previsão e as condições da pista.</span>
           </div>
         </div>
       )}
@@ -143,10 +146,14 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           routePath={trip.routePath}
           stops={trip.stops}
           weatherPoints={trip.weatherPoints}
+          tolls={trip.tolls || []}
+          tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
           showRainLayer={trip.hasRainRisk}
           className="w-full h-full"
         />
+
+        <div className="absolute bottom-20 left-3 right-16 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={conditions} /></div>
 
         {/* FLOATING SPEEDOMETER - WHITE CARD OVERLAY */}
         <div className="absolute top-4 left-4 z-30 flex flex-col gap-2">

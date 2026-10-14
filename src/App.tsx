@@ -26,6 +26,7 @@ import { ShareTripModal } from './components/ShareTripModal';
 import { ConvoyScreen } from './components/ConvoyScreen';
 import { ActiveTripModal } from './components/ActiveTripModal';
 import { SosModal } from './components/SosModal';
+import { useLiveRouteConditions } from './hooks/useLiveRouteConditions';
 import { useTripTracking } from './hooks/useTripTracking';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
@@ -112,6 +113,16 @@ export default function App() {
   useEffect(() => { const refresh = () => reloadAccount(auth.user?.displayName); window.addEventListener('rdv:remote-state', refresh); return () => window.removeEventListener('rdv:remote-state', refresh); }, [auth.user?.id]);
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId) || vehicles[0] || null;
+
+  const conditionsTrip=activeTrip || (activeTab === 'mapa' ? trips.find(t => t.status === 'planned') || null : null);
+  const conditionsVehicle=vehicles.find(v => v.id === conditionsTrip?.vehicleId) || currentVehicle;
+  const conditions=useLiveRouteConditions(conditionsTrip,conditionsVehicle?.type || 'car',(id,patch) => {
+    const saved=storageService.getTrips().find(t => t.id === id);
+    if(!saved || !['planned','in_progress'].includes(saved.status))return;
+    storageService.saveTrip({...saved,...patch});setTrips(storageService.getTrips());
+    const running=storageService.getActiveTrip();
+    if(running?.id === id){const updated={...running,...patch};storageService.setActiveTrip(updated);setActiveTrip(updated);}
+  },accountReady && !!conditionsVehicle && !!conditionsTrip,activeTrip ? tracking.position : null);
 
   const handleCreateConvoy = async (trip: TripPlan) => {
     if (!auth.user) { auth.promptLogin(); return; }
@@ -338,6 +349,8 @@ export default function App() {
               <MapTab
                 currentVehicle={currentVehicle}
                 activeTrip={activeTrip}
+                conditions={conditions}
+                routeVehicleType={conditionsVehicle?.type}
                 plannedTrip={trips.find(trip => trip.status === 'planned') || null}
                 onBackToMenu={() => setActiveTab('inicio')}
                 onEndTrip={handleEndTrip}
@@ -444,6 +457,7 @@ export default function App() {
           trip={activeTrip}
           vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
           tracking={tracking}
+          conditions={conditions}
           isOpen={!!activeTrip}
           onClose={() => { setIsNavigationOpen(false); setActiveTab('inicio'); }}
           onEndTrip={() => handleEndTrip(activeTrip)}

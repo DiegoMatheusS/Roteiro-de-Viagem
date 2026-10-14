@@ -65,30 +65,41 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
         if (cache.size > 1000) cache.clear(); cache.set(key, Date.now() + 6 * 3600000);
       } catch { mapUnavailable = true; }
     }
-    const candidates = db.prepare('SELECT * FROM toll_places').all() as any[];
+    const latitude = path.map((p: Coordinates) => p[0]), longitude = path.map((p: Coordinates) => p[1]);
+    const candidates = db.prepare('SELECT * FROM toll_places WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? ORDER BY id')
+      .all(Math.min(...latitude)-0.01,Math.max(...latitude)+0.01,Math.min(...longitude)-0.02,Math.max(...longitude)+0.02) as any[];
+    const groups: { place: any; ids: string[]; passages: ReturnType<typeof tollPassages> }[] = [];
+    for (const row of candidates) {
+      const passages = tollPassages(path,[row.lat,row.lng]); if (!passages.length) continue;
+      const group = groups.find(g => distanceBetweenKm([g.place.lat,g.place.lng],[row.lat,row.lng]) < 0.2 && Math.abs(g.passages[0].along-passages[0].along) < 0.3);
+      if (group) group.ids.push(row.id); else groups.push({ place:row,ids:[row.id],passages });
+    }
     const routeTolls: RouteToll[] = [];
     let knownCost = 0;
-    for (const row of candidates) {
-      const passages = tollPassages(path, [row.lat, row.lng]); if (!passages.length) continue;
-      // Lane-level OSM nodes in one plaza must not be charged multiple times.
-      if (routeTolls.some(t => distanceBetweenKm(t.coords, [row.lat, row.lng]) < 0.2)) continue;
-      const entries = db.prepare("SELECT id,price,heading,observed_at,valid_until FROM toll_entries WHERE toll_id=? AND vehicle_type=? AND status='approved' AND valid_until>? ORDER BY observed_at DESC,reviewed_at DESC").all(row.id, vehicleType, now()) as any[];
-      const used = passages.map(p => entries.find(e => e.heading == null || headingMatches(p.heading, e.heading)));
-      const selected = used[0]; const allKnown = used.every(Boolean);
-      knownCost += used.reduce((sum, e) => sum + (e?.price || 0), 0);
-      routeTolls.push({ id: row.id, name: row.name, coords: [row.lat, row.lng], sourceUrl: row.source_url, passages: passages.length,
-        price: allKnown ? used.reduce((sum, e) => sum + e.price, 0) / passages.length : null,
-        priceId: selected?.id, observedAt: selected?.observed_at, validUntil: selected?.valid_until, headingDegrees: selected?.heading });
+    for (const { place:row,ids,passages } of groups) {
+      // Preserve valid contributions made against any lane node in the same plaza.
+      const entries = db.prepare(`SELECT id,price,heading,observed_at,valid_until FROM toll_entries WHERE toll_id IN (${ids.map(() => '?').join(',')}) AND vehicle_type=? AND status='approved' AND valid_until>? ORDER BY observed_at DESC,reviewed_at DESC,id DESC`)
+        .all(...ids,vehicleType,now()) as any[];
+      const used = passages.map(p => entries.find(e => e.heading == null || headingMatches(p.heading,e.heading)));
+      const selected = used.find(Boolean), missingPassages = used.filter(e => !e).length;
+      const subtotal = Number(used.reduce((sum,e) => sum+(e?.price ?? 0),0).toFixed(2));
+      knownCost += subtotal;
+      routeTolls.push({ id:row.id,name:row.name,coords:[row.lat,row.lng],sourceUrl:row.source_url,passages:passages.length,
+        knownCost:subtotal,missingPassages,
+        price:missingPassages === 0 && used.every(e => e.price === selected.price) ? selected.price : null,
+        priceId:selected?.id,observedAt:selected?.observed_at,validUntil:selected?.valid_until,headingDegrees:selected?.heading,
+        tariffs:used.map((e,index) => ({ price:e?.price ?? null,headingDegrees:passages[index].heading,priceId:e?.id,observedAt:e?.observed_at,validUntil:e?.valid_until })) });
     }
-    res.json({ tolls: routeTolls, knownCost: Number(knownCost.toFixed(2)), status: knownCost > 0 || routeTolls.some(t => t.price === 0) ? 'partial' : 'unknown', mapUnavailable,
+    res.json({ tolls: routeTolls, knownCost: Number(knownCost.toFixed(2)), status: routeTolls.some(t => t.tariffs?.some(p => p.price !== null)) ? 'partial' : 'unknown', updatedAt: now(), mapUnavailable,
       warning: 'Soma das tarifas aprovadas nos pedágios identificados. A cobertura do mapa é parcial; outras cobranças podem existir.' });
   }));
   app.post('/api/tolls/:id/contributions', auth, upload.single('photo'), asyncRoute(async (req, res) => {
     const place = toll(String(req.params.id)), owner = user(res).id;
+    if ((db.prepare('SELECT COUNT(*) AS count FROM toll_entries WHERE user_id=? AND created_at>?').get(owner,new Date(Date.now()-86400000).toISOString()) as any).count >= 10) throw new ApiError('Limite diário de contribuições atingido.',429);
     limit(`toll-send:${owner}`, 10, 86400000); limit(`toll-photo:${req.ip}`, 3, 10 * 60000);
     const vehicleType = req.body.vehicleType, price = req.body.price === '' || req.body.price == null ? null : Number(req.body.price);
     const heading = req.body.headingDegrees === '' || req.body.headingDegrees == null ? null : Number(req.body.headingDegrees);
-    if (!['car', 'motorcycle'].includes(vehicleType) || (price !== null && (!Number.isFinite(price) || price < 0 || price > 2000)) ||
+    if (!['car', 'motorcycle'].includes(vehicleType) || (price !== null && (!Number.isFinite(price) || price < 0 || price > 2000 || Math.abs(price*100-Math.round(price*100)) > 0.000001)) ||
       (heading !== null && (!Number.isFinite(heading) || heading < 0 || heading >= 360)) || req.body.confirmed !== 'true' && req.body.confirmed !== true)
       throw new ApiError('Confirme o pedágio, a categoria e um valor válido.');
     if (price === null && !req.file) throw new ApiError('Informe o valor ou envie uma foto da tarifa.');
@@ -101,7 +112,9 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
     res.status(201).json({ id, status: 'pending', message: 'Tarifa enviada para análise do administrador.' });
   }));
   app.get('/api/tolls/:id/contributions', auth, (req, res) => {
-    toll(String(req.params.id)); res.json({ entries: db.prepare('SELECT id,vehicle_type,price,observed_at,status,notes,reviewed_at FROM toll_entries WHERE toll_id=? AND user_id=? ORDER BY created_at DESC LIMIT 50').all(String(req.params.id), user(res).id) });
+    const place = toll(String(req.params.id));
+    const ids = (db.prepare('SELECT id,lat,lng FROM toll_places WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?').all(place.lat-0.003,place.lat+0.003,place.lng-0.005,place.lng+0.005) as any[]).filter(p => distanceBetweenKm([p.lat,p.lng],[place.lat,place.lng]) < 0.2).map(p => p.id);
+    res.json({ entries: db.prepare(`SELECT id,vehicle_type,price,observed_at,status,notes,reviewed_at FROM toll_entries WHERE toll_id IN (${ids.map(() => '?').join(',')}) AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 50`).all(...ids,user(res).id) });
   });
   app.get('/api/admin/tolls', auth, administrator, (req, res) => {
     const page = Math.max(0, Math.min(10000, Number(req.query.page) || 0));
@@ -117,7 +130,7 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
     const approve = req.body.action === 'approve', reject = req.body.action === 'reject';
     const price = req.body.price == null || req.body.price === '' ? null : Number(req.body.price);
     const heading = req.body.headingDegrees == null || req.body.headingDegrees === '' ? null : Number(req.body.headingDegrees);
-    if (!approve && !reject || approve && (price === null || !Number.isFinite(price) || price < 0 || price > 2000) || heading !== null && (!Number.isFinite(heading) || heading < 0 || heading >= 360)) throw new ApiError('Informe ação, tarifa e sentido válidos.');
+    if (!approve && !reject || approve && (price === null || !Number.isFinite(price) || price < 0 || price > 2000 || Math.abs(price*100-Math.round(price*100)) > 0.000001) || heading !== null && (!Number.isFinite(heading) || heading < 0 || heading >= 360)) throw new ApiError('Informe ação, tarifa e sentido válidos.');
     const notes = String(req.body.notes || '').trim().slice(0, 1000);
     if (reject && notes.length < 3) throw new ApiError('Informe o motivo da rejeição.');
     const observedAt = req.body.observedAt ? observationDate(req.body.observedAt) : entry.observed_at;
