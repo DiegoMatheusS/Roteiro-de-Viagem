@@ -69,7 +69,7 @@ export default function App() {
     setActiveTrip(active);
     setIsNavigationOpen(!!active);
     // Convoys are not yet cross-device; do not reuse a previous account's group.
-    setActiveConvoyId(null);
+    setActiveConvoyId(convoyService.getActiveConvoy()?.id || null);
   };
 
   useEffect(() => {
