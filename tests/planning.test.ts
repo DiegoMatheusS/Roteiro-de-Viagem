@@ -6,11 +6,20 @@ import { storageService } from '../src/services/storageService';
 import { convoyService } from '../src/services/convoyService';
 import { createGpsTrackingState, recordGpsPosition } from '../src/services/gpsTracking';
 import { getCurrentDeviceLocation, watchDeviceLocation } from '../src/services/locationService';
-import type { FuelLog } from '../src/types';
+import type { FuelLog, Vehicle } from '../src/types';
 
 const data = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value), removeItem: (key: string) => data.delete(key) }, configurable: true });
-const vehicle = storageService.getVehicles()[0];
+const vehicle: Vehicle = {
+  id: 'test-motorcycle', type: 'motorcycle', brand: 'Honda', model: 'CB 500X', year: 2024,
+  nickname: 'Moto de teste', fuelType: 'gasolina', tankCapacityLiters: 17, maxPassengers: 2,
+  odometerKm: 0, isDefault: true, consumption: {
+    referenceUrban: 25, referenceHighway: 29, referenceAverage: 27, source: 'fixture',
+    sourceDate: '2026', userConfigured: 27
+  }
+};
+storageService.saveVehicles([vehicle]);
+storageService.setSelectedVehicleId(vehicle.id);
 const log = (odometerKm: number, liters: number, fullTank: boolean): FuelLog => ({ id: String(odometerKm), vehicleId: vehicle.id, date: '2026-10-13', odometerKm, liters, fullTank, pricePerLiter: 5, totalAmount: 5 * liters });
 
 test('consumption includes partial refills between full tanks and leaves the incomplete interval out', () => {
