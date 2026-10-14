@@ -222,6 +222,26 @@ try {
   assert.deepEqual(savedStops.manualStops.map((stop: any) => stop.location.name), ['Parada Alfa de teste', 'Parada Beta de teste']);
   assert.ok(savedStops.distanceKm > 0); assert.ok(savedStops.durationMinutes >= 15); assert.equal(savedStops.tollsStatus, 'unknown');
   assert.ok(savedStops.estimatedFuelCost > 0);
+  // A new browser session must restore the same account from the API, not a copied localStorage cache.
+  await page.waitForFunction(async () => {
+    const result = await (await fetch('/api/me/state')).json();
+    return result.state?.trips?.some((trip: any) => trip.manualStops?.length === 2);
+  }, null, { timeout: 12000 });
+  const secondDevice = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    await secondDevice.addCookies(await context.cookies());
+    const secondPage = await secondDevice.newPage();
+    await secondPage.route('https://**', route => route.abort());
+    await secondPage.goto('http://127.0.0.1:3000');
+    await secondPage.getByRole('button', { name: 'Salvos', exact: true }).click();
+    const restored = await secondPage.evaluate(async () => {
+      const response = await fetch('/api/me/state');
+      const result = await response.json();
+      return result.state;
+    });
+    assert.equal(restored.vehicles.length, 1);
+    assert.ok(restored.trips.some((trip: any) => trip.manualStops?.length === 2));
+  } finally { await secondDevice.close(); }
   assert.deepEqual(errors, []);
   console.log('UI: paradas reais, drag, recálculo, compartilhamento entre dispositivos, envio privado sem OCR, revisão manual no admin, publicação, cadastro real, comentários, exclusão de usuário, comparação, orçamento, circuito e consentimento passaram.');
 } catch (error) {
