@@ -16,6 +16,7 @@ import { registerAdminRoutes } from './admin';
 import { registerItineraryRoutes } from './itinerary';
 import { registerTouristRoutes } from './tourist';
 import { registerSharingRoutes } from './sharing';
+import { registerTravelerStateRoutes } from './travelerState';
 import { ApiError, asyncRoute, auth, administrator, user, now, validate, observationDate } from './http';
 import { stationOpeningStatus } from './openingHours';
 
@@ -38,7 +39,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   }
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '80kb' }));
+  app.use(express.json({ limit: '1.5mb' }));
   const attempts = new Map<string, { count: number; reset: number }>();
   const limit = (key: string, max: number, windowMs: number) => {
     if (attempts.size > 10000) for (const [id, entry] of attempts) if (entry.reset < Date.now()) attempts.delete(id);
@@ -79,6 +80,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerItineraryRoutes(app, { db, mapFetch: options.mapFetch, limit });
   registerTouristRoutes(app, { db, mapFetch: options.mapFetch, limit });
   registerSharingRoutes(app, db, limit);
+  registerTravelerStateRoutes(app, db, limit);
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/auth/me', (_req, res) => res.json({ user: user(res) || null }));
