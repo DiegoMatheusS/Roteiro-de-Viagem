@@ -12,6 +12,7 @@ import {
   Achievement 
 } from './types';
 import { storageService } from './services/storageService';
+import { cloudState } from './services/cloudState';
 import { convoyService } from './services/convoyService';
 import { NavigationTabBar, MainTabType } from './components/NavigationTabBar';
 import { HomeTab } from './components/HomeTab';
@@ -52,24 +53,47 @@ export default function App() {
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
+  const [accountReady, setAccountReady] = useState(false);
+  const [syncState, setSyncState] = useState('loading');
+  const [syncMessage, setSyncMessage] = useState('');
   const tracking = useTripTracking(activeTrip?.id);
 
-  // Initialize data on mount
-  useEffect(() => {
-    const loadedVehicles = storageService.getVehicles();
-    setVehicles(loadedVehicles);
-    const selId = storageService.getSelectedVehicleId();
-    setSelectedVehicleId(selId);
-    setProfile(storageService.getProfile());
+  const reloadAccount = (name?: string) => {
+    setVehicles(storageService.getVehicles());
+    setSelectedVehicleId(storageService.getSelectedVehicleId());
+    setProfile(storageService.getProfile(name));
     setFuelLogs(storageService.getFuelLogs());
     setAchievements(storageService.getAchievements());
     setTrips(storageService.getTrips());
-    const loadedActiveTrip = storageService.getActiveTrip();
-    setActiveTrip(loadedActiveTrip);
-    setIsNavigationOpen(!!loadedActiveTrip);
-    const activeConv = convoyService.getActiveConvoy();
-    if (activeConv) setActiveConvoyId(activeConv.id);
-  }, []);
+    const active = storageService.getActiveTrip();
+    setActiveTrip(active);
+    setIsNavigationOpen(!!active);
+    // Convoys are not yet cross-device; do not reuse a previous account's group.
+    setActiveConvoyId(null);
+  };
+
+  useEffect(() => {
+    if (auth.loading) return;
+    let disposed = false;
+    let hydrated = false;
+    setAccountReady(false);
+    setActiveTrip(null);
+    setIsNavigationOpen(false);
+    setIsPlanningOpen(false);
+    setShareTripTarget(null);
+    setActiveConvoyId(null);
+    void cloudState.connect(auth.user, (state, message) => {
+      if (disposed) return;
+      setSyncState(state);
+      setSyncMessage(message || '');
+      if (!hydrated && ['guest', 'synced', 'pending'].includes(state)) {
+        hydrated = true;
+        reloadAccount(auth.user?.displayName);
+        setAccountReady(true);
+      }
+    });
+    return () => { disposed = true; cloudState.stop(); };
+  }, [auth.loading, auth.user?.id]);
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId) || vehicles[0] || null;
 
@@ -193,8 +217,30 @@ export default function App() {
     }
   };
 
+  if (auth.loading || !accountReady) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-5">
+      <div className="bg-white border rounded-2xl p-6 max-w-md w-full text-center space-y-3">
+        <h1 className="font-bold text-slate-900">Roteiro de Viagem</h1>
+        <p className="text-sm text-slate-600">{syncState === 'conflict' ? syncMessage : syncState === 'error' ? (syncMessage || 'Não foi possível carregar a conta.') : 'Carregando seus dados de viagem...'}</p>
+        {syncState === 'error' && <button type="button" onClick={() => void cloudState.retry()} className="px-4 py-2 bg-emerald-700 text-white rounded-xl">Tentar novamente</button>}
+        {syncState === 'conflict' && <div className="space-y-2">
+          <button type="button" onClick={() => { void cloudState.resolveConflict('server').then(() => reloadAccount(auth.user?.displayName)); }} className="block w-full p-2 border rounded-xl">Usar versão do servidor (mantém cópia local)</button>
+          <button type="button" onClick={() => void cloudState.resolveConflict('device')} className="block w-full p-2 border border-amber-500 rounded-xl">Substituir dados do servidor pelos deste aparelho</button>
+        </div>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+      {auth.user && syncState !== 'synced' && <div role="status" className="px-4 py-2 text-xs bg-amber-50 text-amber-950 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
+        <span>{syncState === 'pending' ? 'Salvando suas viagens na conta...' : syncState === 'conflict' ? syncMessage : syncMessage || 'Seus dados ainda não foram salvos no servidor.'}</span>
+        {syncState === 'error' && <button onClick={() => void cloudState.retry()} className="underline font-semibold">Tentar salvar novamente</button>}
+        {syncState === 'conflict' && <div className="flex gap-3">
+          <button onClick={() => { void cloudState.resolveConflict('server').then(() => reloadAccount(auth.user?.displayName)); }} className="underline">Usar servidor</button>
+          <button onClick={() => void cloudState.resolveConflict('device')} className="underline">Usar este dispositivo</button>
+        </div>}
+      </div>}
       <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
         {auth.user ? <><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
       </div>
