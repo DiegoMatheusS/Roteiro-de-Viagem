@@ -223,10 +223,16 @@ try {
   assert.ok(savedStops.distanceKm > 0); assert.ok(savedStops.durationMinutes >= 15); assert.equal(savedStops.tollsStatus, 'unknown');
   assert.ok(savedStops.estimatedFuelCost > 0);
   // A new browser session must restore the same account from the API, not a copied localStorage cache.
-  await page.waitForFunction(async () => {
-    const result = await (await fetch('/api/me/state')).json();
-    return result.state?.trips?.some((trip: any) => trip.manualStops?.length === 2);
-  }, null, { timeout: 12000, polling: 500 });
+  let serverHasLatest = false;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const snapshot = await page.evaluate(async () => await (await fetch('/api/me/state')).json());
+    if (snapshot.state?.trips?.some((trip: any) => trip.manualStops?.length === 2)) {
+      serverHasLatest = true;
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  assert.ok(serverHasLatest, 'The latest itinerary must reach the private cloud API before a second device reads it.');
   const preSecond = await page.evaluate(async () => await (await fetch('/api/me/state')).json());
   console.log('SYNC BEFORE SECOND', JSON.stringify({
     revision: preSecond.revision, trips: preSecond.state?.trips?.map((t: any) => [t.id, t.manualStops?.length])
