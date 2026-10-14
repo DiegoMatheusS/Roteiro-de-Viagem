@@ -104,6 +104,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const fittedGeometryRef=useRef<string|null>(null);
   const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
@@ -556,7 +557,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h · ${escapeHtml(new Date(point.forecastAt || point.passTime).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}${point.warning ? `<br>${escapeHtml(point.warning)}` : ''}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
     }
 
-    // Fit map bounds
+    // GPS refreshes move markers without undoing the user's zoom and map position.
+    const geometryKey=JSON.stringify([originCoords,destinationCoords,routePath,stops.map(s=>[s.lat,s.lng]),meetingPoints.map(p=>p.coords)]);
+    if(fittedGeometryRef.current===geometryKey)return;
+    if(bounds.length)fittedGeometryRef.current=geometryKey;
     if (bounds.length > 1) {
       map.fitBounds(bounds as L.LatLngBoundsExpression, {
         padding: [60, 60],
