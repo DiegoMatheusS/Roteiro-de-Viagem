@@ -13,6 +13,7 @@ import {
   Clock, 
   Navigation,
   ChevronRight,
+  MapPinned,
   ShieldCheck
 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ interface SavedTabProps {
   vehicles: Vehicle[];
   onStartTrip: (trip: TripPlan) => void;
   onOpenShareModal: (trip: TripPlan) => void;
+  onPreviewTrip: (trip: TripPlan) => void;
   onDeleteTrip: (tripId: string) => void;
   onOpenConvoyModal: (trip: TripPlan) => void;
 }
@@ -30,6 +32,7 @@ export const SavedTab: React.FC<SavedTabProps> = ({
   vehicles,
   onStartTrip,
   onOpenShareModal,
+  onPreviewTrip,
   onDeleteTrip,
   onOpenConvoyModal
 }) => {
@@ -180,7 +183,12 @@ export const SavedTab: React.FC<SavedTabProps> = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <button
+                      type="button" onClick={() => onPreviewTrip(trip)}
+                      className="py-2 px-3 rounded-xl border border-emerald-200 hover:bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center gap-1.5">
+                      <MapPinned className="w-3.5 h-3.5" /> Ver no mapa
+                    </button>
                     <button
                       onClick={() => onOpenShareModal(trip)}
                       className="py-2 px-3 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
