@@ -105,6 +105,8 @@ export const cloudState = {
       if (token !== generation) return;
       revision = remote.revision;
       if (preference === 'server') {
+        // Preserve the unsent local snapshot before accepting a newer server copy.
+        localStorage.setItem(key(account.id, 'conflict_backup'), JSON.stringify(storageService.getSnapshot(account.displayName)));
         if (remote.state) storageService.replaceSnapshot(remote.state);
         else storageService.resetScope(account.displayName);
         localStorage.removeItem(key(account.id, 'dirty'));
