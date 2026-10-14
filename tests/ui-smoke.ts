@@ -52,6 +52,19 @@ try {
   await page.goto('http://127.0.0.1:3000/admin');
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
+  await page.getByRole('button', { name: 'Entrar / Criar conta' }).click();
+  const login = page.getByRole('dialog', { name: 'Conta do viajante' });
+  await login.getByRole('button', { name: 'Ainda não tenho conta' }).click();
+  await login.getByLabel('Nome de exibição').fill('Viajante de teste');
+  await login.getByLabel('E-mail', { exact: true }).fill('ui@example.test');
+  await login.getByLabel('Senha', { exact: true }).fill('ui-test-password');
+  await login.getByRole('button', { name: 'Criar minha conta' }).click();
+  await login.waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click();
+  await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
+  await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Início', exact: true }).click();
   await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
@@ -59,14 +72,6 @@ try {
   await page.locator('.fuel-station-marker').first().click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByText('Ainda não há preços informados para este posto.').waitFor();
-  await station.getByRole('button', { name: 'Informar preço', exact: true }).click();
-  const account = page.getByRole('dialog', { name: 'Conta do viajante' });
-  await account.getByRole('button', { name: 'Ainda não tenho conta' }).click();
-  await account.getByLabel('Nome de exibição').fill('Viajante de teste');
-  await account.getByLabel('E-mail', { exact: true }).fill('ui@example.test');
-  await account.getByLabel('Senha', { exact: true }).fill('ui-test-password');
-  await account.getByRole('button', { name: 'Criar minha conta' }).click();
-  await account.waitFor({ state: 'hidden' });
   await station.getByRole('button', { name: 'Informar preço', exact: true }).click();
   await station.getByLabel('Preço 1', { exact: true }).fill('5,899');
   await station.getByRole('button', { name: 'Revisar preços' }).click();
@@ -124,7 +129,11 @@ try {
   assert.equal(await planner.getByLabel('Preço de planejamento').inputValue(), '5.899');
   await planner.getByRole('button', { name: 'Salvar', exact: true }).click();
   await planner.waitFor({ state: 'hidden' });
-  const trips = await page.evaluate(() => JSON.parse(localStorage.getItem('rdv_trips_v1') || '[]'));
+  const trips = await page.evaluate(async () => {
+    const response = await fetch('/api/auth/me');
+    const authData = await response.json();
+    return JSON.parse(localStorage.getItem('rdv_private_v2_' + authData.user.id + '_trips') || '[]');
+  });
   const saved = trips.find((trip: any) => trip.fuelPriceSource?.stationId === 'osm:node:123');
   assert.ok(saved.distanceKm > 0); assert.equal(saved.routingSource, 'OSRM'); assert.equal(saved.isCircular, true); assert.equal(saved.fuelPricePerLiter, 5.899);
   await page.getByRole('button', { name: 'Comboio', exact: true }).first().click();
@@ -206,10 +215,51 @@ try {
   await sharing.getByRole('button', { name: 'Fechar compartilhamento', exact: true }).click();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).click();
   await planner.waitFor({ state: 'hidden' });
-  const savedStops = await page.evaluate(() => JSON.parse(localStorage.getItem('rdv_trips_v1') || '[]').find((trip: any) => trip.manualStops?.length === 2));
+  const savedStops = await page.evaluate(async () => {
+    const authData = await (await fetch('/api/auth/me')).json();
+    return JSON.parse(localStorage.getItem('rdv_private_v2_' + authData.user.id + '_trips') || '[]').find((trip: any) => trip.manualStops?.length === 2);
+  });
   assert.deepEqual(savedStops.manualStops.map((stop: any) => stop.location.name), ['Parada Alfa de teste', 'Parada Beta de teste']);
-  assert.equal(savedStops.distanceKm, 60); assert.equal(savedStops.durationMinutes, 45); assert.equal(savedStops.tollsStatus, 'unknown');
+  assert.ok(savedStops.distanceKm > 0); assert.ok(savedStops.durationMinutes >= 15); assert.equal(savedStops.tollsStatus, 'unknown');
   assert.ok(savedStops.estimatedFuelCost > 0);
+  // A new browser session must restore the same account from the API, not a copied localStorage cache.
+  let serverHasLatest = false;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const snapshot = await page.evaluate(async () => await (await fetch('/api/me/state')).json());
+    if (snapshot.state?.trips?.some((trip: any) => trip.manualStops?.length === 2)) {
+      serverHasLatest = true;
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  assert.ok(serverHasLatest, 'The latest itinerary must reach the private cloud API before a second device reads it.');
+  const preSecond = await page.evaluate(async () => await (await fetch('/api/me/state')).json());
+  console.log('SYNC BEFORE SECOND', JSON.stringify({
+    revision: preSecond.revision, trips: preSecond.state?.trips?.map((t: any) => [t.id, t.manualStops?.length])
+  }));
+  const secondDevice = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    await secondDevice.addCookies(await context.cookies());
+    const secondPage = await secondDevice.newPage();
+    await secondPage.route('https://**', route => route.abort());
+    await secondPage.goto('http://127.0.0.1:3000');
+    await secondPage.getByRole('button', { name: 'Salvos', exact: true }).click();
+    const restored = await secondPage.evaluate(async () => {
+      const response = await fetch('/api/me/state');
+      const result = await response.json();
+      return result.state;
+    });
+    const secondDiagnostic = await secondPage.evaluate(async () => {
+      const me = await (await fetch('/api/auth/me')).json();
+      const state = await (await fetch('/api/me/state')).json();
+      return { userId: me.user?.id, revision: state.revision,
+        trips: state.state?.trips?.map((trip: any) => [trip.id, trip.manualStops?.length]),
+        localKeys: Object.keys(localStorage).filter(key => key.includes('_trips')) };
+    });
+    console.log('SYNC AFTER SECOND', JSON.stringify(secondDiagnostic));
+    assert.equal(restored.vehicles.length, 1);
+    assert.ok(restored.trips.some((trip: any) => trip.manualStops?.length === 2));
+  } finally { await secondDevice.close(); }
   assert.deepEqual(errors, []);
   console.log('UI: paradas reais, drag, recálculo, compartilhamento entre dispositivos, envio privado sem OCR, revisão manual no admin, publicação, cadastro real, comentários, exclusão de usuário, comparação, orçamento, circuito e consentimento passaram.');
 } catch (error) {

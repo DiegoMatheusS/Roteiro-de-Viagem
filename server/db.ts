@@ -35,6 +35,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
     CREATE TABLE IF NOT EXISTS locations (id TEXT PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, source_url TEXT NOT NULL, category TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS geocoding_queries (id TEXT PRIMARY KEY, location_ids TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS shared_routes (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), snapshot TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS traveler_states (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, snapshot TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS photo_uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS photo_uploads_user ON photo_uploads(user_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS places_nearby ON stations(active,lat,lng);

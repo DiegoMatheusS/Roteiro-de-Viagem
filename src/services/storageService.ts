@@ -1,118 +1,28 @@
-import { 
-  Vehicle, 
-  FuelLog, 
-  TravelerProfile, 
-  TravelerTier, 
-  Achievement, 
-  TripPlan, 
-  EmergencyContact 
-} from '../types';
+import { Vehicle, FuelLog, TravelerProfile, TravelerTier, Achievement, TripPlan, ConvoySession } from '../types';
 import { calculateObservedConsumption } from './fuelConsumption';
 
-const STORAGE_KEYS = {
-  VEHICLES: 'rdv_vehicles_v1',
-  SELECTED_VEHICLE_ID: 'rdv_selected_vehicle_id_v1',
-  FUEL_LOGS: 'rdv_fuel_logs_v1',
-  PROFILE: 'rdv_traveler_profile_v1',
-  TRIPS: 'rdv_trips_v1',
-  ACTIVE_TRIP: 'rdv_active_trip_v1'
-};
+export interface TravelerSnapshot {
+  profile: TravelerProfile;
+  vehicles: Vehicle[];
+  fuelLogs: FuelLog[];
+  achievements: Achievement[];
+  trips: TripPlan[];
+  activeTrip: TripPlan | null;
+  selectedVehicleId: string;
+  convoys: ConvoySession[];
+  activeConvoyId: string | null;
+}
 
-// INITIAL SEED VEHICLES (1 Moto and 1 Car to start with verified Inmetro specs)
-const INITIAL_VEHICLES: Vehicle[] = [
-  {
-    id: 'veh-moto-1',
-    type: 'motorcycle',
-    brand: 'Honda',
-    model: 'CB 500X / NX 500',
-    year: 2024,
-    version: '471cc Bicilíndrico DOHC',
-    nickname: 'Bicuda 500X',
-    fuelType: 'gasolina',
-    tankCapacityLiters: 17.7,
-    maxPassengers: 2,
-    odometerKm: 4280,
-    isDefault: true,
-    consumption: {
-      referenceUrban: 25.5,
-      referenceHighway: 29.8,
-      referenceAverage: 27.6,
-      source: 'Ficha Técnica Homologação Denatran / Duas Rodas',
-      sourceDate: 'Março/2024',
-      observedAverage: 28.2, // calculated from fuel logs
-      userConfigured: 28.2
-    }
-  },
-  {
-    id: 'veh-car-1',
-    type: 'car',
-    brand: 'Chevrolet',
-    model: 'Onix',
-    year: 2024,
-    version: '1.0 Aspirado Flex Manual',
-    nickname: 'Onix da Estrada',
-    fuelType: 'flex',
-    tankCapacityLiters: 44.0,
-    maxPassengers: 5,
-    odometerKm: 28950,
-    isDefault: false,
-    consumption: {
-      referenceUrban: 13.3,
-      referenceHighway: 16.6,
-      referenceAverage: 14.9,
-      source: 'Inmetro PBEV (Programa Brasileiro de Etiquetagem Veicular)',
-      sourceDate: 'Tabela Oficial 2024',
-      observedAverage: 15.2,
-      userConfigured: 15.2
-    }
-  }
-];
 
-// INITIAL FUEL LOGS FOR MOTO (demonstrating real observed consumption computation)
-const INITIAL_FUEL_LOGS: FuelLog[] = [
-  {
-    id: 'fl-1',
-    vehicleId: 'veh-moto-1',
-    date: '2026-08-10',
-    odometerKm: 3500,
-    liters: 15.2,
-    pricePerLiter: 5.89,
-    totalAmount: 89.53,
-    fullTank: true,
-    notes: 'Abastecimento inicial tanque cheio'
-  },
-  {
-    id: 'fl-2',
-    vehicleId: 'veh-moto-1',
-    date: '2026-08-25',
-    odometerKm: 3920, // 420 km / 14.9L = 28.18 km/l
-    liters: 14.9,
-    pricePerLiter: 5.95,
-    totalAmount: 88.65,
-    fullTank: true,
-    notes: 'Passeio Serra da Mantiqueira'
-  },
-  {
-    id: 'fl-3',
-    vehicleId: 'veh-moto-1',
-    date: '2026-09-15',
-    odometerKm: 4280, // 360 km / 12.8L = 28.12 km/l
-    liters: 12.8,
-    pricePerLiter: 5.89,
-    totalAmount: 75.39,
-    fullTank: true,
-    notes: 'Volta pela serra'
-  }
-];
-
-const INITIAL_ACHIEVEMENTS: Achievement[] = [
+// All account-owned data starts empty. Demo data remains in tests only.
+const EMPTY_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'ach-first-trip',
     title: 'Primeira Viagem',
     description: 'Completou a primeira viagem com o aplicativo.',
     icon: 'Compass',
-    unlockedAt: '2026-08-25T17:30:00Z',
-    progress: 1,
+    unlockedAt: null,
+    progress: 0,
     target: 1,
     unit: 'viagem',
     category: 'viagens'
@@ -122,8 +32,8 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
     title: 'Primeiro Passeio de 100 km',
     description: 'Percorreu mais de 100 km em uma única viagem concluída.',
     icon: 'MapPin',
-    unlockedAt: '2026-08-25T17:30:00Z',
-    progress: 185,
+    unlockedAt: null,
+    progress: 0,
     target: 100,
     unit: 'km',
     category: 'distancia'
@@ -134,7 +44,7 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
     description: 'Completou uma jornada épica de pelo menos 500 km.',
     icon: 'Milestone',
     unlockedAt: null,
-    progress: 185,
+    progress: 0,
     target: 500,
     unit: 'km',
     category: 'distancia'
@@ -145,7 +55,7 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
     description: 'Completou 10 viagens registradas no seu histórico.',
     icon: 'Award',
     unlockedAt: null,
-    progress: 3,
+    progress: 0,
     target: 10,
     unit: 'viagens',
     category: 'viagens'
@@ -156,7 +66,7 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
     description: 'Cruzou as fronteiras de 5 estados brasileiros diferentes.',
     icon: 'Globe',
     unlockedAt: null,
-    progress: 2,
+    progress: 0,
     target: 5,
     unit: 'estados',
     category: 'turismo'
@@ -166,202 +76,97 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
     title: 'Primeiro Roteiro Publicado',
     description: 'Compartilhou um roteiro turístico com a comunidade.',
     icon: 'Share2',
-    unlockedAt: '2026-09-02T11:00:00Z',
-    progress: 1,
+    unlockedAt: null,
+    progress: 0,
     target: 1,
     unit: 'roteiro',
     category: 'comunidade'
   }
 ];
-
-const INITIAL_PROFILE: TravelerProfile = {
-  id: 'user-pilot-1',
-  name: 'Diego Mendes',
-  bio: 'Motociclista entusiasta de estradas serranas e viagens de fim de semana.',
-  photoUrl: '',
-  homeAddress: 'Av. Paulista, 1578 - Bela Vista, São Paulo - SP',
-  homeCoordinates: [-23.5614, -46.6559],
+const newProfile = (id: string, name = 'Viajante'): TravelerProfile => ({
+  id, name, bio: '', photoUrl: '',
   isPublicProfile: false,
-  showLevelPublicly: true,
-  showMedalsPublicly: true,
-  showKmPublicly: true,
-  verifiedGpsKm: 460, // Checked GPS during actual ride
-  manualKm: 85,       // Manually declared
-  completedTripsCount: 3,
-  savedRoutesCount: 5,
-  publishedRoutesCount: 1,
-  reviewsCount: 4,
-  emergencyContacts: [
-    {
-      id: 'em-1',
-      name: 'Mariana Mendes',
-      phone: '(11) 98765-4321',
-      relationship: 'Esposa',
-      isPrimary: true,
-      canReceiveArrivalAlerts: true
-    },
-    {
-      id: 'em-2',
-      name: 'Carlos Mendes',
-      phone: '(11) 97654-3210',
-      relationship: 'Irmão',
-      isPrimary: false,
-      canReceiveArrivalAlerts: false
-    }
-  ]
+  showLevelPublicly: false, showMedalsPublicly: false, showKmPublicly: false,
+  verifiedGpsKm: 0, manualKm: 0, completedTripsCount: 0, savedRoutesCount: 0,
+  publishedRoutesCount: 0, reviewsCount: 0, emergencyContacts: []
+});
+
+// Per-account browser namespaces; never expose another user's data through the guest namespace.
+let storageOwner: string | null = null;
+const key = (name: string) => `rdv_private_v2_${storageOwner || 'guest'}_${name}`;
+const scoped = {
+  vehicles: () => key('vehicles'),
+  vehicleId: () => key('vehicle_id'),
+  fuelLogs: () => key('fuel_logs'),
+  profile: () => key('profile'),
+  achievements: () => key('achievements'),
+  trips: () => key('trips'),
+  activeTrip: () => key('active_trip'),
+  convoys: () => key('convoys'),
+  activeConvoyId: () => key('active_convoy')
+};
+let changeListener: (() => void) | null = null;
+const write = (name: string, value: string) => { localStorage.setItem(name, value); changeListener?.(); };
+const drop = (name: string) => { localStorage.removeItem(name); changeListener?.(); };
+const readList = <T,>(storageKey: string): T[] => {
+  try { const value = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value) ? value : []; }
+  catch { return []; }
 };
 
-// INITIAL TRIPS (Demonstrating planned vs completed history)
-const INITIAL_TRIPS: TripPlan[] = [
-  {
-    id: 'trip-comp-1',
-    title: 'Passeio Serra da Mantiqueira',
-    originName: 'São Paulo - SP',
-    originCoords: [-23.5505, -46.6333],
-    destinationName: 'Campos do Jordão - SP',
-    destinationCoords: [-22.7394, -45.5914],
-    modality: 'panoramica',
-    returnModality: 'rapida',
-    isCircular: false,
-    distanceKm: 185,
-    durationMinutes: 195,
-    vehicleId: 'veh-moto-1',
-    routePath: [
-      [-23.5505, -46.6333],
-      [-23.2237, -45.9009],
-      [-22.9511, -45.4523],
-      [-22.7562, -45.5781],
-      [-22.7394, -45.5914]
-    ],
-    stops: [
-      {
-        id: 'st-hist-1',
-        name: 'Mirante Vista Chinesa',
-        category: 'mirante',
-        lat: -22.7562,
-        lng: -45.5781,
-        description: 'Parada fotográfica na subida da serra.',
-        recommendedMinutes: 25
-      }
-    ],
-    weatherPoints: [
-      {
-        locationName: 'São Paulo',
-        passTime: '08:00',
-        tempC: 22,
-        condition: 'Ensolarado',
-        rainProb: 10,
-        windKmH: 12
-      },
-      {
-        locationName: 'Campos do Jordão',
-        passTime: '11:15',
-        tempC: 17,
-        condition: 'Parcialmente Nublado',
-        rainProb: 15,
-        windKmH: 14
-      }
-    ],
-    hasRainRisk: false,
-    peopleCount: 1,
-    vehicleGroupType: 'single_vehicle',
-    groupVehiclesCount: 1,
-    participants: [{ id: 'p1', name: 'Diego Mendes' }],
-    splitExpenses: false,
-    foodCostPerPerson: 65,
-    fuelPricePerLiter: 5.89,
-    estimatedFuelLiters: 6.56,
-    estimatedFuelCost: 38.64,
-    knownTollsCost: 14.80,
-    totalFoodCost: 65.00,
-    totalEstimatedCost: 118.44,
-    costPerPerson: 118.44,
-    status: 'completed',
-    createdAt: '2026-08-25T08:00:00Z',
-    completedAt: '2026-08-25T17:30:00Z',
-    actualDistanceKm: 185,
-    actualTraveledVerifiedGps: true,
-    userRating: 5,
-    userReview: 'Estrada fantástica com asfalto impecável na SP-123!'
-  },
-  {
-    id: 'trip-comp-2',
-    title: 'Bate-Volta Serra do Mar & Santos',
-    originName: 'São Paulo - SP',
-    originCoords: [-23.5505, -46.6333],
-    destinationName: 'Santos - SP',
-    destinationCoords: [-23.9618, -46.3322],
-    modality: 'rapida',
-    returnModality: 'rapida',
-    isCircular: false,
-    distanceKm: 85,
-    durationMinutes: 75,
-    vehicleId: 'veh-car-1',
-    routePath: [
-      [-23.5505, -46.6333],
-      [-23.7500, -46.5500],
-      [-23.9618, -46.3322]
-    ],
-    stops: [],
-    weatherPoints: [],
-    hasRainRisk: false,
-    peopleCount: 4,
-    vehicleGroupType: 'single_vehicle',
-    groupVehiclesCount: 1,
-    participants: [
-      { id: 'p1', name: 'Diego' },
-      { id: 'p2', name: 'Mariana' },
-      { id: 'p3', name: 'Lucas' },
-      { id: 'p4', name: 'Beatriz' }
-    ],
-    splitExpenses: true,
-    foodCostPerPerson: 50,
-    fuelPricePerLiter: 5.89,
-    estimatedFuelLiters: 5.59,
-    estimatedFuelCost: 32.93,
-    knownTollsCost: 33.80,
-    totalFoodCost: 200.00,
-    totalEstimatedCost: 266.73,
-    costPerPerson: 66.68,
-    status: 'completed',
-    createdAt: '2026-09-12T09:00:00Z',
-    completedAt: '2026-09-12T18:00:00Z',
-    actualDistanceKm: 85,
-    actualTraveledVerifiedGps: false // manual entry
-  }
-];
-
 export const storageService = {
+  setScope(accountId: string | null) { storageOwner = accountId; },
+  getScope() { return storageOwner; },
+  scopedTripsKey() { return scoped.trips(); },
+  setChangeListener(listener: (() => void) | null) { changeListener = listener; },
+  getSnapshot(name?: string): TravelerSnapshot {
+    return { profile: this.getProfile(name), vehicles: this.getVehicles(), fuelLogs: this.getFuelLogs(), achievements: this.getAchievements(),
+      trips: this.getTrips(), activeTrip: this.getActiveTrip(), selectedVehicleId: this.getSelectedVehicleId(),
+      convoys: this.getConvoys(), activeConvoyId: this.getActiveConvoyId() };
+  },
+  replaceSnapshot(state: TravelerSnapshot) {
+    // Read-only remote hydration: never emit local-change events during initialization.
+    localStorage.setItem(scoped.profile(), JSON.stringify(state.profile));
+    localStorage.setItem(scoped.vehicles(), JSON.stringify(state.vehicles));
+    localStorage.setItem(scoped.fuelLogs(), JSON.stringify(state.fuelLogs));
+    localStorage.setItem(scoped.achievements(), JSON.stringify(state.achievements));
+    localStorage.setItem(scoped.trips(), JSON.stringify(state.trips));
+    localStorage.setItem(scoped.vehicleId(), state.selectedVehicleId);
+    if (state.activeTrip) localStorage.setItem(scoped.activeTrip(), JSON.stringify(state.activeTrip));
+    else localStorage.removeItem(scoped.activeTrip());
+    localStorage.setItem(scoped.convoys(), JSON.stringify(state.convoys || []));
+    if (state.activeConvoyId) localStorage.setItem(scoped.activeConvoyId(), state.activeConvoyId);
+    else localStorage.removeItem(scoped.activeConvoyId());
+  },
+  resetScope(name?: string) {
+    this.replaceSnapshot({ profile: newProfile(storageOwner || crypto.randomUUID(), name), vehicles: [], fuelLogs: [],
+      achievements: EMPTY_ACHIEVEMENTS.map(item => ({ ...item })), trips: [], activeTrip: null, selectedVehicleId: '',
+      convoys: [], activeConvoyId: null });
+  },
+  getConvoys(): ConvoySession[] { return readList<ConvoySession>(scoped.convoys()); },
+  saveConvoys(convoys: ConvoySession[]) { write(scoped.convoys(), JSON.stringify(convoys)); },
+  getActiveConvoyId(): string | null { return localStorage.getItem(scoped.activeConvoyId()); },
+  setActiveConvoyId(id: string | null) { if (id) write(scoped.activeConvoyId(), id); else drop(scoped.activeConvoyId()); },
   // VEHICLES
   getVehicles(): Vehicle[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.VEHICLES);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(INITIAL_VEHICLES));
-      return INITIAL_VEHICLES;
-    }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return INITIAL_VEHICLES;
-    }
+    return readList<Vehicle>(scoped.vehicles());
   },
 
   saveVehicles(vehicles: Vehicle[]) {
-    localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(vehicles));
+    write(scoped.vehicles(), JSON.stringify(vehicles));
   },
 
   getSelectedVehicleId(): string {
-    const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_VEHICLE_ID);
+    const saved = localStorage.getItem(scoped.vehicleId());
     if (saved) return saved;
     const vehicles = this.getVehicles();
     const defaultVeh = vehicles.find(v => v.isDefault) || vehicles[0];
     const id = defaultVeh ? defaultVeh.id : '';
-    if (id) localStorage.setItem(STORAGE_KEYS.SELECTED_VEHICLE_ID, id);
+    if (id) localStorage.setItem(scoped.vehicleId(), id);
     return id;
   },
 
   setSelectedVehicleId(id: string) {
-    localStorage.setItem(STORAGE_KEYS.SELECTED_VEHICLE_ID, id);
+    write(scoped.vehicleId(), id);
   },
 
   getSelectedVehicle(): Vehicle | null {
@@ -386,33 +191,19 @@ export const storageService = {
     let vehicles = this.getVehicles();
     vehicles = vehicles.filter(v => v.id !== id);
     this.saveVehicles(vehicles);
-    if (this.getSelectedVehicleId() === id && vehicles.length > 0) {
-      this.setSelectedVehicleId(vehicles[0].id);
+    if (this.getSelectedVehicleId() === id) {
+      this.setSelectedVehicleId(vehicles[0]?.id || '');
     }
   },
 
   // FUEL LOGS & CONSUMPTION CALCULATION
   getFuelLogs(vehicleId?: string): FuelLog[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.FUEL_LOGS);
-    let logs: FuelLog[] = [];
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.FUEL_LOGS, JSON.stringify(INITIAL_FUEL_LOGS));
-      logs = INITIAL_FUEL_LOGS;
-    } else {
-      try {
-        logs = JSON.parse(raw);
-      } catch {
-        logs = INITIAL_FUEL_LOGS;
-      }
-    }
-    if (vehicleId) {
-      return logs.filter(l => l.vehicleId === vehicleId);
-    }
-    return logs;
+    const logs = readList<FuelLog>(scoped.fuelLogs());
+    return vehicleId ? logs.filter(log => log.vehicleId === vehicleId) : logs;
   },
 
   saveFuelLogs(logs: FuelLog[]) {
-    localStorage.setItem(STORAGE_KEYS.FUEL_LOGS, JSON.stringify(logs));
+    write(scoped.fuelLogs(), JSON.stringify(logs));
   },
 
   addFuelLog(log: FuelLog): { observedAverage?: number } {
@@ -436,38 +227,30 @@ export const storageService = {
   },
 
   // TRAVELER PROFILE & TIERS
-  getProfile(): TravelerProfile {
-    const raw = localStorage.getItem(STORAGE_KEYS.PROFILE);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(INITIAL_PROFILE));
-      return INITIAL_PROFILE;
-    }
+  getProfile(name?: string): TravelerProfile {
     try {
-      return JSON.parse(raw);
-    } catch {
-      return INITIAL_PROFILE;
-    }
+      const raw = localStorage.getItem(scoped.profile());
+      if (raw) {
+        const stored = JSON.parse(raw) as TravelerProfile;
+        if (stored && typeof stored.id === 'string' && Array.isArray(stored.emergencyContacts)) return stored;
+      }
+    } catch { /* Invalid local state is reset to a blank account profile. */ }
+    const profile = newProfile(storageOwner || crypto.randomUUID(), name);
+    this.saveProfile(profile);
+    return profile;
   },
 
   saveProfile(profile: TravelerProfile) {
-    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
+    write(scoped.profile(), JSON.stringify(profile));
   },
 
   getAchievements(): Achievement[] {
-    const raw = localStorage.getItem('rdv_achievements_v1');
-    if (!raw) {
-      localStorage.setItem('rdv_achievements_v1', JSON.stringify(INITIAL_ACHIEVEMENTS));
-      return INITIAL_ACHIEVEMENTS;
-    }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return INITIAL_ACHIEVEMENTS;
-    }
+    const raw = readList<Achievement>(scoped.achievements());
+    return raw.length ? raw : EMPTY_ACHIEVEMENTS.map(item => ({ ...item }));
   },
 
   saveAchievements(achievements: Achievement[]) {
-    localStorage.setItem('rdv_achievements_v1', JSON.stringify(achievements));
+    write(scoped.achievements(), JSON.stringify(achievements));
   },
 
   // Calculate traveler tier:
@@ -530,20 +313,11 @@ export const storageService = {
 
   // TRIPS
   getTrips(): TripPlan[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.TRIPS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.TRIPS, JSON.stringify(INITIAL_TRIPS));
-      return INITIAL_TRIPS;
-    }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return INITIAL_TRIPS;
-    }
+    return readList<TripPlan>(scoped.trips());
   },
 
   saveTrips(trips: TripPlan[]) {
-    localStorage.setItem(STORAGE_KEYS.TRIPS, JSON.stringify(trips));
+    write(scoped.trips(), JSON.stringify(trips));
   },
 
   saveTrip(trip: TripPlan) {
@@ -558,7 +332,7 @@ export const storageService = {
   },
 
   getActiveTrip(): TripPlan | null {
-    const raw = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP);
+    const raw = localStorage.getItem(scoped.activeTrip());
     if (!raw) return null;
     try {
       return JSON.parse(raw);
@@ -569,9 +343,9 @@ export const storageService = {
 
   setActiveTrip(trip: TripPlan | null) {
     if (trip) {
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP, JSON.stringify(trip));
+      write(scoped.activeTrip(), JSON.stringify(trip));
     } else {
-      localStorage.removeItem(STORAGE_KEYS.ACTIVE_TRIP);
+      drop(scoped.activeTrip());
     }
   },
 

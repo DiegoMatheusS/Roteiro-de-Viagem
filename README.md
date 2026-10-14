@@ -15,6 +15,16 @@ Abra `http://localhost:3000`. O comando inicia o frontend e a API na porta 3001.
 
 **Os preços são conferidos manualmente pelo administrador. Não há Gemini, OCR, reconhecimento de texto ou serviços pagos de leitura de imagens.**
 
+## Dados da conta e sincronização
+
+Novas contas começam **sem veículos, viagens, abastecimentos, contatos SOS ou conquistas desbloqueadas**. Cadastre seu veículo em **Ajustes → Minha Garagem** antes de criar um passeio. Dados ilustrativos permanecem apenas nas telas explicitamente identificadas como exemplos e em fixtures de testes, nunca dentro da conta.
+
+Depois do login, o frontend consulta `GET /api/me/state` e carrega **perfil, veículos, abastecimentos, estatísticas, conquistas, roteiros salvos, viagem em andamento e rascunhos privados de comboios** do SQLite. As alterações feitas na conta são enviadas a `PUT /api/me/state` com debounce e cookie de sessão; o servidor vincula os registros ao usuário autenticado e rejeita versões antigas (HTTP 409) para evitar substituição silenciosa. O aplicativo informa quando uma sincronização falha e permite a escolha explícita de qual versão manter se houver conflito.
+
+Há cache local específico para cada conta. **Dados antigos em `rdv_*_v1` são preservados no navegador mas não importados automaticamente**, para impedir que registros de demonstração e dados de outras pessoas entrem na conta. O recurso de importação assistida será implementado separadamente, após confirmar a propriedade dos dados.
+
+As sessões compartilhadas em tempo real e localização entre integrantes do Comboio **ainda não estão implementadas**; apenas o rascunho privado do organizador é salvo na conta. O arquivo SQLite e seu diretório de dados precisam ser mantidos em armazenamento persistente, com backup e recuperação testados antes de publicar o serviço. Essa implementação inicial usa snapshots JSON por conta; pode ser normalizada em tabelas individuais conforme o crescimento.
+
 ## Como contribuir
 
 1. Abra o mapa e toque no ícone de um posto real.

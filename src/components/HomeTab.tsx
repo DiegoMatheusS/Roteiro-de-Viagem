@@ -262,6 +262,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </button>
         </div>
         {locationError && <p role="alert" className="text-xs text-rose-700">{locationError}</p>}
+        {!currentVehicle && <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">Cadastre sua moto ou carro em <strong>Ajustes → Minha Garagem</strong> para calcular combustível e gerar viagens. Nenhum veículo é adicionado automaticamente.</div>}
         {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">Buscando atrações reais e verificando estradas. Aguarde...</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}
         {activeConvoyId && (
@@ -532,7 +533,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão de Gerar Roteiro por Km */}
               <button
                 type="submit"
-                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer min-h-[44px]"
+                disabled={!currentVehicle || isGenerating}
+                className="w-full py-3.5 px-4 rounded-2xl disabled:opacity-50 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>
@@ -778,7 +780,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão de Gerar Roteiro por Horas */}
               <button
                 type="submit"
-                className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer min-h-[44px]"
+                disabled={!currentVehicle || isGenerating}
+                className="w-full py-3.5 px-4 rounded-2xl disabled:opacity-50 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>
@@ -796,7 +799,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão Traçar Rota com Destino */}
               <button
                 type="submit"
-                disabled={!origin.trim() || !destination.trim()}
+                disabled={!currentVehicle || !origin.trim() || !destination.trim()}
                 className={`w-full py-3.5 px-4 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition-all min-h-[44px] ${
                   !origin.trim() || !destination.trim()
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
