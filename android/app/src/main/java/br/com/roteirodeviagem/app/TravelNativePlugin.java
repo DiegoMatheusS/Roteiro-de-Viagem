@@ -43,7 +43,7 @@ public class TravelNativePlugin extends Plugin {
         if (!path.startsWith("/") || path.startsWith("//") || path.contains("..") || !method.matches("GET|POST|PUT|PATCH|DELETE")) throw new Exception("Solicitação inválida.");
         URL url = new URL(base + "/api" + path); connection = (HttpURLConnection)url.openConnection();
         connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(15000); connection.setReadTimeout(30000); connection.setRequestMethod(method);
-        String cookie = CookieManager.getInstance().getCookie(base); if (cookie != null) connection.setRequestProperty("Cookie", cookie);
+        String cookie = CookieManager.getInstance().getCookie(url.toString()); if (cookie != null) connection.setRequestProperty("Cookie", cookie);
         JSArray form = call.getArray("form"); String body = call.getString("body");
         if (form != null && form.length()>0) {
           String boundary="rdv"+java.util.UUID.randomUUID().toString(); ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -58,7 +58,11 @@ public class TravelNativePlugin extends Plugin {
           connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "multipart/form-data; boundary="+boundary); connection.getOutputStream().write(out.toByteArray());
         } else if (body!=null) { connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "application/json"); connection.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8)); }
         int status=connection.getResponseCode();
-        for (java.util.Map.Entry<String,java.util.List<String>> entry : connection.getHeaderFields().entrySet()) if ("Set-Cookie".equalsIgnoreCase(entry.getKey())) for (String value:entry.getValue()) CookieManager.getInstance().setCookie(base,value);
+        for (java.util.Map.Entry<String,java.util.List<String>> entry : connection.getHeaderFields().entrySet()) if ("Set-Cookie".equalsIgnoreCase(entry.getKey())) for (String value:entry.getValue()) {
+          java.util.concurrent.CountDownLatch saved=new java.util.concurrent.CountDownLatch(1);
+          getActivity().runOnUiThread(() -> CookieManager.getInstance().setCookie(base+"/api",value,accepted -> saved.countDown()));
+          if(!saved.await(5,java.util.concurrent.TimeUnit.SECONDS)) throw new Exception("Não foi possível salvar a sessão do aplicativo.");
+        }
         CookieManager.getInstance().flush();
         ByteArrayOutputStream bytes=new ByteArrayOutputStream(); InputStream stream=status>=400 ? connection.getErrorStream() : connection.getInputStream();
         if (stream!=null) { byte[] buffer=new byte[8192]; int read; while((read=stream.read(buffer))!=-1) { bytes.write(buffer,0,read); if(bytes.size()>4000000) throw new Exception("Resposta muito grande."); } stream.close(); }
@@ -81,7 +85,7 @@ public class TravelNativePlugin extends Plugin {
     try {
       Intent intent=new Intent(getContext(),TravelLocationService.class);
       if(call.getMethodName().equals("setConvoy")) {
-        intent.setAction("CONVOY"); intent.putExtra("convoyId",call.getString("convoyId", "")); intent.putExtra("origin",origin()); intent.putExtra("cookie",CookieManager.getInstance().getCookie(origin()));
+        intent.setAction("CONVOY"); intent.putExtra("convoyId",call.getString("convoyId", "")); intent.putExtra("origin",origin()); intent.putExtra("cookie",CookieManager.getInstance().getCookie(origin()+"/api"));
       } else { intent.setAction("TRIP"); intent.putExtra("tripId",call.getString("tripId", "")); intent.putExtra("distanceKm",call.getDouble("distanceKm",0.0)); }
       ContextCompat.startForegroundService(getContext(),intent); call.resolve();
     } catch(Exception error) { call.reject(error.getMessage()); }
