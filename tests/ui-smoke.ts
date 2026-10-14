@@ -227,6 +227,10 @@ try {
     const result = await (await fetch('/api/me/state')).json();
     return result.state?.trips?.some((trip: any) => trip.manualStops?.length === 2);
   }, null, { timeout: 12000, polling: 500 });
+  const preSecond = await page.evaluate(async () => await (await fetch('/api/me/state')).json());
+  console.log('SYNC BEFORE SECOND', JSON.stringify({
+    revision: preSecond.revision, trips: preSecond.state?.trips?.map((t: any) => [t.id, t.manualStops?.length])
+  }));
   const secondDevice = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
     await secondDevice.addCookies(await context.cookies());
@@ -239,6 +243,14 @@ try {
       const result = await response.json();
       return result.state;
     });
+    const secondDiagnostic = await secondPage.evaluate(async () => {
+      const me = await (await fetch('/api/auth/me')).json();
+      const state = await (await fetch('/api/me/state')).json();
+      return { userId: me.user?.id, revision: state.revision,
+        trips: state.state?.trips?.map((trip: any) => [trip.id, trip.manualStops?.length]),
+        localKeys: Object.keys(localStorage).filter(key => key.includes('_trips')) };
+    });
+    console.log('SYNC AFTER SECOND', JSON.stringify(secondDiagnostic));
     assert.equal(restored.vehicles.length, 1);
     assert.ok(restored.trips.some((trip: any) => trip.manualStops?.length === 2));
   } finally { await secondDevice.close(); }
