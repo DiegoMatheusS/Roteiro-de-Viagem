@@ -511,7 +511,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // 7. Convoy Participants
     if (convoyParticipants && convoyParticipants.length > 0) {
       convoyParticipants
-        .filter(p => p.isSharingLocation && p.coords)
+        .filter(p => p.isSharingLocation && p.coords && p.lastLocationTimestamp && Date.now()-new Date(p.lastLocationTimestamp).getTime()<=180000)
         .forEach(p => {
           const isMoto = p.vehicleType === 'motorcycle';
           const vehicleEmoji = isMoto ? '🏍️' : '🚗';
@@ -544,7 +544,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             iconAnchor: [45, 13]
           });
 
-          const m = L.marker([p.coords![0], p.coords![1]], { icon: participantIcon, zIndexOffset: 950 }).addTo(group);
+          const m = L.marker([p.coords![0], p.coords![1]], { icon: participantIcon, title:p.name, zIndexOffset: 950 }).addTo(group);
           bounds.push([p.coords![0], p.coords![1]]);
         });
     }

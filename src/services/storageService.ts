@@ -90,6 +90,10 @@ const newProfile = (id: string, name = 'Viajante'): TravelerProfile => ({
   verifiedGpsKm: 0, manualKm: 0, completedTripsCount: 0, savedRoutesCount: 0,
   publishedRoutesCount: 0, reviewsCount: 0, emergencyContacts: []
 });
+export const emptyTravelerSnapshot = (id: string, name = 'Viajante'): TravelerSnapshot => ({
+  profile:newProfile(id,name),vehicles:[],fuelLogs:[],achievements:EMPTY_ACHIEVEMENTS.map(item=>({...item})),
+  trips:[],activeTrip:null,selectedVehicleId:'',convoys:[],activeConvoyId:null
+});
 
 // Per-account browser namespaces; never expose another user's data through the guest namespace.
 let storageOwner: string | null = null;
@@ -138,9 +142,7 @@ export const storageService = {
     else localStorage.removeItem(scoped.activeConvoyId());
   },
   resetScope(name?: string) {
-    this.replaceSnapshot({ profile: newProfile(storageOwner || crypto.randomUUID(), name), vehicles: [], fuelLogs: [],
-      achievements: EMPTY_ACHIEVEMENTS.map(item => ({ ...item })), trips: [], activeTrip: null, selectedVehicleId: '',
-      convoys: [], activeConvoyId: null });
+    this.replaceSnapshot(emptyTravelerSnapshot(storageOwner || crypto.randomUUID(),name));
   },
   getConvoys(): ConvoySession[] { return readList<ConvoySession>(scoped.convoys()); },
   saveConvoys(convoys: ConvoySession[]) { write(scoped.convoys(), JSON.stringify(convoys)); },
@@ -447,3 +449,4 @@ export const storageService = {
     };
   }
 };
+

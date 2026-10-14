@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ConvoySession, ConvoyParticipant, MeetingPoint, Vehicle } from '../types';
+import React, { useState, useEffect } from 'react';
+import { ConvoySession, ConvoyParticipant, MeetingPoint, Vehicle, TripPlan } from '../types';
 import { convoyService } from '../services/convoyService';
 import { InteractiveMap } from './InteractiveMap';
-import { useDeviceLocation } from '../hooks/useDeviceLocation';
-import { isNativeApp } from '../services/nativeApp';
+import type { useConvoyGps } from '../hooks/useConvoyGps';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { 
   Users, 
@@ -30,6 +29,7 @@ import {
 } from 'lucide-react';
 
 interface ConvoyScreenProps {
+  locationState:ReturnType<typeof useConvoyGps>;organizerTrip?:TripPlan;
   convoyId: string;
   currentUserId: string;
   currentUserName: string;
@@ -40,6 +40,7 @@ interface ConvoyScreenProps {
 
 export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   convoyId,
+  locationState,organizerTrip,
   currentUserId,
   currentUserName,
   currentVehicle,
@@ -63,28 +64,16 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showEndConvoyConfirm, setShowEndConvoyConfirm] = useState(false);
   const [showLeaveConvoyConfirm, setShowLeaveConvoyConfirm] = useState(false);
-  const sharingEnabled = !!convoy?.participants.find(p => p.id === currentUserId)?.isSharingLocation;
-  const location = useDeviceLocation(sharingEnabled, convoyId);
-
-  const lastSent = useRef(0);
-  useEffect(() => {
-    let disposed = false;
-    const load = () => { void convoyService.getConvoy(convoyId).then(session => { if (!disposed) setConvoy(session); }).catch(error => { if (!disposed) setLocationError(error.message); }); };
-    load(); const timer = window.setInterval(load, 5000);
-    return () => { disposed = true; clearInterval(timer); };
-  }, [convoyId]);
-  useEffect(() => {
-    if (isNativeApp() || !location.position || location.status !== 'ready' || !sharingEnabled || Date.now() - lastSent.current < 5000) return;
-    lastSent.current = Date.now();
-    void convoyService.updateParticipantLocation(convoyId, currentUserId, location.position.coords, location.position.timestamp, location.position.accuracyMeters)
-      .then(setConvoy).catch(error => setLocationError(error.message));
-  }, [location.position, location.status, sharingEnabled, convoyId, currentUserId]);
-  useEffect(() => {
-    if (!location.error || !sharingEnabled) return;
-    setLocationError(location.error);
-    void convoyService.toggleParticipantLocation(convoyId, currentUserId, false).then(setConvoy).catch(() => {});
-  }, [location.error, sharingEnabled, convoyId, currentUserId]);
-  useEffect(() => () => { void convoyService.toggleParticipantLocation(convoyId, currentUserId, false).catch(() => {}); }, [convoyId, currentUserId]);
+  const [refreshing,setRefreshing]=useState(false),[pendingPoint,setPendingPoint]=useState<MeetingPoint|null>(null),[actionBusy,setActionBusy]=useState(false);
+  useEffect(()=>{
+    let disposed=false,busy=false;
+    const load=async()=>{if(busy)return;busy=true;setRefreshing(true);try{const session=await convoyService.getConvoy(convoyId);if(!disposed){setConvoy(session);setLocationError(null);}}catch(error){if(!disposed)setLocationError((error as Error).message);}finally{convoyService.expireLocations();busy=false;if(!disposed)setRefreshing(false);}};
+    const changed=()=>{const cached=convoyService.getConvoys().find(c=>c.id===convoyId);if(!disposed&&cached)setConvoy(cached);};
+    const resume=()=>{if(!document.hidden)void load();};
+    window.addEventListener('rdv:convoys-changed',changed);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+    void load();const timer=window.setInterval(()=>void load(),5000);
+    return()=>{disposed=true;clearInterval(timer);window.removeEventListener('rdv:convoys-changed',changed);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
+  },[convoyId]);
 
   if (!convoy) {
     return (
@@ -99,15 +88,15 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
 
   const currentUserParticipant = convoy.participants.find(p => p.id === currentUserId);
   const isOrganizer = currentUserParticipant?.isOrganizer ?? false;
-  const isSharingLocation = currentUserParticipant?.isSharingLocation ?? false;
+  const isSharingLocation = currentUserParticipant?.isSharingLocation && locationState.session?.convoyId===convoyId && convoy.ownLocationToken===locationState.session.locationToken;
 
   // Toggle user's live location sharing (Requirement #3)
   const handleToggleLocation = async () => {
     try {
-    setLocationError(null);
+    if(actionBusy)return;setActionBusy(true);setLocationError(null);
     const updated = await convoyService.toggleParticipantLocation(convoy.id, currentUserId, !isSharingLocation);
     if (updated) setConvoy({ ...updated });
-    } catch (error) { setLocationError((error as Error).message); }
+    } catch (error) { setLocationError((error as Error).message); }finally{setActionBusy(false);}
   };
 
   // Toggle check-in at a meeting point
@@ -218,14 +207,15 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
 
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-50 overflow-hidden">
-      <p className="px-4 py-2 text-xs bg-amber-50 text-amber-900">Comboio sincronizado entre celulares. Atualização a cada 5 segundos; sua localização só aparece após você ativar o compartilhamento.</p>
-      {locationError && <p role="alert" className="px-4 py-2 text-xs text-rose-700">{locationError}</p>}
+      <p className="px-4 py-2 text-xs bg-amber-50 text-amber-900">Comboio sincronizado entre celulares. Atualização automática a cada 5 segundos; o GPS continua ao voltar ao menu enquanto o compartilhamento estiver ativo.</p>
+      {(locationError||locationState.error) && <p role="alert" className="px-4 py-2 text-xs text-rose-700">{locationError||locationState.error}</p>}
       {convoy.status !== 'active' && <p className="p-3 bg-slate-200 text-sm">Este comboio foi encerrado. A localização de todos foi ocultada.<button onClick={onBack} className="ml-3 underline">Voltar ao menu</button></p>}
       {/* Top Header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack}
+            aria-label="Voltar ao menu e manter comboio ativo"
             className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -288,6 +278,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
           <div className="absolute top-3 left-3 z-30">
             <button
               onClick={handleToggleLocation}
+              disabled={actionBusy||convoy.status!=='active'}
               className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg backdrop-blur-md transition-all ${
                 isSharingLocation 
                   ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
@@ -297,7 +288,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
               {isSharingLocation ? (
                 <>
                   <Eye className="w-4 h-4 text-white animate-pulse" />
-                  <span>{location.status === 'ready' ? 'Localização ativa' : 'Buscando GPS...'}</span>
+                  <span>{locationState.ready ? 'Localização ativa' : 'Buscando GPS...'}</span>
                 </>
               ) : (
                 <>
@@ -311,6 +302,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
 
         {/* SIDEBAR / DRAWER OF PARTICIPANTS & MEETING POINTS */}
         <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l border-slate-200 flex flex-col overflow-y-auto max-h-[55vh] lg:max-h-full">
+          <div className="p-3 border-b text-xs space-y-2"><p>{refreshing?'Conferindo atualizações...':`Atualizado ${new Date(convoy.updatedAt).toLocaleTimeString('pt-BR')}`} · participantes e roteiro</p><button onClick={()=>void convoyService.getConvoy(convoyId).then(setConvoy).catch(e=>setLocationError(e.message))} className="underline font-bold">Atualizar comboio agora</button>{isOrganizer&&organizerTrip&&convoy.status==='active'&&<button disabled={actionBusy} onClick={async()=>{setActionBusy(true);try{setConvoy(await convoyService.updateRoute(convoyId,organizerTrip,convoy.routeRevision||0));setLocationError(null);}catch(e){setLocationError((e as Error).message);}finally{setActionBusy(false);}}} className="block underline font-bold text-violet-700">Atualizar roteiro do comboio</button>}</div>
           {/* Location status callout */}
           <div className="p-4 bg-slate-50 border-b border-slate-100">
             <div className="flex items-center justify-between">
@@ -321,13 +313,13 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
                 isSharingLocation ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
               }`}>
-                {isSharingLocation ? 'Transmitindo' : 'Oculta'}
+                {isSharingLocation ? 'Transmitindo' : currentUserParticipant?.isSharingLocation ? 'Outro aparelho' : 'Oculta'}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
               {isSharingLocation 
                 ? 'Os membros autorizados do comboio conseguem ver sua posição aproximada no mapa.'
-                : 'Você está no comboio, mas sua localização NÃO está visível para ninguém.'}
+                : currentUserParticipant?.isSharingLocation ? 'Esta conta tem uma posição no grupo, mas este aparelho não está enviando GPS.' : 'Você está no comboio, mas sua localização não está visível.'}
             </p>
           </div>
 
@@ -343,17 +335,17 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
                   Defina onde o grupo irá parar e se reagrupar
                 </p>
               </div>
-              <button
+              {isOrganizer&&convoy.status==='active'&&<button
                 type="button"
                 onClick={() => setShowAddMeetingPoint(!showAddMeetingPoint)}
                 className="text-xs font-bold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-2.5 py-1 rounded-lg border border-violet-200 flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar Ponto
-              </button>
+              </button>}
             </div>
 
             {/* Add meeting point inline form */}
-            {showAddMeetingPoint && (
+            {showAddMeetingPoint && isOrganizer && convoy.status==='active' && (
               <div className="p-3.5 bg-violet-50/60 rounded-2xl border border-violet-200 space-y-3 animate-in fade-in shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
@@ -553,6 +545,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
                     key={mp.id}
                     className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-violet-300 transition-all space-y-2 shadow-2xs group"
                   >
+                    {isOrganizer&&convoy.status==='active'&&<button aria-label={`Remover ponto ${mp.title}`} onClick={()=>setPendingPoint(mp)} className="text-xs text-rose-700 underline">Remover ponto</button>}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
@@ -711,17 +704,18 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
               </span>
             </div>
 
-            <button
+            {isOrganizer&&convoy.status==='active'&&<button
               type="button"
               onClick={handleEndConvoy}
               className="w-full py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <span>Encerrar este Comboio de Viagem</span>
-            </button>
+            </button>}
           </div>
         </div>
       </div>
 
+      {pendingPoint&&<div role="dialog" aria-modal="true" aria-label="Remover ponto de encontro" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white p-5 rounded-2xl space-y-3"><p>Remover “{pendingPoint.title}” para todos os participantes?</p><button onClick={()=>setPendingPoint(null)} className="p-2 border rounded-lg">Manter ponto</button><button disabled={actionBusy} onClick={async()=>{setActionBusy(true);try{setConvoy(await convoyService.removeMeetingPoint(convoyId,pendingPoint.id,convoy.routeRevision||0));setPendingPoint(null);}catch(e){setLocationError((e as Error).message);}finally{setActionBusy(false);}}} className="p-2 bg-rose-700 text-white rounded-lg">Confirmar remoção</button></div></div>}
       {/* MODAL DE CONFIRMAÇÃO PARA ENCERRAR COMBOIO */}
       {showEndConvoyConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">

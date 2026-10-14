@@ -179,9 +179,9 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     transaction(() => {
       if (action !== 'unblock') db.prepare('DELETE FROM sessions WHERE user_id=?').run(account.id);
       if (action !== 'unblock') {
-        db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE user_id=?').run(account.id);
+        db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL,location_token=NULL WHERE user_id=?').run(account.id);
         db.prepare("UPDATE convoys SET status='completed',updated_at=? WHERE organizer_id=?").run(now(), account.id);
-        db.prepare("UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE convoy_id IN (SELECT id FROM convoys WHERE organizer_id=?)").run(account.id);
+        db.prepare("UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL,location_token=NULL WHERE convoy_id IN (SELECT id FROM convoys WHERE organizer_id=?)").run(account.id);
       }
       if (action === 'delete') {
         db.prepare('DELETE FROM traveler_states WHERE user_id=?').run(account.id);

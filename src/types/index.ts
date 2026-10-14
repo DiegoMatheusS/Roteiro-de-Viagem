@@ -149,6 +149,7 @@ export interface TripPlan {
   startedAt?: string;
   endedAt?: string;
   trackedDistanceKm?: number;
+  trackingDeviceId?: string;
   routeWarnings?: string[];
   stops: RouteStop[];
   weatherPoints: WeatherPoint[];
@@ -246,6 +247,9 @@ export interface ConvoyParticipant {
 }
 
 export interface ConvoySession {
+  revision?: number;
+  routeRevision?: number;
+  ownLocationToken?: string;
   id: string;
   code: string; // e.g. "CONVOY-782"
   title: string;

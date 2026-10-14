@@ -85,7 +85,7 @@ public class TravelNativePlugin extends Plugin {
     try {
       Intent intent=new Intent(getContext(),TravelLocationService.class);
       if(call.getMethodName().equals("setConvoy")) {
-        intent.setAction("CONVOY"); intent.putExtra("convoyId",call.getString("convoyId", "")); intent.putExtra("origin",origin()); intent.putExtra("cookie",CookieManager.getInstance().getCookie(origin()+"/api"));
+        intent.setAction("CONVOY"); intent.putExtra("convoyId",call.getString("convoyId", "")); intent.putExtra("locationToken",call.getString("locationToken", "")); intent.putExtra("origin",origin()); intent.putExtra("cookie",CookieManager.getInstance().getCookie(origin()+"/api"));
       } else { intent.setAction("TRIP"); intent.putExtra("tripId",call.getString("tripId", "")); intent.putExtra("distanceKm",call.getDouble("distanceKm",0.0)); }
       ContextCompat.startForegroundService(getContext(),intent); call.resolve();
     } catch(Exception error) { call.reject(error.getMessage()); }
@@ -102,7 +102,7 @@ public class TravelNativePlugin extends Plugin {
   }
   @PluginMethod public void state(PluginCall call) {
     JSObject result=new JSObject(); android.content.SharedPreferences pref=getContext().getSharedPreferences("travel-gps",0);
-    result.put("tripId",pref.getString("tripId","")); result.put("distanceKm",Double.longBitsToDouble(pref.getLong("distance",Double.doubleToLongBits(0)))); result.put("running",TravelLocationService.running);
+    result.put("tripId",pref.getString("tripId","")); result.put("distanceKm",Double.longBitsToDouble(pref.getLong("distance",Double.doubleToLongBits(0)))); result.put("running",TravelLocationService.running); result.put("convoyId",TravelLocationService.activeConvoyId); result.put("stoppedLocationToken",pref.getString("stoppedLocationToken",""));
     if(TravelLocationService.lastPosition!=null) result.put("position",TravelLocationService.lastPosition); call.resolve(result);
   }
 }

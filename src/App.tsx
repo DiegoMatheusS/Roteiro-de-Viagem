@@ -1,3 +1,7 @@
+import { useConvoyGps } from './hooks/useConvoyGps';
+import { getDeviceId } from './services/deviceIdentity';
+import { SyncConflictPanel } from './components/SyncConflictPanel';
+import type { StateConflict } from './services/stateMerge';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -62,7 +66,11 @@ export default function App() {
   const [accountReady, setAccountReady] = useState(false);
   const [syncState, setSyncState] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
-  const tracking = useTripTracking(activeTrip?.id);
+  const [syncConflicts,setSyncConflicts]=useState<StateConflict[]>([]);
+  const [deviceId]=useState(getDeviceId);
+  const ownsTracking=activeTrip?.trackingDeviceId===deviceId;
+  const tracking = useTripTracking(ownsTracking ? activeTrip?.id : undefined);
+  const convoyGps=useConvoyGps(auth.user?.id,accountReady);
 
   const reloadAccount = (name?: string) => {
     setVehicles(storageService.getVehicles());
@@ -74,8 +82,8 @@ export default function App() {
     const active = storageService.getActiveTrip();
     setActiveTrip(active);
     setIsNavigationOpen(open => active ? open : false);
-    // Convoys are not yet cross-device; do not reuse a previous account's group.
-    setActiveConvoyId(convoyService.getActiveConvoy()?.id || null);
+    // Keep navigation on the current screen when remote account data arrives.
+    setActiveConvoyId(open=>open&&convoyService.getConvoys().some(c=>c.id===open)?open:null);
   };
 
   useEffect(() => {
@@ -89,11 +97,12 @@ export default function App() {
     setShareTripTarget(null);
     setActiveConvoyId(null);
     convoyService.clear();
-    void cloudState.connect(auth.user, (state, message) => {
+    void cloudState.connect(auth.user, (state, message, conflicts) => {
       if (disposed) return;
       setSyncState(state);
       setSyncMessage(message || '');
-      if (!hydrated && ['guest', 'synced', 'pending'].includes(state)) {
+      if(conflicts)setSyncConflicts(conflicts);else if(state!=='conflict')setSyncConflicts([]);
+      if (!hydrated && ['guest', 'synced', 'pending','offline','conflict'].includes(state)) {
         hydrated = true;
         reloadAccount(auth.user?.displayName);
         setAccountReady(true);
@@ -105,15 +114,18 @@ export default function App() {
   useEffect(() => {
     if (!auth.user || !accountReady) return;
     let disposed = false;
-    const refresh = () => { void convoyService.refresh().then(() => { if (!disposed) setConvoyVersion(v => v + 1); }).catch(() => {}); };
+    const refresh = () => { convoyService.expireLocations(); void convoyService.refresh().then(() => { if (!disposed) setConvoyVersion(v => v + 1); }).catch(() => {}); };
     refresh(); const timer = window.setInterval(refresh, 15000);
     return () => { disposed = true; clearInterval(timer); };
   }, [auth.user?.id, accountReady]);
+
+  useEffect(()=>{const changed=()=>setConvoyVersion(v=>v+1);window.addEventListener('rdv:convoys-changed',changed);return()=>window.removeEventListener('rdv:convoys-changed',changed);},[]);
 
   useEffect(() => { const refresh = () => reloadAccount(auth.user?.displayName); window.addEventListener('rdv:remote-state', refresh); return () => window.removeEventListener('rdv:remote-state', refresh); }, [auth.user?.id]);
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId) || vehicles[0] || null;
 
+  const currentConvoy=convoyService.getActiveConvoy();
   const conditionsTrip=activeTrip || (activeTab === 'mapa' ? trips.find(t => t.status === 'planned') || null : null);
   const conditionsVehicle=vehicles.find(v => v.id === conditionsTrip?.vehicleId) || currentVehicle;
   const conditions=useLiveRouteConditions(conditionsTrip,conditionsVehicle?.type || 'car',(id,patch) => {
@@ -191,12 +203,12 @@ export default function App() {
   // Start a trip
   const handleStartTrip = (trip: TripPlan) => {
     if (activeTrip && activeTrip.id !== trip.id) { setAppError('Encerre a viagem em andamento antes de iniciar outra.'); return; }
-    if (activeTrip?.id === trip.id) { const updated = { ...trip, status: 'in_progress' as const, startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm || activeTrip.trackedDistanceKm }; storageService.saveTrip(updated); storageService.setActiveTrip(updated); setActiveTrip(updated); setTrips(storageService.getTrips()); setIsPlanningOpen(false); setIsNavigationOpen(true); return; }
+    if (activeTrip?.id === trip.id) { const updated = { ...trip, status: 'in_progress' as const, startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm || activeTrip.trackedDistanceKm, trackingDeviceId:deviceId }; storageService.saveTrip(updated); storageService.setActiveTrip(updated); setActiveTrip(updated); setTrips(storageService.getTrips()); setIsPlanningOpen(false); setIsNavigationOpen(true); return; }
     if (trip.routingSource !== 'OSRM') { setAppError('Recalcule esta rota antiga antes de iniciar: ela ainda não possui um percurso rodoviário verificado.'); return; }
     setIsPlanningOpen(false);
     const startedTrip: TripPlan = ['completed', 'cancelled'].includes(trip.status)
-      ? { ...trip, id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
-      : { ...trip, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0 };
+      ? { ...trip, id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
+      : { ...trip, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId };
     storageService.saveTrip(startedTrip);
     storageService.setActiveTrip(startedTrip);
     setActiveTrip(startedTrip);
@@ -204,9 +216,11 @@ export default function App() {
     setTrips(storageService.getTrips());
   };
 
+  const resumeNavigation=()=>{if(!activeTrip)return;handleStartTrip({...activeTrip,trackingDeviceId:deviceId});};
+
   // Save trip without starting
   const handleSaveTrip = (trip: TripPlan) => {
-    if (activeTrip?.id === trip.id) { trip = { ...trip, status: 'in_progress', startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm }; storageService.setActiveTrip(trip); setActiveTrip(trip); }
+    if (activeTrip?.id === trip.id) { trip = { ...trip, status: 'in_progress', startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm,trackingDeviceId:activeTrip.trackingDeviceId }; storageService.setActiveTrip(trip); setActiveTrip(trip); }
     storageService.saveTrip(trip);
     setTrips(storageService.getTrips());
     setIsPlanningOpen(false);
@@ -277,10 +291,7 @@ export default function App() {
         <h1 className="font-bold text-slate-900">Roteiro de Viagem</h1>
         <p className="text-sm text-slate-600">{syncState === 'conflict' ? syncMessage : syncState === 'error' ? (syncMessage || 'Não foi possível carregar a conta.') : 'Carregando seus dados de viagem...'}</p>
         {syncState === 'error' && <button type="button" onClick={() => void cloudState.retry()} className="px-4 py-2 bg-emerald-700 text-white rounded-xl">Tentar novamente</button>}
-        {syncState === 'conflict' && <div className="space-y-2">
-          <button type="button" onClick={() => { void cloudState.resolveConflict('server').then(() => reloadAccount(auth.user?.displayName)); }} className="block w-full p-2 border rounded-xl">Usar versão do servidor (mantém cópia local)</button>
-          <button type="button" onClick={() => void cloudState.resolveConflict('device')} className="block w-full p-2 border border-amber-500 rounded-xl">Substituir dados do servidor pelos deste aparelho</button>
-        </div>}
+        {syncState === 'conflict' && <SyncConflictPanel conflicts={syncConflicts} onChoose={choice=>void cloudState.resolveConflict(choice)} />}
       </div>
     </div>
   );
@@ -289,15 +300,13 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {auth.user && syncState !== 'synced' && <div role="status" className="px-4 py-2 text-xs bg-amber-50 text-amber-950 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
         <span>{syncState === 'pending' ? 'Salvando suas viagens na conta...' : syncState === 'conflict' ? syncMessage : syncMessage || 'Seus dados ainda não foram salvos no servidor.'}</span>
-        {syncState === 'error' && <button onClick={() => void cloudState.retry()} className="underline font-semibold">Tentar salvar novamente</button>}
-        {syncState === 'conflict' && <div className="flex gap-3">
-          <button onClick={() => { void cloudState.resolveConflict('server').then(() => reloadAccount(auth.user?.displayName)); }} className="underline">Usar servidor</button>
-          <button onClick={() => void cloudState.resolveConflict('device')} className="underline">Usar este dispositivo</button>
-        </div>}
+        {['error','offline'].includes(syncState) && <button onClick={() => void cloudState.retry()} className="underline font-semibold">Tentar salvar novamente</button>}
+        {syncState === 'conflict' && <SyncConflictPanel conflicts={syncConflicts} onChoose={choice=>void cloudState.resolveConflict(choice)} />}
       </div>}
       <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
-        {auth.user ? <><button onClick={() => setShowJoin(v => !v)} className="text-violet-700 font-bold">Entrar no comboio</button><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
+        {auth.user ? <><button onClick={() => setShowJoin(v => !v)} className="text-violet-700 font-bold">Entrar no comboio</button><span className="text-slate-500">Olá, {profile.name}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
       </div>
+      {convoyGps.session && !activeConvoyId && <div role="status" className="p-3 bg-violet-50 text-violet-900 text-xs flex flex-wrap items-center gap-3"><span>{convoyGps.ready?'GPS do comboio ativo':'Comboio aguardando GPS'} · atualização automática</span><button onClick={()=>setActiveConvoyId(convoyGps.session!.convoyId)} className="underline font-bold">Abrir comboio</button><button onClick={()=>void convoyService.stopSharing()} className="underline">Parar compartilhamento</button>{convoyGps.error&&<span>{convoyGps.error}</span>}</div>}
       {showJoin && <form onSubmit={e => { e.preventDefault(); void joinConvoy(); }} className="p-3 bg-violet-50 flex flex-wrap gap-3 text-xs"><label>Código do comboio<input aria-label="Código do comboio" value={joinCode} onChange={e => setJoinCode(e.target.value)} required className="block border p-2 rounded-xl" /></label>{!currentVehicle && <label>Seu veículo<select aria-label="Tipo de veículo no comboio" required value={joinVehicleType} onChange={e => setJoinVehicleType(e.target.value as 'car' | 'motorcycle' | '')} className="block border p-2 rounded-xl"><option value="">Escolha</option><option value="motorcycle">Moto</option><option value="car">Carro</option></select></label>}<button className="font-bold text-violet-800">Entrar</button><p>Seu nome e veículo serão vistos pelo grupo. O GPS começa desligado.</p></form>}
       {appError && (
         <div role="alert" className="fixed top-3 left-3 right-3 z-70 mx-auto max-w-xl p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-3 shadow-lg">
@@ -312,6 +321,8 @@ export default function App() {
           currentUserId={profile.id}
           currentUserName={profile.name}
           currentVehicle={currentVehicle}
+          locationState={convoyGps}
+          organizerTrip={trips.find(t=>t.id===convoyService.getConvoys().find(c=>c.id===activeConvoyId)?.tripId)}
           onBack={() => setActiveConvoyId(null)}
           onEndConvoy={() => {
             setActiveConvoyId(null);
@@ -348,13 +359,15 @@ export default function App() {
             {activeTab === 'mapa' && (
               <MapTab
                 currentVehicle={currentVehicle}
+                convoyParticipants={currentConvoy?.participants}
+                meetingPoints={currentConvoy?.meetingPoints}
                 activeTrip={activeTrip}
                 conditions={conditions}
                 routeVehicleType={conditionsVehicle?.type}
                 plannedTrip={trips.find(trip => trip.status === 'planned') || null}
                 onBackToMenu={() => setActiveTab('inicio')}
                 onEndTrip={handleEndTrip}
-                onContinueTrip={() => setIsNavigationOpen(true)}
+                onContinueTrip={resumeNavigation}
                 activeConvoyId={activeConvoyId}
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onNavigateHome={handleReturnHome}
@@ -416,7 +429,7 @@ export default function App() {
         </>
       )}
 
-      {activeTrip && !isNavigationOpen && !activeConvoyId && <div className="fixed bottom-20 left-3 right-3 z-40 mx-auto max-w-md bg-emerald-900 text-white rounded-xl shadow-lg p-3 flex items-center justify-between gap-3 text-xs"><span>Viagem em andamento · {activeTrip.destinationName}</span><button onClick={() => setIsNavigationOpen(true)} className="font-bold underline">Retomar mapa</button><button onClick={() => { setActiveTab('mapa'); }} className="underline">Opções</button></div>}
+      {activeTrip && !isNavigationOpen && !activeConvoyId && <div className="fixed bottom-20 left-3 right-3 z-40 mx-auto max-w-md bg-emerald-900 text-white rounded-xl shadow-lg p-3 flex items-center justify-between gap-3 text-xs"><span>Viagem em andamento · {activeTrip.destinationName}</span><button onClick={resumeNavigation} className="font-bold underline">{ownsTracking?'Retomar mapa':'Assumir navegação neste aparelho'}</button><button onClick={() => { setActiveTab('mapa'); }} className="underline">Opções</button></div>}
 
       {/* ROUTE PLANNING MODAL (6 MODALITIES COMPARISON) */}
       {currentVehicle && isPlanningOpen && (
@@ -456,7 +469,9 @@ export default function App() {
         <ActiveTripModal
           trip={activeTrip}
           vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
-          tracking={tracking}
+          convoyParticipants={currentConvoy?.participants}
+          meetingPoints={currentConvoy?.meetingPoints}
+          tracking={ownsTracking?tracking:{...tracking,distanceKm:activeTrip.trackedDistanceKm||0,error:'O GPS desta viagem está em outro aparelho. Retome a navegação neste aparelho para usá-lo aqui.',retry:resumeNavigation}}
           conditions={conditions}
           isOpen={!!activeTrip}
           onClose={() => { setIsNavigationOpen(false); setActiveTab('inicio'); }}

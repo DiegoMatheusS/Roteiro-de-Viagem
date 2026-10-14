@@ -64,6 +64,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   onOpenSosModal,
   onNavigateHome
 }) => {
+  const [editingProfile,setEditingProfile]=useState(false),[profileName,setProfileName]=useState(''),[profileBio,setProfileBio]=useState('');
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'garagem' | 'seguranca' | 'privacidade'>('perfil');
 
   // Stats filter (Requirement #1: por mês, ano, veículo)
@@ -235,6 +236,8 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
                 </div>
               </div>
 
+              <button onClick={()=>{setProfileName(profile.name);setProfileBio(profile.bio||'');setEditingProfile(v=>!v);}} className="text-xs font-bold underline text-emerald-700">Editar perfil</button>
+              {editingProfile&&<form onSubmit={e=>{e.preventDefault();if(profileName.trim().length<2)return;onUpdateProfile({...profile,name:profileName.trim(),bio:profileBio.trim()});setEditingProfile(false);}} className="p-3 border rounded-xl space-y-3"><label className="block text-xs">Nome do perfil<input aria-label="Nome do perfil" required minLength={2} maxLength={50} value={profileName} onChange={e=>setProfileName(e.target.value)} className="block w-full p-2 border rounded-lg" /></label><label className="block text-xs">Sobre você<textarea aria-label="Sobre você" maxLength={1000} value={profileBio} onChange={e=>setProfileBio(e.target.value)} className="block w-full p-2 border rounded-lg" /></label><button className="p-2 bg-emerald-700 text-white rounded-lg text-xs">Salvar perfil</button></form>}
               {/* TIER PROGRESS BAR (Requirement #2) */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -913,3 +916,4 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
     </div>
   );
 };
+

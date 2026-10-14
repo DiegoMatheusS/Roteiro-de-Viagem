@@ -1,7 +1,7 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
-import { TripPlan, Vehicle, Achievement } from '../types';
+import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap } from './InteractiveMap';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 interface ActiveTripModalProps {
+  convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
   trip: TripPlan;
   vehicle: Vehicle;
   tracking: ReturnType<typeof useTripTracking>;
@@ -34,6 +35,7 @@ interface ActiveTripModalProps {
 
 export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   trip,
+  convoyParticipants, meetingPoints,
   vehicle,
   tracking,
   conditions,
@@ -140,7 +142,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
 
       {/* MAP AND ROUTE CONTAINER */}
       <div className="flex-1 relative">
-        <InteractiveMap 
+        <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
           originCoords={trip.originCoords}
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
