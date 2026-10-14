@@ -18,6 +18,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Verificar provedor de clima ao vivo
+        run: npm run check:weather
+        continue-on-error: true
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ui
       - uses: actions/upload-artifact@v4

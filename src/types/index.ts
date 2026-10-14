@@ -113,7 +113,7 @@ export interface WeatherPoint {
   forecastAt?: string;
   passTime: string; // e.g. "09:30"
   tempC: number;
-  condition: 'Ensolarado' | 'Parcialmente Nublado' | 'Nublado' | 'Chuva Fraca' | 'Chuva Forte' | 'Neblina';
+  condition: 'Ensolarado' | 'Parcialmente Nublado' | 'Nublado' | 'Chuva Fraca' | 'Chuva Forte' | 'Neblina' | 'Neve' | 'Trovoada' | 'Chuva Congelante';
   rainProb: number; // 0 to 100
   windKmH: number;
   warning?: string;
@@ -131,6 +131,9 @@ export interface TripPlan {
   isCircular: boolean;
   distanceKm: number;
   durationMinutes: number;
+  drivingMinutes?: number;
+  tollsUpdatedAt?: string;
+  tollsMapUnavailable?: boolean;
   vehicleId: string;
   routePath: [number, number][]; // coordinates for Leaflet polyline
   manualStops?: import('./itinerary').MandatoryStop[];

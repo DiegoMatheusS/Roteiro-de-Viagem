@@ -443,6 +443,7 @@ export function buildPlannedTrip(input: RoutePlanningInput, option: RouteOptionC
     isCircular: presetTrip?.isCircular ?? false,
     distanceKm: option.distanceKm,
     durationMinutes: option.durationMinutes,
+    drivingMinutes: presetTrip?.drivingMinutes, tollsUpdatedAt: presetTrip?.tollsUpdatedAt, tollsMapUnavailable: presetTrip?.tollsMapUnavailable,
     vehicleId: input.vehicle.id,
     manualStops: presetTrip?.manualStops,
     acceptedSuggestions: presetTrip?.acceptedSuggestions,

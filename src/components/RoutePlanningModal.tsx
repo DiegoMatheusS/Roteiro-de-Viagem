@@ -12,7 +12,7 @@ import { ManualStopsEditor } from './ManualStopsEditor';
 import { calculateItinerary, applyItinerary } from '../services/itinerary';
 import type { MandatoryStop, SuggestedStop } from '../types/itinerary';
 import { createRoadDraft } from '../services/touristCircuit';
-import { fuelApi } from '../services/fuelApi';
+import { requestWeather,requestTolls } from '../services/routeConditions';
 import { TollContribution } from './TollContribution';
 import type { RouteToll } from '../types/tolls';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
@@ -100,7 +100,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
     }, 400);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [routingKey, useRoad, routeAnchor, isOpen]);
-  const [departureAt, setDepartureAt] = useState('');
+  const [departureAt, setDepartureAt] = useState(() => { if(!presetTrip?.departureAt) return ''; const date=new Date(presetTrip.departureAt); return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); });
   const [weatherError, setWeatherError] = useState(''), [tollError, setTollError] = useState('');
   const [conditionsBusy, setConditionsBusy] = useState(false), [conditionsAttempt, setConditionsAttempt] = useState(0);
   const conditionsKey = JSON.stringify([workingTrip?.routePath, workingTrip?.durationMinutes, vehicle.type, departureAt, conditionsAttempt]);
@@ -112,16 +112,16 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
     const trip = workingTrip;
     const fetchConditions = async () => {
       const results = await Promise.allSettled([
-        fuelApi<{ weatherPoints: TripPlan['weatherPoints']; hasRainRisk: boolean; source: string; updatedAt: string }>('/weather/route', { method: 'POST', body: JSON.stringify({ routePath: trip.routePath, drivingMinutes: trip.durationMinutes, departureAt: departureAt ? new Date(departureAt).toISOString() : undefined }), signal: controller.signal }),
-        fuelApi<{ tolls: RouteToll[]; knownCost: number; status: 'unknown' | 'partial'; warning: string }>('/tolls/route', { method: 'POST', body: JSON.stringify({ routePath: trip.routePath, vehicleType: vehicle.type }), signal: controller.signal })
+        requestWeather({...trip,status:'planned',departureAt:departureAt ? new Date(departureAt).toISOString() : undefined},controller.signal),
+        requestTolls(trip,vehicle.type,controller.signal)
       ]);
       if (controller.signal.aborted) return;
       const [weather, tolls] = results;
       if (weather.status === 'rejected') setWeatherError(weather.reason.message);
-      if (tolls.status === 'rejected') setTollError(tolls.reason.message);
+      if (tolls.status === 'rejected') setTollError(tolls.reason.message); else if(tolls.value.mapUnavailable) setTollError('Mapa indisponível: exibindo pedágios e tarifas já verificados no servidor.');
       setWorkingTrip(current => current ? { ...current, departureAt: departureAt ? new Date(departureAt).toISOString() : undefined,
         ...(weather.status === 'fulfilled' ? { weatherPoints: weather.value.weatherPoints, hasRainRisk: weather.value.hasRainRisk, weatherSource: weather.value.source, weatherUpdatedAt: weather.value.updatedAt } : { weatherPoints: [], hasRainRisk: false, weatherSource: undefined }),
-        ...(tolls.status === 'fulfilled' ? { tolls: tolls.value.tolls, knownTollsCost: tolls.value.knownCost, tollsStatus: tolls.value.status } : { tolls: [], knownTollsCost: 0, tollsStatus: 'unknown' }) } : current);
+        ...(tolls.status === 'fulfilled' ? { tolls: tolls.value.tolls, knownTollsCost: tolls.value.knownCost, tollsStatus: tolls.value.status, tollsUpdatedAt: tolls.value.updatedAt, tollsMapUnavailable: tolls.value.mapUnavailable } : { tolls: [], knownTollsCost: 0, tollsStatus: 'unknown' }) } : current);
       setConditionsBusy(false);
     };
     void fetchConditions(); return () => controller.abort();
@@ -271,6 +271,8 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                 routeModality={activeOption.modality}
                 stops={activeOption.stops}
                 weatherPoints={activeOption.weatherPoints}
+                tolls={workingTrip?.tolls || []}
+                tollVehicleType={vehicle.type}
                 showRainLayer={showRainLayer}
                 className="w-full h-full"
               />
