@@ -6,135 +6,16 @@ import {
   TripPlan, 
   VehicleType 
 } from '../types';
-
-const STORAGE_KEYS = {
-  CONVOYS: 'rdv_convoys_v1',
-  ACTIVE_CONVOY_ID: 'rdv_active_convoy_id_v1'
-};
-
-// Seed an initial active convoy for testing (Requirement #10: Test scenarios)
-const SEED_CONVOYS: ConvoySession[] = [
-  {
-    id: 'conv-mantiqueira-1',
-    code: 'SERRA-500',
-    title: 'Comboio Serra da Mantiqueira & Curvas',
-    organizerId: 'user-pilot-1', // current user is organizer
-    tripTitle: 'Passeio Serra da Mantiqueira',
-    originName: 'São Paulo - SP',
-    destinationName: 'Campos do Jordão - SP',
-    routePath: [
-      [-23.5505, -46.6333],
-      [-23.2237, -45.9009],
-      [-22.9511, -45.4523],
-      [-22.7562, -45.5781],
-      [-22.7394, -45.5914]
-    ],
-    meetingPoints: [
-      {
-        id: 'mp-1',
-        title: 'Posto Graal 125 (Rod. Ayrton Senna)',
-        category: 'posto',
-        coords: [-23.2237, -45.9009],
-        description: 'Primeiro abastecimento e café da manhã do grupo (08:30)',
-        order: 1,
-        confirmedArrivedParticipantIds: ['p-part-2', 'p-part-3'] // Lucas and Juliana already arrived
-      },
-      {
-        id: 'mp-2',
-        title: 'Mirante da Vista Chinesa',
-        category: 'mirante',
-        coords: [-22.7562, -45.5781],
-        description: 'Reagrupamento antes da descida para a Vila Capivari',
-        order: 2,
-        confirmedArrivedParticipantIds: []
-      }
-    ],
-    participants: [
-      {
-        id: 'user-pilot-1',
-        name: 'Diego Mendes',
-        vehicleType: 'motorcycle',
-        vehicleNickname: 'Bicuda 500X',
-        isOrganizer: true,
-        isSharingLocation: false, // Default false per specification!
-        joinedAt: '2026-10-13T08:00:00Z'
-      },
-      {
-        id: 'p-part-2',
-        name: 'Lucas Rossi',
-        vehicleType: 'motorcycle',
-        vehicleNickname: 'Yamaha MT-07',
-        isOrganizer: false,
-        isSharingLocation: true, // Authorized
-        coords: [-23.2240, -45.9015],
-        lastLocationTimestamp: '08:42 (há 1 min)',
-        isStale: false,
-        distanceToMeetingPointKm: 0.1,
-        joinedAt: '2026-10-13T08:05:00Z'
-      },
-      {
-        id: 'p-part-3',
-        name: 'Juliana Costa',
-        vehicleType: 'car',
-        vehicleNickname: 'Polo TSI',
-        isOrganizer: false,
-        isSharingLocation: true, // Authorized but lost recent signal (stale indicator)
-        coords: [-23.3100, -46.0200],
-        lastLocationTimestamp: '08:34 (há 9 min)',
-        isStale: true, // Outdated GPS signal per requirement #3 & #8
-        distanceToMeetingPointKm: 14.2,
-        joinedAt: '2026-10-13T08:10:00Z'
-      },
-      {
-        id: 'p-part-4',
-        name: 'Carlos Oliveira',
-        vehicleType: 'motorcycle',
-        vehicleNickname: 'BMW GS 1250',
-        isOrganizer: false,
-        isSharingLocation: false, // Did not authorize location (appears in list, NOT on map)
-        joinedAt: '2026-10-13T08:15:00Z'
-      }
-    ],
-    status: 'active',
-    createdAt: '2026-10-13T07:45:00Z',
-    updatedAt: '2026-10-13T08:40:00Z',
-    notes: 'Manter distância segura nas curvas. Chuva leve prevista na chegada.'
-  }
-];
+import { storageService } from './storageService';
 
 export const convoyService = {
-  getConvoys(): ConvoySession[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.CONVOYS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.CONVOYS, JSON.stringify(SEED_CONVOYS));
-      return SEED_CONVOYS;
-    }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return SEED_CONVOYS;
-    }
-  },
-
-  saveConvoys(convoys: ConvoySession[]) {
-    localStorage.setItem(STORAGE_KEYS.CONVOYS, JSON.stringify(convoys));
-  },
-
+  getConvoys(): ConvoySession[] { return storageService.getConvoys(); },
+  saveConvoys(convoys: ConvoySession[]) { storageService.saveConvoys(convoys); },
   getActiveConvoy(): ConvoySession | null {
-    const activeId = localStorage.getItem(STORAGE_KEYS.ACTIVE_CONVOY_ID);
-    if (!activeId) return null;
-    const convoys = this.getConvoys();
-    const match = convoys.find(c => c.id === activeId && c.status === 'active');
-    return match || null;
+    const id = storageService.getActiveConvoyId();
+    return id ? this.getConvoys().find(convoy => convoy.id === id && convoy.status === 'active') || null : null;
   },
-
-  setActiveConvoyId(id: string | null) {
-    if (id) {
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_CONVOY_ID, id);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVOY_ID);
-    }
-  },
+  setActiveConvoyId(id: string | null) { storageService.setActiveConvoyId(id); },
 
   // 1. COMPARTILHAR ROTA (Somente dados públicos do trajeto, sem localização e sem endereço privado)
   generateRouteSharePayload(trip: TripPlan, isPublicOrigin: boolean = true, shareableUrl?: string): RouteSharePayload {
@@ -353,7 +234,7 @@ export const convoyService = {
       this.saveConvoys(convoys);
     }
 
-    const currentActive = localStorage.getItem(STORAGE_KEYS.ACTIVE_CONVOY_ID);
+    const currentActive = storageService.getActiveConvoyId();
     if (!currentActive || currentActive === convoyId) {
       this.setActiveConvoyId(null);
     }
