@@ -12,9 +12,8 @@ import { ManualStopsEditor } from './ManualStopsEditor';
 import { calculateItinerary, applyItinerary } from '../services/itinerary';
 import type { MandatoryStop, SuggestedStop } from '../types/itinerary';
 import { createRoadDraft } from '../services/touristCircuit';
-import { requestWeather,requestTolls } from '../services/routeConditions';
+import { requestWeather,requestTolls,tollBudgetPatch } from '../services/routeConditions';
 import { TollContribution } from './TollContribution';
-import type { RouteToll } from '../types/tolls';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { 
   X, 
@@ -103,7 +102,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   const [departureAt, setDepartureAt] = useState(() => { if(!presetTrip?.departureAt) return ''; const date=new Date(presetTrip.departureAt); return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); });
   const [weatherError, setWeatherError] = useState(''), [tollError, setTollError] = useState('');
   const [conditionsBusy, setConditionsBusy] = useState(false), [conditionsAttempt, setConditionsAttempt] = useState(0);
-  const conditionsKey = JSON.stringify([workingTrip?.routePath, workingTrip?.durationMinutes, vehicle.type, departureAt, conditionsAttempt]);
+  const conditionsKey = JSON.stringify([workingTrip?.routePath, workingTrip?.durationMinutes, workingTrip?.drivingMinutes, workingTrip?.stops, vehicle.type, departureAt, conditionsAttempt]);
   useEffect(() => {
     if (!isOpen || !workingTrip?.routePath.length || isRouting || staleRoute) return;
     const controller = new AbortController();
@@ -121,7 +120,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
       if (tolls.status === 'rejected') setTollError(tolls.reason.message); else if(tolls.value.mapUnavailable) setTollError('Mapa indisponível: exibindo pedágios e tarifas já verificados no servidor.');
       setWorkingTrip(current => current ? { ...current, departureAt: departureAt ? new Date(departureAt).toISOString() : undefined,
         ...(weather.status === 'fulfilled' ? { weatherPoints: weather.value.weatherPoints, hasRainRisk: weather.value.hasRainRisk, weatherSource: weather.value.source, weatherUpdatedAt: weather.value.updatedAt } : { weatherPoints: [], hasRainRisk: false, weatherSource: undefined }),
-        ...(tolls.status === 'fulfilled' ? { tolls: tolls.value.tolls, knownTollsCost: tolls.value.knownCost, tollsStatus: tolls.value.status, tollsUpdatedAt: tolls.value.updatedAt, tollsMapUnavailable: tolls.value.mapUnavailable } : { tolls: [], knownTollsCost: 0, tollsStatus: 'unknown' }) } : current);
+        ...(tolls.status === 'fulfilled' ? tollBudgetPatch(current,tolls.value) : { tolls: [], knownTollsCost: 0, tollsStatus: 'unknown' }) } : current);
       setConditionsBusy(false);
     };
     void fetchConditions(); return () => controller.abort();
@@ -203,7 +202,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
             Percurso por estradas reais. Tempo sem trânsito ao vivo. O orçamento inclui apenas tarifas aprovadas identificadas; a cobertura de pedágios é parcial.
           </p>
-          <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Clima e pedágios</h3><label className="block text-xs">Saída planejada (vazio: agora)<input type="datetime-local" value={departureAt} onChange={e => setDepartureAt(e.target.value)} className="block mt-1 border rounded-xl p-2" /></label>{conditionsBusy && <p role="status" className="text-xs text-emerald-700">Consultando previsão e pedágios reais...</p>}{weatherError && <p role="alert" className="text-xs text-amber-800">Clima: {weatherError}</p>}{tollError && <p role="alert" className="text-xs text-amber-800">Pedágios: {tollError}</p>}{workingTrip?.weatherSource && <p className="text-xs text-slate-500">Previsão: {workingTrip.weatherSource} · atualizada {new Date(workingTrip.weatherUpdatedAt!).toLocaleString('pt-BR')} · Horários aproximados de passagem considerando a duração total planejada, sem trânsito ao vivo.</p>}<button disabled={conditionsBusy} onClick={() => setConditionsAttempt(v => v + 1)} className="text-xs underline text-emerald-700">Atualizar clima e tarifas</button>{workingTrip?.tolls?.map(toll => <TollContribution key={toll.id} toll={toll} vehicleType={vehicle.type} />)}{!workingTrip?.tolls?.length && !conditionsBusy && <p className="text-xs text-slate-500">Nenhum pedágio identificado nesta consulta. Isso não garante ausência de cobrança.</p>}</section>
+          <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Clima e pedágios</h3><label className="block text-xs">Saída planejada (vazio: agora)<input type="datetime-local" value={departureAt} onChange={e => setDepartureAt(e.target.value)} className="block mt-1 border rounded-xl p-2" /></label>{conditionsBusy && <p role="status" className="text-xs text-emerald-700">Consultando previsão e pedágios reais...</p>}{weatherError && <p role="alert" className="text-xs text-amber-800">Clima: {weatherError}</p>}{tollError && <p role="alert" className="text-xs text-amber-800">Pedágios: {tollError}</p>}{workingTrip?.weatherSource && <p className="text-xs text-slate-500">Previsão: {workingTrip.weatherSource} · atualizada {new Date(workingTrip.weatherUpdatedAt!).toLocaleString('pt-BR')} · Horários aproximados considerando condução e permanência nas paradas, sem trânsito ao vivo.</p>}<button disabled={conditionsBusy} onClick={() => setConditionsAttempt(v => v + 1)} className="text-xs underline text-emerald-700">Atualizar clima e tarifas</button>{workingTrip?.tolls?.map(toll => <TollContribution key={toll.id} toll={toll} vehicleType={vehicle.type} />)}{!workingTrip?.tolls?.length && !conditionsBusy && <p className="text-xs text-slate-500">Nenhum pedágio identificado nesta consulta. Isso não garante ausência de cobrança.</p>}</section>
           <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Paradas obrigatórias</h3><ManualStopsEditor value={manualStops} onChange={changeStops} bias={originCoords} />
             {isRouting && <p role="status" className="text-xs text-emerald-700">Recalculando o percurso com todas as paradas...</p>}
             {routeError && <div role="alert" className="text-xs text-rose-700">{routeError}<button type="button" onClick={() => setRoutingAttempt(value => value + 1)} className="ml-3 underline">Recalcular rota</button></div>}

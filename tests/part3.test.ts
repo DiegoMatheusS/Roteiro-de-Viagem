@@ -5,6 +5,7 @@ import { createApi } from '../server/app';
 import { weatherCondition,weatherSamples } from '../server/weather';
 import { weatherRequestForTrip,tollBudgetPatch } from '../src/services/routeConditions';
 import { createRoadDraft } from '../src/services/touristCircuit';
+import { getPlanningAlternatives } from '../src/services/routeCalculator';
 import type { Vehicle } from '../src/types';
 const vehicle:Vehicle={id:'test-car',type:'car',brand:'Teste',model:'Veículo do teste',nickname:'Carro',year:2026,fuelType:'gasolina',tankCapacityLiters:50,maxPassengers:5,odometerKm:0,consumption:{referenceUrban:10,referenceHighway:15,referenceAverage:12,userConfigured:12,source:'teste',sourceDate:'2026'}};
 const path:[number,number][]=[[0,0],[0,0.01],[0,0.02],[0,0.01],[0,0]];
@@ -30,6 +31,14 @@ test('a circular trip forecasts the remaining return stretch and drops visited s
 test('updated approved tariffs recalculate the budget for all same-category vehicles',()=>{
   const patch=tollBudgetPatch({...trip,vehicleGroupType:'multi_vehicle',groupVehiclesCount:2,estimatedFuelCost:30,totalFoodCost:40,peopleCount:4,splitExpenses:true},{tolls:[],knownCost:13,status:'partial',mapUnavailable:false,updatedAt:new Date().toISOString(),warning:''});
   assert.equal(patch.knownTollsCost,26);assert.equal(patch.totalEstimatedCost,96);assert.equal(patch.costPerPerson,24);assert.equal(patch.tollsStatus,'partial');
+});
+test('reopening a group plan or changing vehicle count preserves the per-vehicle toll subtotal',()=>{
+  const group={...trip,vehicleGroupType:'multi_vehicle' as const,groupVehiclesCount:2,knownTollsCost:26};
+  const input={originName:trip.originName,originCoords:trip.originCoords,destinationName:trip.destinationName,destinationCoords:trip.destinationCoords,vehicle,peopleCount:4,vehicleGroupType:'multi_vehicle' as const,groupVehiclesCount:2,splitExpenses:true,foodCostPerPerson:10,fuelPricePerLiter:6,returnModality:trip.returnModality};
+  assert.equal(getPlanningAlternatives(input,group)[0].tollsCost,26);
+  assert.equal(getPlanningAlternatives({...input,groupVehiclesCount:3},group)[0].tollsCost,39);
+  const single={...group,vehicleGroupType:'single_vehicle' as const,groupVehiclesCount:2,knownTollsCost:13};
+  assert.equal(getPlanningAlternatives({...input,vehicleGroupType:'single_vehicle'},single)[0].tollsCost,13);
 });
 test('direction-specific tariffs, alias lane prices, contribution privacy and forecast cache',async t=>{
   const db=openDatabase(':memory:');let providerCalls=0;

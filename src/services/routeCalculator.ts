@@ -404,7 +404,8 @@ export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: 
   const consumption = input.vehicle.consumption.userConfigured || input.vehicle.consumption.referenceAverage || 15;
   const fuelLiters = Number((presetTrip.distanceKm / consumption * vehiclesCount).toFixed(2));
   const fuelCost = Number((presetTrip.distanceKm / consumption * vehiclesCount * input.fuelPricePerLiter).toFixed(2));
-  const tollsCost = Number((presetTrip.knownTollsCost / Math.max(1, presetTrip.groupVehiclesCount) * vehiclesCount).toFixed(2));
+  const originalVehiclesCount = presetTrip.vehicleGroupType === 'multi_vehicle' ? Math.max(1,presetTrip.groupVehiclesCount) : 1;
+  const tollsCost = Number((presetTrip.knownTollsCost / originalVehiclesCount * vehiclesCount).toFixed(2));
   const totalFoodCost = input.peopleCount * input.foodCostPerPerson;
   const totalCost = Number((fuelCost + tollsCost + totalFoodCost).toFixed(2));
   const capacityWarning = input.vehicleGroupType === 'single_vehicle' && input.peopleCount > input.vehicle.maxPassengers
