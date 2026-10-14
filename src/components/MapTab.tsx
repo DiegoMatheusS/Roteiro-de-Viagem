@@ -90,7 +90,8 @@ export const MapTab: React.FC<MapTabProps> = ({
         className="w-full h-full"
       />
 
-      {tripToDisplay && /* TOP-LEFT FLOATING CARD: VIAGEM COM OPÇÃO DE COMPARTILHAR, FAZER COMBOIO, INICIAR (MENU BRANCO LIMPO) */}
+      {/* Route controls for the selected planned or active trip. */}
+      {tripToDisplay && (
       <div className="absolute top-4 left-4 z-30 pointer-events-auto">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200/90 p-3 sm:p-3.5 max-w-[280px] sm:max-w-[320px] space-y-2.5 backdrop-blur-md">
           {/* Header & Status */}
@@ -180,7 +181,7 @@ export const MapTab: React.FC<MapTabProps> = ({
         </div>
       </div>
 
-      }
+      )}
       {!tripToDisplay && <div className="absolute top-4 left-4 z-30 max-w-xs bg-white/95 border border-slate-200 rounded-2xl px-3 py-2 text-xs text-slate-700 shadow-lg">Nenhuma rota selecionada. Crie uma no Início ou abra uma viagem em Salvos.</div>}
 
       {/* TOP-RIGHT ACTIONS (Voltar pra casa com confirmação & SOS) */}
