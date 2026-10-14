@@ -23,7 +23,7 @@ Depois do login, o frontend consulta `GET /api/me/state` e carrega **perfil, ve�
 
 Há cache local específico para cada conta. **Dados antigos em `rdv_*_v1` são preservados no navegador mas não importados automaticamente**, para impedir que registros de demonstração e dados de outras pessoas entrem na conta. O recurso de importação assistida será implementado separadamente, após confirmar a propriedade dos dados.
 
-As sessões compartilhadas em tempo real e localização entre integrantes do Comboio **ainda não estão implementadas**; apenas o rascunho privado do organizador é salvo na conta. O arquivo SQLite e seu diretório de dados precisam ser mantidos em armazenamento persistente, com backup e recuperação testados antes de publicar o serviço. Essa implementação inicial usa snapshots JSON por conta; pode ser normalizada em tabelas individuais conforme o crescimento.
+Os Comboios usam sessões e integrantes separados no servidor. Conta e histórico recebem atualizações de outros aparelhos a cada 15 segundos quando não há alterações locais pendentes. As revisões continuam protegendo alterações concorrentes. O arquivo SQLite e seu diretório de dados precisam ser mantidos em armazenamento persistente, com backup e recuperação testados antes de publicar o serviço. Essa implementação inicial usa snapshots JSON por conta; pode ser normalizada em tabelas individuais conforme o crescimento.
 
 ## Como contribuir
 
@@ -51,11 +51,11 @@ Depois de gerar o roteiro, é possível adicionar, editar, ordenar e remover par
 
 Sugestões reais são apresentadas separadamente, a partir dos estabelecimentos cadastrados próximos ao percurso. Elas só entram na rota quando aceitas e podem ser descartadas/removidas. A inserção não reordena nem exclui as paradas obrigatórias. A estrutura mantém essa separação para uma futura integração de IA; **esta versão não chama serviços de IA para sugerir atrações**.
 
-A busca usa [Photon](https://github.com/komoot/photon/blob/master/docs/api-v1.md), com cache de 24 horas, consulta explícita, limites por IP e no máximo uma solicitação externa por segundo/instância. O serviço público é demonstrativo e pode limitar consultas; configure uma instância apropriada em `GEOCODING_URL` para maior volume. O roteamento usa [OSRM](https://project-osrm.org/docs/v5.24.0/api/#route-service), sem trânsito em tempo real. Esses provedores **não retornam tarifas de pedágio**: rotas rodoviárias mostram o valor como indisponível e identificam o orçamento como parcial, sem cobrar um valor inventado.
+A busca usa [Photon](https://github.com/komoot/photon/blob/master/docs/api-v1.md), com cache de 24 horas, consulta explícita, limites por IP e no máximo uma solicitação externa por segundo/instância. O serviço público é demonstrativo e pode limitar consultas; configure uma instância apropriada em `GEOCODING_URL` para maior volume. O roteamento usa [OSRM](https://project-osrm.org/docs/v5.24.0/api/#route-service), sem trânsito em tempo real. Esses provedores **não retornam tarifas de pedágio**. A consulta colaborativa separada identifica praças no OpenStreetMap e soma apenas tarifas aprovadas, mantendo o orçamento parcial.
 
 Salvar conserva identidades, ordem, permanências, obrigatórias/sugestões aceitas, limites e pontos rodoviários. Em **Compartilhar Rota**, escolha a proteção de origem e use **Gerar link do roteiro**. O link armazenado no banco abre em outros dispositivos sem login, preserva todas as paradas e dura 90 dias. A proteção aproxima a origem e oculta pontos do desenho a menos de 2 km dela; paradas no próprio ponto de partida também são aproximadas. As demais paradas escolhidas são compartilhadas. O link não inclui contas, veículos, participantes ou localização ao vivo. Links vinculados à conta são removidos quando o administrador exclui a conta.
 
-No Início, passeios automáticos **Por Km** e **Por Horas**, sem destino ou paradas manuais, consultam atrações identificadas no OpenStreetMap e calculam trajetos rodoviários no OSRM. O algoritmo tenta conciliar a distância ou duração com paradas reais, mas não garante encontrar um percurso compatível; nesse caso mostra um erro útil, sem inventar atrações, avaliações ou distâncias. Passeios com destino/paradas explícitos usam o roteamento rodoviário existente e preservam a ordem escolhida. A pesquisa automática usa o Overpass público apenas para baixo volume, com limites por IP e consultas limitadas; é necessário um provedor adequado antes da produção. As opções turísticas para destinos e o restante das telas ainda podem conter prévias ilustrativas, claramente identificadas.
+No Início, passeios automáticos **Por Km** e **Por Horas**, sem destino ou paradas manuais, consultam atrações identificadas no OpenStreetMap e calculam trajetos rodoviários no OSRM. O algoritmo tenta conciliar a distância ou duração com paradas reais, mas não garante encontrar um percurso compatível; nesse caso mostra um erro útil, sem inventar atrações, avaliações ou distâncias. Passeios com destino/paradas explícitos usam o roteamento rodoviário existente e preservam a ordem escolhida. A pesquisa automática usa o Overpass público apenas para baixo volume, com limites por IP e consultas limitadas; é necessário um provedor adequado antes da produção. Todos os caminhos de planejamento executáveis agora exigem cálculo rodoviário. O mapa começa sem viagem de exemplo; a origem é escolhida pelo usuário ou pelo GPS. A comunidade permanece vazia até existir uma fonte de roteiros publicados, sem autores ou avaliações inventados.
 
 ## Comparar postos e calcular custos
 
@@ -112,6 +112,49 @@ npm run test:ui
 
 O GitHub Actions executa tipos, regressões de permissões/moderação, build e fluxos mobile e administrativo no navegador, incluindo paradas reais, arrastar/recalcular, salvar e compartilhar entre páginas. Os testes de interface usam provedores de mapas controlados **apenas dentro dos testes**, sem inserir postos fictícios no aplicativo real.
 
-## Limites atuais do restante do aplicativo
+## Clima e pedágios reais
 
-Os passeios **Por Km / Por Horas sem destino ou paradas manuais na aba Início** agora usam pontos reais e estradas OSRM. As outras sugestões turísticas, as alternativas que não vêm da API, clima e pedágios ainda podem gerar prévias ilustrativas, identificadas na tela. Garagem, perfil e roteiros continuam salvos no navegador. O Comboio de Viagem ainda é local, sem sincronização entre celulares; a leitura do GPS e o consentimento local foram corrigidos. A distância da viagem é medida enquanto a sessão está aberta, sem garantia de execução em segundo plano ou continuidade após recarregar a página. O SOS usa uma localização recente do dispositivo e não envia coordenadas fixas quando o GPS falha.
+No planejamento, informe a saída e consulte a previsão Open-Meteo para até cinco pontos do percurso. Os horários são aproximados, usando a duração total planejada. Falhas ou viagens fora da janela de previsão deixam o clima indisponível, sem preencher valores de exemplo. A camada de chuva mostra marcadores de previsão com atribuição e data; **não é radar ao vivo**. Use `WEATHER_URL` e, quando necessário, `WEATHER_API_KEY`. O endpoint público tem licença para uso não comercial; antes de distribuir comercialmente, configure um provedor licenciado ou uma instância própria. [Documentação e condições](https://open-meteo.com/en/pricing).
+
+Pedágios são identificados no OpenStreetMap, próximos ao traçado rodoviário. Em **Informar tarifa ou enviar foto**, escolha a categoria (carro/moto), data, valor e sentido da passagem. Fotos são conferidas manualmente; não há OCR. A fila **Pedágios** do admin aprova ou rejeita contribuições, guarda o revisor e o histórico, e mantém as fotos privadas. Valores aprovados valem por 90 dias a partir da evidência. Sem valor ou com evidência vencida, aparece tarifa não informada.
+
+A consulta de praças é limitada e **não comprova que uma estrada é livre de pedágio**. O orçamento inclui apenas os valores aprovados identificados, conforme sentido, quantidade de passagens e veículos. Nós de faixas próximas na mesma praça são agrupados para evitar cobrança duplicada. Praças incompletas no mapa, free-flow e veículos com reboques/eixos adicionais exigem conferência separada.
+
+## Comboio entre celulares
+
+Crie um Comboio de uma viagem e compartilhe seu código. O outro viajante entra na própria conta e usa **Entrar no comboio**. Sessões e integrantes ficam no SQLite, com autorização por membro e alterações do roteiro restritas ao organizador. A tela atualiza a cada cinco segundos. O nome e veículo são visíveis ao grupo; endereço de e-mail e dados privados da conta não entram na sessão.
+
+Cada participante começa com GPS desligado e ativa o compartilhamento explicitamente. Só posições recentes com precisão de até 50 metros são aceitas. Desativar remove as coordenadas; atualizações atrasadas não restauram consentimento. Posições com mais de três minutos somem. Sair, encerrar, bloquear ou excluir a conta interrompe o compartilhamento. Fechar a tela do Comboio também desativa a localização. Não são usados WebSockets; essa primeira sincronização usa consultas periódicas.
+
+## Navegação e encerramento
+
+A seta no canto esquerdo da navegação volta ao menu mantendo a viagem em andamento. Use **Retomar mapa** para voltar. O GPS fica no nível do aplicativo, independente da tela. A distância medida é preservada em checkpoints; intervalos sem sinal não são ligados como deslocamento.
+
+**Encerrar viagem** fica na navegação e na visualização da viagem programada, com confirmação. Interrompe a sessão e mantém o registro como **Encerrada**, sem conclusão nem medalhas. **Concluir viagem** registra a distância efetivamente percorrida. “Alterar rota” fica à esquerda e o zoom à direita. Alterar a rota mantém suas paradas e a distância já registrada. Para iniciar outra viagem diferente, encerre a sessão atual.
+
+## Android
+
+O projeto contém um app Capacitor 8 com interface embutida, cliente HTTP nativo para a API HTTPS e cookies privados do aplicativo. GPS usa um serviço Android de localização em primeiro plano, iniciado pelo usuário, com notificação permanente e botão **Parar GPS**. Ele mede distância enquanto a tela está bloqueada e preserva os checkpoints no celular. O mesmo serviço envia posição ao Comboio apenas com consentimento ativo. Não inicia no boot e não reinicia automaticamente depois de encerrado pelo sistema.
+
+Preparação no computador com Node 24, JDK 21, Android SDK 36 e Android Studio compatível:
+
+```bash
+# Linux/macOS
+RDV_API_URL=https://origem-https-do-backend npm run android:sync
+npm run android:open
+```
+
+```powershell
+# PowerShell
+$env:RDV_API_URL="https://origem-https-do-backend"
+npm run android:sync
+npm run android:open
+```
+
+No GitHub, o workflow **Validar Android** compila um APK debug. Para um APK conectado ao serviço real, configure a variável de repositório `RDV_API_URL` ou execute o workflow manualmente com a origem HTTPS. Sem essa configuração, o APK serve somente para verificar compilação e não consegue acessar a conta. Antes da distribuição pública, assine o release com a chave do proprietário e valide os cenários abaixo em aparelhos reais. [Requisitos do Capacitor](https://capacitorjs.com/docs/getting-started/environment-setup) e [serviço de localização Android](https://developer.android.com/develop/background-work/services/fgs/service-types#location).
+
+Validação física pendente: Android 13–16, permissão negada/aproximada/precisa, notificação negada, GPS desligado, tela bloqueada por 30 minutos, economia de bateria, perda de internet, revogação de consentimento, encerramento pela notificação e pelo aplicativo, logout, troca de conta, SOS com coordenada recente e abertura dos contatos cadastrados. O SOS abre ligação/WhatsApp; não envia alertas automaticamente nem confirma recebimento. A distância registrada não representa certificação antifraude.
+
+## Limites de produção
+
+Os testes usam provedores controlados; disponibilidade e cobertura externa dependem dos provedores configurados. Overpass, Photon e OSRM públicos são adequados apenas para baixo volume. API e SQLite precisam de hospedagem HTTPS, disco persistente e backups com recuperação testada. O app usa uma instância de API por banco. Android está preparado para compilação e teste, mas o funcionamento com tela bloqueada ainda precisa de validação física, e o release assinado/Play Store depende da conta e chave do proprietário.

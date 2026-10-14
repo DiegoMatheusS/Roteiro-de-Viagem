@@ -109,6 +109,8 @@ export interface RouteStop {
 
 export interface WeatherPoint {
   locationName: string;
+  coords?: [number, number];
+  forecastAt?: string;
   passTime: string; // e.g. "09:30"
   tempC: number;
   condition: 'Ensolarado' | 'Parcialmente Nublado' | 'Nublado' | 'Chuva Fraca' | 'Chuva Forte' | 'Neblina';
@@ -136,7 +138,14 @@ export interface TripPlan {
   planningLimits?: import('./itinerary').PlanningLimits;
   waypointOrder?: [number, number][];
   routingSource?: 'OSRM';
-  tollsStatus?: 'unknown';
+  tollsStatus?: 'unknown' | 'partial' | 'available';
+  tolls?: import('./tolls').RouteToll[];
+  weatherSource?: string;
+  weatherUpdatedAt?: string;
+  departureAt?: string;
+  startedAt?: string;
+  endedAt?: string;
+  trackedDistanceKm?: number;
   routeWarnings?: string[];
   stops: RouteStop[];
   weatherPoints: WeatherPoint[];
@@ -159,7 +168,7 @@ export interface TripPlan {
   costPerPerson: number;
   capacityWarning?: string;
   // Execution status
-  status: 'planned' | 'in_progress' | 'completed';
+  status: 'planned' | 'in_progress' | 'completed' | 'cancelled';
   createdAt: string;
   completedAt?: string;
   actualDistanceKm?: number;
@@ -250,3 +259,4 @@ export interface ConvoySession {
   updatedAt: string;
   notes?: string;
 }
+

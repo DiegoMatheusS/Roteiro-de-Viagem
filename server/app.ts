@@ -18,10 +18,13 @@ import { registerTouristRoutes } from './tourist';
 import { registerSharingRoutes } from './sharing';
 import { registerTravelerStateRoutes } from './travelerState';
 import { ApiError, asyncRoute, auth, administrator, user, now, validate, observationDate } from './http';
+import { registerConvoyRoutes } from './convoys';
+import { registerWeatherRoutes } from './weather';
+import { registerTollRoutes } from './tolls';
 import { stationOpeningStatus } from './openingHours';
 
 const scryptAsync = promisify(scrypt);
-export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch }) {
+export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch }) {
   const { db } = options;
   const photosDir = path.resolve(options.photoDirectory || process.env.PHOTO_DIRECTORY || './data/photos');
   fs.mkdirSync(photosDir, { recursive: true, mode: 0o700 });
@@ -81,7 +84,11 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerTouristRoutes(app, { db, mapFetch: options.mapFetch, limit });
   registerSharingRoutes(app, db, limit);
   registerTravelerStateRoutes(app, db, limit);
+  registerConvoyRoutes(app, db, limit);
+  registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
+  registerTollRoutes(app, db, options.mapFetch || fetch, limit);
 
+  app.get('/api/public-config', (_req, res) => res.json({ appOrigin: process.env.PUBLIC_APP_URL || 'http://localhost:3000' }));
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/auth/me', (_req, res) => res.json({ user: user(res) || null }));
   app.post('/api/auth/register', asyncRoute(async (req, res) => {
@@ -110,6 +117,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.json({ user: setSession(res, account) });
   }));
   app.post('/api/auth/logout', (req, res) => {
+    if (user(res)) db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE user_id=?').run(user(res).id);
     const token = req.headers.cookie?.split(';').map(c => c.trim()).find(c => c.startsWith('rdv_session='))?.slice(12);
     if (token) db.prepare('DELETE FROM sessions WHERE token_hash=?').run(createHash('sha256').update(token).digest('hex'));
     res.clearCookie('rdv_session', { path: '/api', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
@@ -289,3 +297,4 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   });
   return app;
 }
+

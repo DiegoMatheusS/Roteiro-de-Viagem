@@ -12,6 +12,7 @@ import {
   Achievement 
 } from './types';
 import { storageService } from './services/storageService';
+import { generateVerifiedTouristCircuit } from './services/touristCircuit';
 import { cloudState } from './services/cloudState';
 import { convoyService } from './services/convoyService';
 import { NavigationTabBar, MainTabType } from './components/NavigationTabBar';
@@ -41,8 +42,8 @@ export default function App() {
   
   // Modal states
   const [isPlanningOpen, setIsPlanningOpen] = useState(false);
-  const [planningOrigin, setPlanningOrigin] = useState('São Paulo - SP (Centro)');
-  const [planningDestination, setPlanningDestination] = useState('Campos do Jordão - SP');
+  const [planningOrigin, setPlanningOrigin] = useState('');
+  const [planningDestination, setPlanningDestination] = useState('');
   const [planningDestinationCoords, setPlanningDestinationCoords] = useState<[number, number]>([-22.7394, -45.5914]);
   const [planningOriginCoords, setPlanningOriginCoords] = useState<[number, number]>([-23.5505, -46.6333]);
   const [planningTrip, setPlanningTrip] = useState<TripPlan | undefined>();
@@ -53,6 +54,10 @@ export default function App() {
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
+  const [convoyVersion, setConvoyVersion] = useState(0);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinVehicleType, setJoinVehicleType] = useState<'car' | 'motorcycle' | ''>('');
+  const [showJoin, setShowJoin] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
   const [syncState, setSyncState] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
@@ -67,7 +72,7 @@ export default function App() {
     setTrips(storageService.getTrips());
     const active = storageService.getActiveTrip();
     setActiveTrip(active);
-    setIsNavigationOpen(!!active);
+    setIsNavigationOpen(open => active ? open : false);
     // Convoys are not yet cross-device; do not reuse a previous account's group.
     setActiveConvoyId(convoyService.getActiveConvoy()?.id || null);
   };
@@ -82,6 +87,7 @@ export default function App() {
     setIsPlanningOpen(false);
     setShareTripTarget(null);
     setActiveConvoyId(null);
+    convoyService.clear();
     void cloudState.connect(auth.user, (state, message) => {
       if (disposed) return;
       setSyncState(state);
@@ -95,7 +101,35 @@ export default function App() {
     return () => { disposed = true; cloudState.stop(); };
   }, [auth.loading, auth.user?.id]);
 
+  useEffect(() => {
+    if (!auth.user || !accountReady) return;
+    let disposed = false;
+    const refresh = () => { void convoyService.refresh().then(() => { if (!disposed) setConvoyVersion(v => v + 1); }).catch(() => {}); };
+    refresh(); const timer = window.setInterval(refresh, 15000);
+    return () => { disposed = true; clearInterval(timer); };
+  }, [auth.user?.id, accountReady]);
+
+  useEffect(() => { const refresh = () => reloadAccount(auth.user?.displayName); window.addEventListener('rdv:remote-state', refresh); return () => window.removeEventListener('rdv:remote-state', refresh); }, [auth.user?.id]);
+
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId) || vehicles[0] || null;
+
+  const handleCreateConvoy = async (trip: TripPlan) => {
+    if (!auth.user) { auth.promptLogin(); return; }
+    if (!currentVehicle) { setAppError('Escolha ou cadastre seu veículo antes de criar o Comboio.'); return; }
+    try {
+      const convoy = await convoyService.createConvoy({ title: `Comboio: ${trip.title}`, trip,
+        organizerUser: { id: profile.id, name: profile.name, vehicleType: currentVehicle?.type || 'motorcycle', vehicleNickname: currentVehicle?.nickname },
+        meetingPoints: [{ id: crypto.randomUUID(), title: 'Ponto de encontro inicial', category: 'minha_escolha', coords: trip.originCoords, order: 1, confirmedArrivedParticipantIds: [] }] });
+      setActiveConvoyId(convoy.id);
+    } catch (error) { setAppError((error as Error).message); }
+  };
+  const joinConvoy = async () => {
+    if (!auth.user) { auth.promptLogin(); return; }
+    const vehicleType = currentVehicle?.type || joinVehicleType;
+    if (!vehicleType) { setAppError('Escolha o tipo de veículo para entrar no Comboio.'); return; }
+    try { const result = await convoyService.joinConvoyByCode(joinCode, { id: profile.id, name: profile.name, vehicleType, vehicleNickname: currentVehicle?.nickname }); setActiveConvoyId(result.convoy.id); setShowJoin(false); setJoinCode(''); }
+    catch (error) { setAppError((error as Error).message); }
+  };
 
   // Handle vehicle selection
   const handleSelectVehicle = (id: string) => {
@@ -113,6 +147,7 @@ export default function App() {
 
   // Delete vehicle
   const handleDeleteVehicle = (id: string) => {
+    if (activeTrip?.vehicleId === id) { setAppError('Encerre a viagem antes de remover o veículo em uso.'); return; }
     storageService.deleteVehicle(id);
     setVehicles(storageService.getVehicles());
     setSelectedVehicleId(storageService.getSelectedVehicleId());
@@ -135,7 +170,8 @@ export default function App() {
     setPlanningDestination(dest);
     setPlanningDestinationCoords(coords);
     setPlanningOriginCoords(originCoords);
-    setPlanningTrip(undefined);
+    const existing = [activeTrip, ...trips].find(trip => trip && ['planned', 'in_progress'].includes(trip.status) && trip.originName === origin && trip.destinationName === dest && JSON.stringify(trip.originCoords) === JSON.stringify(originCoords) && JSON.stringify(trip.destinationCoords) === JSON.stringify(coords));
+    setPlanningTrip(existing || undefined);
     setIsNavigationOpen(false);
     setAppError(null);
     setIsPlanningOpen(true);
@@ -143,10 +179,13 @@ export default function App() {
 
   // Start a trip
   const handleStartTrip = (trip: TripPlan) => {
+    if (activeTrip && activeTrip.id !== trip.id) { setAppError('Encerre a viagem em andamento antes de iniciar outra.'); return; }
+    if (activeTrip?.id === trip.id) { const updated = { ...trip, status: 'in_progress' as const, startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm || activeTrip.trackedDistanceKm }; storageService.saveTrip(updated); storageService.setActiveTrip(updated); setActiveTrip(updated); setTrips(storageService.getTrips()); setIsPlanningOpen(false); setIsNavigationOpen(true); return; }
+    if (trip.routingSource !== 'OSRM') { setAppError('Recalcule esta rota antiga antes de iniciar: ela ainda não possui um percurso rodoviário verificado.'); return; }
     setIsPlanningOpen(false);
-    const startedTrip: TripPlan = trip.status === 'completed'
-      ? { ...trip, id: `trip-${Date.now()}`, status: 'in_progress', createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
-      : { ...trip, status: 'in_progress' };
+    const startedTrip: TripPlan = ['completed', 'cancelled'].includes(trip.status)
+      ? { ...trip, id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
+      : { ...trip, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0 };
     storageService.saveTrip(startedTrip);
     storageService.setActiveTrip(startedTrip);
     setActiveTrip(startedTrip);
@@ -156,6 +195,7 @@ export default function App() {
 
   // Save trip without starting
   const handleSaveTrip = (trip: TripPlan) => {
+    if (activeTrip?.id === trip.id) { trip = { ...trip, status: 'in_progress', startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm }; storageService.setActiveTrip(trip); setActiveTrip(trip); }
     storageService.saveTrip(trip);
     setTrips(storageService.getTrips());
     setIsPlanningOpen(false);
@@ -177,30 +217,33 @@ export default function App() {
     };
   };
 
+  const handleEndTrip = (trip: TripPlan) => {
+    storageService.saveTrip({ ...(storageService.getActiveTrip()?.id === trip.id ? storageService.getActiveTrip()! : trip), status: 'cancelled', endedAt: new Date().toISOString() });
+    if (activeTrip?.id === trip.id) { storageService.setActiveTrip(null); setActiveTrip(null); setIsNavigationOpen(false); }
+    setTrips(storageService.getTrips());
+  };
+
   // Delete saved trip
   const handleDeleteTrip = (tripId: string) => {
+    if (activeTrip?.id === tripId) { setAppError('Encerre a viagem antes de excluí-la do histórico.'); return; }
     const updated = trips.filter(t => t.id !== tripId);
     storageService.saveTrips(updated);
     setTrips(updated);
   };
 
   // Launch circular tour ("Passear e Voltar")
-  const handleLaunchCircularTour = (params: { distanceKm?: number; durationHours?: number; budget?: number; returnHour?: string; isSurprise?: boolean }) => {
-    const origin = 'São Paulo - SP (Local de Saída)';
-    let dest = 'Passeio Circular Vale da Mantiqueira';
-    let coords: [number, number] = [-22.8, -45.7];
-
-    if (params.distanceKm) {
-      dest = `Passeio Circular ${params.distanceKm} km (Estrada das Serras)`;
-    } else if (params.durationHours) {
-      dest = `Passeio de ${params.durationHours} horas (Circuito Panorâmico)`;
-    } else if (params.budget) {
-      dest = `Passeio Econômico até R$ ${params.budget}`;
-    } else if (params.isSurprise) {
-      dest = 'Passeio Surpresa: Rota das Curvas & Mirantes';
-    }
-
-    handleOpenRoutePlanner(origin, dest, coords, [-23.5505, -46.6333]);
+  const handleLaunchCircularTour = async (params: { distanceKm?: number; durationHours?: number; budget?: number; returnHour?: string; isSurprise?: boolean }) => {
+    if (!currentVehicle) { setAppError('Cadastre um veículo em Ajustes → Minha Garagem.'); return; }
+    if (params.budget) { setAppError('Para gerar por orçamento, informe primeiro um preço de combustível no planejamento. Use Por Km ou Por Horas no Início.'); return; }
+    try {
+      const position = await getCurrentDeviceLocation();
+      const hoursUntilReturn = params.returnHour ? (new Date(new Date().toDateString() + ' ' + params.returnHour).getTime() - Date.now()) / 3600000 : undefined;
+      if (hoursUntilReturn !== undefined && hoursUntilReturn <= 0) throw new Error('Escolha um horário de retorno futuro.');
+      const trip = await generateVerifiedTouristCircuit({ mode: params.durationHours || hoursUntilReturn ? 'hours' : 'km', target: params.durationHours || hoursUntilReturn || params.distanceKm || 100,
+        tripType: 'round_trip', interests: ['mirante', 'parque', 'museu'], originCoords: position.coords, originName: 'Sua localização atual', vehicle: currentVehicle });
+      setPlanningOrigin(trip.originName); setPlanningOriginCoords(trip.originCoords); setPlanningDestination(trip.destinationName); setPlanningDestinationCoords(trip.destinationCoords);
+      setPlanningTrip(trip); setIsNavigationOpen(false); setIsPlanningOpen(true);
+    } catch (error) { setAppError((error as Error).message); }
   };
 
   // Return home action ("Quero voltar pra casa" - Requirement #11)
@@ -242,8 +285,9 @@ export default function App() {
         </div>}
       </div>}
       <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
-        {auth.user ? <><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
+        {auth.user ? <><button onClick={() => setShowJoin(v => !v)} className="text-violet-700 font-bold">Entrar no comboio</button><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
       </div>
+      {showJoin && <form onSubmit={e => { e.preventDefault(); void joinConvoy(); }} className="p-3 bg-violet-50 flex flex-wrap gap-3 text-xs"><label>Código do comboio<input aria-label="Código do comboio" value={joinCode} onChange={e => setJoinCode(e.target.value)} required className="block border p-2 rounded-xl" /></label>{!currentVehicle && <label>Seu veículo<select aria-label="Tipo de veículo no comboio" required value={joinVehicleType} onChange={e => setJoinVehicleType(e.target.value as 'car' | 'motorcycle' | '')} className="block border p-2 rounded-xl"><option value="">Escolha</option><option value="motorcycle">Moto</option><option value="car">Carro</option></select></label>}<button className="font-bold text-violet-800">Entrar</button><p>Seu nome e veículo serão vistos pelo grupo. O GPS começa desligado.</p></form>}
       {appError && (
         <div role="alert" className="fixed top-3 left-3 right-3 z-70 mx-auto max-w-xl p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-3 shadow-lg">
           <span className="flex-1">{appError}</span>
@@ -294,6 +338,10 @@ export default function App() {
               <MapTab
                 currentVehicle={currentVehicle}
                 activeTrip={activeTrip}
+                plannedTrip={trips.find(trip => trip.status === 'planned') || null}
+                onBackToMenu={() => setActiveTab('inicio')}
+                onEndTrip={handleEndTrip}
+                onContinueTrip={() => setIsNavigationOpen(true)}
                 activeConvoyId={activeConvoyId}
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onNavigateHome={handleReturnHome}
@@ -301,33 +349,7 @@ export default function App() {
                 onStartTrip={handleStartTrip}
                 onOpenShareModal={(trip) => setShareTripTarget(trip)}
                 onEndConvoy={() => setActiveConvoyId(null)}
-                onOpenConvoyModal={(trip) => {
-                  if (activeConvoyId) {
-                    setActiveConvoyId(activeConvoyId);
-                    return;
-                  }
-                  const newConv = convoyService.createConvoy({
-                    title: `Comboio: ${trip.title}`,
-                    trip,
-                    organizerUser: {
-                      id: profile.id,
-                      name: profile.name,
-                      vehicleType: currentVehicle?.type || 'motorcycle',
-                      vehicleNickname: currentVehicle?.nickname
-                    },
-                    meetingPoints: [
-                      {
-                        id: `mp-${Date.now()}`,
-                        title: 'Posto de Saída / Ponto de Encontro',
-                        category: 'posto',
-                        coords: trip.routePath[1] || trip.originCoords,
-                        order: 1,
-                        confirmedArrivedParticipantIds: [profile.id]
-                      }
-                    ]
-                  });
-                  setActiveConvoyId(newConv.id);
-                }}
+                onOpenConvoyModal={trip => void handleCreateConvoy(trip)}
               />
             )}
 
@@ -335,14 +357,7 @@ export default function App() {
               <ToursTab
                 currentVehicle={currentVehicle}
                 onLaunchCircularTour={handleLaunchCircularTour}
-                onOpenCommunityRoute={(routeId) => {
-                  handleOpenRoutePlanner(
-                    'São Paulo - SP',
-                    'Campos do Jordão (Rota Comunitária)',
-                    [-22.7394, -45.5914],
-                    [-23.5505, -46.6333]
-                  );
-                }}
+                onOpenCommunityRoute={() => setAppError('Ainda não há roteiros publicados pela comunidade.')}
               />
             )}
 
@@ -353,29 +368,7 @@ export default function App() {
                 onStartTrip={handleStartTrip}
                 onOpenShareModal={(trip) => setShareTripTarget(trip)}
                 onDeleteTrip={handleDeleteTrip}
-                onOpenConvoyModal={(trip) => {
-                  const newConv = convoyService.createConvoy({
-                    title: `Comboio: ${trip.title}`,
-                    trip,
-                    organizerUser: {
-                      id: profile.id,
-                      name: profile.name,
-                      vehicleType: currentVehicle?.type || 'motorcycle',
-                      vehicleNickname: currentVehicle?.nickname
-                    },
-                    meetingPoints: [
-                      {
-                        id: `mp-${Date.now()}`,
-                        title: 'Posto de Saída / Ponto de Encontro',
-                        category: 'posto',
-                        coords: trip.routePath[1] || trip.originCoords,
-                        order: 1,
-                        confirmedArrivedParticipantIds: [profile.id]
-                      }
-                    ]
-                  });
-                  setActiveConvoyId(newConv.id);
-                }}
+                onOpenConvoyModal={trip => void handleCreateConvoy(trip)}
               />
             )}
 
@@ -409,6 +402,8 @@ export default function App() {
           />
         </>
       )}
+
+      {activeTrip && !isNavigationOpen && !activeConvoyId && <div className="fixed bottom-20 left-3 right-3 z-40 mx-auto max-w-md bg-emerald-900 text-white rounded-xl shadow-lg p-3 flex items-center justify-between gap-3 text-xs"><span>Viagem em andamento · {activeTrip.destinationName}</span><button onClick={() => setIsNavigationOpen(true)} className="font-bold underline">Retomar mapa</button><button onClick={() => { setActiveTab('mapa'); }} className="underline">Opções</button></div>}
 
       {/* ROUTE PLANNING MODAL (6 MODALITIES COMPARISON) */}
       {currentVehicle && isPlanningOpen && (
@@ -450,7 +445,8 @@ export default function App() {
           vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
           tracking={tracking}
           isOpen={!!activeTrip}
-          onClose={() => setIsNavigationOpen(false)}
+          onClose={() => { setIsNavigationOpen(false); setActiveTab('inicio'); }}
+          onEndTrip={() => handleEndTrip(activeTrip)}
           onCompleteTrip={handleCompleteTrip}
           onOpenSos={() => setIsSosOpen(true)}
           onReturnHome={handleReturnHome}
@@ -466,3 +462,4 @@ export default function App() {
     </div>
   );
 }
+

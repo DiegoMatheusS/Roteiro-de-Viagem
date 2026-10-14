@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { fuelApi } from '../../services/fuelApi';
+import { TollQueue } from './TollQueue';
 import { FuelQueue } from './FuelQueue';
 import { PlacesManager } from './PlacesManager';
 import { ReviewManager, UsersManager } from './CommunityManager';
 
-const tabs = [ ['fuel', 'Preços de combustíveis'], ['places', 'Estabelecimentos'], ['users', 'Usuários'], ['comments', 'Comentários'], ['reports', 'Denúncias'], ['audit', 'Histórico de ações'] ] as const;
+const tabs = [ ['tolls', 'Pedágios'], ['fuel', 'Preços de combustíveis'], ['places', 'Estabelecimentos'], ['users', 'Usuários'], ['comments', 'Comentários'], ['reports', 'Denúncias'], ['audit', 'Histórico de ações'] ] as const;
 export default function AdminPage() {
   const auth = useAuth();
   const [tab, setTab] = useState<typeof tabs[number][0]>('fuel');
@@ -17,7 +18,8 @@ export default function AdminPage() {
       <div className="flex flex-wrap gap-3 text-sm"><span className="bg-white border rounded-xl px-4 py-3">{counts.photos || 0} fotos pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.prices || 0} preços pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.comments || 0} comentários pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.reports || 0} denúncias abertas</span></div>
       <nav aria-label="Seções administrativas" className="flex flex-wrap gap-2 border-b pb-4">{tabs.map(([id, title]) => <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => { setTab(id); setError(''); }} className={`rounded-xl px-4 py-3 text-sm font-semibold ${tab === id ? 'bg-emerald-600 text-white' : 'bg-white border text-slate-600'}`}>{title}</button>)}</nav>
       {error && <p role="alert" className="bg-rose-50 text-rose-700 p-3 rounded-xl text-sm">{error}</p>}
-      {tab === 'fuel' && <FuelQueue onChange={refresh} />}{tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{['comments', 'reports', 'audit'].includes(tab) && <ReviewManager section={tab as 'comments' | 'reports' | 'audit'} onChange={refresh} />}
+      {tab === 'tolls' && <TollQueue />}{tab === 'fuel' && <FuelQueue onChange={refresh} />}{tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{['comments', 'reports', 'audit'].includes(tab) && <ReviewManager section={tab as 'comments' | 'reports' | 'audit'} onChange={refresh} />}
     </main>}
   </div>;
 }
+

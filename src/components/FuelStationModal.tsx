@@ -1,3 +1,4 @@
+import { ApiImage } from './ApiImage';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Fuel, ShieldCheck, X } from 'lucide-react';
@@ -134,7 +135,7 @@ export function FuelStationModal({ stationId, onClose }: { stationId: string; on
                 {!price.isMine && <><button disabled={busy} onClick={() => vote(price.id, 'confirm')} className="border rounded-lg px-2 py-1 text-emerald-700">{price.myVote === 'confirm' ? '✓ Confirmado por você' : 'Confirmar preço'}</button><button disabled={busy} onClick={() => vote(price.id, 'contest')} className="border rounded-lg px-2 py-1 text-amber-800">{price.myVote === 'contest' ? 'Contestado por você' : 'Contestar preço'}</button></>}
                 <button onClick={() => { if (requireLogin()) setReport({ type: 'prices', id: price.id }); }} className="text-slate-500 underline">Denunciar preço</button>
               </div>
-              {price.photoId && <details className="text-xs"><summary className="cursor-pointer text-emerald-700">Ver foto revisada</summary><img src={`/api/photos/${price.photoId}`} alt="Placa de preços do posto" className="mt-2 rounded-xl max-h-60 object-contain" /><button onClick={() => { if (requireLogin()) setReport({ type: 'photos', id: price.photoId! }); }} className="mt-2 text-rose-700 underline">Denunciar foto ou dados pessoais</button></details>}
+              {price.photoId && <details className="text-xs"><summary className="cursor-pointer text-emerald-700">Ver foto revisada</summary><ApiImage path={`/photos/${price.photoId}`} alt="Placa de preços do posto" className="mt-2 rounded-xl max-h-60 object-contain" /><button onClick={() => { if (requireLogin()) setReport({ type: 'photos', id: price.photoId! }); }} className="mt-2 text-rose-700 underline">Denunciar foto ou dados pessoais</button></details>}
             </article>;
           })}
           <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setRows([editable()]); setMode('edit'); setError(''); } }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Informar preço</button><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setMode('photo'); setSelectedFile(null); setError(''); } }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
@@ -170,3 +171,4 @@ export function FuelStationModal({ stationId, onClose }: { stationId: string; on
     </section>
   </div>, document.body);
 }
+

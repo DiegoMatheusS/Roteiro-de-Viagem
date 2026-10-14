@@ -4,7 +4,7 @@ import { TripPlan, Vehicle, Achievement } from '../types';
 import { InteractiveMap } from './InteractiveMap';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
-  Navigation, 
+  Navigation, ArrowLeft, PowerOff,
   MapPin, 
   AlertOctagon, 
   Home, 
@@ -24,6 +24,7 @@ interface ActiveTripModalProps {
   tracking: ReturnType<typeof useTripTracking>;
   isOpen: boolean;
   onClose: () => void;
+  onEndTrip: () => void;
   onCompleteTrip: (tripId: string, actualKm: number, verifiedGps: boolean) => { newAchievements: Achievement[]; leveledUp: boolean };
   onOpenSos: () => void;
   onReturnHome: () => void;
@@ -35,11 +36,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   tracking,
   isOpen,
   onClose,
+  onEndTrip,
   onCompleteTrip,
   onOpenSos,
   onReturnHome
 }) => {
-  const [notifyArrival, setNotifyArrival] = useState(true);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [manualCompletion, setManualCompletion] = useState(false);
@@ -78,13 +80,11 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       {/* TOP ACTIVE NAVIGATION HUD - WHITE THEME */}
       <div className="bg-white/95 border-b border-slate-200 p-4 flex items-center justify-between shrink-0 z-20 backdrop-blur-md shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/20">
-            <Navigation className="w-5 h-5 animate-pulse" />
-          </div>
+          <button onClick={onClose} aria-label="Voltar ao menu e manter viagem ativa" title="Voltar ao menu" className="w-10 h-10 shrink-0 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md"><ArrowLeft className="w-5 h-5" /></button>
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-              <h2 className="text-sm font-extrabold text-slate-900 truncate max-w-[200px]">
+              <h2 className="text-sm font-extrabold text-slate-900 truncate max-w-[120px] sm:max-w-[200px]">
                 {trip.destinationName.split('-')[0].trim()}
               </h2>
             </div>
@@ -115,6 +115,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </button>
 
           <button
+            aria-label="Minimizar navegação"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors"
           >
@@ -141,6 +142,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
           stops={trip.stops}
+          weatherPoints={trip.weatherPoints}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
           showRainLayer={trip.hasRainRisk}
           className="w-full h-full"
@@ -169,7 +171,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
             <span className="text-[10px] text-slate-500 font-bold block">TEMPO RESTANTE</span>
             <strong className="text-sm font-extrabold text-emerald-700">
-              ~{Math.max(10, Math.round((remainingKm / 75) * 60))} min
+              ~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min
             </strong>
           </div>
           <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
@@ -181,15 +183,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
-            <input
-              type="checkbox"
-              checked={notifyArrival}
-              onChange={(e) => setNotifyArrival(e.target.checked)}
-              className="rounded text-emerald-600 focus:ring-emerald-500"
-            />
-            <span>Avisar familiares ao chegar no destino</span>
-          </label>
+          <button onClick={() => setShowEndConfirm(true)} className="py-2.5 px-3 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex gap-2 items-center"><PowerOff className="w-4 h-4" />Encerrar viagem</button>
 
           {/* Concluir Viagem Button (Requirement #7) */}
           <button
@@ -201,6 +195,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </button>
         </div>
       </div>
+
+      {showEndConfirm && <div role="dialog" aria-modal="true" aria-label="Encerrar viagem" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-5 max-w-sm space-y-4"><h3 className="font-bold">Encerrar esta viagem?</h3><p className="text-sm text-slate-600">A navegação será interrompida e a viagem ficará no histórico como encerrada, sem contabilizar uma conclusão ou medalhas.</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="p-3 border rounded-xl">Continuar viagem</button><button onClick={onEndTrip} className="p-3 bg-rose-700 text-white rounded-xl">Sim, encerrar</button></div></div></div>}
 
       {/* COMPLETION DIALOG (Requirement #7: Updates profile, vehicle, and achievements) */}
       {showCompletionDialog && (
@@ -333,3 +329,4 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
     </div>
   );
 };
+

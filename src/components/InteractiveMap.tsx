@@ -74,7 +74,7 @@ const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; bo
 };
 
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
-  originCoords = [-23.5505, -46.6333], // SP Centro
+  originCoords,
   destinationCoords,
   originLabel = 'Origem',
   destinationLabel = 'Destino',
@@ -82,6 +82,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   routeModality = 'panoramica',
   stops = [],
   showRainLayer = false,
+  weatherPoints = [],
   userLiveCoords,
   focusedCoords,
   convoyParticipants = [],
@@ -96,8 +97,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const fuel = useFuelStations(routePath.length ? routePath : [originCoords], showFuelStations);
-  const places = useNearbyPlaces(routePath.length ? routePath : [originCoords], showFuelStations);
+  const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
+  const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
@@ -110,8 +111,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (mapInstanceRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
-      center: originCoords,
-      zoom: 11,
+      center: originCoords || [-14.2, -51.9],
+      zoom: originCoords ? 11 : 4,
       zoomControl: false,
       zoomAnimation: false,
       fadeAnimation: false,
@@ -525,27 +526,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         });
     }
 
-    // 8. Rain / Weather Radar Layer
-    if (showRainLayer && routePath.length > 2) {
-      const midIdx = Math.floor(routePath.length / 2);
-      const midPt = routePath[midIdx];
-
-      const rainPolygon = L.circle(midPt, {
-        radius: 18000,
-        color: '#0284c7',
-        fillColor: '#38bdf8',
-        fillOpacity: 0.4,
-        weight: 1.5
-      }).addTo(rainGroup);
-
-      rainPolygon.bindPopup(`
-        <div style="font-family: system-ui;">
-          <b style="color: #0369a1;">Radar Meteorológico: Área de Chuva</b>
-          <p style="font-size: 11px; margin: 4px 0 0 0; color: #334155;">
-            Precipitação moderada identificada sobre o trecho. Pista molhada.
-          </p>
-        </div>
-      `);
+    // Actual provider forecast samples, without an invented radar polygon.
+    if (showRainLayer) for (const point of weatherPoints || []) {
+      if (!point.coords) continue;
+      L.circleMarker(point.coords, { radius: 9, color: point.rainProb >= 50 ? '#0284c7' : '#475569', fillOpacity: 0.7 }).addTo(rainGroup)
+        .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · ${escapeHtml(point.passTime)}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
     }
 
     // Fit map bounds
@@ -567,6 +552,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     routeModality,
     stops,
     showRainLayer,
+    weatherPoints,
     userLiveCoords,
     convoyParticipants,
     meetingPoints
@@ -628,3 +614,4 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     </div>
   );
 };
+
