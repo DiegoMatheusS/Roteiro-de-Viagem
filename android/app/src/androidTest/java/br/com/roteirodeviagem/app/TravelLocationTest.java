@@ -50,7 +50,7 @@ public class TravelLocationTest {
  @After public void finish() throws Exception {device.wakeUp();device.executeShellCommand("wm dismiss-keyguard");context.stopService(new Intent(context,TravelLocationService.class));await(()->!TravelLocationService.running);if(activity!=null)activity.close();try{manager.removeTestProvider(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}}
  @Test public void gpsAndConvoyContinueWithScreenOffAndNotificationStopsBoth() throws Exception {
   // The HTTPS server, certificate and session below exist only inside this instrumentation test.
-  HeldCertificate cert=new HeldCertificate.Builder().commonName("127.0.0.1").addSubjectAlternativeName("127.0.0.1").build();
+  HeldCertificate cert=new HeldCertificate.Builder().commonName("127.0.0.1").addSubjectAlternativeName("127.0.0.1").addSubjectAlternativeName("localhost").build();
   HandshakeCertificates serverTls=new HandshakeCertificates.Builder().heldCertificate(cert).build(),clientTls=new HandshakeCertificates.Builder().addTrustedCertificate(cert.certificate()).build();
   SSLSocketFactory previous=HttpsURLConnection.getDefaultSSLSocketFactory();MockWebServer server=new MockWebServer();server.useHttps(serverTls.sslSocketFactory(),false);
   server.setDispatcher(new Dispatcher(){@Override public MockResponse dispatch(RecordedRequest request){return new MockResponse().setResponseCode(200).setBody("{}");}});

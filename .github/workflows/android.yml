@@ -54,6 +54,20 @@ jobs:
         if: inputs.distribution != 'release'
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
         working-directory: android
+      - name: Validar APK e AAB com chave descartável de teste
+        if: github.event_name != 'workflow_dispatch'
+        working-directory: android
+        env:
+          RDV_KEYSTORE_FILE: ${{ runner.temp }}/rdv-ci.jks
+          RDV_STORE_PASSWORD: fixture-only-ci
+          RDV_KEY_ALIAS: ci
+          RDV_KEY_PASSWORD: fixture-only-ci
+          RDV_VERSION_CODE: 1
+          RDV_VERSION_NAME: 0.5.0-ci
+        run: |
+          trap 'rm -f "$RDV_KEYSTORE_FILE"; rm -rf app/build/outputs/apk/release app/build/outputs/bundle/release' EXIT
+          keytool -genkeypair -noprompt -keystore "$RDV_KEYSTORE_FILE" -alias ci -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=CI Teste Descartavel' -storepass "$RDV_STORE_PASSWORD" -keypass "$RDV_KEY_PASSWORD"
+          ./gradlew :app:assembleRelease :app:bundleRelease
       - name: Preparar chave privada de release
         if: inputs.distribution == 'release'
         env:

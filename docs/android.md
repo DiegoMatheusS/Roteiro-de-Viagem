@@ -38,6 +38,8 @@ Se o armazenamento de artifacts do GitHub estiver cheio, é preciso liberar arti
 
 ## Testes automatizados
 
+**Validar Android** compila APK debug, testes instrumentados, APK release e AAB. O release de CI usa uma chave descartável, apaga esses pacotes ao terminar e não serve para instalação ou publicação; a distribuição usa a chave do proprietário.
+
 **Testar Android no emulador** executa testes instrumentados em Android 13/API 33 e Android 16/API 36. Usa coordenadas, sessão e servidor HTTPS controlados somente no APK de testes. Confere movimento e checkpoint com tela apagada, envio do Comboio, interrupção pelo botão da notificação, impedimento de reinício automático e retomada explícita. Também confere a exigência de permissão precisa e os intents de discagem/composição. Nenhuma ligação ou mensagem real é enviada.
 
 O fluxo web confere cadastro e remoção de contatos, cópia e composição com coordenada recente, DDI sem duplicação e permissão de localização negada. O botão SOS abre o discador ou uma mensagem: a confirmação da ligação/envio acontece no app escolhido.
