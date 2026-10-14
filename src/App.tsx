@@ -49,6 +49,7 @@ export default function App() {
 
   const [shareTripTarget, setShareTripTarget] = useState<TripPlan | null>(null);
   const [activeTrip, setActiveTrip] = useState<TripPlan | null>(null);
+  const [previewTrip, setPreviewTrip] = useState<TripPlan | null>(null);
   const [activeConvoyId, setActiveConvoyId] = useState<string | null>(null);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
@@ -78,6 +79,7 @@ export default function App() {
     let hydrated = false;
     setAccountReady(false);
     setActiveTrip(null);
+    setPreviewTrip(null);
     setIsNavigationOpen(false);
     setIsPlanningOpen(false);
     setShareTripTarget(null);
@@ -149,6 +151,7 @@ export default function App() {
       : { ...trip, status: 'in_progress' };
     storageService.saveTrip(startedTrip);
     storageService.setActiveTrip(startedTrip);
+    setPreviewTrip(null);
     setActiveTrip(startedTrip);
     setIsNavigationOpen(true);
     setTrips(storageService.getTrips());
@@ -157,6 +160,7 @@ export default function App() {
   // Save trip without starting
   const handleSaveTrip = (trip: TripPlan) => {
     storageService.saveTrip(trip);
+    setPreviewTrip(trip);
     setTrips(storageService.getTrips());
     setIsPlanningOpen(false);
     setActiveTab('salvos');
@@ -175,6 +179,26 @@ export default function App() {
       newAchievements: res.newAchievementsUnlocked,
       leveledUp: false
     };
+  };
+
+  // Back to the menus pauses only the full-screen navigation view; tracking and route remain active.
+  const handleLeaveNavigation = () => {
+    setIsNavigationOpen(false);
+    setActiveTab('inicio');
+  };
+
+  // Ending is deliberately different from completing: no kilometers, stats, or rewards are recorded.
+  const handleEndTrip = () => {
+    if (!activeTrip) return;
+    const planned: TripPlan = { ...activeTrip, status: 'planned', completedAt: undefined,
+      actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined };
+    storageService.saveTrip(planned);
+    storageService.setActiveTrip(null);
+    setActiveTrip(null);
+    setIsNavigationOpen(false);
+    setPreviewTrip(null);
+    setTrips(storageService.getTrips());
+    setActiveTab('mapa');
   };
 
   // Delete saved trip
@@ -250,6 +274,16 @@ export default function App() {
           <button aria-label="Fechar aviso" onClick={() => setAppError(null)}>✕</button>
         </div>
       )}
+      {activeTrip && !isNavigationOpen && !activeConvoyId && (
+        <div role="status" className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-950">
+          <div className="min-w-0">
+            <p className="text-xs font-bold">Viagem em andamento</p>
+            <p className="text-[11px] truncate">{activeTrip.destinationName} · navegação em segundo plano</p>
+          </div>
+          <button type="button" onClick={() => { setActiveTab('mapa'); setIsNavigationOpen(true); }}
+            className="shrink-0 rounded-xl bg-emerald-700 text-white font-bold text-xs py-2 px-3">Retomar navegação</button>
+        </div>
+      )}
       {/* If Convoy Screen is active, display Convoy view with full screen */}
       {activeConvoyId ? (
         <ConvoyScreen 
@@ -294,6 +328,10 @@ export default function App() {
               <MapTab
                 currentVehicle={currentVehicle}
                 activeTrip={activeTrip}
+                plannedTrip={previewTrip}
+                onClosePreview={() => setPreviewTrip(null)}
+                onResumeNavigation={() => setIsNavigationOpen(true)}
+                onEndTrip={handleEndTrip}
                 activeConvoyId={activeConvoyId}
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onNavigateHome={handleReturnHome}
@@ -353,6 +391,7 @@ export default function App() {
                 onStartTrip={handleStartTrip}
                 onOpenShareModal={(trip) => setShareTripTarget(trip)}
                 onDeleteTrip={handleDeleteTrip}
+                onPreviewTrip={(trip) => { setPreviewTrip(trip); setActiveTab('mapa'); }}
                 onOpenConvoyModal={(trip) => {
                   const newConv = convoyService.createConvoy({
                     title: `Comboio: ${trip.title}`,
@@ -450,7 +489,8 @@ export default function App() {
           vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
           tracking={tracking}
           isOpen={!!activeTrip}
-          onClose={() => setIsNavigationOpen(false)}
+          onClose={handleLeaveNavigation}
+          onEndTrip={handleEndTrip}
           onCompleteTrip={handleCompleteTrip}
           onOpenSos={() => setIsSosOpen(true)}
           onReturnHome={handleReturnHome}
