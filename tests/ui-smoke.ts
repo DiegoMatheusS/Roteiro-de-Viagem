@@ -226,7 +226,7 @@ try {
   await page.waitForFunction(async () => {
     const result = await (await fetch('/api/me/state')).json();
     return result.state?.trips?.some((trip: any) => trip.manualStops?.length === 2);
-  }, null, { timeout: 12000 });
+  }, null, { timeout: 12000, polling: 500 });
   const secondDevice = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
     await secondDevice.addCookies(await context.cookies());
