@@ -31,6 +31,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
+      - name: Compilar aplicativo e testes antes de abrir o emulador
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Habilitar aceleração do emulador
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -44,7 +47,19 @@ jobs:
           profile: pixel_5
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: cd android && chmod +x gradlew && ./gradlew connectedDebugAndroidTest
+          script: cd android && ./gradlew :app:connectedDebugAndroidTest
+      - name: Mostrar falhas dos testes no log
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in Path('android/app/build/outputs/androidTest-results').rglob('*.xml'):
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  for failure in case.findall('failure'):
+                      print(case.attrib.get('name'), failure.attrib, failure.text)
+          PY
       - uses: actions/upload-artifact@v4
         if: failure()
         continue-on-error: true
