@@ -10,13 +10,14 @@ let revision = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inFlight = false;
 let blocked = false;
+let initialized = false;
 let onStatus: ((state: SyncState, message?: string) => void) | null = null;
 const key = (accountId: string, suffix: string) => `rdv_cloud_v1_${accountId}_${suffix}`;
 function status(state: SyncState, message?: string) { onStatus?.(state, message); }
 function cancel() {
   generation++;
   if (timer) clearTimeout(timer);
-  timer = null; activeAccount = null; blocked = false; inFlight = false; revision = 0;
+  timer = null; activeAccount = null; blocked = false; initialized = false; inFlight = false; revision = 0;
   storageService.setChangeListener(null);
 }
 function schedule() {
@@ -71,6 +72,7 @@ export const cloudState = {
       const localDirty = localStorage.getItem(key(account.id, 'dirty')) === 'true';
       const localRev = Number(localStorage.getItem(key(account.id, 'revision')) || '0');
       revision = remote.revision;
+      initialized = true;
       if (localDirty && localRev !== remote.revision) {
         blocked = true;
         status('conflict', 'Esta conta foi alterada em outro dispositivo. Os dados locais não foram apagados. Entre em contato com o suporte para conciliar as versões.');
@@ -95,9 +97,46 @@ export const cloudState = {
       // Do not overwrite or upload cached data when the authoritative state could not be loaded.
     }
   },
+  async resolveConflict(preference: 'server' | 'device'): Promise<void> {
+    if (!activeAccount || !blocked) return;
+    const account = activeAccount, token = generation;
+    try {
+      const remote = await fuelApi<AccountState>('/me/state');
+      if (token !== generation) return;
+      revision = remote.revision;
+      if (preference === 'server') {
+        if (remote.state) storageService.replaceSnapshot(remote.state);
+        else storageService.resetScope(account.displayName);
+        localStorage.removeItem(key(account.id, 'dirty'));
+        localStorage.setItem(key(account.id, 'revision'), String(revision));
+        blocked = false;
+        storageService.setChangeListener(() => {
+          localStorage.setItem(key(account.id, 'dirty'), 'true');
+          status('pending'); schedule();
+        });
+        status('synced');
+      } else {
+        // Explicit user choice to replace cloud state; old browser cache is not discarded.
+        localStorage.setItem(key(account.id, 'revision'), String(revision));
+        localStorage.setItem(key(account.id, 'dirty'), 'true');
+        blocked = false;
+        storageService.setChangeListener(() => {
+          localStorage.setItem(key(account.id, 'dirty'), 'true');
+          status('pending'); schedule();
+        });
+        status('pending');
+        schedule();
+      }
+    } catch (error) { status('error', (error as Error).message); }
+  },
   async retry(): Promise<void> {
     if (!activeAccount || blocked || inFlight) return;
     const account = activeAccount;
+    if (!initialized) {
+      const notify = onStatus;
+      if (notify) await this.connect(account, notify);
+      return;
+    }
     if (localStorage.getItem(key(account.id, 'dirty')) === 'true') await flush();
     else {
       const notify = onStatus;
