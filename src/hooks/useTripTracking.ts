@@ -18,12 +18,13 @@ export function useTripTracking(tripId?: string) {
     let disposed = false, ready = false;
     setNativeState({ tripId, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, position: null, error: null, running: false });
     const read = () => { if (!ready) return; void TravelNative.state().then(state => {
-      if (disposed || state.tripId !== nativeKey) return;
+      if(disposed)return;
+      if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
       const fresh = state.position && Date.now() - state.position.timestamp < 60000;
       setNativeState({ tripId, distanceKm: state.distanceKm, position: fresh ? state.position! : null, running: state.running,
         error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !fresh ? 'Aguardando sinal GPS recente.' : null });
     }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); }); };
-    void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); });
+    void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, resume:attempt>0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); });
     const timer = window.setInterval(read, 2000);
     return () => { disposed = true; clearInterval(timer); void TravelNative.stopTracking().catch(() => {}); };
   }, [native, tripId, nativeKey, attempt]);

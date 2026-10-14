@@ -1,0 +1,10 @@
+import { useEffect,useState } from 'react';
+import { isNativeApp,TravelNative } from '../services/nativeApp';
+export function AndroidStatus(){
+ const [status,setStatus]=useState<Awaited<ReturnType<typeof TravelNative.diagnostics>>|null>(null),[error,setError]=useState('');
+ const refresh=()=>{void TravelNative.diagnostics().then(setStatus).catch(e=>setError(e.message));};
+ useEffect(()=>{if(!isNativeApp())return;refresh();const resume=()=>{if(!document.hidden)refresh();};document.addEventListener('visibilitychange',resume);return()=>document.removeEventListener('visibilitychange',resume);},[]);
+ if(!isNativeApp())return null;
+ const settings=async(section:'app'|'location'|'notifications')=>{try{await TravelNative.openDeviceSettings({section});}catch(e){setError((e as Error).message);}};
+ return <section className="p-4 bg-white border rounded-2xl space-y-2 text-xs"><h3 className="font-bold">Situação do Android</h3>{status&&<><p>App {status.appVersion} · Android {status.androidVersion}</p><p>Localização: {status.preciseLocation?'precisa':status.approximateLocation?'aproximada':'sem permissão'} · GPS: {status.gpsEnabled?'ligado':'desligado'}</p><p>Notificações: {status.notificationsEnabled?'permitidas':'bloqueadas'} · Acompanhamento: {status.tracking?'ativo':'parado'}</p>{!status.apiConfigured&&<p className="text-rose-700">Esta versão foi compilada sem o endereço do servidor.</p>}<p className="text-slate-500">Com acompanhamento ativo, a notificação mantém o GPS nas outras telas. Se o sistema encerrar o serviço, retome pelo app.</p></>}{error&&<p role="alert">{error}</p>}<div className="flex flex-wrap gap-3"><button onClick={()=>void settings('app')} className="underline">Permissões do app</button><button onClick={()=>void settings('location')} className="underline">Abrir GPS</button><button onClick={()=>void settings('notifications')} className="underline">Notificações</button><button onClick={refresh} className="underline">Verificar novamente</button></div></section>;
+}

@@ -2,6 +2,13 @@ package br.com.roteirodeviagem.app;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.provider.Settings;
+import android.net.Uri;
+import android.location.LocationManager;
 import android.os.Build;
 import android.webkit.CookieManager;
 import androidx.core.content.ContextCompat;
@@ -32,7 +39,7 @@ public class TravelNativePlugin extends Plugin {
   private String origin() throws Exception {
     String origin = getConfig().getString("apiOrigin", "");
     URL url = new URL(origin);
-    if (!url.getProtocol().equals("https") || !url.getPath().isEmpty() && !url.getPath().equals("/") || url.getUserInfo()!=null || url.getQuery()!=null) throw new Exception("Configure RDV_API_URL com a origem HTTPS do servidor e gere o app novamente.");
+    if (!url.getProtocol().equals("https") || !url.getPath().isEmpty() && !url.getPath().equals("/") || url.getUserInfo()!=null || url.getQuery()!=null || url.getRef()!=null) throw new Exception("Configure RDV_API_URL com a origem HTTPS do servidor e gere o app novamente.");
     return origin.replaceAll("/+$", "");
   }
   @PluginMethod public void request(PluginCall call) {
@@ -71,18 +78,22 @@ public class TravelNativePlugin extends Plugin {
       finally { if(connection!=null) connection.disconnect(); }
     });
   }
+  static boolean preciseLocationGranted(Context context) { return context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED; }
   private boolean permissions(PluginCall call) {
     if (getPermissionState("location")!=PermissionState.GRANTED) { requestPermissionForAlias("location",call,"locationResult"); return false; }
     if (Build.VERSION.SDK_INT>=33 && getPermissionState("notifications")!=PermissionState.GRANTED) { requestPermissionForAlias("notifications",call,"notificationResult"); return false; }
     return true;
   }
   @PermissionCallback private void locationResult(PluginCall call) {
-    if(getPermissionState("location")!=PermissionState.GRANTED) { call.reject("Permita localização precisa para acompanhar a viagem."); return; }
+    if(!preciseLocationGranted(getContext())) { call.reject("Permita localização precisa para acompanhar a viagem."); return; }
     if (call.getMethodName().equals("setConvoy")) setConvoy(call); else startTracking(call);
   }
   @PermissionCallback private void notificationResult(PluginCall call) { begin(call); }
   private void begin(PluginCall call) {
     try {
+      if(!preciseLocationGranted(getContext())) { call.reject("Ative a localização precisa nas permissões do aplicativo."); return; }
+      LocationManager manager=(LocationManager)getContext().getSystemService(Context.LOCATION_SERVICE);
+      if(!manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) { call.reject("Ative o GPS do celular para acompanhar a viagem."); return; }
       Intent intent=new Intent(getContext(),TravelLocationService.class);
       if(call.getMethodName().equals("setConvoy")) {
         intent.setAction("CONVOY"); intent.putExtra("convoyId",call.getString("convoyId", "")); intent.putExtra("locationToken",call.getString("locationToken", "")); intent.putExtra("origin",origin()); intent.putExtra("cookie",CookieManager.getInstance().getCookie(origin()+"/api"));
@@ -90,7 +101,13 @@ public class TravelNativePlugin extends Plugin {
       ContextCompat.startForegroundService(getContext(),intent); call.resolve();
     } catch(Exception error) { call.reject(error.getMessage()); }
   }
-  @PluginMethod public void startTracking(PluginCall call) { if(permissions(call)) begin(call); }
+  @PluginMethod public void startTracking(PluginCall call) {
+    String id=call.getString("tripId","");
+    if(id.isEmpty() || id.length()>300) {call.reject("Viagem inválida.");return;}
+    String stopped=getContext().getSharedPreferences("travel-gps",0).getString("stoppedTripId","");
+    if(id.equals(stopped) && !Boolean.TRUE.equals(call.getBoolean("resume",false))) {call.reject("GPS interrompido pela notificação. Toque em tentar novamente para retomá-lo.");return;}
+    if(permissions(call)) begin(call);
+  }
   @PluginMethod public void stopTracking(PluginCall call) {
     if(TravelLocationService.running) { Intent intent=new Intent(getContext(),TravelLocationService.class).setAction("STOP_TRIP"); getContext().startService(intent); } call.resolve();
   }
@@ -100,9 +117,31 @@ public class TravelNativePlugin extends Plugin {
     }
     if(permissions(call)) begin(call);
   }
+  @PluginMethod public void diagnostics(PluginCall call) {
+    JSObject result=new JSObject();LocationManager manager=(LocationManager)getContext().getSystemService(Context.LOCATION_SERVICE);
+    result.put("preciseLocation",preciseLocationGranted(getContext()));result.put("approximateLocation",getContext().checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED);
+    result.put("gpsEnabled",manager.isProviderEnabled(LocationManager.GPS_PROVIDER));result.put("notificationsEnabled",androidx.core.app.NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+    result.put("tracking",TravelLocationService.running);result.put("androidVersion",Build.VERSION.RELEASE);
+    try { result.put("appVersion",getContext().getPackageManager().getPackageInfo(getContext().getPackageName(),0).versionName); }catch(Exception ignored) {result.put("appVersion","");}
+    try {origin();result.put("apiConfigured",true);}catch(Exception ignored){result.put("apiConfigured",false);}call.resolve(result);
+  }
+  @PluginMethod public void openDeviceSettings(PluginCall call) {
+    String section=call.getString("section","app");Intent intent;
+    if("location".equals(section))intent=new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+    else if("notifications".equals(section)&&Build.VERSION.SDK_INT>=26)intent=new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,getContext().getPackageName());
+    else intent=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getContext().getPackageName()));
+    try { getActivity().startActivity(intent);call.resolve(); }catch(Exception error){call.reject("Não foi possível abrir as configurações do celular.");}
+  }
+  @PluginMethod public void openExternal(PluginCall call) {
+    try {getActivity().startActivity(ExternalActions.intentFor(call.getString("url","")));call.resolve();}catch(Exception error){call.reject("Não foi possível abrir o contato. Confira os aplicativos instalados.");}
+  }
+  @PluginMethod public void copyText(PluginCall call) {
+    String value=call.getString("text","");if(value.length()>10000){call.reject("Mensagem muito grande.");return;}
+    getActivity().runOnUiThread(()->{((ClipboardManager)getContext().getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Localização SOS",value));call.resolve();});
+  }
   @PluginMethod public void state(PluginCall call) {
     JSObject result=new JSObject(); android.content.SharedPreferences pref=getContext().getSharedPreferences("travel-gps",0);
-    result.put("tripId",pref.getString("tripId","")); result.put("distanceKm",Double.longBitsToDouble(pref.getLong("distance",Double.doubleToLongBits(0)))); result.put("running",TravelLocationService.running); result.put("convoyId",TravelLocationService.activeConvoyId); result.put("stoppedLocationToken",pref.getString("stoppedLocationToken",""));
+    result.put("tripId",TravelLocationService.activeTripId); result.put("lastTripId",pref.getString("tripId","")); result.put("stoppedTripId",pref.getString("stoppedTripId","")); result.put("distanceKm",Double.longBitsToDouble(pref.getLong("distance",Double.doubleToLongBits(0)))); result.put("running",TravelLocationService.running); result.put("convoyId",TravelLocationService.activeConvoyId); result.put("stoppedLocationToken",pref.getString("stoppedLocationToken",""));
     if(TravelLocationService.lastPosition!=null) result.put("position",TravelLocationService.lastPosition); call.resolve(result);
   }
 }

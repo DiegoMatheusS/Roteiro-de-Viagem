@@ -1,3 +1,5 @@
+import { AndroidStatus } from './AndroidStatus';
+import { EmergencyContactsEditor } from './EmergencyContactsEditor';
 import React, { useState } from 'react';
 import { 
   TravelerProfile, 
@@ -582,6 +584,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
               </button>
             </div>
 
+            <AndroidStatus />
             {/* QUERO VOLTAR PRA CASA (Requirement #11) */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 space-y-4">
               <div className="flex items-center justify-between">
@@ -617,21 +620,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
                 <Phone className="w-4 h-4 text-emerald-600" />
                 Contatos Familiares Cadastrados ({profile.emergencyContacts.length})
               </h3>
-              <div className="space-y-2">
-                {profile.emergencyContacts.map(c => (
-                  <div key={c.id} className="p-3 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
-                    <div>
-                      <strong className="text-slate-900 block">{c.name} ({c.relationship})</strong>
-                      <span className="text-slate-500">{c.phone}</span>
-                    </div>
-                    {c.canReceiveArrivalAlerts && (
-                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        Avisar Chegada
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <EmergencyContactsEditor contacts={profile.emergencyContacts} onChange={contacts=>onUpdateProfile({...profile,emergencyContacts:contacts})} />
             </div>
           </div>
         )}

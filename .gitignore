@@ -9,3 +9,10 @@ test-results/
 *.log
 .env*
 !.env.example
+
+
+*.jks
+*.keystore
+keystore.properties
+android/local.properties
+android/.gradle/
