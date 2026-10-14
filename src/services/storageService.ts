@@ -1,6 +1,17 @@
 import { Vehicle, FuelLog, TravelerProfile, TravelerTier, Achievement, TripPlan } from '../types';
 import { calculateObservedConsumption } from './fuelConsumption';
 
+export interface TravelerSnapshot {
+  profile: TravelerProfile;
+  vehicles: Vehicle[];
+  fuelLogs: FuelLog[];
+  achievements: Achievement[];
+  trips: TripPlan[];
+  activeTrip: TripPlan | null;
+  selectedVehicleId: string;
+}
+
+
 // All account-owned data starts empty. Demo data remains in tests only.
 const EMPTY_ACHIEVEMENTS: Achievement[] = [
   {
@@ -90,6 +101,9 @@ const scoped = {
   trips: () => key('trips'),
   activeTrip: () => key('active_trip')
 };
+let changeListener: (() => void) | null = null;
+const write = (name: string, value: string) => { localStorage.setItem(name, value); changeListener?.(); };
+const drop = (name: string) => { localStorage.removeItem(name); changeListener?.(); };
 const readList = <T,>(storageKey: string): T[] => {
   try { const value = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value) ? value : []; }
   catch { return []; }
@@ -99,13 +113,33 @@ export const storageService = {
   setScope(accountId: string | null) { storageOwner = accountId; },
   getScope() { return storageOwner; },
   scopedTripsKey() { return scoped.trips(); },
+  setChangeListener(listener: (() => void) | null) { changeListener = listener; },
+  getSnapshot(name?: string): TravelerSnapshot {
+    return { profile: this.getProfile(name), vehicles: this.getVehicles(), fuelLogs: this.getFuelLogs(), achievements: this.getAchievements(),
+      trips: this.getTrips(), activeTrip: this.getActiveTrip(), selectedVehicleId: this.getSelectedVehicleId() };
+  },
+  replaceSnapshot(state: TravelerSnapshot) {
+    // Read-only remote hydration: never emit local-change events during initialization.
+    localStorage.setItem(scoped.profile(), JSON.stringify(state.profile));
+    localStorage.setItem(scoped.vehicles(), JSON.stringify(state.vehicles));
+    localStorage.setItem(scoped.fuelLogs(), JSON.stringify(state.fuelLogs));
+    localStorage.setItem(scoped.achievements(), JSON.stringify(state.achievements));
+    localStorage.setItem(scoped.trips(), JSON.stringify(state.trips));
+    localStorage.setItem(scoped.vehicleId(), state.selectedVehicleId);
+    if (state.activeTrip) localStorage.setItem(scoped.activeTrip(), JSON.stringify(state.activeTrip));
+    else localStorage.removeItem(scoped.activeTrip());
+  },
+  resetScope(name?: string) {
+    this.replaceSnapshot({ profile: newProfile(storageOwner || crypto.randomUUID(), name), vehicles: [], fuelLogs: [],
+      achievements: EMPTY_ACHIEVEMENTS.map(item => ({ ...item })), trips: [], activeTrip: null, selectedVehicleId: '' });
+  },
   // VEHICLES
   getVehicles(): Vehicle[] {
     return readList<Vehicle>(scoped.vehicles());
   },
 
   saveVehicles(vehicles: Vehicle[]) {
-    localStorage.setItem(scoped.vehicles(), JSON.stringify(vehicles));
+    write(scoped.vehicles(), JSON.stringify(vehicles));
   },
 
   getSelectedVehicleId(): string {
@@ -119,7 +153,7 @@ export const storageService = {
   },
 
   setSelectedVehicleId(id: string) {
-    localStorage.setItem(scoped.vehicleId(), id);
+    write(scoped.vehicleId(), id);
   },
 
   getSelectedVehicle(): Vehicle | null {
@@ -156,7 +190,7 @@ export const storageService = {
   },
 
   saveFuelLogs(logs: FuelLog[]) {
-    localStorage.setItem(scoped.fuelLogs(), JSON.stringify(logs));
+    write(scoped.fuelLogs(), JSON.stringify(logs));
   },
 
   addFuelLog(log: FuelLog): { observedAverage?: number } {
@@ -194,7 +228,7 @@ export const storageService = {
   },
 
   saveProfile(profile: TravelerProfile) {
-    localStorage.setItem(scoped.profile(), JSON.stringify(profile));
+    write(scoped.profile(), JSON.stringify(profile));
   },
 
   getAchievements(): Achievement[] {
@@ -203,7 +237,7 @@ export const storageService = {
   },
 
   saveAchievements(achievements: Achievement[]) {
-    localStorage.setItem(scoped.achievements(), JSON.stringify(achievements));
+    write(scoped.achievements(), JSON.stringify(achievements));
   },
 
   // Calculate traveler tier:
@@ -270,7 +304,7 @@ export const storageService = {
   },
 
   saveTrips(trips: TripPlan[]) {
-    localStorage.setItem(scoped.trips(), JSON.stringify(trips));
+    write(scoped.trips(), JSON.stringify(trips));
   },
 
   saveTrip(trip: TripPlan) {
@@ -296,9 +330,9 @@ export const storageService = {
 
   setActiveTrip(trip: TripPlan | null) {
     if (trip) {
-      localStorage.setItem(scoped.activeTrip(), JSON.stringify(trip));
+      write(scoped.activeTrip(), JSON.stringify(trip));
     } else {
-      localStorage.removeItem(scoped.activeTrip());
+      drop(scoped.activeTrip());
     }
   },
 
