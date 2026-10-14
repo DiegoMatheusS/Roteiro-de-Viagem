@@ -13,7 +13,7 @@ const list = (value: unknown, max: number) => Array.isArray(value) && value.leng
 
 function validateState(value: unknown, accountId: string): Json {
   if (!object(value)) throw new ApiError('Dados da conta inválidos.');
-  const { profile, vehicles, fuelLogs, achievements, trips, activeTrip, selectedVehicleId } = value;
+  const { profile, vehicles, fuelLogs, achievements, trips, activeTrip, selectedVehicleId, convoys, activeConvoyId } = value;
   if (!object(profile) || !textField(profile.name, 80) || !(profile.name as string).trim() ||
       !list(profile.emergencyContacts, 12) || !count(profile.verifiedGpsKm) ||
       !count(profile.manualKm) || !count(profile.completedTripsCount, 100000) ||
@@ -45,13 +45,18 @@ function validateState(value: unknown, accountId: string): Json {
     ['planned', 'in_progress', 'completed'].includes(String(trip.status)) &&
     list(trip.routePath, 2500) && (trip.routePath as unknown[]).every(coords) &&
     list(trip.stops, 80) && textField(trip.vehicleId, 120);
+  if (!list(convoys ?? [], 30) || !(convoys as unknown[] || []).every(item => object(item) && textField(item.id, 120) &&
+      textField(item.title, 300) && list(item.participants, 100) && list(item.meetingPoints, 50) && list(item.routePath, 2500) &&
+      (item.routePath as unknown[]).every(coords)) || (activeConvoyId != null && !textField(activeConvoyId, 120)))
+      throw new ApiError('Comboios privados inválidos.');
   if (!list(trips, 150) || !(trips as unknown[]).every(validTrip) ||
       (activeTrip != null && !validTrip(activeTrip)) ||
       !textField(selectedVehicleId, 120)) throw new ApiError('Viagens inválidas.');
 
   // Never trust an ID supplied in the request body as the account owner.
   return { profile: { ...profile, id: accountId }, vehicles, fuelLogs, achievements,
-    trips, activeTrip: activeTrip ?? null, selectedVehicleId };
+    trips, activeTrip: activeTrip ?? null, selectedVehicleId,
+    convoys: convoys ?? [], activeConvoyId: activeConvoyId ?? null };
 }
 
 export function registerTravelerStateRoutes(app: Express, db: FuelDatabase,
