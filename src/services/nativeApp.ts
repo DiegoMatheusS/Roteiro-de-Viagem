@@ -13,6 +13,7 @@ export async function nativeRequest(path: string, options: RequestInit = {}) {
   if (options.body instanceof FormData) for (const [name, value] of options.body.entries()) {
     if (typeof value === 'string') form.push({ name, value });
     else {
+      if (value.size > 8 * 1024 * 1024) throw new Error('Envie uma foto de até 8 MB.');
       const bytes = new Uint8Array(await value.arrayBuffer());
       let binary = ''; for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
       form.push({ name, data: btoa(binary), mime: value.type });

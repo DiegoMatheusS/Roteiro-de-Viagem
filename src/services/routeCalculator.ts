@@ -399,7 +399,7 @@ export function generateRouteAlternatives(input: RoutePlanningInput): RouteOptio
 }
 
 export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: TripPlan): RouteOptionCalculated[] {
-  if (!presetTrip) return generateRouteAlternatives(input);
+  if (!presetTrip) throw new Error('Calcule um percurso rodoviário real antes de comparar custos.');
   const vehiclesCount = input.vehicleGroupType === 'multi_vehicle' ? Math.max(1, input.groupVehiclesCount) : 1;
   const consumption = input.vehicle.consumption.userConfigured || input.vehicle.consumption.referenceAverage || 15;
   const fuelLiters = Number((presetTrip.distanceKm / consumption * vehiclesCount).toFixed(2));

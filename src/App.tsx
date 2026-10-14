@@ -56,6 +56,7 @@ export default function App() {
   const [appError, setAppError] = useState<string | null>(null);
   const [convoyVersion, setConvoyVersion] = useState(0);
   const [joinCode, setJoinCode] = useState('');
+  const [joinVehicleType, setJoinVehicleType] = useState<'car' | 'motorcycle' | ''>('');
   const [showJoin, setShowJoin] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
   const [syncState, setSyncState] = useState('loading');
@@ -114,6 +115,7 @@ export default function App() {
 
   const handleCreateConvoy = async (trip: TripPlan) => {
     if (!auth.user) { auth.promptLogin(); return; }
+    if (!currentVehicle) { setAppError('Escolha ou cadastre seu veículo antes de criar o Comboio.'); return; }
     try {
       const convoy = await convoyService.createConvoy({ title: `Comboio: ${trip.title}`, trip,
         organizerUser: { id: profile.id, name: profile.name, vehicleType: currentVehicle?.type || 'motorcycle', vehicleNickname: currentVehicle?.nickname },
@@ -123,7 +125,9 @@ export default function App() {
   };
   const joinConvoy = async () => {
     if (!auth.user) { auth.promptLogin(); return; }
-    try { const result = await convoyService.joinConvoyByCode(joinCode, { id: profile.id, name: profile.name, vehicleType: currentVehicle?.type || 'motorcycle', vehicleNickname: currentVehicle?.nickname }); setActiveConvoyId(result.convoy.id); setShowJoin(false); setJoinCode(''); }
+    const vehicleType = currentVehicle?.type || joinVehicleType;
+    if (!vehicleType) { setAppError('Escolha o tipo de veículo para entrar no Comboio.'); return; }
+    try { const result = await convoyService.joinConvoyByCode(joinCode, { id: profile.id, name: profile.name, vehicleType, vehicleNickname: currentVehicle?.nickname }); setActiveConvoyId(result.convoy.id); setShowJoin(false); setJoinCode(''); }
     catch (error) { setAppError((error as Error).message); }
   };
 
@@ -283,7 +287,7 @@ export default function App() {
       <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
         {auth.user ? <><button onClick={() => setShowJoin(v => !v)} className="text-violet-700 font-bold">Entrar no comboio</button><span className="text-slate-500">Olá, {auth.user.displayName}</span>{auth.user.role === 'admin' && <a href="/admin" className="font-bold text-emerald-700">Painel administrativo</a>}<button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
       </div>
-      {showJoin && <form onSubmit={e => { e.preventDefault(); void joinConvoy(); }} className="p-3 bg-violet-50 flex flex-wrap gap-3 text-xs"><label>Código do comboio<input aria-label="Código do comboio" value={joinCode} onChange={e => setJoinCode(e.target.value)} required className="block border p-2 rounded-xl" /></label><button className="font-bold text-violet-800">Entrar</button><p>Seu nome e veículo serão vistos pelo grupo. O GPS começa desligado.</p></form>}
+      {showJoin && <form onSubmit={e => { e.preventDefault(); void joinConvoy(); }} className="p-3 bg-violet-50 flex flex-wrap gap-3 text-xs"><label>Código do comboio<input aria-label="Código do comboio" value={joinCode} onChange={e => setJoinCode(e.target.value)} required className="block border p-2 rounded-xl" /></label>{!currentVehicle && <label>Seu veículo<select aria-label="Tipo de veículo no comboio" required value={joinVehicleType} onChange={e => setJoinVehicleType(e.target.value as 'car' | 'motorcycle' | '')} className="block border p-2 rounded-xl"><option value="">Escolha</option><option value="motorcycle">Moto</option><option value="car">Carro</option></select></label>}<button className="font-bold text-violet-800">Entrar</button><p>Seu nome e veículo serão vistos pelo grupo. O GPS começa desligado.</p></form>}
       {appError && (
         <div role="alert" className="fixed top-3 left-3 right-3 z-70 mx-auto max-w-xl p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-3 shadow-lg">
           <span className="flex-1">{appError}</span>

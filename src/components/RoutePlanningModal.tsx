@@ -270,6 +270,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
                 routePath={activeOption.routePath}
                 routeModality={activeOption.modality}
                 stops={activeOption.stops}
+                weatherPoints={activeOption.weatherPoints}
                 showRainLayer={showRainLayer}
                 className="w-full h-full"
               />

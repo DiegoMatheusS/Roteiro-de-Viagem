@@ -142,6 +142,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
           stops={trip.stops}
+          weatherPoints={trip.weatherPoints}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
           showRainLayer={trip.hasRainRisk}
           className="w-full h-full"
