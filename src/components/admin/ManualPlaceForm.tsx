@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { PLACE_KINDS } from '../../types/admin';
+import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../../types/admin';
 import { buttonClass, inputClass } from './shared';
 
-const blank = () => ({ name: '', kind: 'fuel', address: '', lat: '', lng: '', phone: '', website: '', description: '', openingHours: '' });
+const blank = (touristOnly = false) => ({ name: '', kind: touristOnly ? 'waterfall' : 'fuel', address: '', lat: '', lng: '', phone: '', website: '', description: '', openingHours: '' });
 
-export function ManualPlaceForm({ busy, onSave }: { busy: boolean; onSave: (body: unknown) => Promise<void> }) {
-  const [draft, setDraft] = useState(blank);
+export function ManualPlaceForm({ busy, onSave, touristOnly = false }: { busy: boolean; onSave: (body: unknown) => Promise<void>; touristOnly?: boolean }) {
+  const [draft, setDraft] = useState(() => blank(touristOnly));
   const [error, setError] = useState(''), [confirmed, setConfirmed] = useState(false);
   const update = (key: keyof ReturnType<typeof blank>, value: string) => setDraft(current => ({ ...current, [key]: value }));
   return <form aria-label="Cadastrar local" className="bg-white border rounded-2xl p-5 space-y-4" onSubmit={async event => {
@@ -13,12 +13,12 @@ export function ManualPlaceForm({ busy, onSave }: { busy: boolean; onSave: (body
     try {
       const lat = Number(draft.lat.replace(',', '.')), lng = Number(draft.lng.replace(',', '.'));
       if (!draft.lat.trim() || !draft.lng.trim() || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error('Informe latitude e longitude válidas para o local.');
-      await onSave({ ...draft, lat, lng }); setDraft(blank()); setConfirmed(false);
+      await onSave({ ...draft, lat, lng }); setDraft(blank(touristOnly)); setConfirmed(false);
     } catch (error) { setError((error as Error).message); }
   }}>
-    <h3 className="font-bold">Cadastrar local</h3>
+    <h3 className="font-bold">{touristOnly ? 'Cadastrar ponto turístico' : 'Cadastrar local'}</h3>
     <div className="grid md:grid-cols-2 gap-3">
-      <label className="text-xs font-semibold">Tipo de local<select aria-label="Tipo de local" value={draft.kind} onChange={event => update('kind', event.target.value)} className={`${inputClass} mt-1`}>{PLACE_KINDS.map(kind => <option key={kind.id} value={kind.id}>{kind.icon} {kind.label}</option>)}</select></label>
+      <label className="text-xs font-semibold">Tipo de local<select aria-label="Tipo de local" value={draft.kind} onChange={event => update('kind', event.target.value)} className={`${inputClass} mt-1`}>{PLACE_KINDS.filter(kind => !touristOnly || (TOURIST_PLACE_KINDS as readonly string[]).includes(kind.id)).map(kind => <option key={kind.id} value={kind.id}>{kind.icon} {kind.label}</option>)}</select></label>
       <label className="text-xs font-semibold">Nome do local<input required maxLength={150} value={draft.name} onChange={event => update('name', event.target.value)} placeholder="Nome do estabelecimento ou atração" className={`${inputClass} mt-1`} /></label>
       <label className="md:col-span-2 text-xs font-semibold">Endereço ou acesso<input required maxLength={250} value={draft.address} onChange={event => update('address', event.target.value)} placeholder="Rua, número, cidade/UF ou estrada de acesso" className={`${inputClass} mt-1`} /></label>
       <label className="text-xs font-semibold">Latitude<input required inputMode="decimal" value={draft.lat} onChange={event => update('lat', event.target.value)} placeholder="Ex.: -23.55052" className={`${inputClass} mt-1`} /></label>

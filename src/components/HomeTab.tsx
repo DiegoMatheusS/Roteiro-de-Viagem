@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Vehicle, TripPlan } from '../types';
 import { PRESET_DESTINATIONS } from '../data/sampleRoutes';
 import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
-import { canTypeTouristTarget, getTouristTargetError, parseTouristTarget } from '../services/touristTargetInput';
+import { canTypeTouristTarget, getTouristTargetError, getTouristTargetWarning, parseTouristTarget } from '../services/touristTargetInput';
 import { LocationSearch } from './LocationSearch';
 import { ManualStopsEditor } from './ManualStopsEditor';
 import type { MandatoryStop, PlanningLimits } from '../types/itinerary';
@@ -434,7 +434,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     KM
                   </span>
                 </div>
-                <p id="tourist-km-warning" role={getTouristTargetError('km', customKm) ? 'alert' : undefined} className="mt-1.5 text-xs font-semibold text-red-600">{getTouristTargetError('km', customKm)}</p>
+                <p id="tourist-km-warning" role={getTouristTargetError('km', customKm) ? 'alert' : undefined} className="mt-1.5 text-xs font-semibold text-red-600">{getTouristTargetError('km', customKm) || getTouristTargetWarning('km', customKm)}</p>
               </div>
 
               {/* Botões rápidos de atalho por Km */}
@@ -677,7 +677,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     HORAS
                   </span>
                 </div>
-                <p id="tourist-hours-warning" role={getTouristTargetError('hours', customHours) ? 'alert' : undefined} className="mt-1.5 text-xs font-semibold text-red-600">{getTouristTargetError('hours', customHours)}</p>
+                <p id="tourist-hours-warning" role={getTouristTargetError('hours', customHours) ? 'alert' : undefined} className="mt-1.5 text-xs font-semibold text-red-600">{getTouristTargetError('hours', customHours) || getTouristTargetWarning('hours', customHours)}</p>
               </div>
 
               {/* Botões rápidos de atalho por Tempo */}

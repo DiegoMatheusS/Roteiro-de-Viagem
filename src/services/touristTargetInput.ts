@@ -18,13 +18,18 @@ export function getTouristTargetError(mode: TouristTargetMode, value: string): s
   const numeric = parseTouristTarget(value);
   if (numeric === null) return 'Informe um valor válido para planejar o passeio.';
   const { min, max } = touristTargetLimits[mode];
-  if (numeric < min) return mode === 'km'
-    ? 'KM muito baixo — informe pelo menos 10 km.'
-    : 'Quantidade em Horas muito baixo — informe pelo menos 0,5 hora.';
+  if (numeric <= 0) return 'Informe uma distância ou duração maior que zero.';
   if (numeric > max) return mode === 'km'
     ? 'O máximo disponível por passeio é 500 km.'
     : 'O máximo disponível por passeio é 12 horas.';
   return null;
+}
+
+// Aviso visual: valores baixos são permitidos, não bloqueiam o botão.
+export function getTouristTargetWarning(mode: TouristTargetMode, value: string): string | null {
+  const numeric = parseTouristTarget(value);
+  if (numeric === null || numeric <= 0 || numeric >= touristTargetLimits[mode].min) return null;
+  return mode === 'km' ? 'KM muito baixo — o trajeto pode ser limitado.' : 'Quantidade em Horas muito baixa — o trajeto pode ser limitado.';
 }
 
 export function canTypeTouristTarget(value: string): boolean {

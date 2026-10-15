@@ -85,7 +85,7 @@ test('real tourist circuit: OSM evidence, road distance, optional visits and err
   }
 });
 
-test('empty OSM discovery never silently invents tourist attractions', async () => {
+test('sem atrações, gera apenas percurso rodoviário verificado e sem paradas inventadas', async () => {
   const db = openDatabase(':memory:');
   const server = createApi({ db, mapFetch: fakeMaps([]) }).listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
@@ -94,8 +94,33 @@ test('empty OSM discovery never silently invents tourist attractions', async () 
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'km', target: 30, tripType: 'round_trip', originCoords: [0, 0], interests: [] })
     });
-    assert.equal(response.status, 422);
-    assert.match((await response.json() as any).error, /Não encontramos atrações/);
+    assert.equal(response.status, 200);
+    const result = await response.json() as any;
+    assert.equal(result.routingSource, 'OSRM');
+    assert.deepEqual(result.stops, []);
+    assert.ok(result.routePath.length >= 2);
+    assert.ok(result.warnings.some((warning: string) => warning.includes('sem atrações') || warning.includes('Não foram incluídas atrações')));
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    db.close();
+  }
+});
+
+test('roteiro considera pontos turísticos criados no cadastro administrativo', async () => {
+  const db = openDatabase(':memory:');
+  const name = 'Museu cadastrado pelo Admin';
+  db.prepare(`INSERT INTO stations(id,name,lat,lng,address,source_url,map_updated_at,kind,active,managed)
+    VALUES(?,?,?,?,?,?,?,?,1,1)`).run('admin:museu-1', name, 0, 0.06, 'Rua verificada', 'https://www.openstreetmap.org/?mlat=0&mlon=0.06', new Date().toISOString(), 'museum');
+  const server = createApi({ db, mapFetch: fakeMaps([]) }).listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${(server.address() as any).port}/api/routes/tourist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'km', target: 7, tripType: 'one_way', originCoords: [0, 0], interests: ['museus'] })
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json() as any;
+    assert.ok(result.stops.some((stop: any) => stop.name === name));
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     db.close();
