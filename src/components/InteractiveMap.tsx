@@ -196,9 +196,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!group) return;
     group.clearLayers();
     for (const station of fuel.stations) {
-      const icon = L.divIcon({ className: 'fuel-station-marker', html: '<div style="background:white;border:2px solid #059669;border-radius:50%;padding:5px;font-size:18px">⛽</div>', iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = L.divIcon({ className: 'fuel-station-marker', html: '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:110px"><div style="background:white;border:2px solid #059669;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 1px 5px #0002">⛽</div><span style="background:#fff;color:#047857;border:1px solid #a7f3d0;border-radius:7px;padding:2px 5px;font:700 10px/1.2 sans-serif;white-space:nowrap;box-shadow:0 1px 4px #0001">Indicar preços</span></div>', iconSize: [110, 65], iconAnchor: [55, 18] });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
-      const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
+      const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver e indicar preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => setSelectedStation(station.id));
       marker.on('keypress', event => {
