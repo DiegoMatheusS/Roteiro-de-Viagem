@@ -5,7 +5,7 @@ import { ApiError, auth, administrator, asyncRoute, now, user, validate, observa
 import { lookupMapPlace, validateCoordinates, nearbyPlaceRows, type MapFetch } from './maps';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { validatePriceDraft } from '../src/services/fuelPriceRules';
-import type { Place, PriceHistory } from '../src/types/admin';
+import { PLACE_KINDS, type Place, type PriceHistory } from '../src/types/admin';
 
 const pageArgs = (req: Request) => {
   const page = Number(req.query.page || 1);
@@ -111,16 +111,49 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     });
     res.status(201).json(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(place.id)));
   }));
+  // Cadastro manual de locais reais: nao depende de link no OpenStreetMap.
+  // Coordenadas devem ser informadas ou escolhidas explicitamente no mapa.
+  app.post('/api/admin/places/manual', (req, res) => {
+    limit(`places-manual:${user(res).id}`, 20, 60 * 60000);
+    const name = text(req.body.name, 150, true);
+    const kind = String(req.body.kind || '');
+    if (!PLACE_KINDS.some(option => option.id === kind)) throw new ApiError('Escolha uma categoria válida.');
+    const lat = Number(req.body.lat), lng = Number(req.body.lng);
+    if (req.body.lat === '' || req.body.lng === '' || req.body.lat == null || req.body.lng == null ||
+        !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+        lat === 0 && lng === 0) throw new ApiError('Informe latitude e longitude reais do local.');
+    const address = text(req.body.address || '', 250);
+    const description = text(req.body.description || '', 1000);
+    const phone = text(req.body.phone || '', 50);
+    const website = text(req.body.website || '', 300);
+    const hours = text(req.body.openingHours || '', 200);
+    if (website) { try { const url = new URL(website); if (!['https:', 'http:'].includes(url.protocol)) throw new Error(); } catch { throw new ApiError('Informe um site válido iniciado por https:// ou http://.'); } }
+    const duplicate = db.prepare("SELECT id FROM stations WHERE active=1 AND kind=? AND lower(trim(name))=lower(trim(?)) AND abs(lat-?)<0.00025 AND abs(lng-?)<0.00025 LIMIT 1")
+      .get(kind, name, lat, lng);
+    if (duplicate) throw new ApiError('Já existe um cadastro próximo com esse nome e categoria. Pesquise e edite o existente.', 409);
+    const id = `manual:${randomUUID()}`;
+    const sourceUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`;
+    transaction(() => {
+      db.prepare(`INSERT INTO stations(id,name,lat,lng,address,source_url,opening_hours,map_updated_at,kind,active,managed,description,website,phone)
+        VALUES(?,?,?,?,?,?,?,?,?,1,1,?,?,?)`)
+        .run(id, name, lat, lng, address, sourceUrl, hours || null, now(), kind, description, website, phone);
+      audit(user(res).id, 'places', id, 'create_manual', JSON.stringify({ name, kind, lat, lng }));
+    });
+    res.status(201).json(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(id)));
+  });
+
   app.patch('/api/admin/places/:id', (req, res) => {
     const previous = db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id) as any;
     if (!previous) throw new ApiError('Estabelecimento não encontrado.', 404);
     const name = text(req.body.name, 150, true), address = text(req.body.address, 250), description = text(req.body.description || '', 1000), phone = text(req.body.phone || '', 50), website = text(req.body.website || '', 300), hours = text(req.body.openingHours || '', 200);
+    const kind = String(req.body.kind || previous.kind);
+    if (!PLACE_KINDS.some(option => option.id === kind)) throw new ApiError('Escolha uma categoria válida.');
     if (website && !/^https?:\/\//i.test(website)) throw new ApiError('Use um endereço de site iniciado por http:// ou https://.');
     if (website) { try { new URL(website); } catch { throw new ApiError('Endereço de site inválido.'); } }
     if (typeof req.body.active !== 'boolean') throw new ApiError('Confirme se o cadastro está ativo.');
     transaction(() => {
-      db.prepare('UPDATE stations SET name=?,address=?,description=?,website=?,phone=?,opening_hours=?,hours_verified_at=?,active=?,managed=1 WHERE id=?')
-        .run(name, address, description, website, phone, hours || null, req.body.hoursVerified === true && hours ? now() : previous.opening_hours === hours ? previous.hours_verified_at : null, Number(req.body.active), req.params.id);
+      db.prepare('UPDATE stations SET name=?,kind=?,address=?,description=?,website=?,phone=?,opening_hours=?,hours_verified_at=?,active=?,managed=1 WHERE id=?')
+        .run(name, kind, address, description, website, phone, hours || null, req.body.hoursVerified === true && hours ? now() : previous.opening_hours === hours ? previous.hours_verified_at : null, Number(req.body.active), req.params.id);
       audit(user(res).id, 'places', req.params.id, 'update', JSON.stringify({ before: { name: previous.name, active: previous.active }, after: { name, active: req.body.active } }));
     });
     res.json(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id)));
