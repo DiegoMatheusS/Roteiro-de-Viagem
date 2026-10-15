@@ -2,6 +2,7 @@ import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsSt
 import React, { useState } from 'react';
 import type { Vehicle, TripPlan, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap } from './InteractiveMap';
+import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
@@ -14,9 +15,10 @@ interface MapTabProps {
 }
 export function MapTab(props: MapTabProps) {
   const trip = props.activeTrip || props.plannedTrip;
+  const roadAlerts = useRoadAlerts(trip?.routePath || []);
   const [showRain, setShowRain] = useState(false), [showStops, setShowStops] = useState(true), [showFuel, setShowFuel] = useState(true), [confirmEnd, setConfirmEnd] = useState(false);
   return <div className="relative w-full h-[calc(100dvh-7rem)] min-h-[420px] overflow-hidden bg-slate-100">
-    <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={trip?.originCoords} destinationCoords={trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={trip?.destinationName} routePath={trip?.routePath || []} routeModality={trip?.modality} stops={showStops ? trip?.stops || [] : []} weatherPoints={trip?.weatherPoints || []} tolls={trip?.tolls || []} tollVehicleType={props.routeVehicleType} showRainLayer={showRain} showFuelStations={showFuel} className="w-full h-full" />
+    <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={trip?.originCoords} destinationCoords={trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={trip?.destinationName} routePath={trip?.routePath || []} routeModality={trip?.modality} stops={showStops ? trip?.stops || [] : []} weatherPoints={trip?.weatherPoints || []} roadAlerts={roadAlerts.alerts} tolls={trip?.tolls || []} tollVehicleType={props.routeVehicleType} showRainLayer={showRain} showFuelStations={showFuel} className="w-full h-full" />
     <div className="absolute top-3 left-3 right-16 z-30 max-w-sm bg-white rounded-2xl shadow-xl border p-3 space-y-3">
       <div className="flex gap-3 items-start"><button onClick={props.onBackToMenu} aria-label="Voltar ao menu" className="p-2 rounded-xl bg-emerald-50 text-emerald-800 shrink-0"><ArrowLeft size={20} /></button><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-slate-500">{props.activeTrip ? 'Em andamento' : trip ? 'Viagem programada' : 'Seu mapa'}</p><h3 className="font-bold text-sm truncate">{trip?.destinationName || 'Planeje sua primeira viagem'}</h3><p className="text-xs text-slate-500">{trip ? `${trip.distanceKm.toFixed(1)} km · ${Math.round(trip.durationMinutes)} min` : 'Escolha origem e destino no Início.'}</p></div></div>
       {trip && <><div className="grid grid-cols-3 gap-2 text-[10px] font-bold"><button onClick={() => props.onOpenShareModal?.(trip)} className="p-2 border rounded-xl flex items-center justify-center gap-1"><Share2 size={13} />Compartilhar</button><button onClick={() => props.onOpenConvoyModal?.(trip)} className="p-2 border rounded-xl flex items-center justify-center gap-1 text-violet-700"><Users size={13} />Comboio</button><button onClick={() => props.activeTrip ? props.onContinueTrip() : props.onStartTrip?.(trip)} className="p-2 bg-emerald-700 text-white rounded-xl flex items-center justify-center gap-1"><Play size={13} />{props.activeTrip ? 'Navegar' : 'Iniciar'}</button></div><button onClick={() => setConfirmEnd(true)} className="w-full p-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-2"><PowerOff size={14} />Encerrar viagem</button></>}
