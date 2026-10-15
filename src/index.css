@@ -43,3 +43,11 @@
   border-radius: 6px 0 0 0;
 }
 
+
+/* Rolê: mapa minimalista, sem relevos e cores de vegetação.
+   Mantém nomes e ruas do provedor de mapas raster existente. */
+.rdv-flat-map .leaflet-tile-pane {
+  filter: grayscale(1) brightness(1.10) contrast(.87);
+}
+.rdv-flat-map .leaflet-container { background: #f8fafc; }
+.rdv-flat-map .leaflet-control-attribution { font-size: 8px !important; }
