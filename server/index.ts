@@ -3,8 +3,15 @@ import express from 'express';
 import path from 'node:path';
 import { openDatabase } from './db';
 import { createApi } from './app';
+import { bootstrapInitialAdmin } from './bootstrap-admin';
 
 const db = openDatabase();
+const bootstrap = bootstrapInitialAdmin(db, {
+  email: process.env.RDV_BOOTSTRAP_ADMIN_EMAIL,
+  passwordHash: process.env.RDV_BOOTSTRAP_ADMIN_HASH,
+});
+if (bootstrap === 'created' || bootstrap === 'promoted')
+  console.log('Conta administrativa inicial criada no banco. Remova as variáveis de bootstrap após a publicação.');
 const app = createApi({ db });
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.resolve('dist')));
