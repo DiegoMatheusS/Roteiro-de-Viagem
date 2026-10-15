@@ -6,6 +6,7 @@ import { FuelQueue } from './FuelQueue';
 import { PlacesManager } from './PlacesManager';
 import { ReviewManager, UsersManager } from './CommunityManager';
 import { PasswordSettings } from './PasswordSettings';
+import { EmailSettings } from './EmailSettings';
 
 const tabs = [ ['tolls', 'Pedágios'], ['fuel', 'Preços de combustíveis'], ['places', 'Estabelecimentos'], ['users', 'Usuários'], ['comments', 'Comentários'], ['reports', 'Denúncias'], ['audit', 'Histórico de ações'], ['settings', 'Configurações'] ] as const;
 export default function AdminPage({ standalone = false }: { standalone?: boolean }) {
@@ -21,7 +22,7 @@ export default function AdminPage({ standalone = false }: { standalone?: boolean
       <div className="flex flex-wrap gap-3 text-sm"><span className="bg-white border rounded-xl px-4 py-3">{counts.tolls || 0} tarifas de pedágio pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.photos || 0} fotos pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.prices || 0} preços pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.comments || 0} comentários pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.reports || 0} denúncias abertas</span></div>
       <nav aria-label="Seções administrativas" className="flex flex-wrap gap-2 border-b pb-4">{tabs.map(([id, title]) => <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => { setTab(id); setError(''); }} className={`rounded-xl px-4 py-3 text-sm font-semibold ${tab === id ? 'bg-emerald-600 text-white' : 'bg-white border text-slate-600'}`}>{title}</button>)}</nav>
       {error && <p role="alert" className="bg-rose-50 text-rose-700 p-3 rounded-xl text-sm">{error}</p>}
-      {tab === 'tolls' && <TollQueue onChange={refresh} />}{tab === 'fuel' && <FuelQueue onChange={refresh} />}{tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{['comments', 'reports', 'audit'].includes(tab) && <ReviewManager section={tab as 'comments' | 'reports' | 'audit'} onChange={refresh} />}{tab === 'settings' && <PasswordSettings onPasswordChanged={message => { setNotice(message); auth.clearSession(); }} />}
+      {tab === 'tolls' && <TollQueue onChange={refresh} />}{tab === 'fuel' && <FuelQueue onChange={refresh} />}{tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{['comments', 'reports', 'audit'].includes(tab) && <ReviewManager section={tab as 'comments' | 'reports' | 'audit'} onChange={refresh} />}{tab === 'settings' && <><PasswordSettings onPasswordChanged={message => { setNotice(message); auth.clearSession(); }} /><EmailSettings onEmailChanged={message => { setNotice(message); auth.clearSession(); }} /></>}
     </main>}
   </div>;
 }
