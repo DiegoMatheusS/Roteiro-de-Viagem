@@ -48,7 +48,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
   const currentValue = sheet === 'km' ? km : hours;
   const validation = sheet === 'km' || sheet === 'hours' ? getTouristTargetError(sheet, currentValue) : '';
-  const warning = sheet === 'km' || sheet === 'hours' ? getTouristTargetWarning(sheet, currentValue, tripType) : '';
+  const warning = sheet === 'km' || sheet === 'hours' ? getTouristTargetWarning(sheet, currentValue) : '';
   const requireVehicle = () => {
     if (props.currentVehicle) return true;
     setError('Cadastre seu carro ou sua moto em Perfil → Minha Garagem para criar um roteiro.');
