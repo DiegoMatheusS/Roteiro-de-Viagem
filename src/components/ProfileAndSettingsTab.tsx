@@ -181,7 +181,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
     <div className="min-h-[calc(100vh-4rem)] pb-28 bg-slate-50 overflow-y-auto">
       {/* Top Bar Navigation Tabs */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="px-6 py-4 flex items-center justify-between">
+        <div className="pl-20 pr-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
               Perfil
