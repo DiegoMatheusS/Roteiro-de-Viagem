@@ -21,6 +21,7 @@ import { cloudState } from './services/cloudState';
 import { convoyService } from './services/convoyService';
 import { NavigationTabBar, MainTabType } from './components/NavigationTabBar';
 import { HomeTab } from './components/HomeTab';
+import { NavigationHome } from './components/NavigationHome';
 import { MapTab } from './components/MapTab';
 import { ToursTab } from './components/ToursTab';
 import { SavedTab } from './components/SavedTab';
@@ -38,6 +39,7 @@ import { useAuth } from './contexts/AuthContext';
 export default function App() {
   const auth = useAuth();
   const [activeTab, setActiveTab] = useState<MainTabType>('inicio');
+  const [advancedHome, setAdvancedHome] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [profile, setProfile] = useState<TravelerProfile>(storageService.getProfile());
@@ -288,7 +290,7 @@ export default function App() {
   if (auth.loading || !accountReady) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-5">
       <div className="bg-white border rounded-2xl p-6 max-w-md w-full text-center space-y-3">
-        <h1 className="font-bold text-slate-900">Roteiro de Viagem</h1>
+        <h1 className="font-bold text-slate-900">Rolê</h1>
         <p className="text-sm text-slate-600">{syncState === 'conflict' ? syncMessage : syncState === 'error' ? (syncMessage || 'Não foi possível carregar a conta.') : 'Carregando seus dados de viagem...'}</p>
         {syncState === 'error' && <button type="button" onClick={() => void cloudState.retry()} className="px-4 py-2 bg-emerald-700 text-white rounded-xl">Tentar novamente</button>}
         {syncState === 'conflict' && <SyncConflictPanel conflicts={syncConflicts} onChoose={choice=>void cloudState.resolveConflict(choice)} />}
@@ -303,9 +305,7 @@ export default function App() {
         {['error','offline'].includes(syncState) && <button onClick={() => void cloudState.retry()} className="underline font-semibold">Tentar salvar novamente</button>}
         {syncState === 'conflict' && <SyncConflictPanel conflicts={syncConflicts} onChoose={choice=>void cloudState.resolveConflict(choice)} />}
       </div>}
-      <div className="bg-white border-b px-4 py-2 flex items-center justify-end gap-3 text-xs">
-        {auth.user ? <><button onClick={() => setShowJoin(v => !v)} className="text-violet-700 font-bold">Entrar no comboio</button><span className="text-slate-500">Olá, {profile.name}</span><button onClick={() => auth.logout().catch(error => setAppError(error.message))} className="text-slate-600">Sair da conta</button></> : <button onClick={auth.promptLogin} className="font-bold text-emerald-700">Entrar / Criar conta</button>}
-      </div>
+      {/* Conta/login agora ficam em Perfil, mantendo o mapa limpo. */}
       {convoyGps.session && !activeConvoyId && <div role="status" className="p-3 bg-violet-50 text-violet-900 text-xs flex flex-wrap items-center gap-3"><span>{convoyGps.ready?'GPS do comboio ativo':'Comboio aguardando GPS'} · atualização automática</span><button onClick={()=>setActiveConvoyId(convoyGps.session!.convoyId)} className="underline font-bold">Abrir comboio</button><button onClick={()=>void convoyService.stopSharing()} className="underline">Parar compartilhamento</button>{convoyGps.error&&<span>{convoyGps.error}</span>}</div>}
       {showJoin && <form onSubmit={e => { e.preventDefault(); void joinConvoy(); }} className="p-3 bg-violet-50 flex flex-wrap gap-3 text-xs"><label>Código do comboio<input aria-label="Código do comboio" value={joinCode} onChange={e => setJoinCode(e.target.value)} required className="block border p-2 rounded-xl" /></label>{!currentVehicle && <label>Seu veículo<select aria-label="Tipo de veículo no comboio" required value={joinVehicleType} onChange={e => setJoinVehicleType(e.target.value as 'car' | 'motorcycle' | '')} className="block border p-2 rounded-xl"><option value="">Escolha</option><option value="motorcycle">Moto</option><option value="car">Carro</option></select></label>}<button className="font-bold text-violet-800">Entrar</button><p>Seu nome e veículo serão vistos pelo grupo. O GPS começa desligado.</p></form>}
       {appError && (
@@ -332,8 +332,36 @@ export default function App() {
         <>
           {/* MAIN TABS CONTAINER */}
           <main className="flex-1">
-            {activeTab === 'inicio' && (
-              <HomeTab
+            {activeTab === 'inicio' && !advancedHome && (
+              <NavigationHome
+                currentVehicle={currentVehicle}
+                trips={trips}
+                onLaunchTouristCircuit={(trip) => {
+                  setPlanningOrigin(trip.originName);
+                  setPlanningOriginCoords(trip.originCoords);
+                  setPlanningDestination(trip.destinationName);
+                  setPlanningDestinationCoords(trip.destinationCoords);
+                  setPlanningTrip(trip);
+                  setIsNavigationOpen(false);
+                  setIsPlanningOpen(true);
+                }}
+                onStartTrip={handleStartTrip}
+                onOpenAllTrips={() => setActiveTab('salvos')}
+                onOpenAllSuggestions={() => setActiveTab('passeios')}
+                onOpenProfile={() => setActiveTab('ajustes')}
+                onAdvancedPlanning={() => setAdvancedHome(true)}
+                onViewTripDetails={(trip) => {
+                  setPlanningOrigin(trip.originName);
+                  setPlanningOriginCoords(trip.originCoords);
+                  setPlanningDestination(trip.destinationName);
+                  setPlanningDestinationCoords(trip.destinationCoords);
+                  setPlanningTrip(trip);
+                  setIsPlanningOpen(true);
+                }}
+              />
+            )}
+            {activeTab === 'inicio' && advancedHome && (
+              <div><button type="button" className="ml-4 mt-4 rounded-xl bg-white border border-blue-200 p-3 text-xs font-bold text-blue-700" onClick={() => setAdvancedHome(false)}>← Voltar ao início Rolê</button><HomeTab
                 currentVehicle={currentVehicle}
                 vehicles={vehicles}
                 onSelectVehicle={handleSelectVehicle}
@@ -353,7 +381,7 @@ export default function App() {
                 }}
                 onNavigateToMapTab={() => setActiveTab('mapa')}
                 activeConvoyId={convoyService.getActiveConvoy()?.id}
-              />
+              /></div>
             )}
 
             {activeTab === 'mapa' && (
@@ -416,20 +444,23 @@ export default function App() {
                 onAddFuelLog={handleAddFuelLog}
                 onOpenSosModal={() => setIsSosOpen(true)}
                 onNavigateHome={handleReturnHome}
+                accountLabel={auth.user?.displayName}
+                onLogin={auth.promptLogin}
+                onLogout={() => auth.logout().catch(error => setAppError(error.message))}
+                onOpenConvoy={() => setShowJoin(value => !value)}
               />
             )}
           </main>
 
-          {/* BOTTOM NAVIGATION TAB BAR */}
-          <NavigationTabBar 
-            activeTab={activeTab} 
-            onTabChange={setActiveTab}
+          <NavigationTabBar
+            activeTab={activeTab}
+            onTabChange={(tab) => {setActiveTab(tab);if(tab==='inicio')setAdvancedHome(false);}}
             hasActiveConvoy={!!convoyService.getActiveConvoy()}
           />
         </>
       )}
 
-      {activeTrip && !isNavigationOpen && !activeConvoyId && <div className="fixed bottom-20 left-3 right-3 z-40 mx-auto max-w-md bg-emerald-900 text-white rounded-xl shadow-lg p-3 flex items-center justify-between gap-3 text-xs"><span>Viagem em andamento · {activeTrip.destinationName}</span><button onClick={resumeNavigation} className="font-bold underline">{ownsTracking?'Retomar mapa':'Assumir navegação neste aparelho'}</button><button onClick={() => { setActiveTab('mapa'); }} className="underline">Opções</button></div>}
+      {activeTrip && !isNavigationOpen && !activeConvoyId && <div className="fixed bottom-3 left-3 right-3 z-40 mx-auto max-w-md bg-emerald-900 text-white rounded-xl shadow-lg p-3 flex items-center justify-between gap-3 text-xs"><span>Viagem em andamento · {activeTrip.destinationName}</span><button onClick={resumeNavigation} className="font-bold underline">{ownsTracking?'Retomar mapa':'Assumir navegação neste aparelho'}</button><button onClick={() => { setActiveTab('mapa'); }} className="underline">Opções</button></div>}
 
       {/* ROUTE PLANNING MODAL (6 MODALITIES COMPARISON) */}
       {currentVehicle && isPlanningOpen && (
