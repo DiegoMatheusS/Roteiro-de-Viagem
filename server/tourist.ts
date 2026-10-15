@@ -186,7 +186,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       ? 'Não foi possível consultar atrações externas. Roteiro rodoviário verificado, sem atrações sugeridas.'
       : 'Roteiro rodoviário verificado. Não foram incluídas atrações turísticas nesta alternativa.');
     if (tripType === 'round_trip') warnings.push('O roteiro retorna ao ponto inicial. Alguns trechos podem se repetir dependendo das estradas disponíveis.');
-    const destination = tripType === 'round_trip' ? origin : best.selected.at(-1)?.coords || best.path.at(-1)!;
+    const destination = tripType === 'round_trip' ? origin : best.selected.at(-1)?.coords || best.road.geometry?.at(-1) || best.path.at(-1)!;
     const stops = best.selected.map((place, index) => ({
       id: `tourist-${index}-${place.id}`, name: place.name, lat: place.coords[0], lng: place.coords[1],
       category: place.category, sourceUrl: place.sourceUrl, description: place.address || 'Atração identificada no OpenStreetMap',
