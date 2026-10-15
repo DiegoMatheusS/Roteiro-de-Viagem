@@ -64,18 +64,20 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
       }
       const token = req.headers.cookie?.split(';').map(c => c.trim()).find(c => c.startsWith('rdv_session='))?.slice(12);
       if (token && /^[a-f0-9]{64}$/.test(token)) {
-        const row = db.prepare(`SELECT u.id,u.display_name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.blocked_at IS NULL AND u.deleted_at IS NULL`).get(createHash('sha256').update(token).digest('hex'), now()) as any;
+        const row = db.prepare(`SELECT u.id,u.display_name,CASE WHEN EXISTS (SELECT 1 FROM google_traveler_sessions gs WHERE gs.token_hash=s.token_hash) THEN 'user' ELSE u.role END AS role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.blocked_at IS NULL AND u.deleted_at IS NULL`).get(createHash('sha256').update(token).digest('hex'), now()) as any;
         if (row) res.locals.user = { id: row.id, displayName: row.display_name, role: row.role };
       }
       next();
     } catch (error) { next(error); }
   });
-  const setSession = (res: Response, account: any) => {
+  const setSession = (res: Response, account: any, travelerOnly = false) => {
     const token = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
     db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(now());
-    db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(createHash('sha256').update(token).digest('hex'), account.id, new Date(Date.now() + 7 * 86400000).toISOString());
+    db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(tokenHash, account.id, new Date(Date.now() + 7 * 86400000).toISOString());
+    if (travelerOnly) db.prepare('INSERT INTO google_traveler_sessions(token_hash) VALUES(?)').run(tokenHash);
     res.cookie('rdv_session', token, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production', path: '/api', maxAge: 7 * 86400000 });
-    return { id: account.id, displayName: account.display_name, role: account.role };
+    return { id: account.id, displayName: account.display_name, role: travelerOnly ? 'user' : account.role };
   };
   const station = (id: string) => {
     if (!db.prepare("SELECT id FROM stations WHERE id=? AND active=1 AND kind='fuel'").get(id)) throw new ApiError('Posto não encontrado na base de mapas.', 404);
@@ -111,8 +113,9 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     catch { throw new ApiError('Este e-mail já possui uma conta.', 409); }
     res.status(201).json({ user: setSession(res, account) });
   }));
-  // Google ID tokens prove identity; existing local accounts keep the same user ID and data.
-  // Never grant administrator access or link non-authoritative third-party mailboxes without the current password.
+  // Google ID tokens prove identity; keep the user's existing ID and records.
+  // A Google session is traveler-only even when linked to an administrator account.
+  // Initial admin linking always requires confirming the existing password.
   app.post('/api/auth/google', asyncRoute(async (req, res) => {
     limit(`google-login:${clientIp(req)}`, 10, 15 * 60000);
     if (!process.env.GOOGLE_CLIENT_ID) throw new ApiError('Entrar com Google ainda não está configurado.', 503);
@@ -125,18 +128,19 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     }
 
     let account = db.prepare('SELECT * FROM users WHERE google_sub=?').get(identity.sub) as any;
-    if (account && (account.blocked_at || account.deleted_at || account.role !== 'user'))
-      throw new ApiError('Esta conta só pode entrar com e-mail e senha.', 403);
+    if (account && (account.blocked_at || account.deleted_at))
+      throw new ApiError('Esta conta está indisponível. Entre em contato com o suporte.', 403);
 
     if (!account) {
       const existing = db.prepare('SELECT * FROM users WHERE email=?').get(identity.email) as any;
       if (existing) {
-        if (existing.blocked_at || existing.deleted_at || existing.role !== 'user' ||
-            (existing.google_sub && existing.google_sub !== identity.sub))
-          throw new ApiError('Esta conta só pode entrar com e-mail e senha.', 403);
+        if (existing.blocked_at || existing.deleted_at)
+          throw new ApiError('Esta conta está indisponível. Entre em contato com o suporte.', 403);
+        if (existing.google_sub && existing.google_sub !== identity.sub)
+          throw new ApiError('Este e-mail já está vinculado a outra conta Google. Entre com seu e-mail e senha.', 409);
 
-        if (!canAutoLinkGoogleIdentity(identity)) {
-          // Some Google accounts use mailboxes Google does not control: verify both login methods once.
+        if (existing.role === 'admin' || !canAutoLinkGoogleIdentity(identity)) {
+          // Admin accounts always require a one-time password confirmation; external mailboxes also need it.
           const password = req.body?.password;
           if (typeof password !== 'string') {
             res.status(409).json({ code: 'GOOGLE_LINK_PASSWORD_REQUIRED',
@@ -155,7 +159,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
         // Atomic and single-use linking: preserve the existing password, profile, routes and user ID.
         try {
           const linked = db.prepare(`UPDATE users SET google_sub=? WHERE id=? AND google_sub IS NULL
-            AND blocked_at IS NULL AND deleted_at IS NULL AND role='user'`).run(identity.sub, existing.id);
+            AND blocked_at IS NULL AND deleted_at IS NULL AND role IN ('user','admin')`).run(identity.sub, existing.id);
           if (linked.changes !== 1) throw new Error('GOOGLE_ACCOUNT_LINK_CONFLICT');
         } catch {
           throw new ApiError('Não foi possível vincular a conta Google. Entre novamente.', 409);
@@ -171,7 +175,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
         } catch { throw new ApiError('Não foi possível criar a conta Google. Entre novamente.', 409); }
       }
     }
-    res.json({ user: setSession(res, account) });
+    res.json({ user: setSession(res, account, true) });
   }));
 
   app.post('/api/auth/login', asyncRoute(async (req, res) => {
