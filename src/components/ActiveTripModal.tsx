@@ -146,6 +146,9 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           originCoords={trip.originCoords}
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
+          navigationMode
+          travelledDistanceKm={distanceTraveledKm}
+          totalRouteKm={trip.distanceKm}
           stops={trip.stops}
           weatherPoints={trip.weatherPoints}
           tolls={trip.tolls || []}
@@ -157,16 +160,10 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
 
         <div className="absolute bottom-20 left-3 right-16 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={conditions} /></div>
 
-        {/* FLOATING SPEEDOMETER - WHITE CARD OVERLAY */}
-        <div className="absolute top-4 left-4 z-30 flex flex-col gap-2">
-          <div className="p-3 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl flex items-center gap-3">
-            <div className="text-3xl font-black text-emerald-700 font-mono tabular-nums">
-              {currentSpeed ?? '—'}
-            </div>
-            <div className="text-[10px] text-slate-500 uppercase font-extrabold leading-tight">
-              KM/H<br />VELOCIDADE
-            </div>
-          </div>
+        {/* Velocímetro circular no canto inferior esquerdo, inspirado em navegação. */}
+        <div className="absolute bottom-3 left-3 z-30 w-20 h-20 rounded-full bg-white border-[5px] border-slate-700 shadow-2xl flex flex-col items-center justify-center" role="status" aria-label={`Velocidade atual: ${currentSpeed ?? 'indisponível'} quilômetros por hora`}>
+          <strong className="text-2xl leading-none font-black text-slate-900 tabular-nums">{currentSpeed ?? '—'}</strong>
+          <span className="text-[10px] font-extrabold text-slate-500">km/h</span>
         </div>
       </div>
 
