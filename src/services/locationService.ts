@@ -8,7 +8,7 @@ export interface DeviceLocation {
 }
 
 export function locationErrorMessage(error?: Pick<GeolocationPositionError, 'code'>): string {
-  if (error?.code === 1) return 'Localização não permitida. Permita o acesso ao GPS nas permissões do navegador ou aplicativo e tente novamente.';
+  if (error?.code === 1) return 'Localização não permitida. Permita o acesso à localização (GPS) nas permissões do navegador ou aplicativo e tente novamente.';
   if (error?.code === 3) return 'O GPS demorou para responder. Tente novamente em um local aberto.';
   return 'Não foi possível obter sua localização. Confira o GPS e tente novamente.';
 }
