@@ -68,6 +68,24 @@ try {
   await page.getByRole('button', { name: 'Início', exact: true }).click();
   await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
   await page.getByText(/Origem: Sua Localização/).waitFor();
+
+  // Planejamento ida e volta: nao corrigir a digitacao; exibir o erro em vermelho.
+  const kmEntry = page.locator('input[aria-describedby="tourist-km-warning"]');
+  await kmEntry.fill('9');
+  assert.equal(await kmEntry.inputValue(), '9');
+  await page.getByText('KM muito baixo — informe pelo menos 10 km.', { exact: true }).waitFor();
+  await kmEntry.fill('10');
+  assert.equal(await page.locator('#tourist-km-warning').innerText(), '');
+  await kmEntry.fill('100');
+  await page.getByRole('button', { name: 'Por Horas', exact: true }).click();
+  const hoursEntry = page.locator('input[aria-describedby="tourist-hours-warning"]');
+  await hoursEntry.fill('0,2');
+  assert.equal(await hoursEntry.inputValue(), '0,2');
+  await page.getByText('Quantidade em Horas muito baixo — informe pelo menos 0,5 hora.', { exact: true }).waitFor();
+  await hoursEntry.fill('0,5');
+  assert.equal(await page.locator('#tourist-hours-warning').innerText(), '');
+  await page.getByRole('button', { name: 'Por Km', exact: true }).click();
+
   await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
@@ -104,6 +122,13 @@ try {
   await adminAccount.getByLabel('Senha', { exact: true }).fill('admin-ui-test-password');
   await adminAccount.getByRole('button', { name: 'Entrar', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Preços de combustíveis', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await adminPage.getByRole('heading', { name: 'Alterar senha', exact: true }).waitFor();
+  await adminPage.getByRole('heading', { name: 'Alterar e-mail', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Salvar novo e-mail', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Salvar nova senha', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Preços de combustíveis', exact: true }).click();
+
   const photoCard = adminPage.locator('article').filter({ has: adminPage.getByRole('heading', { name: 'Posto de teste de interface', exact: true }) });
   assert.equal(await photoCard.getByLabel('Preço 1', { exact: true }).inputValue(), '');
   assert.equal(await photoCard.getByLabel('Preço 3', { exact: true }).inputValue(), '');
