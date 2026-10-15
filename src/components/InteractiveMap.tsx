@@ -10,8 +10,9 @@ import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { PlaceModal } from './PlaceModal';
 import { PLACE_KINDS, type Place } from '../types/admin';
 import { mapContributionIcon } from './mapContributionIcon';
+import { splitNavigationRoute } from '../services/routeProgress';
 
-export type MapStyleType = 'voyager' | 'satellite' | 'topo' | 'osm';
+export type MapStyleType = 'navigation' | 'voyager' | 'satellite' | 'topo' | 'osm';
 
 interface InteractiveMapProps {
   originCoords?: [number, number];
@@ -20,6 +21,9 @@ interface InteractiveMapProps {
   destinationLabel?: string;
   routePath?: [number, number][];
   routeModality?: RouteModality;
+  navigationMode?: boolean;
+  routeProgressKm?: number;
+  liveAccuracyMeters?: number;
   stops?: RouteStop[];
   weatherPoints?: WeatherPoint[];
   tolls?: RouteToll[];
@@ -38,6 +42,13 @@ interface InteractiveMapProps {
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
+  navigation: {
+    name: 'Navegação clara',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '© CARTO, © OpenStreetMap colaboradores',
+    maxZoom: 19,
+    icon: '🧭'
+  },
   voyager: {
     name: 'Colorido & Cênico',
     url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -85,6 +96,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   destinationLabel = 'Destino',
   routePath = [],
   routeModality = 'panoramica',
+  navigationMode = false,
+  routeProgressKm,
+  liveAccuracyMeters,
   stops = [],
   showRainLayer = false,
   weatherPoints = [],
@@ -106,8 +120,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fittedGeometryRef=useRef<string|null>(null);
-  const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
-  const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
+  const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations && !navigationMode);
+  const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations && !navigationMode);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [stationSection, setStationSection] = useState<'prices' | 'comments'>('prices');
   const [tollSection, setTollSection] = useState<'prices' | 'comments'>('prices');
@@ -118,7 +132,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
-  const [currentStyle, setCurrentStyle] = useState<MapStyleType>('voyager');
+  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(navigationMode ? 'navigation' : 'voyager');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
 
   // Initialize Map
@@ -319,43 +333,45 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       bounds.push(destinationCoords);
     }
 
-    // 3. COLORFUL MULTI-LAYER ROUTE POLYLINE
+    // GPS-verified road ahead is light blue; completed road is dark blue.
     const modalityStyle = MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica;
+    const roadProgress = navigationMode ? splitNavigationRoute(
+      routePath, userLiveCoords, liveAccuracyMeters, routeProgressKm
+    ) : null;
 
     if (routePath && routePath.length > 1) {
-      // Outer casing layer (white contrast border)
+      // White road outline improves legibility on light navigation maps.
       L.polyline(routePath, {
-        color: '#ffffff',
-        weight: 9,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round'
+        color: '#ffffff', weight: navigationMode ? 11 : 9, opacity: 0.95,
+        lineCap: 'round', lineJoin: 'round'
       }).addTo(group);
-
-      // Outer glow / shadow layer
-      L.polyline(routePath, {
-        color: modalityStyle.glow,
-        weight: 7,
-        opacity: 0.6,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(group);
-
-      // Inner primary vivid route line
-      L.polyline(routePath, {
-        color: modalityStyle.primary,
-        weight: 5,
-        opacity: 1.0,
-        lineCap: 'round',
-        lineJoin: 'round',
-        smoothFactor: 1.0
-      }).addTo(group);
+      if (navigationMode) {
+        L.polyline(routePath, {
+          color: '#67c5f6', weight: 7, opacity: 1,
+          lineCap: 'round', lineJoin: 'round'
+        }).addTo(group);
+        if (roadProgress?.onRoute && roadProgress.passed.length > 1) {
+          L.polyline(roadProgress.passed, {
+            color: '#173c8f', weight: 7, opacity: 1,
+            lineCap: 'round', lineJoin: 'round'
+          }).addTo(group);
+        }
+      } else {
+        L.polyline(routePath, {
+          color: modalityStyle.glow, weight: 7, opacity: 0.6,
+          lineCap: 'round', lineJoin: 'round'
+        }).addTo(group);
+        L.polyline(routePath, {
+          color: modalityStyle.primary, weight: 5, opacity: 1,
+          lineCap: 'round', lineJoin: 'round', smoothFactor: 1
+        }).addTo(group);
+      }
 
       // Directional waypoint markers along the route
       routePath.forEach((pt, idx) => {
         bounds.push(pt);
         // Place small glowing dots on quarter milestones
-        if (idx > 0 && idx < routePath.length - 1 && idx % 3 === 0) {
+        if (!navigationMode && idx > 0 && idx < routePath.length - 1 && idx % 3 === 0) {
           const milestoneIcon = L.divIcon({
             className: 'route-milestone-marker',
             html: `
@@ -560,8 +576,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // Actual provider forecast samples, without an invented radar polygon.
     if (showRainLayer) for (const point of weatherPoints || []) {
       if (!point.coords) continue;
+      // Provider points indicate forecast samples, not live radar boundaries.
+      if (point.rainProb >= 50) L.circle(point.coords, {
+        radius: 1100, color: '#0284c7', weight: 1, fillColor: '#38bdf8',
+        fillOpacity: 0.12, opacity: 0.35, interactive: false
+      }).addTo(rainGroup);
       L.circleMarker(point.coords, { className: 'weather-forecast-marker', radius: 9, color: point.rainProb >= 50 ? '#0284c7' : '#475569', fillOpacity: 0.7 }).addTo(rainGroup)
-        .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h · ${escapeHtml(new Date(point.forecastAt || point.passTime).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}${point.warning ? `<br>${escapeHtml(point.warning)}` : ''}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
+        .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h${typeof point.windDirectionDeg === 'number' ? ` · Direção de onde sopra: ${point.windDirectionDeg}°` : ''} · ${escapeHtml(new Date(point.forecastAt || point.passTime).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}${point.warning ? `<br>${escapeHtml(point.warning)}` : ''}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
     }
 
     // GPS refreshes move markers without undoing the user's zoom and map position.
@@ -588,9 +609,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     showRainLayer,
     weatherPoints,
     userLiveCoords,
+    navigationMode,
+    routeProgressKm,
+    liveAccuracyMeters,
     convoyParticipants,
     meetingPoints
   ]);
+
+  // Follow the actual GPS while navigating; do not jump when no fresh accurate fix exists.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!navigationMode || !map || !userLiveCoords || !Number.isFinite(liveAccuracyMeters) ||
+        (liveAccuracyMeters ?? Infinity) > 60) return;
+    map.setView(userLiveCoords, Math.max(map.getZoom(), 15), { animate: false });
+  }, [navigationMode, userLiveCoords, liveAccuracyMeters]);
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
