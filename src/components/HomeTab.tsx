@@ -7,6 +7,7 @@ import { LocationSearch } from './LocationSearch';
 import { ManualStopsEditor } from './ManualStopsEditor';
 import type { MandatoryStop, PlanningLimits } from '../types/itinerary';
 import { getCurrentDeviceLocation } from '../services/locationService';
+import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { 
   Navigation, 
   MapPin, 
@@ -268,7 +269,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             {isGettingGps ? 'Buscando GPS...' : 'Usar minha localização'}
           </button>
         </div>
-        {locationError && <p role="alert" className="text-xs text-rose-700">{locationError}</p>}
+        {locationError && <div role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-2">
+          <p className="font-semibold">{locationError}</p>
+          {/localiza|permiss|gps/i.test(locationError) && (isNativeApp()
+            ? <button type="button" className="font-bold underline" onClick={() => void TravelNative.openDeviceSettings({ section: 'app' }).catch(error => setLocationError((error as Error).message))}>Abrir permissões de localização</button>
+            : <p>Para usar o GPS, autorize a localização nas permissões deste site. Se estiver bloqueada, clique no ícone ao lado do endereço do site, permita o acesso e tente novamente. Você também pode selecionar a origem manualmente no modo Com destino.</p>)}
+        </div>
         {!currentVehicle && <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">Cadastre sua moto ou carro em <strong>Ajustes → Minha Garagem</strong> para calcular combustível e gerar viagens. Nenhum veículo é adicionado automaticamente.</div>}
         {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">{isGettingGps ? 'Obtendo sua localização pelo GPS...' : 'Buscando atrações reais e verificando estradas. Aguarde...'}</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}
