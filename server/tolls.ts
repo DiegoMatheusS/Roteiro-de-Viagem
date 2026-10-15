@@ -116,6 +116,63 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
     const ids = (db.prepare('SELECT id,lat,lng FROM toll_places WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?').all(place.lat-0.003,place.lat+0.003,place.lng-0.005,place.lng+0.005) as any[]).filter(p => distanceBetweenKm([p.lat,p.lng],[place.lat,place.lng]) < 0.2).map(p => p.id);
     res.json({ entries: db.prepare(`SELECT id,vehicle_type,price,observed_at,status,notes,reviewed_at FROM toll_entries WHERE toll_id IN (${ids.map(() => '?').join(',')}) AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 50`).all(...ids,user(res).id) });
   });
+  // Cadastro e gerenciamento de praca de pedagio pelo administrador.
+  // Os pontos entram no mesmo calculo de pedágios por rota dos viajantes.
+  app.get('/api/admin/toll-places', auth, administrator, (req, res) => {
+    const q = String(req.query.q || '').trim().slice(0, 100);
+    const items = db.prepare(`SELECT p.id,p.name,p.lat,p.lng,p.source_url AS sourceUrl,
+      (SELECT COUNT(*) FROM toll_entries e WHERE e.toll_id=p.id AND e.status='approved' AND e.valid_until>?) AS activeTariffs
+      FROM toll_places p WHERE p.name LIKE ? ORDER BY p.name LIMIT 150`)
+      .all(now(), `%${q}%`);
+    res.json({ items });
+  });
+  app.post('/api/admin/toll-places', auth, administrator, (req, res) => {
+    limit(`admin-toll:${user(res).id}`, 12, 60 * 60000);
+    const name = String(req.body.name || '').trim();
+    const lat = Number(req.body.lat), lng = Number(req.body.lng);
+    if (name.length < 2 || name.length > 180 ||
+        req.body.lat == null || req.body.lng == null || req.body.lat === '' || req.body.lng === '' ||
+        !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat)>90 || Math.abs(lng)>180 || lat===0 && lng===0)
+      throw new ApiError('Informe nome e coordenadas válidas da praça de pedágio.');
+    const duplicate = db.prepare('SELECT id FROM toll_places WHERE lower(trim(name))=lower(trim(?)) AND abs(lat-?)<0.001 AND abs(lng-?)<0.001 LIMIT 1').get(name,lat,lng);
+    if (duplicate) throw new ApiError('Esta praça já está cadastrada. Selecione o cadastro para informar tarifas.', 409);
+    const id = `manual:${randomUUID()}`;
+    const sourceUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('INSERT INTO toll_places(id,name,lat,lng,source_url,updated_at) VALUES(?,?,?,?,?,?)')
+        .run(id,name,lat,lng,sourceUrl,now());
+      db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)').run(randomUUID(),user(res).id,'toll_places',id,'create_manual','',now());
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    res.status(201).json({ id,name,lat,lng,sourceUrl,activeTariffs:0 });
+  });
+  app.post('/api/admin/toll-places/:id/tariffs', auth, administrator, (req, res) => {
+    limit(`admin-toll-tariff:${user(res).id}`, 15, 60 * 60000);
+    const place = toll(req.params.id);
+    const vehicleType = req.body.vehicleType;
+    const price = Number(req.body.price);
+    const heading = req.body.headingDegrees == null || req.body.headingDegrees === '' ? null : Number(req.body.headingDegrees);
+    if (!['car','motorcycle'].includes(vehicleType) ||
+        req.body.price === '' || req.body.price == null || !Number.isFinite(price) || price < 0 || price > 2000 ||
+        Math.abs(price*100-Math.round(price*100)) > 0.000001 ||
+        heading !== null && (!Number.isFinite(heading) || heading < 0 || heading >= 360))
+      throw new ApiError('Informe tipo de veículo, tarifa em reais e sentido válidos.');
+    const observedAt = observationDate(req.body.observedAt);
+    const validUntil = new Date(new Date(observedAt).getTime() + 90 * 86400000).toISOString();
+    if (validUntil <= now()) throw new ApiError('Informe uma tarifa verificada nos últimos 90 dias.');
+    const id = randomUUID();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare(`INSERT INTO toll_entries(id,toll_id,user_id,vehicle_type,price,heading,observed_at,valid_until,status,notes,reviewer_id,created_at,reviewed_at)
+        VALUES(?,?,?,?,?,?,?,?,'approved','',?,?,?)`)
+        .run(id,place.id,user(res).id,vehicleType,price,heading,observedAt,validUntil,user(res).id,now(),now());
+      db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)').run(randomUUID(),user(res).id,'tolls',id,'admin_publish','',now());
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    res.status(201).json({id,tollId:place.id,status:'approved',validUntil});
+  });
+
   app.get('/api/admin/tolls', auth, administrator, (req, res) => {
     const page = Math.max(0, Math.min(10000, Number(req.query.page) || 0));
     res.json({ entries: db.prepare("SELECT e.id,e.toll_id,e.vehicle_type,e.price,e.heading,e.observed_at,e.notes,e.status,e.created_at,e.image_data IS NOT NULL AS has_photo,t.name,t.source_url,u.display_name FROM toll_entries e JOIN toll_places t ON t.id=e.toll_id JOIN users u ON u.id=e.user_id WHERE e.status='pending' ORDER BY e.created_at DESC LIMIT 20 OFFSET ?").all(page * 20) });
