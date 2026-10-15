@@ -77,6 +77,7 @@ try {
   await page.screenshot({path:'test-results/toll-mobile-pending.png'});
   await admin.goto('http://127.0.0.1:3000/admin');
   await admin.getByText('1 tarifas de pedágio pendentes',{exact:true}).waitFor();
+  await admin.getByRole('button',{name:'Solicitações'}).click();
   await admin.getByRole('button',{name:'Pedágios',exact:true}).click();
   const card=admin.locator('article').filter({has:admin.getByRole('heading',{name:'Praça da interface · Carro',exact:true})});
   await card.getByRole('img',{name:'Foto da placa de tarifas para conferência manual',exact:true}).waitFor();
