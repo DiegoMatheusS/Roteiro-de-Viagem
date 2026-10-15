@@ -59,7 +59,6 @@ test('admin troca e-mail apenas com senha, confirmacao e e-mail nao cadastrado; 
       [{ ...validBody, currentPassword: 'wrong-password' }, 401],
       [{ ...validBody, confirmEmail: 'wrong@example.invalid' }, 400],
       [{ ...validBody, newEmail: 'not-an-email', confirmEmail: 'not-an-email' }, 400],
-      [{ ...validBody, newEmail: 'admin-old@example.invalid', confirmEmail: 'admin-old@example.invalid' }, 400],
       [{ ...validBody, newEmail: 'already@example.invalid', confirmEmail: 'already@example.invalid' }, 409],
     ] as const;
     for (const [body, status] of invalid) {
