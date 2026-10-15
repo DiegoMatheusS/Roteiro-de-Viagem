@@ -26,7 +26,8 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
     for (const [name, declaration] of Object.entries(columns))
       if (!present.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${declaration}`);
   };
-  addColumns('users', { blocked_at: 'TEXT', deleted_at: 'TEXT' });
+  addColumns('users', { blocked_at: 'TEXT', deleted_at: 'TEXT', google_sub: 'TEXT' });
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;');
   addColumns('stations', { kind: "TEXT NOT NULL DEFAULT 'fuel'", active: 'INTEGER NOT NULL DEFAULT 1', managed: 'INTEGER NOT NULL DEFAULT 0', description: "TEXT NOT NULL DEFAULT ''", website: "TEXT NOT NULL DEFAULT ''", phone: "TEXT NOT NULL DEFAULT ''" });
   addColumns('photos', { observed_at: 'TEXT', content_hash: 'TEXT' });
   addColumns('prices', { approved_at: 'TEXT', approved_by: 'TEXT REFERENCES users(id)', supersedes_id: 'TEXT REFERENCES prices(id)' });

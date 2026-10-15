@@ -7,6 +7,7 @@ import { LocationSearch } from './LocationSearch';
 import { ManualStopsEditor } from './ManualStopsEditor';
 import type { MandatoryStop, PlanningLimits } from '../types/itinerary';
 import { getCurrentDeviceLocation } from '../services/locationService';
+import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { 
   Navigation, 
   MapPin, 
@@ -222,8 +223,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       <div className="bg-white border-b border-slate-200 px-5 py-4">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/20">
-              <Compass className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white flex items-center justify-center shadow-sm border border-slate-100">
+              <img src="/roteiro-logo.png" alt="Logo Roteiro de Viagem" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 leading-none">
@@ -268,7 +269,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             {isGettingGps ? 'Buscando GPS...' : 'Usar minha localização'}
           </button>
         </div>
-        {locationError && <p role="alert" className="text-xs text-rose-700">{locationError}</p>}
+        {locationError && <div role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-2">
+          <p className="font-semibold">{locationError}</p>
+          {/localiza|permiss|gps/i.test(locationError) && (isNativeApp()
+            ? <button type="button" className="font-bold underline" onClick={() => void TravelNative.openDeviceSettings({ section: 'app' }).catch(error => setLocationError((error as Error).message))}>Abrir permissões de localização</button>
+            : <p>Para usar o GPS, autorize a localização nas permissões deste site. Se estiver bloqueada, clique no ícone ao lado do endereço do site, permita o acesso e tente novamente. Você também pode selecionar a origem manualmente no modo Com destino.</p>)}
+        </div>}
         {!currentVehicle && <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">Cadastre sua moto ou carro em <strong>Ajustes → Minha Garagem</strong> para calcular combustível e gerar viagens. Nenhum veículo é adicionado automaticamente.</div>}
         {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">{isGettingGps ? 'Obtendo sua localização pelo GPS...' : 'Buscando atrações reais e verificando estradas. Aguarde...'}</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}

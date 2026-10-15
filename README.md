@@ -162,3 +162,13 @@ Validação física pendente: Android 13–16, permissão negada/aproximada/prec
 ## Limites de produção
 
 Os testes usam provedores controlados; disponibilidade e cobertura externa dependem dos provedores configurados. Overpass, Photon e OSRM públicos são adequados apenas para baixo volume. API e SQLite precisam de hospedagem HTTPS, disco persistente e backups com recuperação testada. O app usa uma instância de API por banco. Android tem build, assinatura configurável e testes instrumentados de tela apagada no emulador. A distribuição depende de backend HTTPS real, chave do proprietário, conta de distribuição e validação física com tela bloqueada.
+
+## Provedores e identidade Google
+
+**Mapas e roteamento:** continuar usando OpenStreetMap (dados), Leaflet (interface) e OSRM (trajetos, km e duração). O Google Maps não é utilizado. Os estilos visuais e os marcadores são próprios. As instâncias públicas de OSRM, Photon e Overpass servem apenas para testes e uso limitado; antes de comercializar, configurar provedores hospedados/licenciados com limites adequados.
+
+**Login Google para o site:** criar uma credencial OAuth 2.0 do tipo Aplicativo Web no Google Cloud e cadastrar a origem pública HTTPS do Cloudflare Pages em `Origens JavaScript autorizadas`. Colocar **somente o Client ID** na variável `GOOGLE_CLIENT_ID` do backend Railway. O botão usa Google Identity Services e o backend verifica a assinatura RS256, o emissor e o público do ID Token com as chaves oficiais do Google. Nunca usar uma chave de Google Maps nem colocar um Client Secret no frontend. O cadastro com e-mail e senha continua disponível, com confirmação da senha.
+
+Para evitar vincular identidades automaticamente, uma conta existente criada com senha não é mesclada pelo simples fato de o e-mail Google corresponder. O administrador também não pode acessar seu painel via login Google. **O login Google nativo no aplicativo Android depende de uma integração separada com o provedor de credenciais do Android**, pois o SDK web do Google não é suportado em WebView; até lá o Android mantém login com e-mail e senha.
+
+**Permissão de localização:** os modos Por Km e Por Horas pedem a posição GPS. Caso o acesso seja negado, uma mensagem explica como permitir e, no Android, abre as configurações do aplicativo. No modo Com destino é possível escolher origem e destino manualmente sem localização.
