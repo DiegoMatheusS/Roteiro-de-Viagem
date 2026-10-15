@@ -51,7 +51,10 @@ jobs:
           profile: pixel_5
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: cd android && ./gradlew :app:connectedDebugAndroidTest
+          script: |
+            adb logcat -c
+            cd android
+            ./gradlew :app:connectedDebugAndroidTest || { adb shell dumpsys location; adb logcat -d -v threadtime -s AndroidRuntime:E; exit 1; }
       - name: Mostrar falhas dos testes no log
         if: failure()
         run: |
