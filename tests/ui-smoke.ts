@@ -104,6 +104,11 @@ try {
   await adminAccount.getByLabel('Senha', { exact: true }).fill('admin-ui-test-password');
   await adminAccount.getByRole('button', { name: 'Entrar', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Preços de combustíveis', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await adminPage.getByRole('heading', { name: 'Alterar senha', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Salvar nova senha', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Preços de combustíveis', exact: true }).click();
+
   const photoCard = adminPage.locator('article').filter({ has: adminPage.getByRole('heading', { name: 'Posto de teste de interface', exact: true }) });
   assert.equal(await photoCard.getByLabel('Preço 1', { exact: true }).inputValue(), '');
   assert.equal(await photoCard.getByLabel('Preço 3', { exact: true }).inputValue(), '');
