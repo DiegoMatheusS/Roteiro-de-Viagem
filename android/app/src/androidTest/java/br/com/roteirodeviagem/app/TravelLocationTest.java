@@ -46,10 +46,12 @@ public class TravelLocationTest {
   device.executeShellCommand("cmd location set-location-enabled true");
   manager.addTestProvider(LocationManager.GPS_PROVIDER,false,false,false,false,true,true,true,1,1);manager.setTestProviderEnabled(LocationManager.GPS_PROVIDER,true);
   await("A localização e o provedor de teste habilitados",()->manager.isLocationEnabled()&&manager.isProviderEnabled(LocationManager.GPS_PROVIDER));
-  activity=ActivityScenario.launch(MainActivity.class);
-  await(()->Boolean.parseBoolean(js("!!window.Capacitor && document.body.innerText.includes('Entrar / Criar conta')")));
  }
- private String js(String expression) throws Exception {AtomicReference<String> value=new AtomicReference<>();activity.onActivity(a->a.getBridge().getWebView().evaluateJavascript(expression,value::set));await(()->value.get()!=null);return value.get();}
+ private String js(String expression) throws Exception {
+  AtomicReference<String> value=new AtomicReference<>();java.util.concurrent.CountDownLatch callback=new java.util.concurrent.CountDownLatch(1);
+  activity.onActivity(a->a.getBridge().getWebView().evaluateJavascript(expression,result->{value.set(result);callback.countDown();}));
+  assertTrue("O WebView deve responder à ponte nativa em até 60 segundos",callback.await(60,TimeUnit.SECONDS));return value.get();
+ }
  private void start(String action,String tripId,String origin,String token){activity.onActivity(a->{Intent intent=new Intent(a,TravelLocationService.class).setAction(action).putExtra("tripId",tripId).putExtra("distanceKm",5.0).putExtra("convoyId","native-fixture").putExtra("origin",origin).putExtra("cookie","rdv_session=instrumentation-fixture").putExtra("locationToken",token);ContextCompat.startForegroundService(a,intent);});}
  private void position(double lat,double lng) {Location point=new Location(LocationManager.GPS_PROVIDER);point.setLatitude(lat);point.setLongitude(lng);point.setAccuracy(3);point.setTime(System.currentTimeMillis());point.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());manager.setTestProviderLocation(LocationManager.GPS_PROVIDER,point);}
  private void observedPosition(double lat,double lng) throws Exception {
@@ -65,6 +67,9 @@ public class TravelLocationTest {
  }
  @After public void finish() throws Exception {device.wakeUp();device.executeShellCommand("wm dismiss-keyguard");context.stopService(new Intent(context,TravelLocationService.class));await(()->!TravelLocationService.running);if(activity!=null)activity.close();try{manager.removeTestProvider(LocationManager.GPS_PROVIDER);}catch(Exception ignored){}}
  @Test public void gpsAndConvoyContinueWithScreenOffAndNotificationStopsBoth() throws Exception {
+  // Only this integration test needs an activity. Permission and intent tests are native.
+  activity=ActivityScenario.launch(MainActivity.class);
+  await("A ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins")));
   // The HTTPS server, certificate and session below exist only inside this instrumentation test.
   HeldCertificate cert=new HeldCertificate.Builder().commonName("127.0.0.1").addSubjectAlternativeName("127.0.0.1").addSubjectAlternativeName("localhost").build();
   HandshakeCertificates serverTls=new HandshakeCertificates.Builder().heldCertificate(cert).build(),clientTls=new HandshakeCertificates.Builder().addTrustedCertificate(cert.certificate()).build();

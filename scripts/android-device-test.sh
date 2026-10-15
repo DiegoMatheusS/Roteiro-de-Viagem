@@ -10,5 +10,5 @@ fi
 # Read diagnostics before emulator-runner shuts down the device.
 # A failed diagnostic must not replace the test failure with success.
 adb shell dumpsys location || true
-adb logcat -d -v threadtime -s AndroidRuntime:E || true
+adb logcat -d -v threadtime -s AndroidRuntime:E chromium:E Capacitor:W ActivityManager:W || true
 exit 1
