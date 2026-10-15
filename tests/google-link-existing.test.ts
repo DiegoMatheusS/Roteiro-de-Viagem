@@ -25,11 +25,13 @@ test('verified Google login links an existing traveler account without duplicati
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
   const apiUrl = 'http://127.0.0.1:' + (server.address() as any).port + '/api';
-  const request = async (route: string, body: unknown) => {
+  const request = async (route: string, body?: unknown, cookie?: string) => {
     const response = await globalThis.fetch(apiUrl + route, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(cookie ? { Cookie: cookie } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body)
     });
-    return { status: response.status, body: await response.json() as any };
+    return { status: response.status, body: await response.json() as any, cookie: response.headers.get('set-cookie')?.split(';')[0] };
   };
   const credential = (email: string, sub: string, hd?: string) => {
     const now = Math.floor(Date.now() / 1000);
@@ -61,7 +63,7 @@ test('verified Google login links an existing traveler account without duplicati
     assert.equal((await request('/auth/login', { email: 'traveler@gmail.com', password: 'Original-password-12345' })).status, 200);
     assert.equal((await request('/auth/google', { credential: googleToken })).body.user.id, existingId);
     const anotherGoogleIdentity = await request('/auth/google', { credential: credential('traveler@gmail.com', 'hijacker-sub-2') });
-    assert.equal(anotherGoogleIdentity.status, 403);
+    assert.equal(anotherGoogleIdentity.status, 409);
 
     const external = await register('traveler@external.example');
     assert.equal(external.status, 201);
@@ -82,10 +84,40 @@ test('verified Google login links an existing traveler account without duplicati
     assert.equal((await request('/auth/google', { credential: credential('person@empresa.com.br', 'workspace-sub', 'empresa.com.br') })).status, 200);
     assert.equal((db.prepare('SELECT COUNT(*) count FROM users').get() as any).count, 3);
 
+    // A previously linked traveler promoted to admin keeps Google sign-in, but it never grants admin rights.
     db.prepare('UPDATE users SET role=? WHERE email=?').run('admin', 'traveler@gmail.com');
-    const adminBlocked = await request('/auth/google', { credential: googleToken });
-    assert.equal(adminBlocked.status, 403);
-    assert.equal((await request('/auth/login', { email: 'traveler@gmail.com', password: 'Original-password-12345' })).status, 200);
+    const adminAsTraveler = await request('/auth/google', { credential: googleToken });
+    assert.equal(adminAsTraveler.status, 200);
+    assert.equal(adminAsTraveler.body.user.id, existingId);
+    assert.equal(adminAsTraveler.body.user.role, 'user');
+    assert.equal((await request('/auth/me', undefined, adminAsTraveler.cookie)).body.user.role, 'user');
+    assert.equal((await request('/admin/summary', undefined, adminAsTraveler.cookie)).status, 403);
+    const adminByPassword = await request('/auth/login', { email: 'traveler@gmail.com', password: 'Original-password-12345' });
+    assert.equal(adminByPassword.status, 200);
+    assert.equal(adminByPassword.body.user.role, 'admin');
+    assert.equal((await request('/admin/summary', undefined, adminByPassword.cookie)).status, 200);
+
+    // An existing administrator first linking Google must confirm the account password.
+    const otherAdmin = await register('anotheradmin@gmail.com');
+    assert.equal(otherAdmin.status, 201);
+    db.prepare('UPDATE users SET role=? WHERE id=?').run('admin', otherAdmin.body.user.id);
+    const adminCredential = credential('anotheradmin@gmail.com', 'another-admin-sub');
+    const adminChallenge = await request('/auth/google', { credential: adminCredential });
+    assert.equal(adminChallenge.status, 409);
+    assert.equal(adminChallenge.body.code, 'GOOGLE_LINK_PASSWORD_REQUIRED');
+    assert.equal((await request('/auth/google', { credential: adminCredential, password: 'incorrect' })).status, 401);
+    const linkedAdmin = await request('/auth/google', { credential: adminCredential, password: 'Original-password-12345' });
+    assert.equal(linkedAdmin.status, 200);
+    assert.equal(linkedAdmin.body.user.id, otherAdmin.body.user.id);
+    assert.equal(linkedAdmin.body.user.role, 'user');
+    assert.equal((await request('/admin/summary', undefined, linkedAdmin.cookie)).status, 403);
+    const repeatAdminGoogle = await request('/auth/google', { credential: adminCredential });
+    assert.equal(repeatAdminGoogle.status, 200);
+    assert.equal(repeatAdminGoogle.body.user.role, 'user');
+    assert.equal((await request('/admin/summary', undefined, repeatAdminGoogle.cookie)).status, 403);
+    const standardAdmin = await request('/auth/login', { email: 'anotheradmin@gmail.com', password: 'Original-password-12345' });
+    assert.equal(standardAdmin.body.user.role, 'admin');
+    assert.equal((await request('/admin/summary', undefined, standardAdmin.cookie)).status, 200);
     const brandNew = await request('/auth/google', { credential: credential('newgmail@gmail.com', 'fresh-sub') });
     assert.equal(brandNew.status, 200);
     assert.equal(brandNew.body.user.role, 'user');
