@@ -63,3 +63,9 @@ A API autenticada `POST /api/admin/change-password`:
 Depois de alterar esta funcionalidade no repositório, publique **ambos**: o backend atualizado do Railway (GitHub conectado) e o novo ZIP de build do admin em **Cloudflare Pages → Deployments → Create deployment**. Para o projeto que já usa `roteirodeviagem.pages.dev` apenas como painel, publique o ZIP administrativo no **mesmo projeto**, substituindo o frontend anterior. Não é necessário criar outro Pages nem alterar o banco.
 
 Nota: o painel não cria automaticamente uma conta administrativa. O primeiro usuário deve ser criado com `npm run admin:create -- email` no Railway, ou uma conta já existente deve ser promovida com `npm run admin -- email`. Não exponha senhas em chat ou em arquivos de configuração.
+
+## Configurações → Alterar e-mail
+
+Na mesma seção **Configurações**, o administrador pode informar o novo e-mail, repetir o endereço e inserir a senha atual. A API `POST /api/admin/change-email` confere a senha armazenada em scrypt, valida o endereço, impede duplicidades, restringe tentativas e atualiza a mesma conta no banco. Após sucesso, encerra todas as sessões e exige novo login com o e-mail novo. A consulta `GET /api/admin/account` exibe o e-mail atual exclusivamente para administradores autenticados.
+
+**Atenção:** a alteração não envia mensagem nem confirmação de posse do novo e-mail, pois o projeto ainda não tem um serviço de verificação de e-mail. Digite e confira cuidadosamente o novo endereço. O login continua protegido pela senha atual da conta.
