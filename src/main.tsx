@@ -5,7 +5,6 @@ import 'leaflet/dist/leaflet.css';
 import { AuthProvider } from './contexts/AuthContext';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
-const AdminPage = lazy(() => import('./components/admin/AdminPage'));
 const SharedRoutePage = lazy(() => import('./components/SharedRoutePage'));
 
 function AppEntry() {
@@ -16,7 +15,8 @@ function AppEntry() {
     window.addEventListener('popstate', refresh);
     return () => { window.removeEventListener('hashchange', refresh); window.removeEventListener('popstate', refresh); };
   }, []);
-  if (route.path.replace(/\/+$/, '') === '/admin') return <Suspense fallback={<p className="p-5">Carregando painel...</p>}><AdminPage /></Suspense>;
+  // A administração está em um site separado; nunca carregar o painel no app público.
+  if (/^\/admin(?:\/|$)/i.test(route.path)) return <main className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><p className="text-slate-700">Página não encontrada.</p></main>;
   if (route.hash.startsWith('#roteiro=')) return <Suspense fallback={<p className="p-5">Carregando roteiro...</p>}><SharedRoutePage /></Suspense>;
   return <App />;
 }
