@@ -6,7 +6,7 @@ Dois projetos **Cloudflare Pages**, uma unica API e um unico banco SQLite persis
 - Admin separado (nome sugerido): `https://adminroteirodeviagem.pages.dev`
 - API e banco: servico `roteiro-api` no Railway
 
-O admin é um frontend independente compilado a partir de `admin.html`, `src/admin-main.tsx` e `vite.admin.config.ts`.
+O admin é um frontend independente compilado a partir de `admin-entry.html`, `src/admin-main.tsx` e `vite.admin.config.ts`.
 Ele **nao inclui as telas de viagens** e exibe apenas login e painel administrativo. Nao oferece cadastro de contas nem acesso publico as acoes.
 O backend continua autorizando cada operacao por sessao e permissao `admin` — esconder a interface nao substitui essa verificacao.
 
