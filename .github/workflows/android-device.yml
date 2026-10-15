@@ -1,0 +1,76 @@
+name: Testar Android no emulador
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  device:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [33, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
+          log-accepted-android-sdk-licenses: false
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Compilar aplicativo e testes antes de abrir o emulador
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest && ./gradlew --stop
+      - name: Habilitar aceleração do emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Liberar espaço do ambiente de CI para o Android 13
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android/sdk/ndk
+          df -h /home/runner
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          ram-size: 3072M
+          # Functional GPS tests do not require the Pixel 5's full-resolution framebuffer.
+          pre-emulator-launch-script: python3 scripts/android-test-display.py
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: bash scripts/android-device-test.sh
+      - name: Mostrar falhas dos testes no log
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in Path('android/app/build/outputs/androidTest-results').rglob('*.xml'):
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  for failure in case.findall('failure'):
+                      print(case.attrib.get('name'), failure.attrib, failure.text)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          name: android-testes-${{ matrix.api }}
+          retention-days: 3
+          path: android/app/build/reports/androidTests/

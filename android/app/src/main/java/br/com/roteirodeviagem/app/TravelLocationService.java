@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
 public class TravelLocationService extends Service implements LocationListener {
   public static volatile boolean running=false;
   public static volatile JSObject lastPosition=null;
-  public static volatile String activeConvoyId="";
+  public static volatile String activeConvoyId="",activeTripId="";
   private volatile String tripId="",convoyId="",locationToken="",origin="",cookie="";
   private double distanceKm=0;
   private Location previous;
@@ -44,13 +44,13 @@ public class TravelLocationService extends Service implements LocationListener {
   @Override public int onStartCommand(Intent intent,int flags,int startId) {
     if(intent==null) { stopSelf(); return START_NOT_STICKY; }
     String action=intent.getAction();
-    if("STOP_ALL".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).apply(); revoke(); tripId=""; convoyId=""; activeConvoyId=""; stopSelf(); return START_NOT_STICKY; }
-    if("STOP_TRIP".equals(action)) { tripId=""; previous=null; }
+    if("STOP_ALL".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).putString("stoppedTripId",tripId).apply(); revoke(); tripId=""; activeTripId=""; convoyId=""; activeConvoyId=""; stopSelf(); return START_NOT_STICKY; }
+    if("STOP_TRIP".equals(action)) { tripId=""; activeTripId=""; previous=null; }
     if("STOP_CONVOY".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).apply(); revoke(); convoyId=""; activeConvoyId=""; }
     if("TRIP".equals(action)) {
       String next=intent.getStringExtra("tripId"); if(next==null || next.length()>300) { stopSelf(); return START_NOT_STICKY; }
       if(!next.equals(tripId)) {
-        tripId=next; previous=null;
+        tripId=next; activeTripId=next; previous=null; pref.edit().remove("stoppedTripId").apply();
         distanceKm=Math.max(intent.getDoubleExtra("distanceKm",0), next.equals(pref.getString("tripId","")) ? Double.longBitsToDouble(pref.getLong("distance",Double.doubleToLongBits(0))) : 0);
         persist();
       }
@@ -102,5 +102,5 @@ public class TravelLocationService extends Service implements LocationListener {
   @Override public void onProviderDisabled(String provider) { previous=null; lastPosition=null; }
   @Override public void onProviderEnabled(String provider) {}
   @Override public void onStatusChanged(String provider,int status,Bundle extras) {}
-  @Override public void onDestroy() { running=false; activeConvoyId=""; lastPosition=null; if(manager!=null) manager.removeUpdates(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }
+  @Override public void onDestroy() { running=false; activeTripId=""; activeConvoyId=""; lastPosition=null; if(manager!=null) manager.removeUpdates(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }
 }

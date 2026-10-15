@@ -1,0 +1,31 @@
+name: Validar servidor em container
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t roteiro-ci .
+      - name: Conferir API, arquivos do app e persistência
+        run: |
+          docker volume create rdv-ci-data
+          docker run --rm -v rdv-ci-data:/data --user root --entrypoint sh roteiro-ci -c 'chown node:node /data'
+          docker run -d --name rdv-ci -p 3008:3001 -e PUBLIC_APP_URL=http://127.0.0.1:3008 -v rdv-ci-data:/app/data roteiro-ci
+          curl --fail --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors http://127.0.0.1:3008/api/health
+          curl --fail http://127.0.0.1:3008/ | grep 'root'
+          curl --fail -H 'Content-Type: application/json' -d '{"email":"container@example.test","displayName":"Teste do container","password":"fixture-password-long"}' http://127.0.0.1:3008/api/auth/register
+          docker restart rdv-ci
+          curl --fail --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors http://127.0.0.1:3008/api/health
+          curl --fail -H 'Content-Type: application/json' -d '{"email":"container@example.test","password":"fixture-password-long"}' http://127.0.0.1:3008/api/auth/login
+      - name: Encerrar ambiente de teste
+        if: always()
+        run: |
+          docker logs rdv-ci || true
+          docker rm -f rdv-ci || true
+          docker volume rm rdv-ci-data || true

@@ -6,8 +6,23 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: Origem HTTPS do backend para APK de teste
+        description: Origem HTTPS do backend
         required: true
+        type: string
+      distribution:
+        description: Tipo de pacote
+        required: true
+        default: debug
+        type: choice
+        options: [debug, release]
+      version_code:
+        description: Número de versão crescente para release
+        required: false
+        type: string
+      version_name:
+        description: Versão exibida no aplicativo
+        required: false
+        default: 0.5.0
         type: string
 permissions:
   contents: read
@@ -30,16 +45,63 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: npm ci
       - run: npm run build
-      - run: npx cap sync android
+      - name: Validar e embutir endereço do backend
+        run: npx cap sync android
         env:
           RDV_API_URL: ${{ inputs.api_url || vars.RDV_API_URL }}
       - run: chmod +x android/gradlew
-      - run: ./gradlew assembleDebug
+      - name: Compilar APK de teste
+        if: inputs.distribution != 'release'
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
         working-directory: android
-      - uses: actions/upload-artifact@v4
+      - name: Validar APK e AAB com chave descartável de teste
+        if: github.event_name != 'workflow_dispatch'
+        working-directory: android
+        env:
+          RDV_KEYSTORE_FILE: ${{ runner.temp }}/rdv-ci.jks
+          RDV_STORE_PASSWORD: fixture-only-ci
+          RDV_KEY_ALIAS: ci
+          RDV_KEY_PASSWORD: fixture-only-ci
+          RDV_VERSION_CODE: 1
+          RDV_VERSION_NAME: 0.5.0-ci
+        run: |
+          trap 'rm -f "$RDV_KEYSTORE_FILE"; rm -rf app/build/outputs/apk/release app/build/outputs/bundle/release' EXIT
+          keytool -genkeypair -noprompt -keystore "$RDV_KEYSTORE_FILE" -alias ci -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=CI Teste Descartavel' -storepass "$RDV_STORE_PASSWORD" -keypass "$RDV_KEY_PASSWORD"
+          ./gradlew :app:assembleRelease :app:bundleRelease
+      - name: Preparar chave privada de release
+        if: inputs.distribution == 'release'
+        env:
+          RDV_KEYSTORE_BASE64: ${{ secrets.RDV_KEYSTORE_BASE64 }}
+          RDV_STORE_PASSWORD: ${{ secrets.RDV_STORE_PASSWORD }}
+          RDV_KEY_ALIAS: ${{ secrets.RDV_KEY_ALIAS }}
+          RDV_KEY_PASSWORD: ${{ secrets.RDV_KEY_PASSWORD }}
+        run: |
+          test -n "$RDV_KEYSTORE_BASE64" && test -n "$RDV_STORE_PASSWORD" && test -n "$RDV_KEY_ALIAS" && test -n "$RDV_KEY_PASSWORD"
+          printf '%s' "$RDV_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/rdv-release.jks"
+          chmod 600 "$RUNNER_TEMP/rdv-release.jks"
+      - name: Compilar APK e AAB assinados
+        if: inputs.distribution == 'release'
+        working-directory: android
+        env:
+          RDV_KEYSTORE_FILE: ${{ runner.temp }}/rdv-release.jks
+          RDV_STORE_PASSWORD: ${{ secrets.RDV_STORE_PASSWORD }}
+          RDV_KEY_ALIAS: ${{ secrets.RDV_KEY_ALIAS }}
+          RDV_KEY_PASSWORD: ${{ secrets.RDV_KEY_PASSWORD }}
+          RDV_VERSION_CODE: ${{ inputs.version_code }}
+          RDV_VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          test -n "$RDV_VERSION_CODE" && test -n "$RDV_VERSION_NAME"
+          ./gradlew :app:assembleRelease :app:bundleRelease
+      - name: Disponibilizar pacote conectado ao backend
+        uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || vars.RDV_API_URL != ''
-        continue-on-error: true
         with:
           retention-days: 3
-          name: roteiro-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: roteiro-android-${{ inputs.distribution || 'debug' }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+      - name: Remover chave temporária
+        if: always()
+        run: rm -f "$RUNNER_TEMP/rdv-release.jks"

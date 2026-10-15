@@ -3,10 +3,14 @@ import type { DeviceLocation } from './locationService';
 export const isNativeApp = () => Capacitor.isNativePlatform();
 export const TravelNative = registerPlugin<{
   request(options: { path: string; method: string; body?: string; form?: { name: string; value?: string; data?: string; mime?: string }[]; binary?: boolean }): Promise<{ status: number; body: string }>;
-  startTracking(options: { tripId: string; distanceKm: number }): Promise<void>;
+  startTracking(options: { tripId: string; distanceKm: number; resume?:boolean }): Promise<void>;
   stopTracking(): Promise<void>;
-  state(): Promise<{ tripId: string; convoyId?: string; stoppedLocationToken?:string; distanceKm: number; running: boolean; position?: DeviceLocation }>;
+  state(): Promise<{ tripId: string; lastTripId?:string; stoppedTripId?:string; convoyId?: string; stoppedLocationToken?:string; distanceKm: number; running: boolean; position?: DeviceLocation }>;
   setConvoy(options: { convoyId: string; enabled: boolean; locationToken?: string }): Promise<void>;
+  diagnostics():Promise<{preciseLocation:boolean;approximateLocation:boolean;gpsEnabled:boolean;notificationsEnabled:boolean;tracking:boolean;apiConfigured:boolean;androidVersion:string;appVersion:string}>;
+  openDeviceSettings(options:{section:'app'|'location'|'notifications'}):Promise<void>;
+  openExternal(options:{url:string}):Promise<void>;
+  copyText(options:{text:string}):Promise<void>;
 }>('TravelNative');
 export async function nativeRequest(path: string, options: RequestInit = {}) {
   const form: { name: string; value?: string; data?: string; mime?: string }[] = [];
