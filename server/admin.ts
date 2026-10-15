@@ -5,7 +5,7 @@ import { ApiError, auth, administrator, asyncRoute, now, user, validate, observa
 import { lookupMapPlace, validateCoordinates, nearbyPlaceRows, type MapFetch } from './maps';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { validatePriceDraft } from '../src/services/fuelPriceRules';
-import { PLACE_KINDS, type Place, type PriceHistory } from '../src/types/admin';
+import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place, type PriceHistory } from '../src/types/admin';
 
 const pageArgs = (req: Request) => {
   const page = Number(req.query.page || 1);
@@ -104,8 +104,11 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   app.get('/api/admin/places', (req, res) => {
     const q = text(String(req.query.q || ''), 100);
     const kind = String(req.query.kind || '');
-    const params = [`%${q}%`, `%${q}%`, kind, kind];
-    const where = 'WHERE (name LIKE ? OR address LIKE ?) AND (?=\'\' OR kind=?)';
+    const touristOnly = req.query.group === 'tourist';
+    const params: (string | number)[] = [`%${q}%`, `%${q}%`, kind, kind];
+    const filter = touristOnly ? ` AND kind IN (${TOURIST_PLACE_KINDS.map(() => '?').join(',')})` : '';
+    if (touristOnly) params.push(...TOURIST_PLACE_KINDS);
+    const where = "WHERE (name LIKE ? OR address LIKE ?) AND (?='' OR kind=?)" + filter;
     const result = pageResult(req, `SELECT * FROM stations ${where} ORDER BY active DESC,name,id`, `SELECT COUNT(*) AS count FROM stations ${where}`, params);
     result.items = result.items.map(placeDto) as any;
     res.json(result);
