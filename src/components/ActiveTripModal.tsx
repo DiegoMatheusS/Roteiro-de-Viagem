@@ -146,28 +146,31 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           originCoords={trip.originCoords}
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
+          navigationMode
+          routeProgressKm={tracking.distanceKm}
+          liveAccuracyMeters={isGpsActive ? tracking.position?.accuracyMeters : undefined}
           stops={trip.stops}
           weatherPoints={trip.weatherPoints}
           tolls={trip.tolls || []}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
-          showRainLayer={trip.hasRainRisk}
+          showRainLayer={trip.weatherPoints.length > 0}
+          showFuelStations={false}
           className="w-full h-full"
         />
 
         <div className="absolute bottom-20 left-3 right-16 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={conditions} /></div>
 
-        {/* FLOATING SPEEDOMETER - WHITE CARD OVERLAY */}
-        <div className="absolute top-4 left-4 z-30 flex flex-col gap-2">
-          <div className="p-3 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl flex items-center gap-3">
-            <div className="text-3xl font-black text-emerald-700 font-mono tabular-nums">
-              {currentSpeed ?? '—'}
-            </div>
-            <div className="text-[10px] text-slate-500 uppercase font-extrabold leading-tight">
-              KM/H<br />VELOCIDADE
-            </div>
+        {/* GPS speed is displayed only when the fix is fresh; no guessed speed limit. */}
+        <div className="absolute bottom-24 left-3 z-30">
+          <div className="h-[76px] w-[76px] rounded-full bg-white border-[5px] border-slate-900 shadow-xl flex flex-col items-center justify-center" aria-label={`Velocidade atual: ${currentSpeed ?? 'indisponível'} km/h`}>
+            <strong className="text-2xl font-black text-slate-900 tabular-nums leading-none">{currentSpeed ?? '—'}</strong>
+            <span className="text-[10px] font-bold text-slate-600">km/h</span>
           </div>
         </div>
+        <p className="absolute bottom-4 left-3 z-30 rounded-lg bg-white/90 px-2 py-1 text-[10px] text-slate-600 max-w-[210px] shadow">
+          Azul-claro: à frente · Azul-escuro: percorrido pelo GPS
+        </p>
       </div>
 
       {/* BOTTOM NAVIGATION CONTROLS - WHITE MENU */}
