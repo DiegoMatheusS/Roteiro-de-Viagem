@@ -9,6 +9,9 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TEXT NOT NULL);
+    -- The same traveler account may have an admin role, but Google sessions never authorize administration.
+    -- A separate per-session marker avoids changing existing session records or permissions.
+    CREATE TABLE IF NOT EXISTS google_traveler_sessions (token_hash TEXT PRIMARY KEY REFERENCES sessions(token_hash) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS stations (id TEXT PRIMARY KEY, name TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, address TEXT NOT NULL, source_url TEXT NOT NULL, opening_hours TEXT, hours_verified_at TEXT, map_updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS map_queries (id TEXT PRIMARY KEY, station_ids TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, station_id TEXT NOT NULL REFERENCES stations(id), user_id TEXT NOT NULL REFERENCES users(id), filename TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, image_data BLOB NOT NULL);
