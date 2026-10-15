@@ -52,7 +52,7 @@ export function AuthProvider({ children, adminOnly = false }: { children: React.
     {children}
     {open && <div className="fixed inset-0 z-90 bg-slate-900/60 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-label={adminOnly ? "Acesso administrativo" : "Conta do viajante"}>
       <form onSubmit={submit} className="w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex justify-between items-center"><h2 className="font-bold">{adminOnly ? 'Entrar no painel administrativo' : register ? 'Criar conta' : 'Entrar para contribuir'}</h2><button type="button" aria-label="Fechar login" onClick={() => setOpen(false)}>✕</button></div>
+        <div className="flex justify-between items-center gap-2"><div className="flex items-center gap-2"><img src="/roteiro-logo.png" alt="" className="w-9 h-9 object-contain" /><h2 className="font-bold">{adminOnly ? 'Entrar no painel administrativo' : register ? 'Criar conta' : 'Entrar para contribuir'}</h2></div><button type="button" aria-label="Fechar login" onClick={() => setOpen(false)}>✕</button></div>
         <p className="text-xs text-slate-500">{adminOnly ? 'Acesso exclusivo a administradores previamente autorizados.' : 'Sua conta identifica contribuições e confirmações de preços.'}</p>
         {register && !adminOnly && <label className="block text-xs font-semibold">Nome de exibição<input name="displayName" required minLength={2} maxLength={50} className="mt-1 w-full border rounded-xl p-3" autoComplete="name" /></label>}
         <label className="block text-xs font-semibold">E-mail<input name="email" type="email" required className="mt-1 w-full border rounded-xl p-3" autoComplete="email" /></label>
