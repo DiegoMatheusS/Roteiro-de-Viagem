@@ -50,3 +50,16 @@ Informe e confirme a senha quando solicitado: nao havera eco no terminal. O coma
 Se a conta ja existir, o comando a preserva e falha. Para promover uma conta existente sem trocar a senha, use `npm run admin -- seu-email@exemplo.com`.
 
 Sempre execute dentro do container que tem o volume montado, e nunca em um Codespace ou computador sem o mesmo banco. Evite divulgar senha ou executa-la como argumento (fica no historico do shell).
+
+## Configurações -> Alterar senha
+
+A aba **Configurações** do painel oferece o formulario com senha atual, nova senha e confirmação.
+A API autenticada `POST /api/admin/change-password`:
+- exige sessão `admin`, senha atual correta e confirmação de 10 a 128 caracteres;
+- limita tentativas, utiliza salt novo com scrypt e não expõe nem registra a senha;
+- revoga **todas** as sessões da conta após a troca, incluindo outros dispositivos;
+- limpa o cookie da sessão e exige novo login.
+
+Depois de alterar esta funcionalidade no repositório, publique **ambos**: o backend atualizado do Railway (GitHub conectado) e o novo ZIP de build do admin em **Cloudflare Pages → Deployments → Create deployment**. Para o projeto que já usa `roteirodeviagem.pages.dev` apenas como painel, publique o ZIP administrativo no **mesmo projeto**, substituindo o frontend anterior. Não é necessário criar outro Pages nem alterar o banco.
+
+Nota: o painel não cria automaticamente uma conta administrativa. O primeiro usuário deve ser criado com `npm run admin:create -- email` no Railway, ou uma conta já existente deve ser promovida com `npm run admin -- email`. Não exponha senhas em chat ou em arquivos de configuração.
