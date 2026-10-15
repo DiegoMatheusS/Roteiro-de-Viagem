@@ -54,11 +54,16 @@ test('road hazards require signed-in sender and admin approval; public route rev
     assert.equal('status' in visible.data.alerts[0],false);
     assert.deepEqual((await call('POST','/road-alerts/route',{routePath:[[0,0],[0,0.01]]})).data.alerts,[]);
     assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'reject'},admin.cookie)).status,409);
+    const revoked = await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'revoke'},admin.cookie);
+    assert.equal(revoked.status,200);
+    assert.equal(revoked.data.status,'rejected');
+    assert.equal((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.length,0);
+    assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'revoke'},admin.cookie)).status,409);
     db.prepare("UPDATE road_alerts SET expires_at=? WHERE id=?").run(new Date(Date.now()-60000).toISOString(),created.data.id);
     assert.equal((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.length,0);
     const mine=await call('GET','/road-alerts/mine',undefined,traveler.cookie);
     assert.equal(mine.data.alerts[0].status,'expired');
-    assert.equal((db.prepare("SELECT count(*) AS total FROM moderation_actions WHERE target_type='road_alerts'").get() as any).total,1);
+    assert.equal((db.prepare("SELECT count(*) AS total FROM moderation_actions WHERE target_type='road_alerts'").get() as any).total,2);
   } finally {await new Promise<void>(resolve=>server.close(()=>resolve()));db.close();}
 });
 test('stopped vehicle alert expires quickly and rejected reports never appear',async()=>{
