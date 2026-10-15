@@ -75,9 +75,7 @@ try {
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
-  await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
-  await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
   // GPS modes must ignore even an incomplete draft in the manual destination tab.
   await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
@@ -237,8 +235,6 @@ try {
   await adminPage.getByText('Dados salvos.', { exact: true }).waitFor();
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('button', { name: 'Abrir menu' }).click();
-  await page.getByRole('button', { name: 'Abrir menu' }).click();
-  await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
@@ -262,7 +258,9 @@ try {
   await adminPage.getByText(/Conta excluída/).waitFor();
   assert.ok((db.prepare("SELECT deleted_at FROM users WHERE display_name='Usuário excluído'").get() as any).deleted_at);
   await restaurant.getByRole('button', { name: 'Fechar estabelecimento', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
+  await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
   await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
   // Clear the incomplete manual draft if Home stayed mounted.
   while (await page.getByRole('button', { name: 'Remover parada 1', exact: true }).count()) await page.getByRole('button', { name: 'Remover parada 1', exact: true }).click();
@@ -359,6 +357,7 @@ try {
     assert.ok(restored.trips.some((trip: any) => trip.manualStops?.length === 2));
   } finally { await secondDevice.close(); }
   // Navigation controls preserve the active trip in the menu and can end a planned trip.
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   const alter = await page.getByRole('button', { name: 'Alterar rota', exact: true }).boundingBox();
   const zoom = await page.locator('.leaflet-control-zoom-out').boundingBox();
@@ -372,6 +371,7 @@ try {
   await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
