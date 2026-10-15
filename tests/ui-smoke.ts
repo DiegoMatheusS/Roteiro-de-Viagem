@@ -124,6 +124,8 @@ try {
   await adminPage.getByRole('heading', { name: 'Preços de combustíveis', exact: true }).waitFor();
   await adminPage.getByRole('button', { name: 'Configurações', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Alterar senha', exact: true }).waitFor();
+  await adminPage.getByRole('heading', { name: 'Alterar e-mail', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Salvar novo e-mail', exact: true }).waitFor();
   await adminPage.getByRole('button', { name: 'Salvar nova senha', exact: true }).waitFor();
   await adminPage.getByRole('button', { name: 'Preços de combustíveis', exact: true }).click();
 
