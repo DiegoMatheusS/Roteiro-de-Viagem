@@ -116,7 +116,7 @@ test('roteiro considera pontos turísticos criados no cadastro administrativo', 
   try {
     const response = await fetch(`http://127.0.0.1:${(server.address() as any).port}/api/routes/tourist`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'km', target: 15, tripType: 'one_way', originCoords: [0, 0], interests: ['museus'] })
+      body: JSON.stringify({ mode: 'km', target: 7, tripType: 'one_way', originCoords: [0, 0], interests: ['museus'] })
     });
     assert.equal(response.status, 200);
     const result = await response.json() as any;
