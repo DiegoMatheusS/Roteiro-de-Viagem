@@ -35,7 +35,8 @@ public class TravelLocationTest {
  private Context context;private LocationManager manager;private ActivityScenario<MainActivity> activity;private UiDevice device;
  interface Check {boolean ok() throws Exception;}
  private void await(Check check) throws Exception {await("O estado esperado",check);}
- private void await(String description,Check check) throws Exception {long until=SystemClock.elapsedRealtime()+15000;while(SystemClock.elapsedRealtime()<until){if(check.ok())return;SystemClock.sleep(200);}assertTrue(description+" não chegou em 15 segundos. GPS: "+gpsState(),check.ok());}
+ private void await(String description,Check check) throws Exception {await(description,check,15000);}
+ private void await(String description,Check check,long timeout) throws Exception {long until=SystemClock.elapsedRealtime()+timeout;while(SystemClock.elapsedRealtime()<until){if(check.ok())return;SystemClock.sleep(200);}assertTrue(description+" não chegou em "+timeout/1000+" segundos. GPS: "+gpsState(),check.ok());}
  private String gpsState(){return "locationEnabled="+manager.isLocationEnabled()+", providerEnabled="+manager.isProviderEnabled(LocationManager.GPS_PROVIDER)+", running="+TravelLocationService.running+", trip="+TravelLocationService.activeTripId+", convoy="+TravelLocationService.activeConvoyId+", position="+TravelLocationService.lastPosition;}
  @Before public void prepare() throws Exception {
   context=InstrumentationRegistry.getInstrumentation().getTargetContext();device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
@@ -69,7 +70,7 @@ public class TravelLocationTest {
  @Test public void gpsAndConvoyContinueWithScreenOffAndNotificationStopsBoth() throws Exception {
   // Only this integration test needs an activity. Permission and intent tests are native.
   activity=ActivityScenario.launch(MainActivity.class);
-  await("A ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins")));
+  await("A interface e a ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins && document.body.innerText.includes('Entrar / Criar conta')")),60000);
   // The HTTPS server, certificate and session below exist only inside this instrumentation test.
   HeldCertificate cert=new HeldCertificate.Builder().commonName("127.0.0.1").addSubjectAlternativeName("127.0.0.1").addSubjectAlternativeName("localhost").build();
   HandshakeCertificates serverTls=new HandshakeCertificates.Builder().heldCertificate(cert).build(),clientTls=new HandshakeCertificates.Builder().addTrustedCertificate(cert.certificate()).build();
