@@ -2,6 +2,8 @@
 
 A interface é embutida no app; a conta, tarifas, previsão e Comboio usam o backend HTTPS. O código público da origem é configuração de build, não credencial. Uma compilação de CI sem origem serve para testes nativos, não para distribuir um app conectado.
 
+O endereço padrão é `https://roteiro-api-production.up.railway.app`; `RDV_API_URL` substitui esse endereço quando necessário. Testes de emulador usam uma origem local fechada para não consultar contas do serviço real.
+
 ## APK para seu celular
 
 1. Mescle as PRs e publique o backend.
@@ -35,6 +37,8 @@ O comando pede as informações e a senha interativamente. Para o GitHub Actions
 Para compilar no computador, configure `RDV_KEYSTORE_FILE` com o caminho absoluto e as variáveis de assinatura acima, além de `RDV_VERSION_NAME` e `RDV_VERSION_CODE`, e execute `npm run android:release`. Se faltar a chave, o endereço ou o número de versão, a compilação para distribuição será recusada.
 
 Se o armazenamento de artifacts do GitHub estiver cheio, é preciso liberar artifacts antigos ou aguardar a atualização da cota antes de baixar o pacote. O build não esconde essa falha na etapa de disponibilização.
+
+Pushes na branch `main` também geram o pacote de teste conectado. A pasta `android-dist` contém APK/AAB de preparação, assinados apenas com a chave descartável de CI, e o `apksigner.jar` para aplicar a chave definitiva fora do runner. Os arquivos `roteiro-para-assinar` precisam ser assinados pelo proprietário antes da distribuição; a chave privada definitiva nunca é incluída nesses artefatos.
 
 ## Testes automatizados
 

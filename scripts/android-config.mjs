@@ -1,3 +1,4 @@
+export const DEFAULT_API_ORIGIN = 'https://roteiro-api-production.up.railway.app';
 export function apiOrigin(value,required=true){
   if(!value){if(!required)return '';throw new Error('Defina RDV_API_URL com a origem HTTPS do backend.');}
   let url;try{url=new URL(value);}catch{throw new Error('RDV_API_URL inválida.');}

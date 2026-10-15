@@ -42,6 +42,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   }
   const app = express();
   app.disable('x-powered-by');
+  if (process.env.TRUST_PROXY_HOPS === '1') app.set('trust proxy', 1);
   app.use(express.json({ limit: '1.5mb' }));
   const attempts = new Map<string, { count: number; reset: number }>();
   const limit = (key: string, max: number, windowMs: number) => {

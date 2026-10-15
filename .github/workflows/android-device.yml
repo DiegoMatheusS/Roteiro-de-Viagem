@@ -31,6 +31,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
+        env:
+          RDV_API_URL: https://127.0.0.1:1
       - name: Compilar aplicativo e testes antes de abrir o emulador
         working-directory: android
         run: chmod +x gradlew && ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest && ./gradlew --stop
