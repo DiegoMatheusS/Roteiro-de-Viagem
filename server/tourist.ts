@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
 import { clientIp, ApiError, asyncRoute, validate } from './http';
-import { roadRoute, validateCoordinates, type Coordinates, type MapFetch } from './maps';
+import { roadRoute, validateCoordinates, nearbyPlaceRows, type Coordinates, type MapFetch } from './maps';
 import { sampleRoutePath } from '../src/types/itinerary';
 import type { RouteStop } from '../src/types';
 
@@ -15,6 +15,19 @@ function distanceKm(a: Coordinates, b: Coordinates): number {
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
   return 6371 * 2 * Math.asin(Math.sqrt(Math.min(1, x)));
 }
+
+const adminTouristKinds: Record<string, { category: RouteStop['category']; interest: Interest }> = {
+  waterfall: { category: 'parque', interest: 'natureza' },
+  viewpoint: { category: 'mirante', interest: 'panoramico' },
+  park: { category: 'parque', interest: 'natureza' },
+  nature_reserve: { category: 'parque', interest: 'natureza' },
+  trail: { category: 'parque', interest: 'natureza' },
+  beach: { category: 'parque', interest: 'natureza' },
+  museum: { category: 'museu', interest: 'museus' },
+  landmark: { category: 'monumento', interest: 'historico' },
+  historic: { category: 'monumento', interest: 'historico' },
+  attraction: { category: 'monumento', interest: 'historico' }
+};
 
 function candidateFromOsm(record: any): Candidate | null {
   const tags = record?.tags;
@@ -47,8 +60,8 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     const mode: 'km' | 'hours' = req.body.mode;
     const target = req.body.target;
     if (!['km', 'hours'].includes(mode) || typeof target !== 'number' || !Number.isFinite(target) ||
-        target < (mode === 'km' ? 10 : 0.5) || target > (mode === 'km' ? 500 : 12)) {
-      throw new ApiError('Informe uma distância de 10 a 500 km ou duração de 30 minutos a 12 horas.');
+        target <= 0 || target > (mode === 'km' ? 500 : 12)) {
+      throw new ApiError('Informe um valor acima de zero (até 500 km ou 12 horas).');
     }
     const tripType = req.body.tripType;
     if (!['round_trip', 'one_way'].includes(tripType)) throw new ApiError('Escolha ida e volta ou só ida.');
@@ -58,30 +71,43 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     // Radius is bounded; the public Overpass service is for light use, not production traffic.
     const estimatedKm = mode === 'km' ? target : target * 45;
     const radiusM = Math.round(Math.max(4000, Math.min(50000, estimatedKm * (tripType === 'round_trip' ? 300 : 650))));
+    // Pontos turísticos aprovados no Admin participam da geração, independentemente do Overpass.
+    const localRadiusKm = Math.max(radiusM / 1000, Math.min(240, estimatedKm * (tripType === 'round_trip' ? 0.55 : 1)));
+    const adminCandidates: Candidate[] = nearbyPlaceRows(db, [origin], localRadiusKm)
+      .filter((row: any) => row.managed && adminTouristKinds[row.kind] && row.name)
+      .map((row: any) => ({
+        id: row.id, name: row.name, coords: [row.lat, row.lng] as Coordinates,
+        category: adminTouristKinds[row.kind].category, interest: adminTouristKinds[row.kind].interest,
+        address: row.address, sourceUrl: row.source_url
+      }))
+      .filter(place => distanceKm(origin, place.coords) >= 0.05);
     const query = `[out:json][timeout:18];(
       nwr(around:${radiusM},${origin[0]},${origin[1]})["tourism"~"^(viewpoint|attraction|museum|gallery|picnic_site)$"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["amenity"~"^(restaurant|cafe)$"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["leisure"~"^(park|nature_reserve)$"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["historic"]["name"];
     );out center 100;`;
-    let response: Response;
-    try {
-      response = await mapFetch(process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter', {
-        method: 'POST', body: new URLSearchParams({ data: query }),
-        signal: AbortSignal.timeout(20000),
-        headers: { 'User-Agent': 'RoteiroDeViagem/1.0 (tourist-route-planning)', 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
-    } catch { throw new ApiError('Não foi possível consultar atrações reais agora. Tente novamente.', 503); }
-    if (!response.ok) throw new ApiError('O serviço de atrações está indisponível. Tente novamente.', 503);
-    let records: unknown;
-    try { records = (await response.json() as any)?.elements; } catch { throw new ApiError('O serviço de atrações retornou dados inválidos.', 503); }
-    if (!Array.isArray(records)) throw new ApiError('O serviço de atrações retornou dados inválidos.', 503);
-
-    const candidates = [...new Map(records.slice(0, 200).map(candidateFromOsm)
+    let records: any[] = [];
+    let discoveryUnavailable = false;
+    // Evita depender de uma consulta pública externa quando o próprio Admin já cadastrou opções.
+    if (adminCandidates.filter(place => selected.has(place.interest)).length < 6) {
+      try {
+        const response = await mapFetch(process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter', {
+          method: 'POST', body: new URLSearchParams({ data: query }),
+          signal: AbortSignal.timeout(20000),
+          headers: { 'User-Agent': 'RoteiroDeViagem/1.0 (tourist-route-planning)', 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        if (!response.ok) throw new Error('Busca de atrações indisponível');
+        const payload = (await response.json() as any)?.elements;
+        if (!Array.isArray(payload)) throw new Error('Dados de atrações inválidos');
+        records = payload;
+      } catch { discoveryUnavailable = true; }
+    }
+    const osmCandidates = records.slice(0, 200).map(candidateFromOsm)
       .filter((place: Candidate | null): place is Candidate => !!place && selected.has(place.interest) &&
-        distanceKm(origin, place.coords) >= 0.8 && distanceKm(origin, place.coords) <= radiusM / 1000 + 2)
+        distanceKm(origin, place.coords) >= 0.1 && distanceKm(origin, place.coords) <= radiusM / 1000 + 2);
+    const candidates = [...new Map([...adminCandidates.filter(place => selected.has(place.interest)), ...osmCandidates]
       .map((place: Candidate) => [place.id, place] as const)).values()];
-    if (!candidates.length) throw new ApiError('Não encontramos atrações verificáveis nessa região para montar o passeio. Tente outros interesses ou uma distância diferente.', 422);
     // Spread shortlisted candidates across interests and directions instead of taking the first OSM results.
     const idealDistance = Math.min(radiusM / 1000, estimatedKm * (tripType === 'round_trip' ? 0.27 : 0.72));
     candidates.sort((a, b) => Math.abs(distanceKm(origin, a.coords) - idealDistance) - Math.abs(distanceKm(origin, b.coords) - idealDistance));
@@ -98,7 +124,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         place.interest !== shortlist[a].interest);
       if (other) attempts.push([shortlist[a], other]);
     }
-    let best: { selected: Candidate[]; score: number; road: Awaited<ReturnType<typeof roadRoute>>; totalMinutes: number } | null = null;
+    let best: { selected: Candidate[]; score: number; road: Awaited<ReturnType<typeof roadRoute>>; totalMinutes: number; path: Coordinates[] } | null = null;
     for (const points of attempts.slice(0, 11)) {
       const path = [origin, ...points.map(place => place.coords), ...(tripType === 'round_trip' ? [origin] : [])];
       try {
@@ -110,13 +136,40 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         const desired = mode === 'km' ? target : target * 60;
         const ratio = actual / desired;
         // Avoid misleading routes drastically shorter/longer than requested.
-        if (ratio < 0.55 || ratio > 1.5) continue;
+        if (ratio < 0.3 || ratio > 2.2) continue;
         const score = Math.abs(ratio - 1) + (ratio > 1.1 ? (ratio - 1.1) * 0.5 : 0) +
           (points.length === 1 ? 0.07 : 0);
-        if (!best || score < best.score) best = { selected: points, score, road, totalMinutes };
+        if (!best || score < best.score) best = { selected: points, score, road, totalMinutes, path };
       } catch { /* Skip candidates unreachable using the real road router. */ }
     }
-    if (!best) throw new ApiError('Não encontramos um percurso rodoviário próximo do limite escolhido. Tente outra distância, duração ou região.', 422);
+    // Sem pontos turísticos suficientes, busca alternativas de estradas reais.
+    // Os pontos de passagem são apenas alvos geométricos: o OSRM calcula e valida
+    // todo o percurso rodoviário. Nenhuma atração fictícia é criada.
+    if (!best || best.score > 0.3) {
+      const spanKm = Math.max(0.15, estimatedKm * (tripType === 'round_trip' ? 0.26 : 0.75));
+      for (let i = 0; i < 8; i++) {
+        const bearing = (i * Math.PI) / 4;
+        const waypoint = (angle: number): Coordinates => [
+          Math.max(-89.9, Math.min(89.9, origin[0] + Math.cos(angle) * spanKm / 111)),
+          Math.max(-179.9, Math.min(179.9, origin[1] + Math.sin(angle) * spanKm / (111 * Math.max(0.1, Math.abs(Math.cos(origin[0] * Math.PI / 180)))))
+        ];
+        const path: Coordinates[] = tripType === 'round_trip'
+          ? [origin, waypoint(bearing), waypoint(bearing + Math.PI / 2), origin]
+          : [origin, waypoint(bearing)];
+        try {
+          const road = await roadRoute(path, mapFetch, true);
+          if (!road.geometry || !road.legsSeconds || road.distanceKm < 0.03) continue;
+          const drivingMinutes = Math.ceil(road.legsSeconds.reduce((sum, seconds) => sum + seconds, 0) / 60);
+          const desired = mode === 'km' ? target : target * 60;
+          const actual = mode === 'km' ? road.distanceKm : drivingMinutes;
+          const ratio = actual / desired;
+          if (ratio < 0.35 || ratio > 1.8) continue;
+          const score = Math.abs(ratio - 1) + 0.14;
+          if (!best || score < best.score) best = { selected: [], score, road, totalMinutes: drivingMinutes, path };
+        } catch { /* Só usa trajeto validado por provedor rodoviário. */ }
+      }
+    }
+    if (!best) throw new ApiError('Não encontramos estradas verificadas próximas da distância/duração solicitada. Escolha outro valor ou região.', 422);
 
     // Persist OSM identities so the selected tourist stops survive user edits and itinerary recalculation.
     const insert = db.prepare('INSERT OR IGNORE INTO locations VALUES(?,?,?,?,?,?,?,?)');
@@ -129,22 +182,25 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     if (Math.abs(actual - desired) / desired > 0.1) {
       warnings.push(`O roteiro real tem ${best.road.distanceKm.toFixed(1)} km e aproximadamente ${best.totalMinutes} minutos, diferente da sua preferência. Confira antes de iniciar.`);
     }
+    if (!best.selected.length) warnings.push(discoveryUnavailable
+      ? 'Não foi possível consultar atrações externas. Roteiro rodoviário verificado, sem atrações sugeridas.'
+      : 'Roteiro rodoviário verificado. Não foram incluídas atrações turísticas nesta alternativa.');
     if (tripType === 'round_trip') warnings.push('O roteiro retorna ao ponto inicial. Alguns trechos podem se repetir dependendo das estradas disponíveis.');
-    const destination = tripType === 'round_trip' ? origin : best.selected.at(-1)!.coords;
+    const destination = tripType === 'round_trip' ? origin : best.selected.at(-1)?.coords || best.path.at(-1)!;
     const stops = best.selected.map((place, index) => ({
       id: `tourist-${index}-${place.id}`, name: place.name, lat: place.coords[0], lng: place.coords[1],
       category: place.category, sourceUrl: place.sourceUrl, description: place.address || 'Atração identificada no OpenStreetMap',
       recommendedMinutes: 20, type: 'suggested' as const, locationId: place.id
     }));
     res.json({
-      title: tripType === 'round_trip' ? 'Passear e voltar — atrações reais' : `Passeio turístico até ${best.selected.at(-1)!.name}`,
-      destinationName: tripType === 'round_trip' ? 'Retorno ao ponto de partida' : best.selected.at(-1)!.name,
+      title: tripType === 'round_trip' ? 'Passear e voltar — atrações reais' : `Passeio até ${best.selected.at(-1)?.name || 'a região selecionada'}`,
+      destinationName: tripType === 'round_trip' ? 'Retorno ao ponto de partida' : best.selected.at(-1)?.name || 'Destino rodoviário',
       destinationCoords: destination,
       isCircular: tripType === 'round_trip',
       distanceKm: Number(best.road.distanceKm.toFixed(2)),
       durationMinutes: best.totalMinutes,
       routePath: sampleRoutePath(best.road.geometry!, 2500),
-      waypoints: [origin, ...best.selected.map(place => place.coords), ...(tripType === 'round_trip' ? [origin] : [])],
+      waypoints: best.path,
       stops, warnings, routingSource: 'OSRM', tollsStatus: 'unknown'
     });
   }));
