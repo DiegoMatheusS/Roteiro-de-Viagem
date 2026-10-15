@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
-import { ApiError, asyncRoute, validate } from './http';
+import { clientIp, ApiError, asyncRoute, validate } from './http';
 import { roadRoute, validateCoordinates, type Coordinates, type MapFetch } from './maps';
 import { sampleRoutePath } from '../src/types/itinerary';
 import type { RouteStop } from '../src/types';
@@ -42,7 +42,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
   const mapFetch = options.mapFetch || fetch;
 
   app.post('/api/routes/tourist', asyncRoute(async (req, res) => {
-    limit(`tourist:${req.ip}`, 6, 60000);
+    limit(`tourist:${clientIp(req)}`, 6, 60000);
     const origin = validate(() => validateCoordinates([req.body.originCoords]))[0];
     const mode: 'km' | 'hours' = req.body.mode;
     const target = req.body.target;

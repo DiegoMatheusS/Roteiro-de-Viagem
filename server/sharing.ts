@@ -1,14 +1,14 @@
 import type { Express } from 'express';
 import { randomBytes } from 'node:crypto';
 import type { FuelDatabase } from './db';
-import { ApiError, now, user } from './http';
+import { clientIp, ApiError, now, user } from './http';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { sampleRoutePath } from '../src/types/itinerary';
 import type { SharedRoute } from '../src/types/sharedRoute';
 
 export function registerSharingRoutes(app: Express, db: FuelDatabase, limit: (key: string, max: number, window: number) => void) {
   app.post('/api/routes/share', (req, res) => {
-    limit(`sharing:${user(res)?.id || req.ip}`, 10, 3600000);
+    limit(`sharing:${user(res)?.id || clientIp(req)}`, 10, 3600000);
     const raw = req.body.trip;
     const text = (value: unknown, max: number) => { if (typeof value !== 'string' || value.length > max) throw new ApiError('Roteiro de compartilhamento inválido.'); return value; };
     const coords = (value: unknown): [number, number] => { if (!Array.isArray(value) || value.length !== 2 || !value.every(Number.isFinite) || Math.abs(value[0]) > 90 || Math.abs(value[1]) > 180) throw new ApiError('Localização de compartilhamento inválida.'); return [value[0], value[1]]; };

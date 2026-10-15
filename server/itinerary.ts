@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
-import { ApiError, asyncRoute, validate, now } from './http';
+import { clientIp, ApiError, asyncRoute, validate, now } from './http';
 import { roadRoute, validateCoordinates, nearbyPlaceRows, type MapFetch, type Coordinates } from './maps';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { createHash } from 'node:crypto';
@@ -20,7 +20,7 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     return locationDto(row);
   };
   app.get('/api/locations/search', asyncRoute(async (req, res) => {
-    limit(`geocoding:${req.ip}`, 15, 60000);
+    limit(`geocoding:${clientIp(req)}`, 15, 60000);
     const q = String(req.query.q || '').trim();
     if (q.length < 3 || q.length > 150) throw new ApiError('Pesquise um nome ou endereço de 3 a 150 caracteres.');
     const bias = req.query.lat !== undefined && req.query.lng !== undefined ? validate(() => validateCoordinates([[Number(req.query.lat), Number(req.query.lng)]]))[0] : undefined;
@@ -67,7 +67,7 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     } finally { geocodingBusy = false; }
   }));
   app.post('/api/routes/itinerary', asyncRoute(async (req, res) => {
-    limit(`itinerary:${req.ip}`, 30, 60000);
+    limit(`itinerary:${clientIp(req)}`, 30, 60000);
     const origin = validate(() => validateCoordinates([req.body.originCoords]))[0];
     const destination = validate(() => validateCoordinates([req.body.destinationCoords]))[0];
     if (!Array.isArray(req.body.manualStops) || req.body.manualStops.length > 12) throw new ApiError('Use até 12 paradas obrigatórias.');

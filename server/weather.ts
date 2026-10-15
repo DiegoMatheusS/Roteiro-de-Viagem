@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { WeatherPoint } from '../src/types';
-import { ApiError, asyncRoute, now } from './http';
+import { clientIp, ApiError, asyncRoute, now } from './http';
 import { validateCoordinates, type MapFetch, type Coordinates } from './maps';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 
@@ -46,7 +46,7 @@ export function registerWeatherRoutes(app: Express, fetcher: MapFetch,
   // Cache provider series, not another traveler's passage times or coordinates.
   const cache = new Map<string, { expires: number; payload: any }>();
   app.post('/api/weather/route', asyncRoute(async (req, res) => {
-    limit(`weather:${req.ip}`, 20, 60000);
+    limit(`weather:${clientIp(req)}`, 20, 60000);
     const path = req.body.routePath;
     if (!Array.isArray(path) || path.length < 2 || path.length > 2500) throw new ApiError('Percurso inválido.');
     path.forEach((point: unknown) => validateCoordinates([point]));

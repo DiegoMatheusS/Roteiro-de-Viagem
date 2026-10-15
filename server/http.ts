@@ -1,5 +1,18 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { FuelUser } from '../src/types/fuel';
+import { timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
+
+// Trust a forwarded client address only when our Pages Worker authenticates it.
+// Direct/native requests continue to use Express's Railway proxy configuration.
+export function clientIp(req: Request): string {
+  const secret = process.env.WEB_PROXY_SECRET || '';
+  const supplied = req.get('X-Rdv-Proxy-Key') || '';
+  const address = req.get('X-Rdv-Client-Ip') || '';
+  const expectedBytes = Buffer.from(secret), suppliedBytes = Buffer.from(supplied);
+  if (secret.length >= 32 && isIP(address) && expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes)) return address;
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
 
 export class ApiError extends Error {
   constructor(message: string, public status = 400) { super(message); }

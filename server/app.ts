@@ -17,7 +17,7 @@ import { registerItineraryRoutes } from './itinerary';
 import { registerTouristRoutes } from './tourist';
 import { registerSharingRoutes } from './sharing';
 import { registerTravelerStateRoutes } from './travelerState';
-import { ApiError, asyncRoute, auth, administrator, user, now, validate, observationDate } from './http';
+import { clientIp, ApiError, asyncRoute, auth, administrator, user, now, validate, observationDate } from './http';
 import { registerConvoyRoutes } from './convoys';
 import { registerWeatherRoutes } from './weather';
 import { registerTollRoutes } from './tolls';
@@ -56,7 +56,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     try {
-      limit(`requests:${req.ip}`, 180, 60000);
+      limit(`requests:${clientIp(req)}`, 180, 60000);
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
         const allowed = new Set([process.env.PUBLIC_APP_URL || 'http://localhost:3000', ...(process.env.NODE_ENV !== 'production' ? ['http://127.0.0.1:3000'] : [])]);
         if (!allowed.has(req.headers.origin)) throw new ApiError('Origem da solicitação não permitida.', 403);
@@ -93,7 +93,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/auth/me', (_req, res) => res.json({ user: user(res) || null }));
   app.post('/api/auth/register', asyncRoute(async (req, res) => {
-    limit(`register:${req.ip}`, 5, 3600000);
+    limit(`register:${clientIp(req)}`, 5, 3600000);
     const email = String(req.body.email || '').trim().toLowerCase();
     const displayName = String(req.body.displayName || '').trim();
     const password = req.body.password;
@@ -107,7 +107,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.status(201).json({ user: setSession(res, account) });
   }));
   app.post('/api/auth/login', asyncRoute(async (req, res) => {
-    limit(`login:${req.ip}`, 10, 15 * 60000);
+    limit(`login:${clientIp(req)}`, 10, 15 * 60000);
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = req.body.password;
     if (typeof password !== 'string' || password.length > 128 || email.length > 180) throw new ApiError('E-mail ou senha incorretos.', 401);
@@ -126,7 +126,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   });
 
   app.post('/api/stations/search', asyncRoute(async (req, res) => {
-    limit(`maps:${req.ip}`, 15, 60000);
+    limit(`maps:${clientIp(req)}`, 15, 60000);
     const points = validate(() => validateCoordinates(req.body.points));
     const radius = req.body.radiusKm ?? 5;
     if (!Number.isFinite(radius) || radius < 1 || radius > 10) throw new ApiError('Use um raio entre 1 e 10 km.');
@@ -249,7 +249,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   });
 
   app.post('/api/fuel/compare', asyncRoute(async (req, res) => {
-    limit(`compare:${req.ip}`, 6, 60000);
+    limit(`compare:${clientIp(req)}`, 6, 60000);
     const points = validate(() => validateCoordinates(req.body.routePath));
     if (points.length < 2) throw new ApiError('Planeje uma rota antes de comparar postos.');
     const { consumptionKmPerLiter, remainingFuelLiters, litersToBuy, tankCapacityLiters, fuelType } = req.body;

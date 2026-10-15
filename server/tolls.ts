@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
-import { ApiError, auth, administrator, user, now, asyncRoute, observationDate } from './http';
+import { clientIp, ApiError, auth, administrator, user, now, asyncRoute, observationDate } from './http';
 import { sanitizePhoto } from './photos';
 import { validateCoordinates, type Coordinates, type MapFetch } from './maps';
 import type { RouteToll } from '../src/types/tolls';
@@ -41,7 +41,7 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
     if (!row) throw new ApiError('Pedágio não encontrado no mapa.', 404); return row;
   };
   app.post('/api/tolls/route', asyncRoute(async (req, res) => {
-    limit(`tolls:${req.ip}`, 20, 60000);
+    limit(`tolls:${clientIp(req)}`, 20, 60000);
     const path = req.body.routePath;
     if (!Array.isArray(path) || path.length < 2 || path.length > 2500) throw new ApiError('Percurso inválido.');
     path.forEach((p: unknown) => validateCoordinates([p]));
@@ -96,7 +96,7 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
   app.post('/api/tolls/:id/contributions', auth, upload.single('photo'), asyncRoute(async (req, res) => {
     const place = toll(String(req.params.id)), owner = user(res).id;
     if ((db.prepare('SELECT COUNT(*) AS count FROM toll_entries WHERE user_id=? AND created_at>?').get(owner,new Date(Date.now()-86400000).toISOString()) as any).count >= 10) throw new ApiError('Limite diário de contribuições atingido.',429);
-    limit(`toll-send:${owner}`, 10, 86400000); limit(`toll-photo:${req.ip}`, 3, 10 * 60000);
+    limit(`toll-send:${owner}`, 10, 86400000); limit(`toll-photo:${clientIp(req)}`, 3, 10 * 60000);
     const vehicleType = req.body.vehicleType, price = req.body.price === '' || req.body.price == null ? null : Number(req.body.price);
     const heading = req.body.headingDegrees === '' || req.body.headingDegrees == null ? null : Number(req.body.headingDegrees);
     if (!['car', 'motorcycle'].includes(vehicleType) || (price !== null && (!Number.isFinite(price) || price < 0 || price > 2000 || Math.abs(price*100-Math.round(price*100)) > 0.000001)) ||
