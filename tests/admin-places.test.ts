@@ -100,3 +100,17 @@ test('comentários de pedágio descoberto no mapa aguardam aprovação do admin'
     assert.equal((await f.call(route, { body: 'Sem login' })).status, 401);
   } finally { await f.close(); }
 });
+
+test('admin pode cadastrar, filtrar e publicar novos tipos de pontos turísticos', async () => {
+  const f = await fixture();
+  try {
+    for (const kind of ['beach', 'trail', 'landmark', 'historic', 'nature_reserve', 'attraction', 'museum', 'park', 'viewpoint', 'waterfall']) {
+      const result = await f.call('/admin/places', { ...draft, kind }, f.cookie);
+      assert.equal(result.status, 201, JSON.stringify(result.body));
+    }
+    const response = await f.call('/admin/places?group=tourist', undefined, f.cookie);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.total, 10);
+    assert.ok(response.body.items.every((item: any) => item.kind !== 'fuel'));
+  } finally { await f.close(); }
+});
