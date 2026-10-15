@@ -1,15 +1,20 @@
 export const PLACE_KINDS = [
-  { id: 'fuel', label: 'Posto', icon: '⛽' },
+  { id: 'fuel', label: 'Posto de combustível', icon: '⛽' },
   { id: 'restaurant', label: 'Restaurante', icon: '🍽️' },
-  { id: 'cafe', label: 'Café', icon: '☕' },
-  { id: 'hotel', label: 'Hospedagem', icon: '🏨' },
+  { id: 'cafe', label: 'Cafeteria', icon: '☕' },
+  { id: 'market', label: 'Mercado / supermercado', icon: '🛒' },
+  { id: 'shopping', label: 'Shopping / centro comercial', icon: '🏬' },
+  { id: 'hotel', label: 'Hotel', icon: '🏨' },
+  { id: 'inn', label: 'Pousada / hospedaria', icon: '🛏️' },
+  { id: 'waterfall', label: 'Cachoeira', icon: '💧' },
   { id: 'viewpoint', label: 'Mirante', icon: '🌄' },
-  { id: 'park', label: 'Parque', icon: '🌳' },
+  { id: 'park', label: 'Parque / área natural', icon: '🌳' },
   { id: 'museum', label: 'Museu', icon: '🏛️' },
-  { id: 'other', label: 'Outro estabelecimento', icon: '📍' }
+  { id: 'other', label: 'Outro ponto de interesse', icon: '📍' }
 ] as const;
+export type PlaceKind = typeof PLACE_KINDS[number]['id'];
 export interface Place {
-  id: string; name: string; kind: typeof PLACE_KINDS[number]['id']; lat: number; lng: number;
+  id: string; name: string; kind: PlaceKind; lat: number; lng: number;
   address: string; sourceUrl: string; description: string; website: string; phone: string;
   active: boolean; openingHours?: string;
 }
