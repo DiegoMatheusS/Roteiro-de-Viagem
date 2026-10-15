@@ -69,3 +69,20 @@ Nota: o painel não cria automaticamente uma conta administrativa. O primeiro us
 Na mesma seção **Configurações**, o administrador pode informar o novo e-mail, repetir o endereço e inserir a senha atual. A API `POST /api/admin/change-email` confere a senha armazenada em scrypt, valida o endereço, impede duplicidades, restringe tentativas e atualiza a mesma conta no banco. Após sucesso, encerra todas as sessões e exige novo login com o e-mail novo. A consulta `GET /api/admin/account` exibe o e-mail atual exclusivamente para administradores autenticados.
 
 **Atenção:** a alteração não envia mensagem nem confirmação de posse do novo e-mail, pois o projeto ainda não tem um serviço de verificação de e-mail. Digite e confira cuidadosamente o novo endereço. O login continua protegido pela senha atual da conta.
+
+
+## Conta administrativa inicial sem terminal SSH
+
+**Nunca** insira `email` e `senha` em `index.html`, `config.json`, `public/`, `src/` ou arquivos versionados. Quem abre o site pode ler esses valores. O login real fica em `users` no SQLite do Railway.
+
+Para provisionar a primeira conta **apenas uma vez**, configure as variáveis privadas no serviço `roteiro-api` (ambiente production):
+- `RDV_BOOTSTRAP_ADMIN_EMAIL`: endereço do administrador.
+- `RDV_BOOTSTRAP_ADMIN_HASH`: hash `salt:hex(scrypt)` de senha temporária, com 16 bytes de sal e scrypt de 64 bytes.
+
+O servidor verifica os valores antes de iniciar. Se já existir um administrador ativo, **não cria nem altera nenhuma conta**. Se ainda não existir, cria a conta ou autoriza a conta do mesmo e-mail que já existe, redefinindo sua senha temporária e encerrando sessões antigas. O processo nunca publica senha ou hash via HTTP.
+
+Após o primeiro deploy com sucesso, substitua os valores dessas **duas** variáveis por strings vazias para desativar completamente o bootstrap. Em seguida, faça login no painel e use **Configurações → Alterar senha** para escolher a senha definitiva. A alteração revoga todas as sessões. Essa função depende de publicar o frontend administrativo atualizado no Cloudflare Pages.
+
+Para gerar um hash localmente, use Node e a função scrypt; a senha **nunca** deve ser copiada para o código-fonte ou enviada em URL. Não use senhas temporárias compartilhadas publicamente.
+
+As variáveis não substituem as configurações do proxy `WEB_PROXY_SECRET` e `RDV_BACKEND_ORIGIN` do Cloudflare, necessárias para que o login alcance o backend.
