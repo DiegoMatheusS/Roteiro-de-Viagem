@@ -452,11 +452,11 @@ export default function App() {
             )}
           </main>
 
-          <NavigationTabBar
+          {!isNavigationOpen && !isPlanningOpen && <NavigationTabBar
             activeTab={activeTab}
             onTabChange={(tab) => {setActiveTab(tab);if(tab==='inicio')setAdvancedHome(false);}}
             hasActiveConvoy={!!convoyService.getActiveConvoy()}
-          />
+          />}
         </>
       )}
 
