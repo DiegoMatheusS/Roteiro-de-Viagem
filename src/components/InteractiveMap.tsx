@@ -9,6 +9,7 @@ import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { PlaceModal } from './PlaceModal';
 import { PLACE_KINDS, type Place } from '../types/admin';
+import { mapContributionIcon } from './mapContributionIcon';
 
 export type MapStyleType = 'voyager' | 'satellite' | 'topo' | 'osm';
 
@@ -108,8 +109,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
+  const [stationSection, setStationSection] = useState<'prices' | 'comments'>('prices');
+  const [tollSection, setTollSection] = useState<'prices' | 'comments'>('prices');
+  const [catalogToll, setCatalogToll] = useState<Place | null>(null);
+  const openStation = (id: string, section: 'prices' | 'comments' = 'prices') => { setStationSection(section); setSelectedStation(id); };
+  const openToll = (id: string, section: 'prices' | 'comments' = 'prices', place: Place | null = null) => { setTollSection(section); setCatalogToll(place); setSelectedTollId(id); };
   const [selectedTollId,setSelectedTollId]=useState<string|null>(null);
-  const selectedToll=tolls.find(t => t.id === selectedTollId);
+  const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('voyager');
@@ -175,11 +181,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if(!group)return;group.clearLayers();
     if(!tollVehicleType)return;
     for(const toll of tolls) {
-      const icon=L.divIcon({className:'toll-marker',html:'<div style="background:white;border:2px solid #0e7490;border-radius:50%;padding:5px;font-size:18px">🛣️</div>',iconSize:[36,36],iconAnchor:[18,18]});
-      const marker=L.marker(toll.coords,{icon,title:toll.name,zIndexOffset:1700}).addTo(group);
+      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
+      const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
-      marker.on('click',() => setSelectedTollId(toll.id));
-      marker.on('keypress',event => {const original=(event as L.LeafletKeyboardEvent).originalEvent;if(original.key==='Enter'||original.key===' '){original.preventDefault();setSelectedTollId(toll.id);}});
+      marker.on('click',() => openToll(toll.id));
     }
   },[tolls,tollVehicleType]);
 
@@ -196,17 +201,19 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!group) return;
     group.clearLayers();
     for (const station of fuel.stations) {
-      const icon = L.divIcon({ className: 'fuel-station-marker', html: '<div style="background:white;border:2px solid #059669;border-radius:50%;padding:5px;font-size:18px">⛽</div>', iconSize: [36, 36], iconAnchor: [18, 18] });
-      const marker = L.marker([station.lat, station.lng], { icon, title: station.name, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
+      const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
+      const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
-      marker.on('click', () => setSelectedStation(station.id));
-      marker.on('keypress', event => {
-        const original = (event as L.LeafletKeyboardEvent).originalEvent;
-        if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedStation(station.id); }
-      });
+      marker.on('click', () => openStation(station.id));
     }
     for (const place of places) {
+      if (place.kind === 'toll') {
+        if (tolls.some(toll => toll.id === place.id)) continue;
+        const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
+        L.marker([place.lat, place.lng], { icon, title: place.name, keyboard: false, zIndexOffset: 1700 }).addTo(group);
+        continue;
+      }
       const emoji = PLACE_KINDS.find(kind => kind.id === place.kind)?.icon || '📍';
       const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:white;border:2px solid #ea580c;border-radius:50%;padding:5px;font-size:18px">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
@@ -217,7 +224,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
       });
     }
-  }, [fuel.stations, places]);
+  }, [fuel.stations, places, tolls]);
 
   // Switch map tiles when user changes style
   useEffect(() => {
@@ -382,7 +389,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (stop.category === 'museu') { emoji = '🏛️'; color = '#4f46e5'; }
         if (stop.category === 'monumento') { emoji = '🗿'; color = '#0891b2'; }
 
-        const stopIcon = L.divIcon({
+        const fuelReference = stop.category === 'posto' ? stop.sourceUrl?.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/) : null;
+        const stopIcon = fuelReference ? mapContributionIcon({ className: 'custom-stop-marker', name: stop.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`), onComments: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`, 'comments') }) : L.divIcon({
           className: 'custom-stop-marker',
           html: `
             <div style="
@@ -407,10 +415,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           iconAnchor: [47, 13]
         });
 
-        const m = L.marker([stop.lat, stop.lng], { icon: stopIcon }).addTo(group);
-        if (stop.category === 'posto' && stop.sourceUrl) {
-          const reference = stop.sourceUrl.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/);
-          if (reference) m.on('click', () => setSelectedStation(`osm:${reference[1]}:${reference[2]}`));
+        const m = L.marker([stop.lat, stop.lng], { icon: stopIcon, keyboard: !fuelReference }).addTo(group);
+        if (fuelReference) {
+          m.on('click', () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`));
         }
         m.bindPopup(`
           <div style="font-family: system-ui; max-width: 220px;">
@@ -591,9 +598,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       <div ref={mapContainerRef} className="w-full h-full" />
       {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}
       {fuel.error && <div className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-amber-50 rounded-xl p-2 shadow">{fuel.error}<button type="button" onClick={fuel.retry} className="ml-2 font-bold">Tentar novamente</button></div>}
-      {selectedToll && tollVehicleType && <TollModal toll={selectedToll} vehicleType={tollVehicleType} onClose={() => setSelectedTollId(null)} />}
+      {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
-      {selectedStation && <FuelStationModal stationId={selectedStation} onClose={() => setSelectedStation(null)} />}
+      {selectedStation && <FuelStationModal key={`${selectedStation}:${stationSection}`} stationId={selectedStation} initialSection={stationSection} onClose={() => setSelectedStation(null)} />}
 
       {/* MAP STYLE SWITCHER CONTROL (Requirement: Colorido, Satélite, Relevo) */}
       <div className="absolute bottom-5 left-4 z-30">

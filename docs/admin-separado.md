@@ -24,6 +24,16 @@ O backend continua autorizando cada operacao por sessao e permissao `admin` — 
 No admin, a criacao/edicao de estabelecimentos, tarifas e precos aprovados e gravada na API comum. O app carrega os dados dessa API: **nao e preciso republicar o aplicativo** para mostrar alteracoes aprovadas.
 Dados pendentes de revisao nao sao publicados automaticamente.
 
+## Cadastro e solicitações
+
+O painel inicia na aba **Cadastro**, com duas opções: cadastro manual ou importação por link do OpenStreetMap. No cadastro manual, informe tipo, nome, endereço/acesso, latitude e longitude conferidos; telefone, site, horário e descrição são opcionais. As categorias incluem posto de combustível, restaurante, pedágio, mercado, shopping, cachoeira, pousada, hotel, café, mirante, parque, museu e outros locais. É possível editar dados e coordenadas, excluir do mapa ou reativar preservando o histórico.
+
+Ao editar um posto, use **Atualizar ou corrigir preços**. Ao editar um pedágio, cadastre a tarifa por categoria (carro ou moto), data e sentido opcional. Essas tarifas participam do cálculo das rotas, com validade de 90 dias. Cadastros de pedágio excluídos deixam de aparecer nas rotas.
+
+A aba **Solicitações** reúne contribuições de combustíveis/fotos, tarifas de pedágio, comentários e denúncias. Os valores e as fotos enviados por viajantes continuam aguardando aprovação manual. No mapa público, os postos exibem **Sugerir preço** e um ícone de comentários logo abaixo dos ícones de postos e pedágios; o viajante pode informar valores ou enviar a fotografia da placa.
+
+O repositório `DiegoMatheusS/roteiroadmin` publica somente o painel compilado. Seu workflow **Atualizar painel administrativo** sincroniza o código de origem de `Roteiro-de-Viagem` e mantém a publicação administrativa separada do aplicativo público. Alterações na API comum ou no mapa do aplicativo também precisam ser publicadas pelo repositório de origem.
+
 O workflow de producao do frontend publico continua independente. Cada ZIP deve ser publicado no projeto Pages correspondente.
 Projetos Pages criados por upload manual nao recebem atualizacoes automaticas do GitHub.
 

@@ -5,7 +5,7 @@ import { ApiError, auth, administrator, asyncRoute, now, user, validate, observa
 import { lookupMapPlace, validateCoordinates, nearbyPlaceRows, type MapFetch } from './maps';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { validatePriceDraft } from '../src/services/fuelPriceRules';
-import type { Place, PriceHistory } from '../src/types/admin';
+import { PLACE_KINDS, type Place, type PriceHistory } from '../src/types/admin';
 
 const pageArgs = (req: Request) => {
   const page = Number(req.query.page || 1);
@@ -15,6 +15,14 @@ const pageArgs = (req: Request) => {
 const text = (value: unknown, max: number, required = false) => {
   if (typeof value !== 'string' || value.trim().length > max || required && !value.trim()) throw new ApiError(`Informe um texto válido de até ${max} caracteres.`);
   return value.trim();
+};
+const websiteUrl = (value: unknown) => {
+  const website = text(value || '', 300);
+  if (website) {
+    try { if (!['http:', 'https:'].includes(new URL(website).protocol)) throw new Error(); }
+    catch { throw new ApiError('Use um endereço de site válido iniciado por http:// ou https://.'); }
+  }
+  return website;
 };
 const placeDto = (row: any): Place => ({ id: row.id, name: row.name, kind: row.kind, lat: row.lat, lng: row.lng, address: row.address,
   sourceUrl: row.source_url, description: row.description, website: row.website, phone: row.phone, active: Boolean(row.active), openingHours: row.opening_hours || undefined });
@@ -29,6 +37,11 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   const audit = (actor: string, type: string, id: string, action: string, notes = '') =>
     db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)').run(randomUUID(), actor, type, id, action, notes, now());
   const transaction = (fn: () => void) => { db.exec('BEGIN'); try { fn(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; } };
+  const syncToll = (place: Place) => {
+    if (place.kind === 'toll') db.prepare(`INSERT INTO toll_places(id,name,lat,lng,source_url,updated_at) VALUES(?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name,lat=excluded.lat,lng=excluded.lng,source_url=excluded.source_url,updated_at=excluded.updated_at`)
+      .run(place.id, place.name, place.lat, place.lng, place.sourceUrl, now());
+  };
   const activePlace = (id: string, fuelOnly = false) => {
     const row = db.prepare('SELECT * FROM stations WHERE id=? AND active=1').get(id) as any;
     if (!row || fuelOnly && row.kind !== 'fuel') throw new ApiError('Estabelecimento não encontrado.', 404);
@@ -99,14 +112,27 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   });
   app.post('/api/admin/places', asyncRoute(async (req, res) => {
     limit(`imports:${user(res).id}`, 10, 60000);
-    const reference = text(req.body.reference, 300, true);
     let place: Place;
-    try { place = await lookupMapPlace(reference, options.mapFetch); } catch (error) { throw new ApiError((error as Error).message, 422); }
+    if (req.body.reference !== undefined) {
+      const reference = text(req.body.reference, 300, true);
+      try { place = await lookupMapPlace(reference, options.mapFetch); } catch (error) { throw new ApiError((error as Error).message, 422); }
+    } else {
+      if (!PLACE_KINDS.some(kind => kind.id === req.body.kind)) throw new ApiError('Escolha uma categoria válida.');
+      const [[lat, lng]] = validate(() => validateCoordinates([[req.body.lat, req.body.lng]]));
+      const name = text(req.body.name, 150, true), address = text(req.body.address, 250, true);
+      place = { id: `admin:${randomUUID()}`, name, kind: req.body.kind, lat, lng, address,
+        description: text(req.body.description || '', 1000), website: websiteUrl(req.body.website), phone: text(req.body.phone || '', 50),
+        openingHours: text(req.body.openingHours || '', 200) || undefined, active: true,
+        sourceUrl: `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` };
+      const duplicate = nearbyPlaceRows(db, [[lat, lng]], 0.03).some(row => row.kind === place.kind && row.name.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'));
+      if (duplicate) throw new ApiError('Este local já está cadastrado neste ponto. Use a busca para editar.', 409);
+    }
     const existing = db.prepare('SELECT id FROM stations WHERE id=?').get(place.id);
     if (existing) throw new ApiError('Este estabelecimento já está cadastrado. Use a busca para editar ou reativar.', 409);
     transaction(() => {
       db.prepare(`INSERT INTO stations(id,name,lat,lng,address,source_url,opening_hours,map_updated_at,kind,active,managed,description,website,phone)
-        VALUES(?,?,?,?,?,?,?,?,?,1,1,?,?,?)`).run(place.id, place.name, place.lat, place.lng, place.address, place.sourceUrl, place.openingHours || null, now(), place.kind, '', place.website, place.phone);
+        VALUES(?,?,?,?,?,?,?,?,?,1,1,?,?,?)`).run(place.id, place.name, place.lat, place.lng, place.address, place.sourceUrl, place.openingHours || null, now(), place.kind, place.description, place.website, place.phone);
+      syncToll(place);
       audit(user(res).id, 'places', place.id, 'create');
     });
     res.status(201).json(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(place.id)));
@@ -114,13 +140,14 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   app.patch('/api/admin/places/:id', (req, res) => {
     const previous = db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id) as any;
     if (!previous) throw new ApiError('Estabelecimento não encontrado.', 404);
-    const name = text(req.body.name, 150, true), address = text(req.body.address, 250), description = text(req.body.description || '', 1000), phone = text(req.body.phone || '', 50), website = text(req.body.website || '', 300), hours = text(req.body.openingHours || '', 200);
-    if (website && !/^https?:\/\//i.test(website)) throw new ApiError('Use um endereço de site iniciado por http:// ou https://.');
-    if (website) { try { new URL(website); } catch { throw new ApiError('Endereço de site inválido.'); } }
+    const name = text(req.body.name, 150, true), address = text(req.body.address, 250), description = text(req.body.description || '', 1000), phone = text(req.body.phone || '', 50), website = websiteUrl(req.body.website), hours = text(req.body.openingHours || '', 200);
+    const [[lat, lng]] = validate(() => validateCoordinates([[req.body.lat === undefined ? previous.lat : req.body.lat, req.body.lng === undefined ? previous.lng : req.body.lng]]));
+    const sourceUrl = previous.id.startsWith('admin:') ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : previous.source_url;
     if (typeof req.body.active !== 'boolean') throw new ApiError('Confirme se o cadastro está ativo.');
     transaction(() => {
-      db.prepare('UPDATE stations SET name=?,address=?,description=?,website=?,phone=?,opening_hours=?,hours_verified_at=?,active=?,managed=1 WHERE id=?')
-        .run(name, address, description, website, phone, hours || null, req.body.hoursVerified === true && hours ? now() : previous.opening_hours === hours ? previous.hours_verified_at : null, Number(req.body.active), req.params.id);
+      db.prepare('UPDATE stations SET name=?,address=?,description=?,website=?,phone=?,opening_hours=?,hours_verified_at=?,active=?,lat=?,lng=?,source_url=?,managed=1 WHERE id=?')
+        .run(name, address, description, website, phone, hours || null, req.body.hoursVerified === true && hours ? now() : previous.opening_hours === hours ? previous.hours_verified_at : null, Number(req.body.active), lat, lng, sourceUrl, req.params.id);
+      syncToll(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id)));
       audit(user(res).id, 'places', req.params.id, 'update', JSON.stringify({ before: { name: previous.name, active: previous.active }, after: { name, active: req.body.active } }));
     });
     res.json(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id)));
@@ -134,6 +161,23 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   app.get('/api/admin/places/:id/history', (req, res) => {
     if (!db.prepare('SELECT id FROM stations WHERE id=?').get(req.params.id)) throw new ApiError('Estabelecimento não encontrado.', 404);
     res.json({ items: priceHistory(db, req.params.id) });
+  });
+  app.post('/api/admin/places/:id/tariffs', (req, res) => {
+    const place = activePlace(req.params.id);
+    if (place.kind !== 'toll') throw new ApiError('Escolha um pedágio cadastrado.');
+    const { vehicleType, price, headingDegrees } = req.body;
+    const heading = headingDegrees === '' || headingDegrees == null ? null : headingDegrees;
+    if (req.body.confirmed !== true || !['car', 'motorcycle'].includes(vehicleType) || typeof price !== 'number' || !Number.isFinite(price) || price < 0 || price > 2000 || Math.abs(price * 100 - Math.round(price * 100)) > 0.000001 || (heading !== null && (typeof heading !== 'number' || !Number.isFinite(heading) || heading < 0 || heading >= 360))) throw new ApiError('Confirme a categoria, a tarifa e o sentido do pedágio.');
+    const observedAt = observationDate(req.body.observedAt), validUntil = new Date(Date.parse(observedAt) + 90 * 86400000).toISOString();
+    if (validUntil <= now()) throw new ApiError('Informe uma tarifa conferida nos últimos 90 dias.');
+    const id = randomUUID();
+    transaction(() => {
+      syncToll(placeDto(place));
+      db.prepare(`INSERT INTO toll_entries(id,toll_id,user_id,vehicle_type,price,heading,observed_at,valid_until,status,notes,reviewer_id,created_at,reviewed_at)
+        VALUES(?,?,?,?,?,?,?,?,'approved',?,?,?,?)`).run(id, place.id, user(res).id, vehicleType, price, heading, observedAt, validUntil, 'Tarifa conferida pelo administrador', user(res).id, now(), now());
+      audit(user(res).id, 'tolls', id, 'approve_and_publish');
+    });
+    res.status(201).json({ id, message: 'Tarifa publicada para esta categoria de veículo.' });
   });
   app.post('/api/admin/stations/:id/prices', (req, res) => {
     activePlace(req.params.id, true);

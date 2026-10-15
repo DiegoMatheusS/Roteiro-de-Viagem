@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fuelApi } from '../services/fuelApi';
 import type { PageResult, PlaceComment } from '../types/admin';
 
-export function PlaceComments({ placeId }: { placeId: string }) {
+export function PlaceComments({ placeId, title = 'Comentários do estabelecimento' }: { placeId: string; title?: string }) {
   const auth = useAuth();
   const [result, setResult] = useState<PageResult<PlaceComment>>({ items: [], total: 0, page: 1, pageSize: 20 });
   const [body, setBody] = useState(''), [message, setMessage] = useState(''), [error, setError] = useState('');
@@ -23,7 +23,7 @@ export function PlaceComments({ placeId }: { placeId: string }) {
     try { await fuelApi(`/comments/${id}/report`, { method: 'POST', body: '{}' }); setMessage('Denúncia enviada para análise.'); }
     catch (error) { setError((error as Error).message); } finally { setBusy(false); }
   };
-  return <section className="border-t pt-4 space-y-3"><h3 className="font-bold">Comentários do estabelecimento</h3>
+  return <section className="border-t pt-4 space-y-3"><h3 className="font-bold">{title}</h3>
     {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}{message && <p role="status" className="text-xs text-emerald-700">{message}</p>}
     {result.items.map(comment => <article key={comment.id} className="bg-slate-50 rounded-xl p-3 text-xs space-y-1"><strong>{comment.displayName}</strong><p className="whitespace-pre-wrap break-words">{comment.body}</p><p className="text-slate-500">{new Date(comment.createdAt).toLocaleString('pt-BR')} · {comment.status === 'pending' ? 'Aguardando aprovação' : 'Publicado'}</p>{comment.status === 'published' && <button disabled={busy} onClick={() => report(comment.id)} className="text-slate-600 underline">Denunciar comentário</button>}</article>)}
     {!result.items.length && <p className="text-xs text-slate-500">Nenhum comentário publicado.</p>}
