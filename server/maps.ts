@@ -38,8 +38,19 @@ export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fet
   const tags = element?.tags;
   const lat = element?.lat ?? element?.center?.lat;
   const lng = element?.lon ?? element?.center?.lon;
-  if (!tags || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !(tags.amenity || tags.tourism || tags.leisure || tags.shop)) throw new Error('Esse ponto não identifica um estabelecimento ou atração válida.');
-  const kind: Place['kind'] = tags.amenity === 'fuel' ? 'fuel' : ['restaurant', 'fast_food', 'food_court'].includes(tags.amenity) ? 'restaurant' : tags.amenity === 'cafe' ? 'cafe' : ['hotel', 'motel', 'hostel', 'guest_house', 'camp_site'].includes(tags.tourism) ? 'hotel' : tags.tourism === 'viewpoint' ? 'viewpoint' : tags.tourism === 'museum' ? 'museum' : ['park', 'nature_reserve'].includes(tags.leisure) ? 'park' : 'other';
+  if (!tags || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !(tags.amenity || tags.tourism || tags.leisure || tags.shop || tags.natural === 'waterfall' || tags.waterway === 'waterfall')) throw new Error('Esse ponto não identifica um estabelecimento ou atração válida.');
+  const kind: Place['kind'] =
+    tags.amenity === 'fuel' ? 'fuel' :
+    ['restaurant', 'fast_food', 'food_court'].includes(tags.amenity) ? 'restaurant' :
+    tags.amenity === 'cafe' ? 'cafe' :
+    ['supermarket', 'convenience', 'grocery', 'greengrocer'].includes(tags.shop) || tags.amenity === 'marketplace' ? 'market' :
+    ['mall', 'department_store', 'shopping_centre'].includes(tags.shop) ? 'shopping' :
+    ['guest_house', 'hostel', 'chalet'].includes(tags.tourism) ? 'inn' :
+    ['hotel', 'motel', 'camp_site'].includes(tags.tourism) ? 'hotel' :
+    tags.waterway === 'waterfall' || tags.natural === 'waterfall' ? 'waterfall' :
+    tags.tourism === 'viewpoint' ? 'viewpoint' :
+    tags.tourism === 'museum' ? 'museum' :
+    ['park', 'nature_reserve'].includes(tags.leisure) ? 'park' : 'other';
   return { id: `osm:${match[1]}:${match[2]}`, kind, name: String(tags.name || tags.brand || tags.operator || 'Estabelecimento sem nome no mapa').slice(0, 150), lat, lng,
     address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:city']].filter(Boolean).join(', ').slice(0, 250),
     sourceUrl: `https://www.openstreetmap.org/${match[1]}/${match[2]}`, description: '', website: /^https?:\/\//.test(tags.website || '') ? String(tags.website).slice(0, 300) : '', phone: String(tags.phone || '').slice(0, 50),
