@@ -4,7 +4,7 @@ import { fuelApi,FuelApiError } from '../services/fuelApi';
 import type { FuelUser } from '../types/fuel';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
-const AuthContext = createContext<{ user: FuelUser | null; loading: boolean; promptLogin: () => void; logout: () => Promise<void> }>({ user: null, loading: true, promptLogin: () => {}, logout: async () => {} });
+const AuthContext = createContext<{ user: FuelUser | null; loading: boolean; promptLogin: () => void; logout: () => Promise<void>; clearSession: () => void }>({ user: null, loading: true, promptLogin: () => {}, logout: async () => {}, clearSession: () => {} });
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
@@ -33,7 +33,7 @@ export function AuthProvider({ children, adminOnly = false }: { children: React.
     } catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   };
-  return <AuthContext.Provider value={{ user, loading, promptLogin: () => { setError(''); setOpen(true); }, logout }}>
+  return <AuthContext.Provider value={{ user, loading, promptLogin: () => { setError(''); setOpen(true); }, logout, clearSession: () => remember(null) }}>
     {children}
     {open && <div className="fixed inset-0 z-90 bg-slate-900/60 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-label={adminOnly ? "Acesso administrativo" : "Conta do viajante"}>
       <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4 shadow-xl">
