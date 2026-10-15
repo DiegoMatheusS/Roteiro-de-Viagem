@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Vehicle, TripPlan } from '../types';
 import { PRESET_DESTINATIONS } from '../data/sampleRoutes';
 import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
+import { canTypeTouristTarget, getTouristTargetError, parseTouristTarget } from '../services/touristTargetInput';
 import { LocationSearch } from './LocationSearch';
 import { ManualStopsEditor } from './ManualStopsEditor';
 import type { MandatoryStop, PlanningLimits } from '../types/itinerary';
@@ -61,10 +62,10 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [tripType, setTripType] = useState<'round_trip' | 'one_way'>('round_trip');
 
   // Custom KM state (user can type any value or pick a shortcut)
-  const [customKm, setCustomKm] = useState<number>(100);
+  const [customKm, setCustomKm] = useState<string>('100');
 
   // Custom Hours state (user can type any value or pick a shortcut)
-  const [customHours, setCustomHours] = useState<number>(2.5);
+  const [customHours, setCustomHours] = useState<string>('2.5');
 
   // Departure Time scheduling: Agora vs Horário Programado (Requirement #2)
   const [departureMode, setDepartureMode] = useState<'now' | 'scheduled'>('now');
@@ -194,12 +195,16 @@ export const HomeTab: React.FC<HomeTabProps> = ({
 
   const handleGenerateByKm = (event: React.FormEvent) => {
     event.preventDefault();
-    void handleTouristGeneration('km', customKm);
+    if (getTouristTargetError('km', customKm)) return;
+    const km = parseTouristTarget(customKm);
+    if (km !== null) void handleTouristGeneration('km', km);
   };
 
   const handleGenerateByHours = (event: React.FormEvent) => {
     event.preventDefault();
-    void handleTouristGeneration('hours', customHours);
+    if (getTouristTargetError('hours', customHours)) return;
+    const hours = parseTouristTarget(customHours);
+    if (hours !== null) void handleTouristGeneration('hours', hours);
   };
 
   const handleDestinationSubmit = (event: React.FormEvent) => {
@@ -419,20 +424,21 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 <div className="relative flex items-center">
                   <Gauge className="w-5 h-5 text-emerald-600 absolute left-3.5 pointer-events-none" />
                   <input
-                    type="number"
-                    min="15"
-                    max="1000"
-                    step="5"
+                    type="text"
+                    inputMode="decimal"
                     value={customKm}
-                    onChange={(e) => setCustomKm(Math.max(10, parseInt(e.target.value) || 0))}
+                    aria-invalid={!!getTouristTargetError('km', customKm)}
+                    aria-describedby="tourist-km-warning"
+                    onChange={(e) => { if (canTypeTouristTarget(e.target.value)) setCustomKm(e.target.value); }}
                     placeholder="Digite a distância (ex: 80, 120, 200)"
-                    className="w-full pl-11 pr-14 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                    className={`w-full pl-11 pr-14 py-3 rounded-2xl bg-slate-50 border text-sm font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 ${getTouristTargetError('km', customKm) ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/10'}`}
                     required
                   />
                   <span className="absolute right-4 text-xs font-bold text-slate-400 pointer-events-none">
                     KM
                   </span>
                 </div>
+                <p id="tourist-km-warning" role={getTouristTargetError('km', customKm) ? 'alert' : undefined} className="mt-1.5 text-xs font-semibold text-red-600">{getTouristTargetError('km', customKm)}</p>
               </div>
 
               {/* Botões rápidos de atalho por Km */}
@@ -445,9 +451,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     <button
                       key={km}
                       type="button"
-                      onClick={() => setCustomKm(km)}
+                      onClick={() => setCustomKm(String(km))}
                       className={`py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                        customKm === km
+                        customKm === String(km)
                           ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                       }`}
@@ -661,20 +667,21 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 <div className="relative flex items-center">
                   <Clock className="w-5 h-5 text-blue-600 absolute left-3.5 pointer-events-none" />
                   <input
-                    type="number"
-                    min="0.5"
-                    max="24"
-                    step="0.5"
+                    type="text"
+                    inputMode="decimal"
                     value={customHours}
-                    onChange={(e) => setCustomHours(Math.max(0.5, parseFloat(e.target.value) || 0))}
-                    placeholder="Digite o tempo em horas (ex: 1.5, 2, 3)"
-                    className="w-full pl-11 pr-16 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                    aria-invalid={!!getTouristTargetError('hours', customHours)}
+                    aria-describedby="tourist-hours-warning"
+                    onChange={(e) => { if (canTypeTouristTarget(e.target.value)) setCustomHours(e.target.value); }}
+                    placeholder="Digite o tempo em horas (ex: 1,5; 2; 3)"
+                    className={`w-full pl-11 pr-16 py-3 rounded-2xl bg-slate-50 border text-sm font-extrabold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 ${getTouristTargetError('hours', customHours) ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'}`}
                     required
                   />
                   <span className="absolute right-4 text-xs font-bold text-slate-400 pointer-events-none">
                     HORAS
                   </span>
                 </div>
+                <p id="tourist-hours-warning" role={getTouristTargetError('hours', customHours) ? 'alert' : undefined} className="mt-1.5 text-xs font-semibold text-red-600">{getTouristTargetError('hours', customHours)}</p>
               </div>
 
               {/* Botões rápidos de atalho por Tempo */}
@@ -693,9 +700,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     <button
                       key={item.hours}
                       type="button"
-                      onClick={() => setCustomHours(item.hours)}
+                      onClick={() => setCustomHours(String(item.hours))}
                       className={`py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                        customHours === item.hours
+                        customHours === String(item.hours)
                           ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                       }`}
