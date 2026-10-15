@@ -12,7 +12,8 @@ export function mapContributionIcon(options: {
     element.addEventListener('click', event => { L.DomEvent.stop(event); action(); });
     return element;
   };
-  const logo = button(`Ver ${options.name}`, options.onPrices); logo.textContent = options.emoji;
+  const logo = button(`Ver ${options.name}`, options.onPrices);
+  logo.innerHTML = `<svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${options.emoji === '⛽' ? '<path d="M3 22V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v18M1 22h15M3 9h11M14 12h2a2 2 0 0 1 2 2v4a2 2 0 0 0 4 0V9l-3-3"/>' : '<path d="m6 3-3 18m15-18 3 18M12 3v3m0 4v4m0 4v3"/>'}</svg>`;
   logo.style.cssText += ';border-radius:50%;width:40px;height:40px;padding:3px;font-size:20px;border-width:2px';
   const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:3px;align-items:center';
   const price = button('Sugerir preço', options.onPrices); price.textContent = 'Sugerir preço';
