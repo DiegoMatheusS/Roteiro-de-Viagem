@@ -11,13 +11,13 @@ export function RoadAlertsQueue({ onChange }: { onChange: () => void }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const load = (page = 1, filter = status) => fuelApi<PageResult<RoadAlert>>(`/admin/road-alerts?status=${filter}&page=${page}`).then(setData);
   useEffect(() => { setError(''); setMessage(''); load(1, status).catch(err => setError(err.message)); }, [status]);
-  const review = async (id: string, action: 'approve' | 'reject') => {
+  const review = async (id: string, action: 'approve' | 'reject' | 'revoke') => {
     setBusy(true); setError(''); setMessage('');
     try {
       await fuelApi(`/admin/road-alerts/${encodeURIComponent(id)}/review`, { method: 'POST', body: JSON.stringify({ action }) });
       await load(data.page);
       onChange();
-      setMessage(action === 'approve' ? 'Ocorrência publicada até expirar.' : 'Ocorrência rejeitada.');
+      setMessage(action === 'approve' ? 'Ocorrência publicada até expirar.' : action === 'revoke' ? 'Alerta retirado do mapa.' : 'Ocorrência rejeitada.');
     } catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
   };
@@ -36,6 +36,7 @@ export function RoadAlertsQueue({ onChange }: { onChange: () => void }) {
       {alert.note && <p className="text-sm whitespace-pre-wrap break-words">{alert.note}</p>}
       <p className="text-xs text-slate-600">GPS: {alert.lat.toFixed(5)}, {alert.lng.toFixed(5)} · <a className="underline text-blue-700" target="_blank" rel="noopener noreferrer" href={`https://www.openstreetmap.org/?mlat=${alert.lat}&mlon=${alert.lng}#map=17/${alert.lat}/${alert.lng}`}>Verificar no mapa</a></p>
       {status === 'pending' && <div className="flex gap-2"><button disabled={busy} className={`${buttonClass} text-emerald-700`} onClick={() => review(alert.id, 'approve')}>Aprovar</button><button disabled={busy} className={`${buttonClass} text-rose-700`} onClick={() => review(alert.id, 'reject')}>Rejeitar</button></div>}
+      {status === 'approved' && <button disabled={busy} className={`${buttonClass} text-rose-700`} onClick={() => review(alert.id, 'revoke')}>Remover do mapa</button>}
     </article>)}
     <Pager result={data} onPage={page => load(page).catch(err => setError(err.message))} />
   </section>;
