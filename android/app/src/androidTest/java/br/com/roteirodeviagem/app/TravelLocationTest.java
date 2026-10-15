@@ -69,7 +69,8 @@ public class TravelLocationTest {
  @Test public void gpsAndConvoyContinueWithScreenOffAndNotificationStopsBoth() throws Exception {
   // Only this integration test needs an activity. Permission and intent tests are native.
   activity=ActivityScenario.launch(MainActivity.class);
-  await("A interface e a ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins && document.body.innerText.includes('Entrar / Criar conta')")),60000);
+  // O acesso à conta agora fica na aba Perfil; a home apresenta o planejamento Rolê.
+  await("A interface e a ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins && document.body.innerText.includes('Dar um rolê por aí?') && document.body.innerText.includes('Rolê com origem e destino')")),60000);
   // The HTTPS server, certificate and session below exist only inside this instrumentation test.
   HeldCertificate cert=new HeldCertificate.Builder().commonName("127.0.0.1").addSubjectAlternativeName("127.0.0.1").addSubjectAlternativeName("localhost").build();
   HandshakeCertificates serverTls=new HandshakeCertificates.Builder().heldCertificate(cert).build(),clientTls=new HandshakeCertificates.Builder().addTrustedCertificate(cert.certificate()).build();
