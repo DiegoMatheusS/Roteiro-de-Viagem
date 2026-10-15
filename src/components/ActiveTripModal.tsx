@@ -167,7 +167,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           className="w-full h-full"
         />
 
-        <div className="absolute top-3 right-3 z-30"><RoadAlertReporter
+        <div className="absolute bottom-24 right-4 z-30"><RoadAlertReporter
           location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
           onSubmitted={() => { void roadAlerts.reload(); }} /></div>
         {upcoming && <div role="status" className="absolute top-14 left-3 right-3 z-30 bg-amber-50 border-2 border-amber-400 rounded-xl px-3 py-2 shadow-lg max-w-[310px] text-xs font-bold">
