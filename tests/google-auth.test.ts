@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
-import { verifyGoogleCredential } from '../server/googleAuth';
+import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from '../server/googleAuth';
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const clientId = 'test-client.apps.googleusercontent.com';
@@ -38,4 +38,21 @@ test('Google login rejects tampered signatures and unverified emails', async () 
 
 test('Google login remains unavailable without configured web client ID', async () => {
   await assert.rejects(verifyGoogleCredential(credential(), '', mockFetch), /GOOGLE_LOGIN_NOT_CONFIGURED/);
+});
+
+test('Only Google-owned or hosted-domain verified addresses support automatic account linking', () => {
+  const base = { sub: 'google-123', name: 'Traveler' };
+  assert.equal(canAutoLinkGoogleIdentity({ ...base, email: 'traveler@gmail.com' }), true);
+  assert.equal(canAutoLinkGoogleIdentity({ ...base, email: 'traveler@googlemail.com' }), true);
+  assert.equal(canAutoLinkGoogleIdentity({ ...base, email: 'traveler@empresa.com.br', hostedDomain: 'empresa.com.br' }), true);
+  assert.equal(canAutoLinkGoogleIdentity({ ...base, email: 'traveler@example.com' }), false);
+  assert.equal(canAutoLinkGoogleIdentity({ ...base, email: 'traveler@example.com', hostedDomain: 'another-domain.com' }), false);
+});
+
+test('Signed Google hosted-domain claim is verified and included for enterprise accounts', async () => {
+  const identity = await verifyGoogleCredential(credential({
+    email: 'traveler@empresa.com.br', hd: 'empresa.com.br'
+  }), clientId, mockFetch);
+  assert.equal(identity.hostedDomain, 'empresa.com.br');
+  assert.equal(canAutoLinkGoogleIdentity(identity), true);
 });

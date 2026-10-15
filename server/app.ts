@@ -21,7 +21,7 @@ import { clientIp, ApiError, asyncRoute, auth, administrator, user, now, validat
 import { registerConvoyRoutes } from './convoys';
 import { registerWeatherRoutes } from './weather';
 import { registerTollRoutes } from './tolls';
-import { verifyGoogleCredential } from './googleAuth';
+import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from './googleAuth';
 import { stationOpeningStatus } from './openingHours';
 
 const scryptAsync = promisify(scrypt);
@@ -111,7 +111,8 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     catch { throw new ApiError('Este e-mail já possui uma conta.', 409); }
     res.status(201).json({ user: setSession(res, account) });
   }));
-  // Google verifies identity, never grants an admin role and never automatically merges e-mail/password accounts.
+  // Google ID tokens prove identity; existing local accounts keep the same user ID and data.
+  // Never grant administrator access or link non-authoritative third-party mailboxes without the current password.
   app.post('/api/auth/google', asyncRoute(async (req, res) => {
     limit(`google-login:${clientIp(req)}`, 10, 15 * 60000);
     if (!process.env.GOOGLE_CLIENT_ID) throw new ApiError('Entrar com Google ainda não está configurado.', 503);
@@ -122,19 +123,53 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
       if (message === 'GOOGLE_KEYS_UNAVAILABLE' || message.includes('fetch')) throw new ApiError('Não foi possível validar o acesso pelo Google. Tente novamente.', 503);
       throw new ApiError('Não foi possível validar sua conta Google. Tente novamente.', 401);
     }
+
     let account = db.prepare('SELECT * FROM users WHERE google_sub=?').get(identity.sub) as any;
     if (account && (account.blocked_at || account.deleted_at || account.role !== 'user'))
-      throw new ApiError('Esta conta não pode entrar pelo Google.', 403);
+      throw new ApiError('Esta conta só pode entrar com e-mail e senha.', 403);
+
     if (!account) {
-      if (db.prepare('SELECT id FROM users WHERE email=?').get(identity.email))
-        throw new ApiError('Este e-mail já tem cadastro com senha. Entre usando seu e-mail e senha.', 409);
-      const salt = randomBytes(16).toString('hex');
-      const unusablePasswordHash = `${salt}:${randomBytes(64).toString('hex')}`;
-      account = { id: randomUUID(), display_name: identity.name, role: 'user' };
-      try {
-        db.prepare('INSERT INTO users(id,email,display_name,password_hash,role,created_at,google_sub) VALUES(?,?,?,?,?,?,?)')
-          .run(account.id, identity.email, identity.name, unusablePasswordHash, 'user', now(), identity.sub);
-      } catch { throw new ApiError('Não foi possível criar a conta Google. Entre novamente.', 409); }
+      const existing = db.prepare('SELECT * FROM users WHERE email=?').get(identity.email) as any;
+      if (existing) {
+        if (existing.blocked_at || existing.deleted_at || existing.role !== 'user' ||
+            (existing.google_sub && existing.google_sub !== identity.sub))
+          throw new ApiError('Esta conta só pode entrar com e-mail e senha.', 403);
+
+        if (!canAutoLinkGoogleIdentity(identity)) {
+          // Some Google accounts use mailboxes Google does not control: verify both login methods once.
+          const password = req.body?.password;
+          if (typeof password !== 'string') {
+            res.status(409).json({ code: 'GOOGLE_LINK_PASSWORD_REQUIRED',
+              error: 'Para vincular sua conta existente ao Google, confirme sua senha atual uma única vez.' });
+            return;
+          }
+          limit(`google-link:${clientIp(req)}`, 5, 15 * 60000);
+          if (password.length < 1 || password.length > 128)
+            throw new ApiError('Senha atual incorreta. Tente novamente.', 401);
+          const [salt, expected] = String(existing.password_hash).split(':');
+          const actual = await scryptAsync(password, salt, 64) as Buffer;
+          if (!timingSafeEqual(actual, Buffer.from(expected, 'hex')))
+            throw new ApiError('Senha atual incorreta. Tente novamente.', 401);
+        }
+
+        // Atomic and single-use linking: preserve the existing password, profile, routes and user ID.
+        try {
+          const linked = db.prepare(`UPDATE users SET google_sub=? WHERE id=? AND google_sub IS NULL
+            AND blocked_at IS NULL AND deleted_at IS NULL AND role='user'`).run(identity.sub, existing.id);
+          if (linked.changes !== 1) throw new Error('GOOGLE_ACCOUNT_LINK_CONFLICT');
+        } catch {
+          throw new ApiError('Não foi possível vincular a conta Google. Entre novamente.', 409);
+        }
+        account = db.prepare('SELECT * FROM users WHERE id=?').get(existing.id) as any;
+      } else {
+        const salt = randomBytes(16).toString('hex');
+        const unusablePasswordHash = `${salt}:${randomBytes(64).toString('hex')}`;
+        account = { id: randomUUID(), display_name: identity.name, role: 'user' };
+        try {
+          db.prepare('INSERT INTO users(id,email,display_name,password_hash,role,created_at,google_sub) VALUES(?,?,?,?,?,?,?)')
+            .run(account.id, identity.email, identity.name, unusablePasswordHash, 'user', now(), identity.sub);
+        } catch { throw new ApiError('Não foi possível criar a conta Google. Entre novamente.', 409); }
+      }
     }
     res.json({ user: setSession(res, account) });
   }));
