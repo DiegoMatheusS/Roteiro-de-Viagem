@@ -55,6 +55,7 @@ try {
   await login(context,traveler.cookie);await login(adminContext,moderator.cookie);
   await page.route('https://**',route=>route.abort());await admin.route('https://**',route=>route.abort());
   await page.goto('http://127.0.0.1:3000');
+  await page.getByRole('button',{name:'Abrir menu'}).click();
   await page.getByRole('button',{name:'Mapa',exact:true}).click();
   await page.getByRole('button',{name:'Atualizar clima e pedágios',exact:true}).waitFor();
   await page.waitForFunction(id=>JSON.parse(localStorage.getItem('rdv_private_v2_'+id+'_trips')||'[]')[0]?.weatherSource==='Open-Meteo',traveler.user.id);
