@@ -151,7 +151,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         const bearing = (i * Math.PI) / 4;
         const waypoint = (angle: number): Coordinates => [
           Math.max(-89.9, Math.min(89.9, origin[0] + Math.cos(angle) * spanKm / 111)),
-          Math.max(-179.9, Math.min(179.9, origin[1] + Math.sin(angle) * spanKm / (111 * Math.max(0.1, Math.abs(Math.cos(origin[0] * Math.PI / 180)))))
+          Math.max(-179.9, Math.min(179.9, origin[1] + Math.sin(angle) * spanKm / (111 * Math.max(0.1, Math.abs(Math.cos(origin[0] * Math.PI / 180))))))
         ];
         const path: Coordinates[] = tripType === 'round_trip'
           ? [origin, waypoint(bearing), waypoint(bearing + Math.PI / 2), origin]
