@@ -23,8 +23,16 @@ test('verified Google login links an existing traveler account without duplicati
   const db = openDatabase(':memory:');
   const app = createApi({ db, photoDirectory: directory });
   const server = app.listen(0, '127.0.0.1');
+  const servers = [server];
   await new Promise<void>(resolve => server.once('listening', resolve));
-  const apiUrl = 'http://127.0.0.1:' + (server.address() as any).port + '/api';
+  let apiUrl = 'http://127.0.0.1:' + (server.address() as any).port + '/api';
+  // Each API instance has an independent abuse-protection window; keep the production limit intact.
+  const startIsolatedTestApi = async () => {
+    const next = createApi({ db, photoDirectory: directory }).listen(0, '127.0.0.1');
+    servers.push(next);
+    await new Promise<void>(resolve => next.once('listening', resolve));
+    apiUrl = 'http://127.0.0.1:' + (next.address() as any).port + '/api';
+  };
   const request = async (route: string, body?: unknown, cookie?: string) => {
     const response = await globalThis.fetch(apiUrl + route, {
       method: body === undefined ? 'GET' : 'POST',
@@ -83,6 +91,7 @@ test('verified Google login links an existing traveler account without duplicati
     assert.equal(externalHosted.status, 201);
     assert.equal((await request('/auth/google', { credential: credential('person@empresa.com.br', 'workspace-sub', 'empresa.com.br') })).status, 200);
     assert.equal((db.prepare('SELECT COUNT(*) count FROM users').get() as any).count, 3);
+    await startIsolatedTestApi();
 
     // A previously linked traveler promoted to admin keeps Google sign-in, but it never grants admin rights.
     db.prepare('UPDATE users SET role=? WHERE email=?').run('admin', 'traveler@gmail.com');
@@ -122,7 +131,7 @@ test('verified Google login links an existing traveler account without duplicati
     assert.equal(brandNew.status, 200);
     assert.equal(brandNew.body.user.role, 'user');
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    for (const entry of servers) await new Promise<void>(resolve => entry.close(() => resolve()));
     db.close();
     fs.rmSync(directory, { recursive: true, force: true });
     globalThis.fetch = priorFetch;
