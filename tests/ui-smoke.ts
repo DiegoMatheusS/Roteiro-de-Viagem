@@ -99,6 +99,7 @@ try {
   await adminPage.route('https://**', route => route.abort());
   await adminPage.goto('http://127.0.0.1:3000/admin');
   await adminPage.getByRole('button', { name: 'Entrar como administrador', exact: true }).click();
+  console.log('DEBUG admin auth', JSON.stringify({ url: adminPage.url(), dialogs: await adminPage.locator('[role="dialog"]').evaluateAll(nodes => nodes.map(node => ({ label: node.getAttribute('aria-label'), text: node.textContent?.slice(0, 180) }))), body: (await adminPage.locator('body').innerText()).slice(0, 800) }));
   const adminAccount = adminPage.getByRole('dialog', { name: 'Conta do viajante', exact: true });
   await adminAccount.getByLabel('E-mail', { exact: true }).fill('admin-ui@example.test');
   await adminAccount.getByLabel('Senha', { exact: true }).fill('admin-ui-test-password');
