@@ -85,7 +85,7 @@ try {
   const kmEntry = page.locator('input[aria-describedby="tourist-km-warning"]');
   await kmEntry.fill('9');
   assert.equal(await kmEntry.inputValue(), '9');
-  await page.getByText('KM muito baixo — informe pelo menos 10 km.', { exact: true }).waitFor();
+  await page.getByText('KM muito baixo — o trajeto pode ser limitado.', { exact: true }).waitFor();
   await kmEntry.fill('10');
   assert.equal(await page.locator('#tourist-km-warning').innerText(), '');
   await kmEntry.fill('100');
@@ -105,7 +105,7 @@ try {
   const hoursEntry = page.locator('input[aria-describedby="tourist-hours-warning"]');
   await hoursEntry.fill('0,2');
   assert.equal(await hoursEntry.inputValue(), '0,2');
-  await page.getByText('Quantidade em Horas muito baixo — informe pelo menos 0,5 hora.', { exact: true }).waitFor();
+  await page.getByText('Quantidade em Horas muito baixa — o trajeto pode ser limitado.', { exact: true }).waitFor();
   await hoursEntry.fill('0,5');
   assert.equal(await page.locator('#tourist-hours-warning').innerText(), '');
   await page.getByRole('button', { name: 'Por Km', exact: true }).click();
