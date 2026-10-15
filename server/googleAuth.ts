@@ -49,7 +49,7 @@ export async function verifyGoogleCredential(
   let valid = false;
   try {
     valid = verify('RSA-SHA256', Buffer.from(segments[0] + '.' + segments[1]),
-      createPublicKey({ key, format: 'jwk' }), Buffer.from(segments[2], 'base64url'));
+      createPublicKey({ key: key as any, format: 'jwk' }), Buffer.from(segments[2], 'base64url'));
   } catch { throw new Error('INVALID_GOOGLE_CREDENTIAL'); }
   if (!valid) throw new Error('INVALID_GOOGLE_CREDENTIAL');
 
