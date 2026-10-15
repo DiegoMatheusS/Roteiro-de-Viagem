@@ -117,6 +117,43 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     if (!account || !timingSafeEqual(actual, Buffer.from(expected, 'hex'))) throw new ApiError('E-mail ou senha incorretos.', 401);
     res.json({ user: setSession(res, account) });
   }));
+  // Alteracao de senha autenticada: exige senha atual, revoga todas as sessoes
+  // e nunca registra senhas ou hashes nos logs.
+  app.post('/api/admin/change-password', auth, administrator, asyncRoute(async (req, res) => {
+    limit(`change-password:${user(res).id}`, 5, 60 * 60000);
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || currentPassword.length < 1 || currentPassword.length > 128 ||
+        typeof newPassword !== 'string' || newPassword.length < 10 || newPassword.length > 128 ||
+        typeof confirmPassword !== 'string' || confirmPassword !== newPassword)
+      throw new ApiError('Informe a senha atual e confirme uma nova senha de 10 a 128 caracteres.');
+    if (currentPassword === newPassword) throw new ApiError('A nova senha deve ser diferente da senha atual.');
+    const account = db.prepare("SELECT password_hash FROM users WHERE id=? AND role='admin' AND blocked_at IS NULL AND deleted_at IS NULL")
+      .get(user(res).id) as { password_hash: string } | undefined;
+    if (!account) throw new ApiError('Acesso exclusivo do administrador.', 403);
+    const [salt, expected] = account.password_hash.split(':');
+    if (!/^[a-f0-9]{32}$/.test(salt || '') || !/^[a-f0-9]{128}$/.test(expected || ''))
+      throw new ApiError('Não foi possível alterar a senha. Contate o suporte.', 500);
+    const actual = await scryptAsync(currentPassword, salt, 64) as Buffer;
+    if (!timingSafeEqual(actual, Buffer.from(expected, 'hex')))
+      throw new ApiError('Senha atual incorreta.', 401);
+    const freshSalt = randomBytes(16).toString('hex');
+    const newHash = (await scryptAsync(newPassword, freshSalt, 64) as Buffer).toString('hex');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      // Impede que uma solicitacao simultanea troque a senha usando um hash antigo.
+      const update = db.prepare("UPDATE users SET password_hash=? WHERE id=? AND password_hash=? AND role='admin' AND blocked_at IS NULL AND deleted_at IS NULL")
+        .run(`${freshSalt}:${newHash}`, user(res).id, account.password_hash);
+      if (update.changes !== 1) throw new ApiError('Senha modificada em outra sessão. Entre novamente.', 409);
+      db.prepare('DELETE FROM sessions WHERE user_id=?').run(user(res).id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    res.clearCookie('rdv_session', { path: '/api', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+    res.json({ ok: true, message: 'Senha alterada. Entre novamente com a nova senha.' });
+  }));
+
   app.post('/api/auth/logout', (req, res) => {
     if (user(res)) db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE user_id=?').run(user(res).id);
     const token = req.headers.cookie?.split(';').map(c => c.trim()).find(c => c.startsWith('rdv_session='))?.slice(12);
