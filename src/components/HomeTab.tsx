@@ -83,6 +83,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>();
   const [manualStops, setManualStops] = useState<MandatoryStop[]>([]);
+  const [gpsOrigin, setGpsOrigin] = useState('');
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -125,8 +126,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     setLocationError(null);
     try {
       const position = await getCurrentDeviceLocation();
-      setOriginCoords(position.coords);
-      setOrigin(`Sua Localização (${position.coords[0].toFixed(3)}, ${position.coords[1].toFixed(3)})`);
+      const name = `Sua Localização (${position.coords[0].toFixed(3)}, ${position.coords[1].toFixed(3)})`;
+      if (plannerMode === 'destino') {
+        setOriginCoords(position.coords);
+        setOrigin(name);
+      } else setGpsOrigin(name);
     } catch (error) {
       setLocationError((error as Error).message);
     } finally {
@@ -157,39 +161,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       if (!end) { setLocationError('Escolha um destino ou uma parada final.'); return; }
       trip = { ...trip, destinationCoords: end, destinationName: destinationCoords ? destination : trip.isCircular ? origin : manualStops.at(-1)!.location.name, manualStops, planningLimits: limits };
     } else trip = { ...trip, planningLimits: limits };
+    launchTrip(trip);
+  };
+
+  const launchTrip = (trip: TripPlan) => {
     try { const departureAt=getScheduledDepartureAt();if(departureMode==='scheduled' && !departureAt)throw new Error('Escolha um horário de saída válido.');trip={...trip,departureAt};setLocationError(null);onLaunchTouristCircuit(trip); } catch(error){setLocationError((error as Error).message);}
   };
 
   const handleTouristGeneration = async (mode: 'km' | 'hours', target: number) => {
-    if (!currentVehicle || isGenerating) return;
-    if (!originCoords) { setLocationError('Selecione a origem ou use sua localização.'); return; }
-    if (destination.trim() && !destinationCoords) { setLocationError('Escolha um destino válido na busca.'); return; }
-    if (manualStops.some(stop => !stop.location.id || !stop.location.coords)) {
-      setLocationError('Pesquise e selecione um local real para cada parada.'); return;
-    }
-    const limits: PlanningLimits = { mode, target };
-    setIsGenerating(true); setLocationError(null);
+    if (!currentVehicle || isGenerating || isGettingGps) return;
+    setIsGenerating(true); setIsGettingGps(true); setLocationError(null);
     try {
-      if (destinationCoords || manualStops.length) {
-        // User-chosen points are mandatory; the server calculates them via OSRM.
-        const end = destinationCoords || (tripType === 'round_trip' ? originCoords : manualStops.at(-1)?.location.coords);
-        if (!end) throw new Error('Selecione um destino para o passeio só de ida.');
-        const draft = createRoadDraft({
-          originName: origin, originCoords, destinationName: destinationCoords ? destination : tripType === 'round_trip' ? origin : manualStops.at(-1)!.location.name,
-          destinationCoords: end, vehicle: currentVehicle, circular: tripType === 'round_trip', limits
-        });
-        launchWithStops(draft, limits);
-      } else {
-        const verified = await generateVerifiedTouristCircuit({
-          mode, target, tripType, originName: origin, originCoords,
-          interests: touristInterests, vehicle: currentVehicle
-        });
-        launchWithStops(verified, limits);
-      }
+      const position = await getCurrentDeviceLocation();
+      const name = `Sua Localização (${position.coords[0].toFixed(3)}, ${position.coords[1].toFixed(3)})`;
+      setGpsOrigin(name); setIsGettingGps(false);
+      const verified = await generateVerifiedTouristCircuit({
+        mode, target, tripType, originName: name, originCoords: position.coords,
+        interests: touristInterests, vehicle: currentVehicle
+      });
+      launchTrip(verified);
     } catch (error) {
       setLocationError((error as Error).message);
     } finally {
-      setIsGenerating(false);
+      setIsGenerating(false); setIsGettingGps(false);
     }
   };
 
@@ -269,14 +263,14 @@ export const HomeTab: React.FC<HomeTabProps> = ({
 
       <div className="max-w-xl mx-auto p-4 sm:p-5 space-y-5">
         <div className="flex items-center justify-between gap-3 text-xs bg-white border border-slate-200 rounded-xl p-3">
-          <span className="truncate text-slate-600">Origem: {origin || 'Não definida'}</span>
-          <button type="button" onClick={handleUseCurrentLocation} disabled={isGettingGps} className="shrink-0 text-emerald-700 font-bold disabled:opacity-50">
+          <span className="truncate text-slate-600">Origem: {plannerMode === 'destino' ? origin || 'Não definida' : gpsOrigin || 'Localização atual pelo GPS'}</span>
+          <button type="button" onClick={handleUseCurrentLocation} disabled={isGettingGps || isGenerating} className="shrink-0 text-emerald-700 font-bold disabled:opacity-50">
             {isGettingGps ? 'Buscando GPS...' : 'Usar minha localização'}
           </button>
         </div>
         {locationError && <p role="alert" className="text-xs text-rose-700">{locationError}</p>}
         {!currentVehicle && <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">Cadastre sua moto ou carro em <strong>Ajustes → Minha Garagem</strong> para calcular combustível e gerar viagens. Nenhum veículo é adicionado automaticamente.</div>}
-        {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">Buscando atrações reais e verificando estradas. Aguarde...</p>}
+        {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">{isGettingGps ? 'Obtendo sua localização pelo GPS...' : 'Buscando atrações reais e verificando estradas. Aguarde...'}</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}
         {activeConvoyId && (
           <div className="w-full p-3 rounded-2xl bg-violet-600 text-white text-xs font-bold flex items-center justify-between shadow-md transition-all gap-2">
@@ -299,12 +293,6 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </div>
         )}
 
-        <section aria-label="Origem, paradas e destino" className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
-          <LocationSearch label="Origem" value={{ name: origin, coords: originCoords }} bias={originCoords} onChange={value => { setOrigin(value.name); setOriginCoords(value.coords); }} />
-          <ManualStopsEditor value={manualStops} onChange={setManualStops} bias={originCoords} hideAddButton />
-          <LocationSearch label="Destino" value={{ name: destination, coords: destinationCoords }} bias={originCoords} placeholder={plannerMode === 'destino' ? 'Escolha o destino' : 'Opcional no passeio por km ou horas'} onChange={value => { setDestination(value.name); setDestinationCoords(value.coords); }} />
-          <div className="flex justify-between gap-3"><button type="button" disabled={manualStops.length >= 12} onClick={() => setManualStops(value => [...value, { id: crypto.randomUUID(), location: { name: '' }, stayMinutes: 0 }])} className="text-sm font-bold text-emerald-700">+ Adicionar parada</button><button type="button" onClick={handleSwap} title="Inverter origem e destino" className="text-xs text-slate-500"><ArrowUpDown className="w-4 h-4" /></button></div>
-        </section>
 
         {/* MODE SELECTOR (POR KM, POR HORAS, COM DESTINO FIXO) */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
@@ -349,13 +337,15 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 }`}
               >
                 <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                <span>Com Destino</span>
+                <span>Origem e destino</span>
               </button>
             </div>
           </div>
 
+          {plannerMode !== 'destino' && <p className="text-xs text-slate-600">O passeio começa na sua localização pelo GPS. Escolha a distância ou o tempo e suas preferências; o app sugere os destinos.</p>}
+
           {/* ======================================================== */}
-          {/* MODO 1: POR KM (SEM PONTO DE PARTIDA OU DESTINO!) */}
+          {/* MODO 1: POR KM A PARTIR DO GPS */}
           {/* ======================================================== */}
           {plannerMode === 'km' && (
             <form onSubmit={handleGenerateByKm} aria-busy={isGenerating} className="space-y-4 animate-in fade-in">
@@ -547,7 +537,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão de Gerar Roteiro por Km */}
               <button
                 type="submit"
-                disabled={!currentVehicle || isGenerating}
+                disabled={!currentVehicle || isGenerating || isGettingGps}
                 className="w-full py-3.5 px-4 rounded-2xl disabled:opacity-50 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4" />
@@ -796,7 +786,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão de Gerar Roteiro por Horas */}
               <button
                 type="submit"
-                disabled={!currentVehicle || isGenerating}
+                disabled={!currentVehicle || isGenerating || isGettingGps}
                 className="w-full py-3.5 px-4 rounded-2xl disabled:opacity-50 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4" />
@@ -812,6 +802,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           {/* ======================================================== */}
           {plannerMode === 'destino' && (
             <form onSubmit={handleDestinationSubmit} className="space-y-4 animate-in fade-in">
+              <section aria-label="Origem, paradas e destino" className="space-y-4">
+                <LocationSearch label="Origem" value={{ name: origin, coords: originCoords }} bias={originCoords} onChange={value => { setOrigin(value.name); setOriginCoords(value.coords); }} />
+                <ManualStopsEditor value={manualStops} onChange={setManualStops} bias={originCoords} hideAddButton />
+                <LocationSearch label="Destino" value={{ name: destination, coords: destinationCoords }} bias={originCoords} placeholder="Escolha o destino" onChange={value => { setDestination(value.name); setDestinationCoords(value.coords); }} />
+                <div className="flex justify-between gap-3"><button type="button" disabled={manualStops.length >= 12} onClick={() => setManualStops(value => [...value, { id: crypto.randomUUID(), location: { name: '' }, stayMinutes: 0 }])} className="text-sm font-bold text-emerald-700">+ Adicionar parada</button><button type="button" onClick={handleSwap} title="Inverter origem e destino" className="text-xs text-slate-500"><ArrowUpDown className="w-4 h-4" /></button></div>
+              </section>
               {/* Botão Traçar Rota com Destino */}
               <button
                 type="submit"

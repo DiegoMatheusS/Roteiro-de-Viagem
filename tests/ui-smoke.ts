@@ -59,6 +59,11 @@ try {
   await login.getByLabel('Nome de exibição').fill('Viajante de teste');
   await login.getByLabel('E-mail', { exact: true }).fill('ui@example.test');
   await login.getByLabel('Senha', { exact: true }).fill('ui-test-password');
+  await login.getByLabel('Repetir senha', { exact: true }).fill('different-password');
+  await login.getByRole('button', { name: 'Criar minha conta' }).click();
+  await login.getByRole('alert').filter({ hasText: 'As senhas não coincidem.' }).waitFor();
+  assert.equal((db.prepare("SELECT COUNT(*) AS count FROM users WHERE email='ui@example.test'").get() as any).count, 0);
+  await login.getByLabel('Repetir senha', { exact: true }).fill('ui-test-password');
   await login.getByRole('button', { name: 'Criar minha conta' }).click();
   await login.waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click();
@@ -66,8 +71,15 @@ try {
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
-  await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
-  await page.getByText(/Origem: Sua Localização/).waitFor();
+  // GPS modes must ignore even an incomplete draft in the manual destination tab.
+  await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
+  await page.getByLabel('Origem', { exact: true }).fill('Origem manual ainda não selecionada');
+  await page.getByLabel('Destino', { exact: true }).fill('Destino manual ainda não selecionado');
+  await page.getByRole('button', { name: '+ Adicionar parada', exact: true }).click();
+  await page.getByRole('button', { name: 'Por Km', exact: true }).click();
+  assert.equal(await page.getByLabel('Origem', { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('Destino', { exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '+ Adicionar parada', exact: true }).count(), 0);
 
   // Planejamento ida e volta: nao corrigir a digitacao; exibir o erro em vermelho.
   const kmEntry = page.locator('input[aria-describedby="tourist-km-warning"]');
@@ -78,6 +90,18 @@ try {
   assert.equal(await page.locator('#tourist-km-warning').innerText(), '');
   await kmEntry.fill('100');
   await page.getByRole('button', { name: 'Por Horas', exact: true }).click();
+  assert.equal(await page.getByLabel('Origem', { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('Destino', { exact: true }).count(), 0);
+  await page.screenshot({ path: 'test-results/home-gps-hours-mobile.png', fullPage: true });
+  const hoursRequest = page.waitForRequest(request => request.url().endsWith('/api/routes/tourist'));
+  // Fail after capturing the request so the hours form stays open for validation below.
+  await page.route('**/api/routes/tourist', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Indisponível no teste de horas' }) }));
+  await page.getByRole('button', { name: /Gerar Roteiro Turístico de 2.5h/ }).click();
+  const hoursPayload = (await hoursRequest).postDataJSON();
+  assert.equal(hoursPayload.mode, 'hours');
+  assert.deepEqual(hoursPayload.originCoords, [-23.551, -46.629]);
+  await page.getByText('Indisponível no teste de horas', { exact: true }).waitFor();
+  await page.unroute('**/api/routes/tourist');
   const hoursEntry = page.locator('input[aria-describedby="tourist-hours-warning"]');
   await hoursEntry.fill('0,2');
   assert.equal(await hoursEntry.inputValue(), '0,2');
@@ -86,7 +110,11 @@ try {
   assert.equal(await page.locator('#tourist-hours-warning').innerText(), '');
   await page.getByRole('button', { name: 'Por Km', exact: true }).click();
 
+  const kmRequest = page.waitForRequest(request => request.url().endsWith('/api/routes/tourist'));
   await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
+  const kmPayload = (await kmRequest).postDataJSON();
+  assert.equal(kmPayload.mode, 'km');
+  assert.deepEqual(kmPayload.originCoords, [-23.551, -46.629]);
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
   await planner.getByText(/Percurso por estradas reais/).first().waitFor();
@@ -224,22 +252,28 @@ try {
   assert.ok((db.prepare("SELECT deleted_at FROM users WHERE display_name='Usuário excluído'").get() as any).deleted_at);
   await restaurant.getByRole('button', { name: 'Fechar estabelecimento', exact: true }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
+  await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
+  // Clear the incomplete manual draft if Home stayed mounted.
+  while (await page.getByRole('button', { name: 'Remover parada 1', exact: true }).count()) await page.getByRole('button', { name: 'Remover parada 1', exact: true }).click();
+  await page.getByLabel('Destino', { exact: true }).fill('Teste parada');
+  await page.getByRole('button', { name: 'Buscar destino', exact: true }).click();
+  await page.getByRole('button', { name: /^Parada Alfa de teste/ }).click();
   await page.getByRole('button', { name: '+ Adicionar parada', exact: true }).click();
   await page.getByLabel('Parada 1', { exact: true }).fill('Teste parada');
   await page.getByRole('button', { name: 'Buscar parada 1', exact: true }).click();
-  await page.getByRole('button', { name: /Parada Alfa de teste/ }).click();
+  await page.getByRole('button', { name: /^Parada Alfa de teste/ }).click();
   await page.getByLabel('Permanência na parada 1', { exact: true }).fill('5');
   await page.getByRole('button', { name: '+ Adicionar parada', exact: true }).click();
   await page.getByLabel('Parada 2', { exact: true }).fill('Teste parada');
   await page.getByRole('button', { name: 'Buscar parada 2', exact: true }).click();
-  await page.getByRole('button', { name: /Parada Beta de teste/ }).click();
+  await page.getByRole('button', { name: /^Parada Beta de teste/ }).click();
   await page.getByLabel('Permanência na parada 2', { exact: true }).fill('10');
   await page.getByRole('button', { name: 'Arrastar parada 1', exact: true }).dragTo(page.getByRole('button', { name: 'Arrastar parada 2', exact: true }));
   assert.equal(await page.getByLabel('Parada 1', { exact: true }).inputValue(), 'Parada Beta de teste');
   await page.screenshot({ path: 'test-results/stops-home-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
   await page.getByText(/Origem: Sua Localização/).waitFor();
-  await page.getByRole('button', { name: /Gerar Roteiro Turístico de 100 km/ }).click();
+  await page.getByRole('button', { name: /Traçar Rota até/ }).click();
   await planner.getByText(/1\. Parada Beta de teste/).last().waitFor();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).waitFor();
   await planner.getByRole('button', { name: 'Remover parada 1', exact: true }).click();
@@ -247,7 +281,7 @@ try {
   await planner.getByRole('button', { name: '+ Adicionar parada', exact: true }).click();
   await planner.getByLabel('Parada 2', { exact: true }).fill('Teste parada');
   await planner.getByRole('button', { name: 'Buscar parada 2', exact: true }).click();
-  await planner.getByRole('button', { name: /Parada Beta de teste/ }).click();
+  await planner.getByRole('button', { name: /^Parada Beta de teste/ }).click();
   await planner.getByLabel('Permanência na parada 2', { exact: true }).fill('10');
   await planner.getByText(/2\. Parada Beta de teste/).last().waitFor();
   await planner.getByLabel('Preço de planejamento', { exact: true }).fill('5.899');
