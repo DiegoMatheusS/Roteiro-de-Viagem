@@ -106,17 +106,18 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
   app.post('/api/admin/road-alerts/:id/review', auth, administrator, (req, res) => {
     limit(`road-alert-review:${user(res).id}`, 90, 60000);
     const action = req.body?.action;
-    if (action !== 'approve' && action !== 'reject') throw new ApiError('Escolha aprovar ou rejeitar.');
+    if (!['approve', 'reject', 'revoke'].includes(action)) throw new ApiError('Escolha aprovar, rejeitar ou retirar um alerta publicado.');
+    const previousStatus = action === 'revoke' ? 'approved' : 'pending';
     const row = db.prepare('SELECT id,expires_at,status FROM road_alerts WHERE id=?')
       .get(req.params.id) as { id: string; expires_at: string; status: string } | undefined;
-    if (!row || row.status !== 'pending') throw new ApiError('Alerta indisponível para revisão.', 409);
-    if (row.expires_at <= now()) throw new ApiError('A ocorrência expirou. Peça um novo registro.', 409);
+    if (!row || row.status !== previousStatus) throw new ApiError('Alerta indisponível para revisão.', 409);
+    if (action !== 'revoke' && row.expires_at <= now()) throw new ApiError('A ocorrência expirou. Peça um novo registro.', 409);
     const reviewedAt = now();
     db.exec('BEGIN');
     try {
       const updated = db.prepare(`UPDATE road_alerts SET status=?,reviewed_by=?,reviewed_at=?
-        WHERE id=? AND status='pending' AND expires_at>?`)
-        .run(action === 'approve' ? 'approved' : 'rejected', user(res).id, reviewedAt, row.id, reviewedAt);
+        WHERE id=? AND status=?`)
+        .run(action === 'approve' ? 'approved' : 'rejected', user(res).id, reviewedAt, row.id, previousStatus);
       if (updated.changes !== 1) throw new ApiError('Este alerta já foi analisado.', 409);
       db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)')
         .run(randomUUID(), user(res).id, 'road_alerts', row.id, action, '', reviewedAt);
