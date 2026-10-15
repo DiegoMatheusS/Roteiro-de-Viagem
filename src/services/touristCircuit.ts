@@ -81,7 +81,7 @@ export async function generateVerifiedTouristCircuit(request: TouristRequest): P
       interests: request.interests
     })
   });
-  if (!result.routePath?.length || !result.stops?.length || result.routingSource !== 'OSRM') {
+  if (!result.routePath?.length || !Array.isArray(result.stops) || result.routingSource !== 'OSRM') {
     throw new Error('O serviço não retornou um roteiro turístico rodoviário válido.');
   }
   const consumption = request.vehicle.consumption.userConfigured || request.vehicle.consumption.referenceAverage;
