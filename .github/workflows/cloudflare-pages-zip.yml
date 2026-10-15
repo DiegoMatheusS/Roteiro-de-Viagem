@@ -1,0 +1,47 @@
+name: Gerar ZIP para Cloudflare Pages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cloudflare-pages-zip.yml'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'wrangler.jsonc'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Gerar frontend
+        run: npm run build
+      - name: Conferir os arquivos obrigatorios
+        shell: bash
+        run: |
+          test -s dist/index.html
+          test -s dist/_worker.js
+          test -s dist/_routes.json
+          test -d dist/assets
+          test ! -e dist/.env
+      - name: Disponibilizar ZIP para envio manual ao Pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: roteiro-cloudflare-pages
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
