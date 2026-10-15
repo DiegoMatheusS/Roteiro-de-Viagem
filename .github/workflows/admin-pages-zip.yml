@@ -10,6 +10,8 @@ on:
       - 'public/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'tests/**'
+      - 'server/**'
   workflow_dispatch:
 permissions:
   contents: read
