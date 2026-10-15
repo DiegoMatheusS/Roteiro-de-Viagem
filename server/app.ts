@@ -21,6 +21,7 @@ import { clientIp, ApiError, asyncRoute, auth, administrator, user, now, validat
 import { registerConvoyRoutes } from './convoys';
 import { registerWeatherRoutes } from './weather';
 import { registerTollRoutes } from './tolls';
+import { registerRoadAlertRoutes } from './roadAlerts';
 import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from './googleAuth';
 import { stationOpeningStatus } from './openingHours';
 
@@ -91,6 +92,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerConvoyRoutes(app, db, limit);
   registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
   registerTollRoutes(app, db, options.mapFetch || fetch, limit);
+  registerRoadAlertRoutes(app, db, limit);
 
   app.get('/api/public-config', (_req, res) => res.json({
     appOrigin: process.env.PUBLIC_APP_URL || 'http://localhost:3000',
