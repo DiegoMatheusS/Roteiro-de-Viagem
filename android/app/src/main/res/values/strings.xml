@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Roteiro de Viagem</string>
-    <string name="title_activity_main">Roteiro de Viagem</string>
+    <string name="app_name">Rolê</string>
+    <string name="title_activity_main">Rolê</string>
     <string name="package_name">br.com.roteirodeviagem.app</string>
     <string name="custom_url_scheme">br.com.roteirodeviagem.app</string>
 </resources>
