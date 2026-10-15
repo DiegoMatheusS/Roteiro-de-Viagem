@@ -72,7 +72,7 @@ test('painel admin troca senha com confirmacao, hash seguro e encerra todas as s
     assert.equal(blockedOrigin.status, 403);
 
     const success = await req('/admin/change-password', { method: 'POST', origin, cookie: sessionA, body });
-    assert.equal(success.status, 200, await success.text());
+    assert.equal(success.status, 200, await success.clone().text());
     assert.match(success.headers.get('set-cookie') || '', /Max-Age=0|Expires=/i);
     assert.equal((await success.json()).ok, true);
     const changedHash = (db.prepare('SELECT password_hash FROM users WHERE email=?').get('change-admin@example.com') as any).password_hash;
