@@ -179,6 +179,7 @@ try {
   await page.getByRole('button', { name: 'Sim, Encerrar', exact: true }).click();
   await adminPage.getByRole('button', { name: 'Cadastro', exact: true }).click();
   await adminPage.getByRole('button', { name: 'Locais e estabelecimentos', exact: true }).click();
+  await adminPage.getByText('Importar local existente pelo link do OpenStreetMap', { exact: true }).click();
   await adminPage.getByLabel('Link do estabelecimento no OpenStreetMap').fill('https://www.openstreetmap.org/node/456');
   await adminPage.getByRole('button', { name: 'Verificar e cadastrar', exact: true }).click();
   await adminPage.getByLabel('Nome', { exact: true }).fill('Restaurante revisado pela administração');
