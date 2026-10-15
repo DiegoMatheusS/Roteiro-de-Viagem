@@ -62,12 +62,16 @@ jobs:
           RDV_STORE_PASSWORD: fixture-only-ci
           RDV_KEY_ALIAS: ci
           RDV_KEY_PASSWORD: fixture-only-ci
-          RDV_VERSION_CODE: 1
-          RDV_VERSION_NAME: 0.5.0-ci
+          RDV_VERSION_CODE: ${{ github.run_number }}
+          RDV_VERSION_NAME: 0.5.0-beta.1
         run: |
           trap 'rm -f "$RDV_KEYSTORE_FILE"; rm -rf app/build/outputs/apk/release app/build/outputs/bundle/release' EXIT
           keytool -genkeypair -noprompt -keystore "$RDV_KEYSTORE_FILE" -alias ci -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=CI Teste Descartavel' -storepass "$RDV_STORE_PASSWORD" -keypass "$RDV_KEY_PASSWORD"
           ./gradlew :app:assembleRelease :app:bundleRelease
+          mkdir -p ../android-dist
+          cp app/build/outputs/apk/release/app-release.apk ../android-dist/roteiro-para-assinar.apk
+          cp app/build/outputs/bundle/release/app-release.aab ../android-dist/roteiro-para-assinar.aab
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" ../android-dist/apksigner.jar
       - name: Preparar chave privada de release
         if: inputs.distribution == 'release'
         env:
@@ -94,7 +98,7 @@ jobs:
           ./gradlew :app:assembleRelease :app:bundleRelease
       - name: Disponibilizar pacote conectado ao backend
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch' || vars.RDV_API_URL != ''
+        if: github.event_name != 'pull_request'
         with:
           retention-days: 3
           name: roteiro-android-${{ inputs.distribution || 'debug' }}
@@ -102,6 +106,7 @@ jobs:
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/bundle/release/app-release.aab
+            android-dist/
       - name: Remover chave temporária
         if: always()
         run: rm -f "$RUNNER_TEMP/rdv-release.jks"
