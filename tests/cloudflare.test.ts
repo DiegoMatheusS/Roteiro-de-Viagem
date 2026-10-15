@@ -15,8 +15,13 @@ const secret = 'fixture-only-cloudflare-proxy-key-123456789';
 
 test('Cloudflare serves assets without exposing the proxy and validates its configuration', async () => {
   const assets = { fetch: async () => new Response('<h1>Roteiro</h1>', { headers: { 'Content-Type': 'text/html' } }) };
-  const page = await worker.fetch(new Request(front + '/admin'), { ASSETS: assets });
+  const page = await worker.fetch(new Request(front + '/'), { ASSETS: assets });
   assert.equal(page.headers.get('content-type'), 'text/html');
+  for (const blocked of ['/admin', '/admin/', '/admin/users', '/api/admin', '/api/admin/summary', '/API/ADMIN/summary']) {
+    const response = await worker.fetch(new Request(front + blocked), { ASSETS: assets });
+    assert.equal(response.status, 404, blocked);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
   for (const backend of ['http://example.com', 'https://example.com/api', 'https://user:pass@example.com', 'https://example.com/?secret=x', front]) {
     const response = await worker.fetch(new Request(front + '/api/health'), { RDV_BACKEND_ORIGIN: backend, WEB_PROXY_SECRET: secret });
     assert.equal(response.status, 503);
@@ -72,7 +77,7 @@ test('Cloudflare proxy preserves real account sessions, moderation permissions, 
       assert.equal(forwards, before);
     });
     await t.test('secure login cookies work across the proxy and admin APIs still enforce roles', async () => {
-      assert.equal((await call('/admin/summary')).status, 401);
+      assert.equal((await call('/admin/summary')).status, 404);
       const registered = await call('/auth/register', { email: 'owner@example.invalid', displayName: 'Proprietário', password: 'fixture-password-123', role: 'admin' });
       assert.equal(registered.status, 201);
       const session = registered.headers.get('set-cookie')!;
@@ -81,7 +86,7 @@ test('Cloudflare proxy preserves real account sessions, moderation permissions, 
       assert.equal(registered.headers.get('cache-control'), 'no-store');
       cookie = session.split(';')[0];
       assert.equal((await (await call('/auth/me')).json()).user.role, 'user');
-      assert.equal((await call('/admin/summary')).status, 403);
+      assert.equal((await call('/admin/summary')).status, 404);
       assert.equal((await (await call('/public-config')).json()).appOrigin, front);
     });
     await t.test('binary bodies and responses retain their content', async () => {
