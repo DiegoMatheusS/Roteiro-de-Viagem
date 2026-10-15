@@ -29,7 +29,7 @@ export function NavigationTabBar({activeTab,onTabChange}:NavigationTabBarProps) 
           {sections.map(tab=>{
             const Icon=tab.icon;
             return <button type="button" key={tab.id} aria-current={activeTab===tab.id?'page':undefined}
-              onClick={()=>{onTabChange(tab.id);setOpen(false);}}
+              aria-label={tab.label} onClick={()=>{onTabChange(tab.id);setOpen(false);}}
               className={`w-full px-4 py-3 text-left rounded-2xl flex items-center gap-3 border ${activeTab===tab.id?'bg-blue-50 border-blue-300':'bg-white border-slate-100'}`}>
               <span className="w-10 h-10 flex items-center justify-center text-blue-700 bg-blue-50 rounded-xl"><Icon size={20}/></span>
               <span className="flex-1"><strong className="block text-sm text-slate-900">{tab.label}</strong><small className="block text-xs text-slate-500">{tab.detail}</small></span>
