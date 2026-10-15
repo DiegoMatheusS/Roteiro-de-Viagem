@@ -222,7 +222,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
           {accountLabel ? <button onClick={onLogout} className="text-xs font-bold text-rose-700 border rounded-xl px-3 py-2 shrink-0">Sair</button> :
             <button onClick={onLogin} className="text-xs font-bold text-white bg-blue-600 rounded-xl px-3 py-2 shrink-0">Entrar / Criar conta</button>}
         </section>
-        {!vehicles.length && <p className="text-xs bg-blue-50 border border-blue-200 p-3 rounded-xl">Para calcular consumo e criar roteiros, cadastre seu carro ou moto na aba <button className="underline font-bold" onClick={() => setActiveSubTab('garagem')}>Minha Garagem</button>. Nenhum veículo será adicionado automaticamente.</p>}
+        {!vehicles.length && <p className="text-xs bg-blue-50 border border-blue-200 p-3 rounded-xl">Para calcular consumo e criar roteiros, cadastre seu carro ou moto na aba <button aria-label="Cadastrar meu veículo" className="underline font-bold" onClick={() => setActiveSubTab('garagem')}>Minha Garagem</button>. Nenhum veículo será adicionado automaticamente.</p>}
         <button type="button" onClick={onOpenConvoy} className="w-full text-left border bg-white border-slate-200 p-3 rounded-xl text-sm font-semibold">Entrar em um comboio por código</button>
         {/* ================================================= */}
         {/* SUBTAB 1: MEU PERFIL & SISTEMA DE NÍVEIS (SEÇÃO 1 & 2) */}
