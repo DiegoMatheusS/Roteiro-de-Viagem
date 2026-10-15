@@ -14,8 +14,9 @@ const editable = (draft?: PriceDraft): EditablePrice => ({ fuelType: draft?.fuel
 const localNow = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const money = (price: number) => `R$ ${price.toFixed(3).replace('.', ',')}`;
 
-export function FuelStationModal({ stationId, onClose }: { stationId: string; onClose: () => void }) {
+export function FuelStationModal({ stationId, onClose, initialSection = 'prices' }: { stationId: string; onClose: () => void; initialSection?: 'prices' | 'comments' }) {
   const auth = useAuth();
+  const [section, setSection] = useState(initialSection);
   useModalScrollLock();
   const [station, setStation] = useState<FuelStation | null>(null);
   const [error, setError] = useState('');
@@ -115,6 +116,8 @@ export function FuelStationModal({ stationId, onClose }: { stationId: string; on
         <button onClick={onClose} aria-label="Fechar posto"><X className="w-5 h-5" /></button>
       </header>
       <div className="p-5 space-y-4 overflow-y-auto text-sm">
+        <nav aria-label="Opções do posto" className="flex gap-2"><button type="button" aria-pressed={section === 'prices'} onClick={() => setSection('prices')} className={`rounded-xl px-4 py-2 font-bold text-xs ${section === 'prices' ? 'bg-emerald-600 text-white' : 'border'}`}>Preços</button><button type="button" aria-pressed={section === 'comments'} onClick={() => setSection('comments')} className={`rounded-xl px-4 py-2 font-bold text-xs ${section === 'comments' ? 'bg-emerald-600 text-white' : 'border'}`}>Comentários</button></nav>
+        {section === 'comments' ? <PlaceComments placeId={stationId} title="Comentários do posto" /> : <>
         {error && <p role="alert" className="text-xs p-3 rounded-xl bg-rose-50 text-rose-700">{error}</p>}
         {message && <p role="status" className="text-xs p-3 rounded-xl bg-emerald-50 text-emerald-800">{message}</p>}
         {station && <div className="text-xs text-slate-500 space-y-1"><a href={station.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline">Ver estabelecimento no OpenStreetMap</a>{station.openingHours && <p>Horário: {station.openingHours} · {station.openingHoursVerifiedAt ? `confirmado em ${new Date(station.openingHoursVerifiedAt).toLocaleDateString('pt-BR')}` : 'não confirmado'}</p>}</div>}
@@ -138,7 +141,7 @@ export function FuelStationModal({ stationId, onClose }: { stationId: string; on
               {price.photoId && <details className="text-xs"><summary className="cursor-pointer text-emerald-700">Ver foto revisada</summary><ApiImage path={`/photos/${price.photoId}`} alt="Placa de preços do posto" className="mt-2 rounded-xl max-h-60 object-contain" /><button onClick={() => { if (requireLogin()) setReport({ type: 'photos', id: price.photoId! }); }} className="mt-2 text-rose-700 underline">Denunciar foto ou dados pessoais</button></details>}
             </article>;
           })}
-          <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setRows([editable()]); setMode('edit'); setError(''); } }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Informar preço</button><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setMode('photo'); setSelectedFile(null); setError(''); } }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
+          <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setRows([editable()]); setMode('edit'); setError(''); } }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Sugerir preço</button><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setMode('photo'); setSelectedFile(null); setError(''); } }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
           <p className="text-xs text-slate-500">Fotografe somente com o veículo parado. Evite rostos, placas de veículos e outros dados pessoais. Fotos ficam privadas até a moderação.</p>
         </>}
         {mode === 'photo' && <form onSubmit={photoUpload} className="space-y-4">
@@ -166,7 +169,7 @@ export function FuelStationModal({ stationId, onClose }: { stationId: string; on
         {myPhotos.length > 0 && <details className="text-xs border-t pt-3"><summary className="cursor-pointer text-slate-600 font-semibold">Minhas fotos neste posto</summary>{myPhotos.map(item => <div key={item.id} className="mt-2 flex items-center justify-between gap-3"><span>{new Date(item.created_at).toLocaleDateString('pt-BR')} · {item.status === 'approved' ? 'aprovada' : item.status === 'rejected' ? 'rejeitada' : item.status === 'new_requested' ? 'nova foto solicitada' : 'aguardando revisão'}{item.reviewNote && <span className="block text-amber-800">{item.reviewNote}</span>}</span><button disabled={busy} onClick={() => removePhoto(item.id)} className="text-rose-700 underline">Remover minha foto</button></div>)}</details>}
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={choosePhoto} />
         <input ref={cameraRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={choosePhoto} />
-        <PlaceComments placeId={stationId} />
+        </>}
       </div>
     </section>
   </div>, document.body);

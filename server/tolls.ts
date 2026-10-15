@@ -34,10 +34,13 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
     CREATE TABLE IF NOT EXISTS toll_entries(id TEXT PRIMARY KEY,toll_id TEXT NOT NULL REFERENCES toll_places(id),user_id TEXT NOT NULL REFERENCES users(id),vehicle_type TEXT NOT NULL,price REAL,heading REAL,observed_at TEXT NOT NULL,valid_until TEXT,status TEXT NOT NULL DEFAULT 'pending',image_data BLOB,notes TEXT NOT NULL DEFAULT '',reviewer_id TEXT REFERENCES users(id),created_at TEXT NOT NULL,reviewed_at TEXT);
     CREATE INDEX IF NOT EXISTS toll_entries_place ON toll_entries(toll_id,status,vehicle_type,observed_at DESC);
     CREATE INDEX IF NOT EXISTS toll_entries_queue ON toll_entries(status,created_at DESC);`);
+  // Use the shared place identity for comments and moderation on existing tolls.
+  db.exec(`INSERT OR IGNORE INTO stations(id,name,lat,lng,address,source_url,map_updated_at,kind)
+    SELECT id,name,lat,lng,'',source_url,updated_at,'toll' FROM toll_places`);
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 8 } });
   const cache = new Map<string, number>();
   const toll = (id: string) => {
-    const row = db.prepare('SELECT * FROM toll_places WHERE id=?').get(id) as any;
+    const row = db.prepare("SELECT t.* FROM toll_places t LEFT JOIN stations s ON s.id=t.id WHERE t.id=? AND (s.id IS NULL OR (s.active=1 AND s.kind='toll'))").get(id) as any;
     if (!row) throw new ApiError('Pedágio não encontrado no mapa.', 404); return row;
   };
   app.post('/api/tolls/route', asyncRoute(async (req, res) => {
@@ -59,14 +62,17 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
         for (const e of payload.elements.slice(0, 500)) {
           if (e.type !== 'node' || !Number.isSafeInteger(e.id) || e.id <= 0 || !Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !(e.tags?.barrier === 'toll_booth' || e.tags?.highway === 'toll_gantry')) continue;
           validateCoordinates([[e.lat, e.lon]]);
-          db.prepare(`INSERT INTO toll_places VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,lat=excluded.lat,lng=excluded.lng,source_url=excluded.source_url,updated_at=excluded.updated_at`)
+          db.prepare(`INSERT INTO toll_places VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,lat=excluded.lat,lng=excluded.lng,source_url=excluded.source_url,updated_at=excluded.updated_at
+            WHERE NOT EXISTS(SELECT 1 FROM stations WHERE id=excluded.id AND managed=1)`)
             .run(`osm:node:${e.id}`, String(e.tags.name || e.tags.operator || 'Pedágio identificado no mapa').slice(0, 180), e.lat, e.lon, `https://www.openstreetmap.org/node/${e.id}`, now());
+          db.prepare(`INSERT OR IGNORE INTO stations(id,name,lat,lng,address,source_url,map_updated_at,kind) VALUES(?,?,?,?,'',?,?,'toll')`)
+            .run(`osm:node:${e.id}`, String(e.tags.name || e.tags.operator || 'Pedágio identificado no mapa').slice(0, 150), e.lat, e.lon, `https://www.openstreetmap.org/node/${e.id}`, now());
         }
         if (cache.size > 1000) cache.clear(); cache.set(key, Date.now() + 6 * 3600000);
       } catch { mapUnavailable = true; }
     }
     const latitude = path.map((p: Coordinates) => p[0]), longitude = path.map((p: Coordinates) => p[1]);
-    const candidates = db.prepare('SELECT * FROM toll_places WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? ORDER BY id')
+    const candidates = db.prepare("SELECT t.* FROM toll_places t LEFT JOIN stations s ON s.id=t.id WHERE (s.id IS NULL OR (s.active=1 AND s.kind='toll')) AND t.lat BETWEEN ? AND ? AND t.lng BETWEEN ? AND ? ORDER BY t.id")
       .all(Math.min(...latitude)-0.01,Math.max(...latitude)+0.01,Math.min(...longitude)-0.02,Math.max(...longitude)+0.02) as any[];
     const groups: { place: any; ids: string[]; passages: ReturnType<typeof tollPassages> }[] = [];
     for (const row of candidates) {
