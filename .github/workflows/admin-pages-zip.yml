@@ -1,0 +1,46 @@
+name: Gerar site administrativo separado
+on:
+  push:
+    branches: [main, feature/admin-cloudflare-separado]
+    paths:
+      - '.github/workflows/admin-pages-zip.yml'
+      - 'admin.html'
+      - 'vite.admin.config.ts'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Compilar somente o painel administrativo
+        run: |
+          npx vite build --config vite.admin.config.ts
+          mv dist-admin/admin.html dist-admin/index.html
+      - name: Validar pacote seguro para Cloudflare Pages
+        run: |
+          test -s dist-admin/index.html
+          test -d dist-admin/assets
+          test -s dist-admin/_worker.js
+          test -s dist-admin/_routes.json
+          test ! -e dist-admin/.env
+          test ! -e dist-admin/admin.html
+          ! grep -q 'src/main.tsx' dist-admin/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roteiro-admin-cloudflare
+          path: dist-admin/
+          if-no-files-found: error
+          retention-days: 30
