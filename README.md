@@ -69,7 +69,7 @@ A consulta é limitada a oito postos com preços recentes por comparação, e a 
 
 Para hospedar o frontend e o painel no Cloudflare Pages, mantendo API e dados no Railway, consulte [a configuração Cloudflare + Railway](docs/cloudflare.md).
 
-Acesse `/admin` no mesmo endereço do aplicativo, pelo computador ou celular. A área tem páginas para **Preços de combustíveis**, estabelecimentos/unidades, usuários, comentários, denúncias e histórico de ações. O frontend do administrador é carregado separadamente do aplicativo. Cada API administrativa verifica a sessão e a permissão no servidor.
+O **painel administrativo é um site separado** do aplicativo público, mantido no repositório de administração. A rota `/admin` e as URLs `/api/admin/*` no domínio público do viajante respondem 404; o aplicativo público não exibe o painel nem seus links. As APIs de administração continuam disponíveis ao **site administrativo separado** pelo backend do Railway e exigem autenticação, sessão de administrador e permissões no servidor. Remover links não substitui autorização no backend.
 
 Cadastre sua conta pelo aplicativo e, no terminal do servidor, autorize-a:
 

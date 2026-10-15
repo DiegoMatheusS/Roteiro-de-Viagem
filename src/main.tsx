@@ -5,8 +5,10 @@ import 'leaflet/dist/leaflet.css';
 import { AuthProvider } from './contexts/AuthContext';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
-const AdminPage = lazy(() => import('./components/admin/AdminPage'));
 const SharedRoutePage = lazy(() => import('./components/SharedRoutePage'));
+// Only local development loads the admin UI for legacy smoke tests. The production
+// bundle tree-shakes this branch; Cloudflare returns 404 on the public /admin path.
+const LocalTestAdminPage = import.meta.env.DEV ? lazy(() => import('./components/admin/AdminPage')) : null;
 
 function AppEntry() {
   const [route, setRoute] = useState(() => ({ path: window.location.pathname, hash: window.location.hash }));
@@ -16,7 +18,11 @@ function AppEntry() {
     window.addEventListener('popstate', refresh);
     return () => { window.removeEventListener('hashchange', refresh); window.removeEventListener('popstate', refresh); };
   }, []);
-  if (route.path.replace(/\/+$/, '') === '/admin') return <Suspense fallback={<p className="p-5">Carregando painel...</p>}><AdminPage /></Suspense>;
+  // A administração está em um site separado; nunca carregar o painel no app público.
+  if (/^\/admin(?:\/|$)/i.test(route.path)) {
+    if (LocalTestAdminPage) return <Suspense fallback={<p className="p-5">Carregando painel de testes...</p>}><LocalTestAdminPage /></Suspense>;
+    return <main className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><p className="text-slate-700">Página não encontrada.</p></main>;
+  }
   if (route.hash.startsWith('#roteiro=')) return <Suspense fallback={<p className="p-5">Carregando roteiro...</p>}><SharedRoutePage /></Suspense>;
   return <App />;
 }

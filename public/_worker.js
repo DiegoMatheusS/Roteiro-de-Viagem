@@ -5,6 +5,16 @@ const error = (message, status) => Response.json({ error: message }, { status, h
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const pathname = url.pathname.toLowerCase();
+    // The public travel website must never serve the admin interface or proxy admin APIs.
+    // A separate administration site connects to the same backend with its own access controls.
+    if (pathname === '/admin' || pathname.startsWith('/admin/') ||
+        pathname === '/api/admin' || pathname.startsWith('/api/admin/')) {
+      return new Response('Página não encontrada.', {
+        status: 404,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
+      });
+    }
     if (url.pathname !== '/api' && !url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (!['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return error('Método não permitido.', 405);
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('Origin') !== url.origin) return error('Origem da solicitação não permitida.', 403);
