@@ -8,7 +8,8 @@ import { useFuelStations } from '../hooks/useFuelStations';
 import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { PlaceModal } from './PlaceModal';
-import { PLACE_KINDS, type Place } from '../types/admin';
+import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place } from '../types/admin';
+import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
 
@@ -37,6 +38,7 @@ interface InteractiveMapProps {
   navigationMode?: boolean;
   travelledDistanceKm?: number;
   totalRouteKm?: number;
+  roadAlerts?: RoadAlert[];
 }
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -110,6 +112,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   navigationMode = false,
   travelledDistanceKm = 0,
   totalRouteKm = 0,
+  roadAlerts = [],
   className = 'w-full h-full'
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +122,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
   const fittedGeometryRef=useRef<string|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
   const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
@@ -169,6 +173,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     rainLayerGroupRef.current = rainGroup;
     fuelLayerGroupRef.current = L.layerGroup().addTo(map);
     tollLayerGroupRef.current = L.layerGroup().addTo(map);
+    roadAlertGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -195,13 +200,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
     if(!tollVehicleType)return;
-    for(const toll of tolls) {
+    for(const toll of navigationMode ? [] : tolls) {
       const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
       marker.on('click',() => openToll(toll.id));
     }
-  },[tolls,tollVehicleType]);
+  },[tolls,tollVehicleType,navigationMode]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -215,14 +220,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group = fuelLayerGroupRef.current;
     if (!group) return;
     group.clearLayers();
-    for (const station of fuel.stations) {
+    for (const station of navigationMode ? [] : fuel.stations) {
       const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => openStation(station.id));
     }
-    for (const place of places) {
+    for (const place of places.filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
       if (place.kind === 'toll') {
         if (tolls.some(toll => toll.id === place.id)) continue;
         const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
@@ -239,7 +244,27 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
       });
     }
-  }, [fuel.stations, places, tolls]);
+  }, [fuel.stations, places, tolls, navigationMode]);
+
+  // Somente eventos aprovados, com expiração válida, são apresentados no mapa.
+  useEffect(() => {
+    const group = roadAlertGroupRef.current;
+    if (!group) return;
+    group.clearLayers();
+    const now = Date.now();
+    for (const alert of roadAlerts) {
+      if (Date.parse(alert.expiresAt) <= now) continue;
+      const kind = ROAD_ALERT_TYPES.find(value => value.id === alert.kind);
+      if (!kind) continue;
+      const icon = L.divIcon({
+        className: 'road-alert-marker',
+        html: `<div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#fff7ed;border:2px solid #c2410c;border-radius:50%;font-size:18px;box-shadow:0 2px 9px #0003">${kind.icon}</div>`,
+        iconSize: [34, 34], iconAnchor: [17, 17]
+      });
+      const marker = L.marker([alert.lat, alert.lng], { icon, keyboard: true, zIndexOffset: 2100 }).addTo(group);
+      marker.bindPopup(`<strong>${escapeHtml(kind.label)}</strong><br><span>Confirmado pelo administrador.</span><br><span>${escapeHtml(alert.note)}</span><br><small>Validade: ${escapeHtml(new Date(alert.expiresAt).toLocaleString('pt-BR'))}</small>`);
+    }
+  }, [roadAlerts]);
 
   // Switch map tiles when user changes style
   useEffect(() => {
