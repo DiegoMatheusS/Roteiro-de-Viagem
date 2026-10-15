@@ -3,6 +3,10 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap } from './InteractiveMap';
+import { RoadAlertReporter } from './RoadAlertReporter';
+import { useRoadAlerts } from '../hooks/useRoadAlerts';
+import { upcomingRoadAlert } from '../services/roadAlertDistance';
+import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
   Navigation, ArrowLeft, PowerOff,
@@ -52,6 +56,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [manualCompletion, setManualCompletion] = useState(false);
   const [manualDistance, setManualDistance] = useState('');
   const [unlockedCelebration, setUnlockedCelebration] = useState<Achievement[] | null>(null);
+  const roadAlerts = useRoadAlerts(trip.routePath);
 
   if (!isOpen) return null;
 
@@ -63,6 +68,9 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
   const nextStop = trip.stops[0];
+  const upcoming = tracking.status === 'ready'
+    ? upcomingRoadAlert(roadAlerts.alerts, trip.routePath, tracking.position?.coords, distanceTraveledKm, trip.distanceKm)
+    : null;
 
   const handleFinish = () => {
     if (!canFinish) return;
@@ -151,6 +159,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           totalRouteKm={trip.distanceKm}
           stops={trip.stops}
           weatherPoints={trip.weatherPoints}
+          roadAlerts={roadAlerts.alerts}
           tolls={trip.tolls || []}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
@@ -158,6 +167,13 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           className="w-full h-full"
         />
 
+        <div className="absolute top-3 right-3 z-30"><RoadAlertReporter
+          location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
+          onSubmitted={() => { void roadAlerts.reload(); }} /></div>
+        {upcoming && <div role="status" className="absolute top-14 left-3 right-3 z-30 bg-amber-50 border-2 border-amber-400 rounded-xl px-3 py-2 shadow-lg max-w-[310px] text-xs font-bold">
+          {ROAD_ALERT_TYPES.find(type => type.id === upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
+          <span className="block font-normal text-[10px] text-amber-800">Alerta comunitário aprovado · confira a situação da via.</span>
+        </div>}
         <div className="absolute bottom-20 left-3 right-16 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={conditions} /></div>
 
         {/* Velocímetro circular no canto inferior esquerdo, inspirado em navegação. */}
