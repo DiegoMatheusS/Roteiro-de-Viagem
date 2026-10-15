@@ -90,6 +90,7 @@ try {
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
   await planner.getByText(/Percurso por estradas reais/).first().waitFor();
+  await page.locator('.fuel-station-marker').first().getByText('Indicar preços').waitFor();
   await page.locator('.fuel-station-marker').first().click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByText('Ainda não há preços informados para este posto.').waitFor();
@@ -121,12 +122,16 @@ try {
   await adminAccount.getByLabel('E-mail', { exact: true }).fill('admin-ui@example.test');
   await adminAccount.getByLabel('Senha', { exact: true }).fill('admin-ui-test-password');
   await adminAccount.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Cadastro', exact: true }).waitFor();
+  await adminPage.getByRole('heading', { name: 'Cadastrar novo local', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Solicitações' }).click();
   await adminPage.getByRole('heading', { name: 'Preços de combustíveis', exact: true }).waitFor();
   await adminPage.getByRole('button', { name: 'Configurações', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Alterar senha', exact: true }).waitFor();
   await adminPage.getByRole('heading', { name: 'Alterar e-mail', exact: true }).waitFor();
   await adminPage.getByRole('button', { name: 'Salvar novo e-mail', exact: true }).waitFor();
   await adminPage.getByRole('button', { name: 'Salvar nova senha', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Solicitações' }).click();
   await adminPage.getByRole('button', { name: 'Preços de combustíveis', exact: true }).click();
 
   const photoCard = adminPage.locator('article').filter({ has: adminPage.getByRole('heading', { name: 'Posto de teste de interface', exact: true }) });
@@ -172,7 +177,8 @@ try {
   await page.getByRole('button', { name: 'Compartilhar Localização', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Encerrar Comboio', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, Encerrar', exact: true }).click();
-  await adminPage.getByRole('button', { name: 'Estabelecimentos', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Cadastro', exact: true }).click();
+  await adminPage.getByRole('button', { name: 'Locais e estabelecimentos', exact: true }).click();
   await adminPage.getByLabel('Link do estabelecimento no OpenStreetMap').fill('https://www.openstreetmap.org/node/456');
   await adminPage.getByRole('button', { name: 'Verificar e cadastrar', exact: true }).click();
   await adminPage.getByLabel('Nome', { exact: true }).fill('Restaurante revisado pela administração');
@@ -187,6 +193,7 @@ try {
   await restaurant.getByLabel('Seu comentário', { exact: true }).fill('Comentário de teste da interface.');
   await restaurant.getByRole('button', { name: 'Enviar comentário para análise', exact: true }).click();
   await restaurant.getByText('Comentário enviado para análise.', { exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Solicitações' }).click();
   await adminPage.getByRole('button', { name: 'Comentários', exact: true }).click();
   await adminPage.getByRole('button', { name: 'Aprovar comentário', exact: true }).click();
   await adminPage.getByText('Publicado', { exact: false }).waitFor();
