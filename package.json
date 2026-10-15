@@ -18,7 +18,8 @@
     "android:sync": "node scripts/android-sync.mjs",
     "android:open": "npx cap open android",
     "android:release": "node scripts/android-release.mjs",
-    "check:weather": "node --import tsx scripts/check-weather.ts"
+    "check:weather": "node --import tsx scripts/check-weather.ts",
+    "admin:create": "node --import tsx server/create-admin.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
