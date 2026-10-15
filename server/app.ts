@@ -21,6 +21,7 @@ import { clientIp, ApiError, asyncRoute, auth, administrator, user, now, validat
 import { registerConvoyRoutes } from './convoys';
 import { registerWeatherRoutes } from './weather';
 import { registerTollRoutes } from './tolls';
+import { verifyGoogleCredential } from './googleAuth';
 import { stationOpeningStatus } from './openingHours';
 
 const scryptAsync = promisify(scrypt);
@@ -89,7 +90,11 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
   registerTollRoutes(app, db, options.mapFetch || fetch, limit);
 
-  app.get('/api/public-config', (_req, res) => res.json({ appOrigin: process.env.PUBLIC_APP_URL || 'http://localhost:3000' }));
+  app.get('/api/public-config', (_req, res) => res.json({
+    appOrigin: process.env.PUBLIC_APP_URL || 'http://localhost:3000',
+    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+    mapProvider: 'OpenStreetMap / OSRM'
+  }));
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/auth/me', (_req, res) => res.json({ user: user(res) || null }));
   app.post('/api/auth/register', asyncRoute(async (req, res) => {
@@ -106,6 +111,34 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     catch { throw new ApiError('Este e-mail já possui uma conta.', 409); }
     res.status(201).json({ user: setSession(res, account) });
   }));
+  // Google verifies identity, never grants an admin role and never automatically merges e-mail/password accounts.
+  app.post('/api/auth/google', asyncRoute(async (req, res) => {
+    limit(`google-login:${clientIp(req)}`, 10, 15 * 60000);
+    if (!process.env.GOOGLE_CLIENT_ID) throw new ApiError('Entrar com Google ainda não está configurado.', 503);
+    let identity: Awaited<ReturnType<typeof verifyGoogleCredential>>;
+    try { identity = await verifyGoogleCredential(req.body?.credential); }
+    catch (error) {
+      const message = (error as Error).message;
+      if (message === 'GOOGLE_KEYS_UNAVAILABLE' || message.includes('fetch')) throw new ApiError('Não foi possível validar o acesso pelo Google. Tente novamente.', 503);
+      throw new ApiError('Não foi possível validar sua conta Google. Tente novamente.', 401);
+    }
+    let account = db.prepare('SELECT * FROM users WHERE google_sub=?').get(identity.sub) as any;
+    if (account && (account.blocked_at || account.deleted_at || account.role !== 'user'))
+      throw new ApiError('Esta conta não pode entrar pelo Google.', 403);
+    if (!account) {
+      if (db.prepare('SELECT id FROM users WHERE email=?').get(identity.email))
+        throw new ApiError('Este e-mail já tem cadastro com senha. Entre usando seu e-mail e senha.', 409);
+      const salt = randomBytes(16).toString('hex');
+      const unusablePasswordHash = `${salt}:${randomBytes(64).toString('hex')}`;
+      account = { id: randomUUID(), display_name: identity.name, role: 'user' };
+      try {
+        db.prepare('INSERT INTO users(id,email,display_name,password_hash,role,created_at,google_sub) VALUES(?,?,?,?,?,?,?)')
+          .run(account.id, identity.email, identity.name, unusablePasswordHash, 'user', now(), identity.sub);
+      } catch { throw new ApiError('Não foi possível criar a conta Google. Entre novamente.', 409); }
+    }
+    res.json({ user: setSession(res, account) });
+  }));
+
   app.post('/api/auth/login', asyncRoute(async (req, res) => {
     limit(`login:${clientIp(req)}`, 10, 15 * 60000);
     const email = String(req.body.email || '').trim().toLowerCase();
