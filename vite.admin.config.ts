@@ -9,6 +9,6 @@ export default defineConfig({
   build: {
     outDir: 'dist-admin',
     emptyOutDir: true,
-    rollupOptions: { input: path.resolve(import.meta.dirname, 'admin.html') },
+    rollupOptions: { input: path.resolve(import.meta.dirname, 'admin-entry.html') },
   },
 });
