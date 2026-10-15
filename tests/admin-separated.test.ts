@@ -51,19 +51,19 @@ test('dois sites HTTPS independentes usam a mesma API e as edicoes do admin apar
     assert.equal((await call('/admin/summary', { cookie: adminCookie })).status, 200);
 
     db.prepare(`INSERT INTO stations(id,name,lat,lng,address,source_url,map_updated_at,kind,active,managed)
-      VALUES(?,?,?,?,?,?,?,?,1,1)`).run('node:13579', 'Restaurante Original', -23.56, -46.66,
-      'Rua Exemplo 100', 'https://www.openstreetmap.org/node/13579', new Date().toISOString(), 'restaurant');
+      VALUES(?,?,?,?,?,?,?,?,1,1)`).run('node:13579', 'Posto Original', -23.56, -46.66,
+      'Rua Exemplo 100', 'https://www.openstreetmap.org/node/13579', new Date().toISOString(), 'fuel');
 
     const updated = await call('/admin/places/node%3A13579', {
       origin: adminOrigin, cookie: adminCookie, method: 'PATCH',
-      body: { name: 'Restaurante Publicado', address: 'Rua Exemplo 100',
+      body: { name: 'Posto Publicado', address: 'Rua Exemplo 100',
         description: 'Local para parada de viajantes', phone: '', website: '',
         openingHours: '', hoursVerified: false, active: true },
     });
     assert.equal(updated.status, 200, await updated.text());
     const fromApp = await call('/stations/node%3A13579');
     assert.equal(fromApp.status, 200);
-    assert.equal((await fromApp.json()).name, 'Restaurante Publicado');
+    assert.equal((await fromApp.json()).name, 'Posto Publicado');
 
     assert.equal((await call('/admin/summary', { origin: 'https://desconhecido.example', method: 'POST', cookie: adminCookie, body: {} })).status, 403);
     delete process.env.PUBLIC_ADMIN_URL;
