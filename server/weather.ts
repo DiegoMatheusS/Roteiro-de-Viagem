@@ -61,7 +61,7 @@ export function registerWeatherRoutes(app: Express, fetcher: MapFetch,
     const samples = weatherSamples(path,minutes,stops,departure.getTime());
     const url = new URL(process.env.WEATHER_URL || 'https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude',samples.map(p => p.coords[0]).join(',')); url.searchParams.set('longitude',samples.map(p => p.coords[1]).join(','));
-    url.searchParams.set('hourly','temperature_2m,precipitation_probability,weather_code,wind_speed_10m');
+    url.searchParams.set('hourly','temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m');
     url.searchParams.set('temperature_unit','celsius'); url.searchParams.set('wind_speed_unit','kmh');
     url.searchParams.set('forecast_days','16'); url.searchParams.set('timezone','UTC');
     if (process.env.WEATHER_API_KEY) url.searchParams.set('apikey',process.env.WEATHER_API_KEY);
@@ -82,7 +82,10 @@ export function registerWeatherRoutes(app: Express, fetcher: MapFetch,
       const [tempC,rainProb,code,windKmH] = values;
       if (rainProb < 0 || rainProb > 100 || windKmH < 0 || !WEATHER_CODES.has(code)) throw new ApiError('Resposta meteorológica inválida.',503);
       const condition = weatherCondition(code), forecastAt = new Date(sample.passAt).toISOString();
-      return { locationName: sample.name, coords: sample.coords, forecastAt, passTime: forecastAt, tempC,rainProb,condition,windKmH,
+      const rawWindDirection = hourly.wind_direction_10m?.[best];
+      const windDirectionDeg = typeof rawWindDirection === 'number' && Number.isFinite(rawWindDirection) &&
+        rawWindDirection >= 0 && rawWindDirection <= 360 ? rawWindDirection : undefined;
+      return { locationName: sample.name, coords: sample.coords, forecastAt, passTime: forecastAt, tempC,rainProb,condition,windKmH,windDirectionDeg,
         warning: ['Neve','Trovoada','Chuva Congelante','Neblina'].includes(condition) ? `Previsão de ${condition.toLowerCase()} no percurso. Confira as condições antes de sair.` : rainProb >= 60 || windKmH >= 50 ? 'Possibilidade de chuva ou vento forte. Confira a previsão antes de sair.' : undefined };
     });
     if (cache.size > 1000) cache.clear();
