@@ -8,7 +8,7 @@ export interface DeviceLocation {
 }
 
 export function locationErrorMessage(error?: Pick<GeolocationPositionError, 'code'>): string {
-  if (error?.code === 1) return 'Permita o acesso à localização para usar o GPS.';
+  if (error?.code === 1) return 'Localização não permitida. Autorize o acesso ao GPS nas permissões do navegador ou aplicativo e tente novamente.';
   if (error?.code === 3) return 'O GPS demorou para responder. Tente novamente em um local aberto.';
   return 'Não foi possível obter sua localização. Confira o GPS e tente novamente.';
 }
@@ -27,7 +27,11 @@ export function readDeviceLocation(position: GeolocationPosition): DeviceLocatio
 }
 
 export function getCurrentDeviceLocation(geolocation = globalThis.navigator?.geolocation): Promise<DeviceLocation> {
-  if (isNativeApp()) return NativeGeolocation.getCurrentPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }).then(position => readDeviceLocation(position as unknown as GeolocationPosition)).catch(() => { throw new Error('Não foi possível obter GPS recente. Confira as permissões e o GPS do celular.'); });
+  if (isNativeApp()) return NativeGeolocation.getCurrentPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }).then(position => readDeviceLocation(position as unknown as GeolocationPosition)).catch(error => {
+    if (error?.code === 1 || /permission|denied|permiss[aã]o|negad/i.test(String(error?.message || '')))
+      throw new Error(locationErrorMessage({ code: 1 }));
+    throw new Error('Não foi possível obter GPS recente. Confira o GPS do celular e tente novamente.');
+  });
   return new Promise((resolve, reject) => {
     if (!geolocation) {
       reject(new Error('Este dispositivo não disponibilizou o GPS.'));
