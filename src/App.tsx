@@ -362,6 +362,8 @@ export default function App() {
                 convoyParticipants={currentConvoy?.participants}
                 meetingPoints={currentConvoy?.meetingPoints}
                 activeTrip={activeTrip}
+                livePosition={ownsTracking && tracking.status === 'ready' ? tracking.position : null}
+                tripProgressKm={ownsTracking ? tracking.distanceKm : undefined}
                 conditions={conditions}
                 routeVehicleType={conditionsVehicle?.type}
                 plannedTrip={trips.find(trip => trip.status === 'planned') || null}
