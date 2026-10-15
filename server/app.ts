@@ -58,7 +58,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     try {
       limit(`requests:${clientIp(req)}`, 180, 60000);
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
-        const allowed = new Set([process.env.PUBLIC_APP_URL || 'http://localhost:3000', ...(process.env.NODE_ENV !== 'production' ? ['http://127.0.0.1:3000'] : [])]);
+        const allowed = new Set([process.env.PUBLIC_APP_URL || 'http://localhost:3000', process.env.PUBLIC_ADMIN_URL, ...(process.env.NODE_ENV !== 'production' ? ['http://127.0.0.1:3000'] : [])].filter((entry): entry is string => !!entry));
         if (!allowed.has(req.headers.origin)) throw new ApiError('Origem da solicitação não permitida.', 403);
       }
       const token = req.headers.cookie?.split(';').map(c => c.trim()).find(c => c.startsWith('rdv_session='))?.slice(12);
