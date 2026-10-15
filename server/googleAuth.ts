@@ -1,6 +1,14 @@
 import { createPublicKey, verify } from 'node:crypto';
 
-export type GoogleIdentity = { sub: string; email: string; name: string };
+export type GoogleIdentity = { sub: string; email: string; name: string; hostedDomain?: string };
+
+// Google is authoritative for Gmail addresses and for a verified hosted domain.
+// A third-party mailbox with only email_verified=true is not sufficient for automatic account linking.
+export function canAutoLinkGoogleIdentity(identity: GoogleIdentity): boolean {
+  const domain = identity.email.split('@')[1]?.toLowerCase();
+  return domain === 'gmail.com' || domain === 'googlemail.com' ||
+    (typeof identity.hostedDomain === 'string' && identity.hostedDomain.toLowerCase() === domain);
+}
 type GoogleKey = JsonWebKey & { kid: string; kty: string; alg?: string; use?: string };
 let cached: { keys: GoogleKey[]; expiresAt: number } | null = null;
 
@@ -53,6 +61,9 @@ export async function verifyGoogleCredential(
   } catch { throw new Error('INVALID_GOOGLE_CREDENTIAL'); }
   if (!valid) throw new Error('INVALID_GOOGLE_CREDENTIAL');
 
-  return { sub: payload.sub, email: payload.email.trim().toLowerCase(),
+  const identity: GoogleIdentity = { sub: payload.sub, email: payload.email.trim().toLowerCase(),
     name: String(payload.name || payload.given_name || payload.email.split('@')[0]).trim().slice(0, 50) || 'Viajante' };
+  if (typeof payload.hd === 'string' && payload.hd.length > 0 && payload.hd.length <= 180)
+    identity.hostedDomain = payload.hd.trim().toLowerCase();
+  return identity;
 }
