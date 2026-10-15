@@ -1,7 +1,7 @@
 import type { Express, Response } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
-import { ApiError, auth, user, now } from './http';
+import { clientIp, ApiError, auth, user, now } from './http';
 import { validateCoordinates } from './maps';
 export function registerConvoyRoutes(app:Express,db:FuelDatabase,limit:(key:string,max:number,ms:number)=>void){
   db.exec(`CREATE TABLE IF NOT EXISTS convoys(id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,organizer_id TEXT NOT NULL REFERENCES users(id),snapshot TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
@@ -57,7 +57,7 @@ export function registerConvoyRoutes(app:Express,db:FuelDatabase,limit:(key:stri
     res.status(201).json(view(member(id,res),res));
   });
   app.post('/api/convoys/join',auth,(req,res)=>{
-    limit(`convoy-join:${user(res).id}:${req.ip}`,10,60000);const code=String(req.body.code||'').trim().toUpperCase();
+    limit(`convoy-join:${user(res).id}:${clientIp(req)}`,10,60000);const code=String(req.body.code||'').trim().toUpperCase();
     const row=db.prepare("SELECT * FROM convoys WHERE code=? AND status='active'").get(code) as any;if(!row)throw new ApiError('Código inválido ou comboio encerrado.',404);
     const v=vehicle(req.body);
     if((db.prepare('SELECT COUNT(*) AS count FROM convoy_members WHERE convoy_id=?').get(row.id) as any).count>=100&&!db.prepare('SELECT 1 FROM convoy_members WHERE convoy_id=? AND user_id=?').get(row.id,user(res).id))throw new ApiError('Comboio lotado.',409);
