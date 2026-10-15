@@ -53,6 +53,10 @@ try {
   await page.goto('http://127.0.0.1:3000/admin');
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
+  await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
+  await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
+  await page.getByRole('button', {name:'Abrir menu'}).click();
+  await page.getByRole('button', {name:'Perfil',exact:true}).click();
   await page.getByRole('button', { name: 'Entrar / Criar conta' }).click();
   const login = page.getByRole('dialog', { name: 'Conta do viajante' });
   await login.getByRole('button', { name: 'Ainda não tenho conta' }).click();
@@ -66,11 +70,15 @@ try {
   await login.getByLabel('Repetir senha', { exact: true }).fill('ui-test-password');
   await login.getByRole('button', { name: 'Criar minha conta' }).click();
   await login.waitFor({ state: 'hidden' });
-  await page.getByRole('button', { name: 'Ajustes', exact: true }).click();
+  // O cadastro de veículos permanece no Perfil, não na antiga aba inferior.
   await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
+  await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
+  await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
   // GPS modes must ignore even an incomplete draft in the manual destination tab.
   await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
   await page.getByLabel('Origem', { exact: true }).fill('Origem manual ainda não selecionada');
@@ -228,7 +236,10 @@ try {
   await adminPage.getByRole('button', { name: 'Salvar cadastro', exact: true }).click();
   await adminPage.getByText('Dados salvos.', { exact: true }).waitFor();
   await page.goto('http://127.0.0.1:3000');
-  await page.getByRole('button', { name: 'Abrir Mapa', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
+  await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
@@ -329,7 +340,8 @@ try {
     const secondPage = await secondDevice.newPage();
     await secondPage.route('https://**', route => route.abort());
     await secondPage.goto('http://127.0.0.1:3000');
-    await secondPage.getByRole('button', { name: 'Salvos', exact: true }).click();
+    await secondPage.getByRole('button', { name: 'Abrir menu' }).click();
+    await secondPage.getByRole('button', { name: 'Minhas viagens', exact: true }).click();
     const restored = await secondPage.evaluate(async () => {
       const response = await fetch('/api/me/state');
       const result = await response.json();
