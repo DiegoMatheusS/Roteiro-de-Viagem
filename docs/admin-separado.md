@@ -26,3 +26,27 @@ Dados pendentes de revisao nao sao publicados automaticamente.
 
 O workflow de producao do frontend publico continua independente. Cada ZIP deve ser publicado no projeto Pages correspondente.
 Projetos Pages criados por upload manual nao recebem atualizacoes automaticas do GitHub.
+
+
+## Criar um administrador diretamente no banco do Railway (sem cadastro publico)
+
+O servidor usa SQLite no volume persistente `/app/data`. A tabela `users` nao armazena a senha em texto simples: o campo `password_hash` usa `salt:scrypt`.
+Nunca insira senhas puras via SQL, GitHub, variaveis persistentes ou mensagens.
+
+No seu computador, instale e autentique a [Railway CLI](https://docs.railway.com/cli/ssh), caso ainda nao tenha feito.
+Conecte ao container de **producao**:
+
+```bash
+railway ssh --project de1e8031-2c56-4d54-bcc5-23518ffe785c --service roteiro-api --environment production
+```
+
+Dentro do terminal remoto:
+
+```bash
+npm run admin:create -- seu-email@exemplo.com
+```
+
+Informe e confirme a senha quando solicitado: nao havera eco no terminal. O comando gera salt aleatorio, aplica scrypt compativel com o login normal e grava `role='admin'` diretamente no SQLite, **sem habilitar uma API de bootstrap**.
+Se a conta ja existir, o comando a preserva e falha. Para promover uma conta existente sem trocar a senha, use `npm run admin -- seu-email@exemplo.com`.
+
+Sempre execute dentro do container que tem o volume montado, e nunca em um Codespace ou computador sem o mesmo banco. Evite divulgar senha ou executa-la como argumento (fica no historico do shell).
