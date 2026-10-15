@@ -88,7 +88,8 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     const count = (sql: string) => (db.prepare(sql).get() as any).count;
     res.json({ tolls: count("SELECT COUNT(*) AS count FROM toll_entries WHERE status='pending'"), photos: count("SELECT COUNT(*) AS count FROM photos ph JOIN stations s ON s.id=ph.station_id WHERE ph.status='pending' AND s.active=1"),
       prices: count("SELECT COUNT(*) AS count FROM prices p JOIN stations s ON s.id=p.station_id WHERE p.status='pending_review' AND s.active=1"), places: count('SELECT COUNT(*) AS count FROM stations WHERE active=1'), users: count('SELECT COUNT(*) AS count FROM users WHERE deleted_at IS NULL'),
-      comments: count("SELECT COUNT(*) AS count FROM comments WHERE status='pending'"), reports: count("SELECT COUNT(*) AS count FROM reports WHERE status='open'") });
+      comments: count("SELECT COUNT(*) AS count FROM comments WHERE status='pending'"), reports: count("SELECT COUNT(*) AS count FROM reports WHERE status='open'"),
+      roadAlerts: count("SELECT COUNT(*) AS count FROM road_alerts WHERE status='pending' AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')") });
   });
   app.get('/api/admin/photos', (req, res) => {
     const result = pageResult(req, `SELECT ph.id,ph.station_id AS stationId,ph.status,ph.created_at AS createdAt,ph.observed_at AS observedAt,s.name AS stationName,s.address,u.display_name AS contributor

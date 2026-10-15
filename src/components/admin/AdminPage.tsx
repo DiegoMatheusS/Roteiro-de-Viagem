@@ -3,13 +3,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { fuelApi } from '../../services/fuelApi';
 import { TollQueue } from './TollQueue';
 import { FuelQueue } from './FuelQueue';
+import { RoadAlertsQueue } from './RoadAlertsQueue';
 import { PlacesManager } from './PlacesManager';
 import { ReviewManager, UsersManager } from './CommunityManager';
 import { PasswordSettings } from './PasswordSettings';
 import { EmailSettings } from './EmailSettings';
 
 const tabs = [ ['places', 'Cadastro'], ['requests', 'Solicitações'], ['users', 'Usuários'], ['audit', 'Histórico de ações'], ['settings', 'Configurações'] ] as const;
-const requestTabs = [ ['fuel', 'Combustíveis e fotos'], ['tolls', 'Tarifas de pedágio'], ['comments', 'Comentários'], ['reports', 'Denúncias'] ] as const;
+const requestTabs = [ ['fuel', 'Combustíveis e fotos'], ['tolls', 'Tarifas de pedágio'], ['roadAlerts', 'Alertas de estrada'], ['comments', 'Comentários'], ['reports', 'Denúncias'] ] as const;
 export default function AdminPage({ standalone = false }: { standalone?: boolean }) {
   const appUrl = standalone ? (import.meta.env.VITE_PUBLIC_APP_URL || '') : '/';
   const auth = useAuth();
@@ -24,7 +25,7 @@ export default function AdminPage({ standalone = false }: { standalone?: boolean
       <div className="flex flex-wrap gap-3 text-sm"><span className="bg-white border rounded-xl px-4 py-3">{counts.tolls || 0} tarifas de pedágio pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.photos || 0} fotos pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.prices || 0} preços pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.comments || 0} comentários pendentes</span><span className="bg-white border rounded-xl px-4 py-3">{counts.reports || 0} denúncias abertas</span></div>
       <nav aria-label="Seções administrativas" className="flex flex-wrap gap-2 border-b pb-4">{tabs.map(([id, title]) => <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => { setTab(id); setError(''); }} className={`rounded-xl px-4 py-3 text-sm font-semibold ${tab === id ? 'bg-emerald-600 text-white' : 'bg-white border text-slate-600'}`}>{title}</button>)}</nav>
       {error && <p role="alert" className="bg-rose-50 text-rose-700 p-3 rounded-xl text-sm">{error}</p>}
-      {tab === 'requests' && <section className="space-y-5"><div><h2 className="text-xl font-bold">Solicitações</h2><p className="text-sm text-slate-500 mt-1">Confira as contribuições dos viajantes antes de publicar.</p></div><nav aria-label="Tipos de solicitação" className="flex flex-wrap gap-2">{requestTabs.map(([id, title]) => <button key={id} aria-current={requestTab === id ? 'page' : undefined} onClick={() => setRequestTab(id)} className={`rounded-xl px-4 py-3 text-sm font-semibold ${requestTab === id ? 'bg-slate-800 text-white' : 'bg-white border text-slate-600'}`}>{title}{` (${id === 'fuel' ? (counts.photos || 0) + (counts.prices || 0) : counts[id] || 0})`}</button>)}</nav>{requestTab === 'tolls' && <TollQueue onChange={refresh} />}{requestTab === 'fuel' && <FuelQueue onChange={refresh} />}{['comments', 'reports'].includes(requestTab) && <ReviewManager key={requestTab} section={requestTab as 'comments' | 'reports'} onChange={refresh} />}</section>}
+      {tab === 'requests' && <section className="space-y-5"><div><h2 className="text-xl font-bold">Solicitações</h2><p className="text-sm text-slate-500 mt-1">Confira as contribuições dos viajantes antes de publicar.</p></div><nav aria-label="Tipos de solicitação" className="flex flex-wrap gap-2">{requestTabs.map(([id, title]) => <button key={id} aria-current={requestTab === id ? 'page' : undefined} onClick={() => setRequestTab(id)} className={`rounded-xl px-4 py-3 text-sm font-semibold ${requestTab === id ? 'bg-slate-800 text-white' : 'bg-white border text-slate-600'}`}>{title}{` (${id === 'fuel' ? (counts.photos || 0) + (counts.prices || 0) : counts[id] || 0})`}</button>)}</nav>{requestTab === 'tolls' && <TollQueue onChange={refresh} />}{requestTab === 'fuel' && <FuelQueue onChange={refresh} />}{requestTab === 'roadAlerts' && <RoadAlertsQueue onChange={refresh} />}{['comments', 'reports'].includes(requestTab) && <ReviewManager key={requestTab} section={requestTab as 'comments' | 'reports'} onChange={refresh} />}</section>}
       {tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{tab === 'audit' && <ReviewManager section="audit" onChange={refresh} />}{tab === 'settings' && <><PasswordSettings onPasswordChanged={message => { setNotice(message); auth.clearSession(); }} /><EmailSettings onEmailChanged={message => { setNotice(message); auth.clearSession(); }} /></>}
     </main>}
   </div>;

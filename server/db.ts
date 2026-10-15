@@ -35,6 +35,16 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   addColumns('photos', { observed_at: 'TEXT', content_hash: 'TEXT' });
   addColumns('prices', { approved_at: 'TEXT', approved_by: 'TEXT REFERENCES users(id)', supersedes_id: 'TEXT REFERENCES prices(id)' });
   db.exec(`
+    CREATE TABLE IF NOT EXISTS road_alerts (
+      id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction')),
+      lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
+      note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+      reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL, reviewed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS road_alerts_geo ON road_alerts(status,expires_at,lat,lng);
+    CREATE INDEX IF NOT EXISTS road_alerts_user ON road_alerts(user_id,created_at);
     CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, place_id TEXT NOT NULL REFERENCES stations(id), user_id TEXT NOT NULL REFERENCES users(id), body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS locations (id TEXT PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, source_url TEXT NOT NULL, category TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS geocoding_queries (id TEXT PRIMARY KEY, location_ids TEXT NOT NULL, updated_at TEXT NOT NULL);
