@@ -33,7 +33,7 @@ export function TollManager({ onChange }: { onChange: () => void }) {
     setBusy(true); setError(''); setMessage('');
     try {
       await fuelApi(`/admin/toll-places/${encodeURIComponent(selected.id)}/tariffs`, {
-        method: 'POST', body: JSON.stringify({ vehicleType, price: price.replace(',', '.'), headingDegrees, observedAt: new Date(`${observedAt}T12:00:00`).toISOString() })
+        method: 'POST', body: JSON.stringify({ vehicleType, price: price.replace(',', '.'), headingDegrees, observedAt: new Date(`${observedAt}T00:00:00`).toISOString() })
       });
       setPrice(''); setMessage('Tarifa publicada. O valor será usado nas rotas que identificarem esta praça.'); await load(); onChange();
     } catch (failure) { setError((failure as Error).message); }
