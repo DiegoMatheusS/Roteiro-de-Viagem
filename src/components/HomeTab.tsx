@@ -223,8 +223,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       <div className="bg-white border-b border-slate-200 px-5 py-4">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/20">
-              <Compass className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white flex items-center justify-center shadow-sm border border-slate-100">
+              <img src="/roteiro-logo.png" alt="Logo Roteiro de Viagem" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 leading-none">
