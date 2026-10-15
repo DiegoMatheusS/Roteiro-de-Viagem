@@ -49,6 +49,10 @@ interface ProfileAndSettingsTabProps {
   onAddFuelLog: (log: FuelLog) => void;
   onOpenSosModal: () => void;
   onNavigateHome: () => void;
+  accountLabel?: string;
+  onLogin: () => void;
+  onLogout: () => void;
+  onOpenConvoy: () => void;
 }
 
 export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
@@ -64,7 +68,8 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   onDeleteVehicle,
   onAddFuelLog,
   onOpenSosModal,
-  onNavigateHome
+  onNavigateHome,
+  accountLabel, onLogin, onLogout, onOpenConvoy
 }) => {
   const [editingProfile,setEditingProfile]=useState(false),[profileName,setProfileName]=useState(''),[profileBio,setProfileBio]=useState('');
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'garagem' | 'seguranca' | 'privacidade'>('perfil');
@@ -179,7 +184,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
         <div className="px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
-              Perfil & Configurações
+              Perfil
             </h1>
             <p className="text-[11px] text-slate-500">
               Nível do viajante, garagem inteligente e segurança.
@@ -211,6 +216,14 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
       </div>
 
       <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
+        <section className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0"><strong className="block text-sm">Minha conta</strong>
+            <p className="text-xs text-slate-500 truncate">{accountLabel ? `Conectado: ${accountLabel}` : 'Entre para sincronizar suas viagens.'}</p></div>
+          {accountLabel ? <button onClick={onLogout} className="text-xs font-bold text-rose-700 border rounded-xl px-3 py-2 shrink-0">Sair</button> :
+            <button onClick={onLogin} className="text-xs font-bold text-white bg-blue-600 rounded-xl px-3 py-2 shrink-0">Entrar / Criar conta</button>}
+        </section>
+        {!vehicles.length && <p className="text-xs bg-blue-50 border border-blue-200 p-3 rounded-xl">Para calcular consumo e criar roteiros, cadastre seu carro ou moto na aba <button className="underline font-bold" onClick={() => setActiveSubTab('garagem')}>Minha Garagem</button>. Nenhum veículo será adicionado automaticamente.</p>}
+        <button type="button" onClick={onOpenConvoy} className="w-full text-left border bg-white border-slate-200 p-3 rounded-xl text-sm font-semibold">Entrar em um comboio por código</button>
         {/* ================================================= */}
         {/* SUBTAB 1: MEU PERFIL & SISTEMA DE NÍVEIS (SEÇÃO 1 & 2) */}
         {/* ================================================= */}
