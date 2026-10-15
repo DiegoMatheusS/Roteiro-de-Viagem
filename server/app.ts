@@ -154,6 +154,55 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.json({ ok: true, message: 'Senha alterada. Entre novamente com a nova senha.' });
   }));
 
+  // Consulta de e-mail exclusiva da propria conta administrativa.
+  app.get('/api/admin/account', auth, administrator, (_req, res) => {
+    const account = db.prepare("SELECT email FROM users WHERE id=? AND role='admin' AND blocked_at IS NULL AND deleted_at IS NULL")
+      .get(user(res).id) as { email: string } | undefined;
+    if (!account) throw new ApiError('Acesso exclusivo do administrador.', 403);
+    res.json({ email: account.email });
+  });
+
+  // Troca de e-mail protegida pela senha atual. Nunca modifica outra conta.
+  app.post('/api/admin/change-email', auth, administrator, asyncRoute(async (req, res) => {
+    limit(`change-email:${user(res).id}`, 5, 60 * 60000);
+    const { newEmail, confirmEmail, currentPassword } = req.body || {};
+    if (typeof newEmail !== 'string' || typeof confirmEmail !== 'string' ||
+        typeof currentPassword !== 'string' || currentPassword.length < 1 || currentPassword.length > 128)
+      throw new ApiError('Informe o novo e-mail, a confirmação e a senha atual.');
+    const normalized = newEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 180)
+      throw new ApiError('Informe um endereço de e-mail válido.');
+    if (normalized !== confirmEmail.trim().toLowerCase())
+      throw new ApiError('A confirmação do e-mail não corresponde ao novo endereço.');
+    const account = db.prepare("SELECT email,password_hash FROM users WHERE id=? AND role='admin' AND blocked_at IS NULL AND deleted_at IS NULL")
+      .get(user(res).id) as { email: string; password_hash: string } | undefined;
+    if (!account) throw new ApiError('Acesso exclusivo do administrador.', 403);
+    if (normalized === account.email) throw new ApiError('O novo e-mail deve ser diferente do atual.');
+    const [salt, expected] = account.password_hash.split(':');
+    if (!/^[a-f0-9]{32}$/.test(salt || '') || !/^[a-f0-9]{128}$/.test(expected || ''))
+      throw new ApiError('Não foi possível alterar o e-mail. Contate o suporte.', 500);
+    const actual = await scryptAsync(currentPassword, salt, 64) as Buffer;
+    if (!timingSafeEqual(actual, Buffer.from(expected, 'hex')))
+      throw new ApiError('Senha atual incorreta.', 401);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      if (db.prepare('SELECT id FROM users WHERE email=?').get(normalized))
+        throw new ApiError('Este e-mail já está em uso por outra conta.', 409);
+      const update = db.prepare("UPDATE users SET email=? WHERE id=? AND email=? AND password_hash=? AND role='admin' AND blocked_at IS NULL AND deleted_at IS NULL")
+        .run(normalized, user(res).id, account.email, account.password_hash);
+      if (update.changes !== 1) throw new ApiError('Dados da conta atualizados em outra sessão. Entre novamente.', 409);
+      db.prepare('DELETE FROM sessions WHERE user_id=?').run(user(res).id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      if ((error as { code?: string }).code?.startsWith('SQLITE_CONSTRAINT'))
+        throw new ApiError('Este e-mail já está em uso por outra conta.', 409);
+      throw error;
+    }
+    res.clearCookie('rdv_session', { path: '/api', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+    res.json({ ok: true, message: 'E-mail atualizado. Entre novamente com o novo endereço.' });
+  }));
+
   app.post('/api/auth/logout', (req, res) => {
     if (user(res)) db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL WHERE user_id=?').run(user(res).id);
     const token = req.headers.cookie?.split(';').map(c => c.trim()).find(c => c.startsWith('rdv_session='))?.slice(12);
