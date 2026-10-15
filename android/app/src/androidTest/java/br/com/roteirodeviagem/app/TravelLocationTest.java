@@ -58,7 +58,6 @@ public class TravelLocationTest {
  private void observedPosition(double lat,double lng) throws Exception {
   // Feed the Android provider until its asynchronous listener receives this fix.
   // Never call the service's callback directly: this must exercise Android delivery.
-  InstrumentationRegistry.getInstrumentation().waitForIdleSync();
   long[] lastInjection={0};
   await("A posição GPS "+lat+","+lng,()->{
    if(SystemClock.elapsedRealtime()-lastInjection[0]>=1000){position(lat,lng);lastInjection[0]=SystemClock.elapsedRealtime();}

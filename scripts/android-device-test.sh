@@ -3,7 +3,7 @@ set -euo pipefail
 
 adb logcat -c
 cd "$(dirname "${BASH_SOURCE[0]}")/../android"
-if ./gradlew :app:connectedDebugAndroidTest; then
+if timeout --kill-after=30s 8m ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1024m :app:connectedDebugAndroidTest; then
   exit 0
 fi
 
