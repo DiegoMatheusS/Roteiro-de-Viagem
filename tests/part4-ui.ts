@@ -24,7 +24,7 @@ fs.mkdirSync('test-results',{recursive:true});
 try{
  const organizer=await register('convoy-ui-owner@test.example','Organizador'),participant=await register('convoy-ui-rider@test.example','Motociclista');await save(organizer);await save(participant);
  await login(contexts[0],organizer.cookie);await login(contexts[1],organizer.cookie);await login(contexts[2],participant.cookie);
- for(const page of [owner,second,rider]){await page.goto('http://127.0.0.1:3000');await page.getByRole('button',{name:'Ajustes',exact:true}).click();}
+ for(const page of [owner,second,rider]){await page.goto('http://127.0.0.1:3000');await page.getByRole('button',{name:'Abrir menu'}).click();await page.getByRole('button',{name:'Perfil',exact:true}).click();}
  // Separate fields edited before either delayed save. Neither device may overwrite the other.
  await owner.getByRole('button',{name:'Editar perfil',exact:true}).click();await owner.getByLabel('Sobre você',{exact:true}).fill('Bio sincronizada');await owner.getByRole('button',{name:'Salvar perfil',exact:true}).click();
  await second.getByRole('button',{name:'Segurança & SOS',exact:true}).click();await second.getByPlaceholder('Informe seu endereço para retorno de emergência').fill('Casa sincronizada');
@@ -33,12 +33,12 @@ try{
  await owner.waitForFunction(()=>[...document.querySelectorAll('input')].some(i=>i.value==='Casa sincronizada'));
  // Cache survives an API outage even across a reload, then synchronizes the offline edit.
  await second.route('**/api/**',route=>route.abort());await second.reload();await second.getByText(/Sem conexão. Alterações ficam neste aparelho/).waitFor();
- await second.getByRole('button',{name:'Ajustes',exact:true}).click();await second.getByRole('button',{name:'Editar perfil',exact:true}).click();await second.getByLabel('Sobre você',{exact:true}).fill('Bio feita offline');await second.getByRole('button',{name:'Salvar perfil',exact:true}).click();
+ await second.getByRole('button',{name:'Abrir menu'}).click();await second.getByRole('button',{name:'Perfil',exact:true}).click();await second.getByRole('button',{name:'Editar perfil',exact:true}).click();await second.getByLabel('Sobre você',{exact:true}).fill('Bio feita offline');await second.getByRole('button',{name:'Salvar perfil',exact:true}).click();
  await second.unroute('**/api/**');await second.evaluate(()=>window.dispatchEvent(new Event('online')));
  await second.waitForFunction(async()=>{const r=await (await fetch('/api/me/state')).json();return r.state?.profile.bio==='Bio feita offline'&&r.state?.profile.homeAddress==='Casa sincronizada';});
- await owner.getByRole('button',{name:'Mapa',exact:true}).click();await owner.getByRole('button',{name:'Comboio',exact:true}).first().click();
+ await owner.getByRole('button',{name:'Abrir menu'}).click();await owner.getByRole('button',{name:'Mapa',exact:true}).click();await owner.getByRole('button',{name:'Comboio',exact:true}).first().click();
  await owner.getByText(/Comboio sincronizado entre celulares/).waitFor();const group=db.prepare('SELECT id,code FROM convoys').get() as any;
- await rider.getByRole('button',{name:'Entrar no comboio',exact:true}).click();await rider.getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByText(/Comboio sincronizado entre celulares/).waitFor();
+ await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByText(/Comboio sincronizado entre celulares/).waitFor();
  assert.equal(await rider.getByRole('button',{name:'Adicionar Ponto',exact:true}).count(),0);assert.equal(await rider.getByRole('button',{name:'Encerrar este Comboio de Viagem',exact:true}).count(),0);
  await owner.getByRole('button',{name:'Compartilhar Localização',exact:true}).click();await rider.getByRole('button',{name:'Compartilhar Localização',exact:true}).click();
  await owner.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();await rider.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();
@@ -46,7 +46,7 @@ try{
  await owner.locator('.leaflet-control-zoom-in').click();await owner.waitForFunction(()=>!document.querySelector('.leaflet-zoom-anim'));
  const fixedMarkerBefore=await owner.locator('.convoy-participant-marker[title="Organizador"]').getAttribute('style');
  const before=await owner.locator('.convoy-participant-marker[title="Motociclista"]').getAttribute('style');
- await rider.getByRole('button',{name:'Voltar ao menu e manter comboio ativo',exact:true}).click();await rider.getByRole('button',{name:'Ajustes',exact:true}).click();await rider.getByRole('button',{name:'Abrir comboio',exact:true}).waitFor();
+ await rider.getByRole('button',{name:'Voltar ao menu e manter comboio ativo',exact:true}).click();await rider.getByRole('button',{name:'Abrir menu'}).click();await rider.getByRole('button',{name:'Perfil',exact:true}).click();await rider.getByRole('button',{name:'Abrir comboio',exact:true}).waitFor();
  await contexts[2].setGeolocation({latitude:0.005,longitude:0.01,accuracy:3});
  await owner.waitForFunction(async id=>{const r=await (await fetch('/api/convoys/'+id)).json();return r.participants.some((p:any)=>p.name==='Motociclista'&&p.coords?.[0]===0.005);},group.id);
  await owner.waitForFunction(previous=>document.querySelector('.convoy-participant-marker[title="Motociclista"]')?.getAttribute('style')!==previous,before);
@@ -54,7 +54,7 @@ try{
  await owner.screenshot({path:'test-results/convoy-two-phones.png'});
  await rider.getByRole('button',{name:'Parar compartilhamento',exact:true}).click();await owner.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===1);
  // Explicit route publication is shared while meeting-point check-ins are retained.
- await rider.getByRole('button',{name:'Entrar no comboio',exact:true}).click();await rider.getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByRole('button',{name:'Cheguei',exact:true}).first().click();
+ await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByRole('button',{name:'Cheguei',exact:true}).first().click();
  await owner.getByRole('button',{name:'Atualizar roteiro do comboio',exact:true}).click();await rider.getByText('1 no local',{exact:true}).last().waitFor();
  await owner.getByRole('button',{name:'Encerrar Comboio',exact:true}).click();await owner.getByRole('button',{name:'Sim, Encerrar',exact:true}).click();await rider.getByText(/Este comboio foi encerrado/).waitFor();assert.equal(await rider.locator('.convoy-participant-marker').count(),0);
  assert.deepEqual(errors,[]);console.log('PASS: duas sessões da mesma conta, edição offline, GPS automático em duas contas, outras telas, retomada e encerramento do Comboio.');
