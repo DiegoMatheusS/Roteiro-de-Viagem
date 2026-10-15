@@ -116,6 +116,7 @@ export interface WeatherPoint {
   condition: 'Ensolarado' | 'Parcialmente Nublado' | 'Nublado' | 'Chuva Fraca' | 'Chuva Forte' | 'Neblina' | 'Neve' | 'Trovoada' | 'Chuva Congelante';
   rainProb: number; // 0 to 100
   windKmH: number;
+  windDirectionDeg?: number; // meteorological degrees: direction FROM which wind blows
   warning?: string;
 }
 
