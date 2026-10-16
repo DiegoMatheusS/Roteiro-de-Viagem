@@ -197,7 +197,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       <strong className="text-2xl leading-none tabular-nums">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
       <small className="text-[10px] text-slate-500 font-bold">km/h</small>
     </div>
-    <div className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[30px] bg-white shadow-[0_-9px_28px_rgba(15,23,42,.12)] border-t border-white/80 flex flex-col transition-[height] duration-200 ${collapsed?'h-[74px]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
+    <div data-testid="home-main-sheet" className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[30px] bg-white shadow-[0_-9px_28px_rgba(15,23,42,.12)] border-t border-white/80 flex flex-col transition-[height] duration-200 ${collapsed?'h-[74px]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>setCollapsed(c=>!c)}
         className="mx-auto w-16 h-9 flex items-center justify-center shrink-0" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
@@ -221,7 +221,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           {locationAccess.help && <p className="font-medium">{locationAccess.help}</p>}
           <button type="button" disabled={locationAccess.requesting}
             className="underline font-bold disabled:opacity-50" onClick={()=>void locationAccess.request()}>
-            {locationAccess.requesting?'Solicitando GPS...':'Permitir localização / Tentar GPS'}
+            {locationAccess.requesting?'Solicitando GPS...':'Permitir localização'}
           </button>
         </div>}
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
