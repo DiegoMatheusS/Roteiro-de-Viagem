@@ -43,34 +43,6 @@ export default function App() {
   const auth = useAuth();
   const [activeTab, setActiveTab] = useState<MainTabType>('inicio');
   const [advancedHome, setAdvancedHome] = useState(false);
-  const [exitNotice,setExitNotice] = useState(false);
-  const exitIntentAt = useRef(0);
-  useEffect(()=>{
-    if (!isNativeApp()) return;
-    const back=()=>{
-      // Prioridade: fechar overlays e menus; nenhum botão voltar deve encerrar a viagem.
-      const closeOverlay = new Event('rdv:close-overlay',{cancelable:true});
-      window.dispatchEvent(closeOverlay);
-      if(closeOverlay.defaultPrevented){setExitNotice(false);return;}
-      if(isSosOpen){setIsSosOpen(false);return;}
-      if(isPlanningOpen){setIsPlanningOpen(false);return;}
-      if(shareTripTarget){setShareTripTarget(null);return;}
-      if(showJoin){setShowJoin(false);return;}
-      if(activeConvoyId){setActiveConvoyId(null);return;}
-      if(isNavigationOpen){setIsNavigationOpen(false);return;}
-      if(advancedHome){setAdvancedHome(false);return;}
-      if(activeTab!=='inicio'){setActiveTab('inicio');setAdvancedHome(false);return;}
-      if(Date.now()-exitIntentAt.current<1900){void TravelNative.exitApp();return;}
-      exitIntentAt.current=Date.now();setExitNotice(true);
-    };
-    window.addEventListener('rdv:android-back',back);
-    return()=>window.removeEventListener('rdv:android-back',back);
-  },[isSosOpen,isPlanningOpen,shareTripTarget,showJoin,activeConvoyId,isNavigationOpen,advancedHome,activeTab]);
-  useEffect(()=>{
-    if(!exitNotice)return;
-    const timer=window.setTimeout(()=>setExitNotice(false),2000);
-    return()=>window.clearTimeout(timer);
-  },[exitNotice]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [profile, setProfile] = useState<TravelerProfile>(storageService.getProfile());
@@ -103,6 +75,35 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState('');
   const [syncConflicts,setSyncConflicts]=useState<StateConflict[]>([]);
   const [deviceId]=useState(getDeviceId);
+  const [exitNotice,setExitNotice] = useState(false);
+  const exitIntentAt = useRef(0);
+  useEffect(()=>{
+    if (!isNativeApp()) return;
+    const back=()=>{
+      // Prioridade: fechar overlays e menus; nenhum botão voltar deve encerrar a viagem.
+      const closeOverlay = new Event('rdv:close-overlay',{cancelable:true});
+      window.dispatchEvent(closeOverlay);
+      if(closeOverlay.defaultPrevented){setExitNotice(false);return;}
+      if(isSosOpen){setIsSosOpen(false);return;}
+      if(isPlanningOpen){setIsPlanningOpen(false);return;}
+      if(shareTripTarget){setShareTripTarget(null);return;}
+      if(showJoin){setShowJoin(false);return;}
+      if(activeConvoyId){setActiveConvoyId(null);return;}
+      if(isNavigationOpen){setIsNavigationOpen(false);return;}
+      if(advancedHome){setAdvancedHome(false);return;}
+      if(activeTab!=='inicio'){setActiveTab('inicio');setAdvancedHome(false);return;}
+      if(Date.now()-exitIntentAt.current<1900){void TravelNative.exitApp();return;}
+      exitIntentAt.current=Date.now();setExitNotice(true);
+    };
+    window.addEventListener('rdv:android-back',back);
+    return()=>window.removeEventListener('rdv:android-back',back);
+  },[isSosOpen,isPlanningOpen,shareTripTarget,showJoin,activeConvoyId,isNavigationOpen,advancedHome,activeTab]);
+  useEffect(()=>{
+    if(!exitNotice)return;
+    const timer=window.setTimeout(()=>setExitNotice(false),2000);
+    return()=>window.clearTimeout(timer);
+  },[exitNotice]);
+
   const ownsTracking=activeTrip?.trackingDeviceId===deviceId;
   const tracking = useTripTracking(ownsTracking ? activeTrip?.id : undefined);
   const convoyGps=useConvoyGps(auth.user?.id,accountReady);
