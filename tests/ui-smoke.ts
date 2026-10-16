@@ -171,6 +171,11 @@ try {
   assert.ok((await tripPreview.innerText()).includes('km'), 'A prévia deve mostrar distância real');
   await tripPreview.getByRole('button', { name: 'Fechar janela' }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
+  await page.getByRole('heading',{name:'Rolê',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Voltar ao Rolê'}).waitFor();
+  const vehicleSelector=page.getByTitle('Toque para trocar de veículo rapidamente');
+  const vehicleRect=await vehicleSelector.boundingBox();
+  assert.ok(vehicleRect && vehicleRect.width>=152,'O seletor do veículo deve ficar mais largo no planejamento');
   // GPS modes must ignore even an incomplete draft in the manual destination tab.
   await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
   await page.getByLabel('Origem', { exact: true }).fill('Origem manual ainda não selecionada');
