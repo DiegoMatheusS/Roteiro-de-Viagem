@@ -37,6 +37,7 @@ import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
 import { X, Users, ArrowRight, KeyRound, CornerUpLeft } from 'lucide-react';
 import { isNativeApp, TravelNative } from './services/nativeApp';
+import {GUEST_NAVIGATION_VEHICLE} from './services/guestNavigationVehicle';
 
 export default function App() {
   const auth = useAuth();
@@ -582,10 +583,10 @@ export default function App() {
       )}
 
       {/* ACTIVE TRIP NAVIGATION HUD */}
-      {activeTrip && currentVehicle && isNavigationOpen && !activeConvoyId && (
+      {activeTrip && isNavigationOpen && !activeConvoyId && (
         <ActiveTripModal
           trip={activeTrip}
-          vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
+          vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle || GUEST_NAVIGATION_VEHICLE}
           convoyParticipants={currentConvoy?.participants}
           meetingPoints={currentConvoy?.meetingPoints}
           tracking={ownsTracking?tracking:{...tracking,distanceKm:activeTrip.trackedDistanceKm||0,error:'O GPS desta viagem está em outro aparelho. Retome a navegação neste aparelho para usá-lo aqui.',retry:resumeNavigation}}
