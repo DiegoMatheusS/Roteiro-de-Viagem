@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { FuelDatabase } from './db';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import type { Place } from '../src/types/admin';
+import type { NavigationManeuver } from '../src/types';
 
 export type Coordinates = [number, number];
 export type MapFetch = typeof fetch;
@@ -114,7 +115,7 @@ export async function discoverStations(db: FuelDatabase, points: Coordinates[], 
   }
 }
 
-const routeCache = new Map<string, { time: number; result: { distanceKm: number; legsKm: number[]; legsSeconds: number[] | null; geometry: Coordinates[] | null } }>();
+const routeCache = new Map<string, { time: number; result: { distanceKm: number; legsKm: number[]; legsSeconds: number[] | null; geometry: Coordinates[] | null; routeSteps: NavigationManeuver[] } }>();
 
 export async function roadRoute(points: Coordinates[], mapFetch: MapFetch = fetch, withGeometry = false) {
   if (points.length < 2) throw new Error('Escolha origem e destino para comparar postos.');
@@ -133,7 +134,7 @@ export async function roadRoute(points: Coordinates[], mapFetch: MapFetch = fetc
     ? route.geometry.coordinates.map((p: number[]) => [p[1], p[0]] as Coordinates) : null;
   if (withGeometry && !geometry) throw new Error('O provedor não retornou o desenho rodoviário da rota.');
   let travelledMeters = 0;
-  const routeSteps = withGeometry ? route.legs.flatMap((leg: any) => Array.isArray(leg.steps) ? leg.steps : [])
+  const routeSteps: NavigationManeuver[] = withGeometry ? route.legs.flatMap((leg: any) => Array.isArray(leg.steps) ? leg.steps : [])
     .map((step: any) => {
       const currentKm = travelledMeters / 1000;
       travelledMeters += Number.isFinite(step.distance) ? step.distance : 0;
