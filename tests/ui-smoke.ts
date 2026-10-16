@@ -67,7 +67,7 @@ try {
   await homeReport.click();
   const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
-  await homeReportOptions.getByRole('menuitem', {name:'Carro quebrado'}).waitFor();
+  await homeReportOptions.getByRole('menuitem', {name:'Veículo parado / quebrado'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Pedágio'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).click();
   const homeReportDialog = page.getByRole('dialog', {name:'Reportar ocorrência na via'});
