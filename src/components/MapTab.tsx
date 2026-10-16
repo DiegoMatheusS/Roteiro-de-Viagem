@@ -12,6 +12,7 @@ import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { RoadAlertReporter } from './RoadAlertReporter';
+import { Speedometer } from './Speedometer';
 import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
@@ -173,11 +174,13 @@ export function MapTab(props: MapTabProps) {
         menuPlacement={sheetExpanded ? 'below' : 'above'}
         onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
+    <Speedometer position={location.status === 'ready' ? location.position : null}
+      className={`absolute left-3 z-40 transition-[bottom] duration-300 ${sheetExpanded?'bottom-[calc(max(37dvh,300px)+16px)]':'bottom-[140px]'}`} />
     {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
       <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>
       {!locationAccess.requesting && <button type="button" onClick={()=>void locationAccess.request()} className="font-bold underline">Tentar GPS</button>}
     </div>}
-    {trip && <div className="absolute bottom-44 left-3 right-16 max-w-[250px] z-30"><RouteConditionsStatus trip={trip} conditions={props.conditions} /></div>}
+    {trip && !sheetExpanded && <div className="absolute bottom-[172px] left-[104px] right-3 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={props.conditions} /></div>}
     {trip && <button onClick={() => props.onOpenRoutePlanner(trip.originName, trip.destinationName, trip.destinationCoords, trip.originCoords)} className="absolute bottom-28 left-3 z-30 px-4 py-3 bg-white border rounded-xl shadow-xl text-xs font-bold flex gap-2"><Navigation size={16} />Alterar rota</button>}
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
