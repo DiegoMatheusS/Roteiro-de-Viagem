@@ -58,8 +58,8 @@ try {
   await page.getByRole('button', {name:'Abrir menu'}).click();
   const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
   await roleMenu.getByRole('button', {name:'Começar um rolê'}).waitFor();
-  await roleMenu.getByText('Seu caminho, seu ritmo.').waitFor();
-  await roleMenu.getByRole('button', {name:'Perfil',exact:true}).click();
+  await roleMenu.getByRole('button', {name:'Abrir meu perfil'}).getByText('Entrar ou criar conta').waitFor();
+  await roleMenu.getByRole('button', {name:'Abrir meu perfil'}).click();
   await page.getByRole('button', { name: 'Entrar / Criar conta' }).click();
   const login = page.getByRole('dialog', { name: 'Conta do viajante' });
   await login.getByRole('button', { name: 'Ainda não tenho conta' }).click();
@@ -78,7 +78,9 @@ try {
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
-  await page.getByRole('button', { name: 'Início', exact: true }).click();
+  const accountMenu = page.getByRole('dialog', { name: 'Menu do Rolê' });
+  await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
+  await accountMenu.getByRole('button', { name: 'Início', exact: true }).click();
 
   // A pesquisa rápida precisa abrir um mapa de percurso verificado antes de iniciar.
   await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
