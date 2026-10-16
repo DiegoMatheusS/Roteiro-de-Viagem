@@ -15,6 +15,7 @@ import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
 import { InteractiveMap } from './InteractiveMap';
+import { Speedometer } from './Speedometer';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { fuelApi } from '../services/fuelApi';
@@ -227,11 +228,8 @@ export function NavigationHome(props: NavigationHomeProps) {
         menuPlacement="above"
       />
     </div>
-    <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[bottom] duration-300 select-none ${collapsed?'bottom-[86px]':sheetExpanded?'bottom-[calc(67dvh+12px)]':'bottom-[calc(max(37dvh,300px)+12px)]'}`}
-      role="status" aria-label="Velocímetro" style={{userSelect:'none',WebkitUserSelect:'none'}} onContextMenu={event=>event.preventDefault()}>
-      <strong className="text-2xl leading-none tabular-nums select-none">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
-      <small className="text-[11px] text-slate-500 font-bold select-none">km/h</small>
-    </div>
+    <Speedometer position={gps.status === 'ready' ? gps.position : null}
+      className={`absolute left-4 z-40 transition-[bottom] duration-300 ${collapsed?'bottom-[86px]':sheetExpanded?'bottom-[calc(67dvh+12px)]':'bottom-[calc(max(37dvh,300px)+12px)]'}`} />
     <div data-testid="home-main-sheet"
       onPointerDown={startPanelDrag}
       onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}
@@ -274,22 +272,26 @@ export function NavigationHome(props: NavigationHomeProps) {
             <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Dar um rolê por aí?</h2>
             <p className="text-[14px] mt-1 text-slate-500">Escolha como prefere passear.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')}
-              className="group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[23px] p-3.5 min-h-[125px] flex flex-col items-start gap-2 text-left shadow-[0_8px_20px_#1a5aa90c] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
-              <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
+              className="rdv-choice-card group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[20px] p-3 min-h-[158px] flex flex-col items-start gap-2 text-left shadow-[0_5px_16px_#1a5aa90c]">
+              <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center" aria-hidden="true">
                 <Navigation size={21} strokeWidth={2.2}/>
               </span>
               <strong className="text-blue-800 text-[16px] font-semibold block tracking-tight">Por distância</strong>
-              <ChevronRight size={20} className="self-end text-blue-600" aria-hidden="true"/>
+              <span className="rdv-primary-action rdv-primary-action--blue mt-auto w-full">
+                Escolher KM <ChevronRight size={17} strokeWidth={2.2} aria-hidden="true"/>
+              </span>
             </button>
             <button type="button" onClick={()=>showSheet('hours')}
-              className="group bg-gradient-to-br from-[#eafaf3] to-white border border-[#bde7d5] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#19765e0b] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
-              <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1">
+              className="rdv-choice-card group bg-gradient-to-br from-[#eafaf3] to-white border border-[#bde7d5] rounded-[20px] p-3 min-h-[158px] flex flex-col items-start gap-2 text-left shadow-[0_5px_16px_#19765e0b]">
+              <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center" aria-hidden="true">
                 <Clock3 size={21} strokeWidth={2.2}/>
               </span>
               <strong className="text-emerald-800 text-[16px] font-semibold block tracking-tight">Por tempo</strong>
-              <ChevronRight size={20} className="self-end text-emerald-600" aria-hidden="true"/>
+              <span className="rdv-primary-action rdv-primary-action--green mt-auto w-full">
+                Escolher horas <ChevronRight size={17} strokeWidth={2.2} aria-hidden="true"/>
+              </span>
             </button>
           </div>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
