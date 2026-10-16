@@ -37,7 +37,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   db.exec(`
     CREATE TABLE IF NOT EXISTS road_alerts (
       id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction')),
+      kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
       lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
       note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
