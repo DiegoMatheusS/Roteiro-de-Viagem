@@ -2,8 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MapPin, Navigation, X } from 'lucide-react';
 import type { TripPlan, Vehicle } from '../types';
 import type { LocationSelection } from '../types/itinerary';
-import { TOURIST_PLACE_KINDS } from '../types/admin';
-import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { fetchRouteChoices, choiceLabel, choiceToTrip, type VerifiedRouteChoice } from '../services/routeChoices';
 import { requestTolls, tollBudgetPatch, type TollResult } from '../services/routeConditions';
 
@@ -25,9 +23,6 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   const initialAttempt=useRef(false);
   const [error,setError] = useState('');
   const [tollChecks,setTollChecks] = useState<Record<string,TollResult>>({});
-  const nearby = useNearbyPlaces(target.coords ? [target.coords] : [],Boolean(target.coords));
-  const tips = nearby.filter(place=>(TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind)).slice(0,3);
-  const hasScenicRoute = routes.some(route=>['panoramic','tourist','stroll'].includes(route.kind));
   useEffect(()=>{
     if(!selectedRouteId)return;
     const index=routes.findIndex(route=>route.id===selectedRouteId);
@@ -81,7 +76,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   };
   return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[49dvh] flex flex-col rdv-route-sheet">
     <div className="h-7 shrink-0 flex justify-center items-center"><span className="h-1.5 w-12 bg-slate-300 rounded-full"/></div>
-    <div className="overflow-y-auto w-full max-w-xl mx-auto px-4 pb-5 space-y-4">
+    <div className="overflow-y-auto w-full max-w-xl mx-auto px-4 pb-5 space-y-3">
       <div className="flex items-start gap-3">
         <span className="w-11 h-11 rounded-[15px] bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><MapPin size={24}/></span>
         <div className="flex-1 min-w-0"><p className="text-[10px] font-bold uppercase text-slate-500">Destino localizado no mapa</p>
@@ -95,12 +90,9 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
         <Navigation size={21}/>{busy?'Preparando sua navegação...':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
       </button>
       {error && <p role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl p-3">{error}</p>}
-      <section className="space-y-2"><h3 className="text-sm font-bold">Dicas de viagem</h3>
-        <p className="text-xs text-slate-600">No Rolê, a viagem começa pelo caminho: descubra atrações, paisagens e lugares para conhecer. Confira também o clima e os pedágios.</p>
-        {tips.map(place=><p key={place.id} className="text-xs px-3 py-2 bg-emerald-50 text-emerald-900 rounded-xl">{place.name} · atração cadastrada próxima</p>)}
-      </section>
+
       <section aria-label="Fazer viagem" className="space-y-2">
-        <div className="flex justify-between items-center gap-2"><h3 className="text-sm font-extrabold">Fazer viagem</h3>
+        <div className="flex justify-between items-center gap-2"><h3 className="text-base font-bold">Rotas disponíveis</h3>
           <button type="button" disabled={busy} onClick={()=>void loadRoutes()} className="text-xs text-blue-700 font-bold">{routes.length?'Atualizar rotas':'Mostrar rotas'}</button></div>
         {!routes.length && !error && <p className="text-xs text-slate-500">{busy ? 'Calculando rotas a partir do GPS...' : 'Destino marcado no mapa. Toque em Mostrar rotas para tentar novamente.'}</p>}
         {routes.map((route,index)=><button key={route.id} type="button" aria-pressed={index===selected}
@@ -108,14 +100,12 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
           className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 active:scale-[.99] ${index===selected?'border-blue-500 bg-blue-50 shadow-[0_5px_16px_#2563eb20]':'border-slate-200 bg-white hover:border-blue-200'}`}>
           <div className="flex justify-between gap-2"><strong className="text-[13px]">{choiceLabel(route,index)}{index===0 && route.kind!=='fast' && route.kind!=='alternative' ? ' · sugerida pelo Rolê' : ''}</strong><strong className="text-xs text-blue-700">{route.durationMinutes} min</strong></div>
           <p className="text-[11px] text-slate-600 mt-1">{route.distanceKm.toFixed(1)} km{route.scenicStop ? ` · Via ${route.scenicStop.name}` : ''}</p>
-          <p className="text-[10px] text-slate-500 mt-1">
+          <p className="text-[11px] text-slate-500 mt-1">
             {tollChecks[route.id]?.tolls.length
               ? `Com pedágio · ${tollChecks[route.id].knownCost.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} conhecido`
               : 'Pedágios: não confirmados'} · Trânsito ao vivo: indisponível
           </p>
         </button>)}
-        {routes.length>0 && !hasScenicRoute && <p className="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-2">Ainda não encontramos uma rota por atrações cadastradas neste trajeto. As alternativas abaixo são rodoviárias, sem garantia de pontos turísticos.</p>}
-        {routes.length>0 && <p className="text-[11px] text-slate-500">Todas as opções ficam desenhadas no mapa. Toque numa linha ou numa opção para selecionar; iniciar navega pela rota em azul.</p>}
         {!gpsAvailable && <p className="text-xs text-amber-800">Ative o GPS para calcular as rotas a partir da sua localização.</p>}
       </section>
     </div>
