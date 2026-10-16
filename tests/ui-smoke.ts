@@ -259,6 +259,13 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
+  await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
+  const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
+  await expandMapPanel.click();
+  const exploration = page.getByRole('region', { name: 'Explorar destinos e estabelecimentos' });
+  await exploration.getByRole('heading', { name: 'Viagens sugeridas' }).waitFor();
+  await exploration.getByRole('heading', { name: 'Estabelecimentos no mapa' }).waitFor();
+  await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
   const bottomMapSearch = page.getByRole('searchbox', { name: 'Para onde quer ir?' });
   await bottomMapSearch.fill('Parada');
   const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
