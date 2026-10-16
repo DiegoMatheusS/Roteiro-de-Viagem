@@ -261,6 +261,14 @@ try {
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
+  const grab = await expandMapPanel.boundingBox();
+  assert.ok(grab, 'O puxador do painel precisa estar visível');
+  await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
+  await page.mouse.down();
+  await page.mouse.move(grab!.x+grab!.width/2,grab!.y-110,{steps:6});
+  await page.mouse.up();
+  await page.getByRole('button', { name: 'Recolher painel do mapa' }).waitFor();
+  await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
   await expandMapPanel.click();
   const exploration = page.getByRole('region', { name: 'Explorar destinos e estabelecimentos' });
   await exploration.getByRole('heading', { name: 'Viagens sugeridas' }).waitFor();
