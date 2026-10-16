@@ -143,7 +143,7 @@ public class TravelNativePlugin extends Plugin {
   }
   @PluginMethod public void signInGoogle(PluginCall call) {
     String clientId=call.getString("clientId","");
-    if(clientId==null || clientId.length()>250 || !clientId.matches("[A-Za-z0-9_-]+\\\\.apps\\\\.googleusercontent\\\\.com")) {
+    if(clientId==null || clientId.length()>250 || !clientId.endsWith(".apps.googleusercontent.com") || !clientId.matches("[A-Za-z0-9_.-]+")) {
       call.reject("O Google Login ainda não está configurado para este aplicativo.");return;
     }
     try {
