@@ -330,16 +330,40 @@ try {
   await exploration.getByRole('heading', { name: 'Viagens sugeridas' }).waitFor();
   await exploration.getByRole('heading', { name: 'Estabelecimentos no mapa' }).waitFor();
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
+  // Na aba Mapa, a barra e um campo real: foco imediato, Enter e rotas automaticas.
   const bottomMapSearch = page.getByRole('searchbox', { name: 'Para onde quer ir?' });
+  await bottomMapSearch.click();
+  assert.equal(await bottomMapSearch.evaluate(element=>document.activeElement===element),true,
+    'Tocar na busca do Mapa deve focar o input para abrir o teclado');
+  assert.equal(await page.getByRole('dialog', { name: 'Buscar destino no mapa' }).count(),0,
+    'A barra do Mapa nao deve abrir outro modal');
   await bottomMapSearch.fill('Parada');
-  const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
-  await mapSearchDialog.getByRole('heading', { name: 'Para onde vamos?' }).waitFor();
-  assert.equal(await mapSearchDialog.getByLabel('Origem', { exact:true }).count(),0);
-  await mapSearchDialog.getByLabel('Destino', {exact:true}).fill('Parada');
-  await mapSearchDialog.getByRole('button', {name:'Buscar destino'}).click();
-  await mapSearchDialog.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
+  // Photon pode ordenar Alfa/Beta diferentemente quando há um ponto GPS de viés.
+  // Verifica o destino que o próprio serviço retornou, não a posição fixa de uma fixture.
+  const mapLocationsRequest=page.waitForResponse(response => {
+    const url=new URL(response.url());
+    return url.pathname==='/api/locations/search' && url.searchParams.get('q')==='Parada';
+  });
+  const mapRoutesRequest=page.waitForResponse(response =>
+    response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
+  await bottomMapSearch.press('Enter');
+  const locationsResponse=await mapLocationsRequest;
+  assert.equal(locationsResponse.status(),200,'Enter na aba Mapa deve consultar o destino');
+  const locationsData=await locationsResponse.json() as {results: Array<{name:string;coords?:[number,number]}>};
+  const expectedDestination=locationsData.results.find(result=>
+    result.coords?.length===2 && result.coords.every(Number.isFinite));
+  assert.ok(expectedDestination,'A busca de teste precisa retornar um destino geocodificado');
   const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
-  await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
+  await mapDestination.getByRole('heading',{name:expectedDestination.name,exact:true}).waitFor();
+  // Falhas futuras incluem diagnóstico do painel (por exemplo, GPS sem permissão).
+  const mapRouteResponse=await mapRoutesRequest.catch(async failure => {
+    const panel=await mapDestination.innerText().catch(()=>'(painel não disponível)');
+    throw new Error(`Rota não requisitada após Enter na aba Mapa: ${String(failure)}. Painel: ${panel.slice(0,1200)}`);
+  });
+  assert.equal(mapRouteResponse.status(),200,'Enter na aba Mapa deve calcular as rotas');
+  await mapDestination.getByText('Rota mais rápida').waitFor();
+  assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,
+    'As rotas da pesquisa direta devem aparecer desenhadas no Mapa');
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
