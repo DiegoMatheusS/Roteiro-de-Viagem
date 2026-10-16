@@ -173,7 +173,7 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
         const scenicRoute = {
           distance:scenic.distanceKm*1000,
           duration:scenic.legsSeconds?.reduce((a,b)=>a+b,0) || 0,
-          geometry:{coordinates:scenic.geometry?.map(point=>[point[1],point[0]])},
+          geometry:{coordinates:scenic.geometry?.map((point: Coordinates)=>[point[1],point[0]])},
           legs:[],
         };
         if (scenicRoute.duration>0 && scenicRoute.duration <= routes[0].duration*2
