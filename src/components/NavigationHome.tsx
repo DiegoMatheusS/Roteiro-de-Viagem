@@ -9,6 +9,9 @@ import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { getTouristTargetError, getTouristTargetWarning, parseTouristTarget } from '../services/touristTargetInput';
 import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
+import { prepareRoadPreview } from '../services/itinerary';
+import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
+import { useEffect } from 'react';
 import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { InteractiveMap } from './InteractiveMap';
 import { LocationSearch } from './LocationSearch';
@@ -43,6 +46,23 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [dest, setDest] = useState<LocationSelection>({name:''});
   const [useGps, setUseGps] = useState(true);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [tollNotice, setTollNotice] = useState('');
+  // Carrega pedágios após abrir a prévia, sem confundir ausência de dados com rota sem cobrança.
+  useEffect(() => {
+    if (!preview || preview.routePath.length < 2 || !props.currentVehicle || preview.tolls?.length) return;
+    const controller = new AbortController();
+    setTollNotice('');
+    void requestTolls(preview, props.currentVehicle.type, controller.signal)
+      .then(result => {
+        if (controller.signal.aborted) return;
+        setPreview(current => current?.id === preview.id ? { ...current, ...tollBudgetPatch(current, result) } : current);
+        if (result.mapUnavailable) setTollNotice('Cobertura de pedágios indisponível. Confira os valores antes de viajar.');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTollNotice('Não foi possível consultar os pedágios. Confira-os antes de viajar.');
+      });
+    return () => controller.abort();
+  }, [preview?.id, props.currentVehicle?.type]);
 
   const showSheet = (value:'km'|'hours'|'destination') => {setError('');setSheet(value);};
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
@@ -55,6 +75,12 @@ export function NavigationHome(props: NavigationHomeProps) {
     return false;
   };
   const gpsCoordinates = async (): Promise<[number,number]> => {
+    // A posição já fornecida pelo rastreador evita uma segunda leitura GPS desnecessária.
+    const tracked = gps.status === 'ready' ? gps.position : null;
+    if (tracked && Date.now() - tracked.timestamp >= -5000
+      && Date.now() - tracked.timestamp < 30000 && tracked.accuracyMeters <= 100) {
+      return tracked.coords;
+    }
     const position = await getCurrentDeviceLocation();
     if (position.accuracyMeters > 150) throw new Error('O sinal GPS está impreciso. Tente novamente em local aberto.');
     return position.coords;
@@ -84,11 +110,11 @@ export function NavigationHome(props: NavigationHomeProps) {
     setError('');setBusy(true);
     try {
       const originCoords = useGps ? await gpsCoordinates() : origin.coords!;
-      const trip = createRoadDraft({originName:useGps?'Sua localização atual':origin.name,
+      const draft = createRoadDraft({originName:useGps?'Sua localização atual':origin.name,
         originCoords,destinationName:dest.name,destinationCoords:dest.coords,
         vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
-      setSheet(null);
-      props.onLaunchTouristCircuit(trip);
+      const trip = await prepareRoadPreview(draft, props.currentVehicle!);
+      setSheet(null); setPreview(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const suggestDestination = async (place:Place) => {
@@ -96,9 +122,11 @@ export function NavigationHome(props: NavigationHomeProps) {
     setBusy(true);setError('');
     try {
       const originCoords = await gpsCoordinates();
-      props.onLaunchTouristCircuit(createRoadDraft({originName:'Sua localização atual',originCoords,
+      const draft = createRoadDraft({originName:'Sua localização atual',originCoords,
         destinationName:place.name,destinationCoords:[place.lat,place.lng],
-        vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}}));
+        vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
+      const trip = await prepareRoadPreview(draft, props.currentVehicle!);
+      setPreview(trip);
     } catch(err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const stepValue = (increase:boolean) => {
@@ -170,7 +198,9 @@ export function NavigationHome(props: NavigationHomeProps) {
         {preview ? <div className="flex flex-col min-h-0 flex-1">
           <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} blueRoute showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
           <div className="p-5 space-y-3 shrink-0"><h2 className="font-extrabold text-xl">{preview.destinationName}</h2><p className="text-sm text-slate-500">{preview.distanceKm.toFixed(1)} km · {Math.round(preview.durationMinutes)} min · {preview.stops.length} paradas</p>
-            <p className="text-[11px] text-slate-500">Postos, pedágios e pontos turísticos disponíveis aparecem no mapa.</p>
+            <p className="text-[11px] text-slate-500">Percurso por estradas reais. Os postos e os pontos turísticos disponíveis aparecem no mapa.</p>
+            {tollNotice && <p role="status" className="text-xs text-amber-800">{tollNotice}</p>}
+            {preview.routeWarnings?.map(warning => <p key={warning} className="text-xs text-amber-800">{warning}</p>)}
             {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
             <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{props.onViewTripDetails(preview);setPreview(null);}}>Detalhes</button>
               <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar</button></div>

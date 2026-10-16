@@ -76,6 +76,26 @@ try {
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
+
+  // A pesquisa rápida precisa abrir um mapa de percurso verificado antes de iniciar.
+  await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
+  const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
+  // Garante que a pesquisa manual funcione mesmo quando o GPS não respondeu ainda.
+  await destinationSheet.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
+  await destinationSheet.getByLabel('Origem', { exact: true }).fill('Parada');
+  await destinationSheet.getByRole('button', { name: 'Buscar origem', exact: true }).click();
+  await destinationSheet.getByRole('button', { name: /Parada Beta de teste/ }).click();
+  await destinationSheet.getByLabel('Destino', { exact: true }).fill('Parada');
+  await destinationSheet.getByRole('button', { name: 'Buscar destino', exact: true }).click();
+  await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).click();
+  const roadRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/itinerary') && response.request().method() === 'POST');
+  await destinationSheet.getByRole('button', { name: 'Ver percurso', exact: true }).click();
+  assert.equal((await roadRequest).status(), 200);
+  const tripPreview = page.getByRole('dialog', { name: 'Visualizar viagem' });
+  await tripPreview.getByRole('heading', { name: 'Parada Alfa de teste' }).waitFor();
+  assert.ok(await tripPreview.locator('.leaflet-overlay-pane path').count() > 0, 'A prévia precisa desenhar a rota real');
+  assert.ok((await tripPreview.innerText()).includes('km'), 'A prévia deve mostrar distância real');
+  await tripPreview.getByRole('button', { name: 'Fechar janela' }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
   // GPS modes must ignore even an incomplete draft in the manual destination tab.
   await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();

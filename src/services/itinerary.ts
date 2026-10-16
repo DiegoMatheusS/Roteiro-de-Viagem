@@ -1,5 +1,5 @@
 import { fuelApi } from './fuelApi';
-import type { TripPlan, RouteStop } from '../types';
+import type { TripPlan, RouteStop, Vehicle } from '../types';
 import type { ItineraryResult, MandatoryStop, SuggestedStop, PlanningLimits } from '../types/itinerary';
 
 export async function calculateItinerary(trip: TripPlan, manualStops: MandatoryStop[], acceptedSuggestions: SuggestedStop[] = [], signal?: AbortSignal) {
@@ -20,3 +20,21 @@ export function applyItinerary(trip: TripPlan, result: ItineraryResult): TripPla
 }
 export function withPlanningLimits(trip: TripPlan, limits: PlanningLimits) { return { ...trip, planningLimits: limits }; }
 
+
+/**
+ * Produz uma prévia navegável antes de iniciar uma viagem.
+ * Não exibe uma linha reta como se fosse um percurso: a geometria precisa vir do OSRM.
+ */
+export async function prepareRoadPreview(draft: TripPlan, vehicle: Vehicle, signal?: AbortSignal): Promise<TripPlan> {
+  const result = await calculateItinerary(draft, draft.manualStops || [], draft.acceptedSuggestions || [], signal);
+  if (result.routePath.length < 2 || !Number.isFinite(result.distanceKm) || result.distanceKm <= 0
+    || !Number.isFinite(result.durationMinutes) || result.durationMinutes <= 0) {
+    throw new Error('Não foi possível encontrar um percurso rodoviário válido para esse destino.');
+  }
+  const trip = applyItinerary(draft, result);
+  const consumption = vehicle.consumption.userConfigured || vehicle.consumption.referenceAverage;
+  return {
+    ...trip,
+    estimatedFuelLiters: consumption > 0 ? Number((trip.distanceKm / consumption).toFixed(2)) : 0
+  };
+}
