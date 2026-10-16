@@ -151,16 +151,6 @@ try {
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
   await planner.getByText(/Percurso por estradas reais/).first().waitFor();
   const fuelMarker = page.locator('.fuel-station-marker').first();
-  if (!(await fuelMarker.count())) {
-    const debug = await page.evaluate(() => ({
-      mapCount: document.querySelectorAll('.leaflet-container').length,
-      stationMarkers: document.querySelectorAll('.fuel-station-marker').length,
-      mapCards: document.querySelectorAll('.map-place-card').length,
-      body: document.body.innerText.slice(-1200),
-      mapClasses: [...document.querySelectorAll('.leaflet-container')].map(el => ({parent:el.parentElement?.className,html:el.innerHTML.slice(-500)}))
-    }));
-    console.log('MAP_MARKER_DEBUG', JSON.stringify(debug));
-  }
   await fuelMarker.getByRole('button', { name: 'Comentários de Posto de teste de interface', exact: true }).click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByRole('heading', { name: 'Comentários do posto', exact: true }).waitFor();
@@ -310,8 +300,16 @@ try {
   await mapSearchDialog.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
   await mapSearchDialog.getByLabel('Origem', { exact: true }).waitFor();
   await mapSearchDialog.getByRole('button', { name: 'Fechar busca do mapa' }).click();
-  await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
-  await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
+  // The minimal map now renders only places in the visible viewport.
+  // Recenter to the consented GPS point and zoom out to include the admin test restaurant.
+  await gpsControl.click();
+  const mapCanvas = page.locator('.leaflet-container').first();
+  await mapCanvas.hover();
+  await page.mouse.wheel(0, 900);
+  const restaurantMarker = page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]');
+  await restaurantMarker.waitFor();
+  await restaurantMarker.focus();
+  await restaurantMarker.press('Enter');
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
   await restaurant.getByRole('heading', { name: /Restaurante revisado pela administração/ }).waitFor();
   await restaurant.getByLabel('Seu comentário', { exact: true }).fill('Comentário de teste da interface.');
