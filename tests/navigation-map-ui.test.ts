@@ -33,7 +33,7 @@ test('Android 15 evita aplicar a altura do teclado duas vezes',()=>{
 test('mapa cobre a tela inteira e painel pode ser arrastado para baixo',()=>{
   const home=source('src/components/NavigationHome.tsx');
   assert.match(home,/absolute inset-0 rdv-flat-map/);
-  assert.match(home,/onPointerUp=\{handleGripRelease\}/);
+  assert.match(home,/onPointerUp=\{finishPanelDrag\}/);
   assert.match(home,/setCollapsed\(true\)/);
 });
 
