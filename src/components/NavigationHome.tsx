@@ -214,7 +214,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
           </button>
         </form>
-        {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>
+        {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>}
         {gps.error && <p role="alert" className="bg-amber-50 p-3 rounded-xl text-xs text-amber-900">{gps.error} <button className="underline font-bold" onClick={()=>isNativeApp()?void TravelNative.openDeviceSettings({section:'app'}):gps.retry()}>Permitir localização</button></p>}
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
