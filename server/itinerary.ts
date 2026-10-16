@@ -20,6 +20,41 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     if (!row) throw new ApiError('Localização não encontrada. Pesquise e selecione novamente.');
     return locationDto(row);
   };
+  // Only explicitly selected, provider-verified places are saved; never keep raw text searches or GPS history.
+  app.post('/api/me/locations', auth, (req, res) => {
+    const owner = user(res).id;
+    limit(`save-location:${owner}`, 30, 60000);
+    const selection = findLocation(req.body?.locationId);
+    if (!selection.id || !selection.coords) throw new ApiError('Selecione um local verificado.');
+    db.prepare(`INSERT INTO user_saved_locations
+      (user_id,location_id,name,address,lat,lng,source_url,category,saved_at)
+      VALUES(?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(user_id,location_id) DO UPDATE SET
+        name=excluded.name,address=excluded.address,lat=excluded.lat,lng=excluded.lng,
+        source_url=excluded.source_url,category=excluded.category,saved_at=excluded.saved_at`)
+      .run(owner, selection.id, selection.name, selection.address || '',
+        selection.coords[0], selection.coords[1], selection.sourceUrl || '',
+        selection.category || '', now());
+    db.prepare(`DELETE FROM user_saved_locations WHERE user_id=? AND location_id NOT IN
+      (SELECT location_id FROM user_saved_locations WHERE user_id=? ORDER BY saved_at DESC LIMIT 50)`)
+      .run(owner, owner);
+    res.status(201).json({ saved: true });
+  });
+  app.get('/api/me/locations', auth, (_req, res) => {
+    const rows = db.prepare('SELECT * FROM user_saved_locations WHERE user_id=? ORDER BY saved_at DESC LIMIT 50')
+      .all(user(res).id) as any[];
+    res.json({ results: rows.map(locationDto) });
+  });
+  app.delete('/api/me/locations/:id', auth, (req, res) => {
+    if (req.params.id.length > 100) throw new ApiError('Local inválido.');
+    db.prepare('DELETE FROM user_saved_locations WHERE user_id=? AND location_id=?')
+      .run(user(res).id, req.params.id);
+    res.json({ ok: true });
+  });
+  app.delete('/api/me/locations', auth, (_req, res) => {
+    db.prepare('DELETE FROM user_saved_locations WHERE user_id=?').run(user(res).id);
+    res.json({ ok: true });
+  });
   app.get('/api/locations/search', asyncRoute(async (req, res) => {
     limit(`geocoding:${clientIp(req)}`, 15, 60000);
     const q = String(req.query.q || '').trim();
