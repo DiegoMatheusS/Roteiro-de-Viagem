@@ -10,7 +10,7 @@ import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, X, ChevronRight } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
-  conditions: ConditionsStatus; routeVehicleType?: 'car' | 'motorcycle';
+  conditions: ConditionsStatus; routeVehicleType?: 'car' | 'motorcycle'; sosOpen?: boolean;
   currentVehicle: Vehicle | null; activeTrip: TripPlan | null; plannedTrip: TripPlan | null; activeConvoyId?: string | null;
   onBackToMenu: () => void; onEndTrip: (trip: TripPlan) => void; onContinueTrip: () => void;
   onOpenRoutePlanner: (origin: string, dest: string, coords?: [number, number], originCoords?: [number, number]) => void;
