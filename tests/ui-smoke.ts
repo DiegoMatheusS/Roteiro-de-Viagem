@@ -338,13 +338,24 @@ try {
   assert.equal(await page.getByRole('dialog', { name: 'Buscar destino no mapa' }).count(),0,
     'A barra do Mapa nao deve abrir outro modal');
   await bottomMapSearch.fill('Parada');
-  const mapRoutesRequest = page.waitForResponse(response =>
+  // Photon pode ordenar Alfa/Beta diferentemente quando há um ponto GPS de viés.
+  // Verifica o destino que o próprio serviço retornou, não a posição fixa de uma fixture.
+  const mapLocationsRequest=page.waitForResponse(response => {
+    const url=new URL(response.url());
+    return url.pathname==='/api/locations/search' && url.searchParams.get('q')==='Parada';
+  });
+  const mapRoutesRequest=page.waitForResponse(response =>
     response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
   await bottomMapSearch.press('Enter');
+  const locationsResponse=await mapLocationsRequest;
+  assert.equal(locationsResponse.status(),200,'Enter na aba Mapa deve consultar o destino');
+  const locationsData=await locationsResponse.json() as {results: Array<{name:string;coords?:[number,number]}>};
+  const expectedDestination=locationsData.results.find(result=>
+    result.coords?.length===2 && result.coords.every(Number.isFinite));
+  assert.ok(expectedDestination,'A busca de teste precisa retornar um destino geocodificado');
   const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
-  await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
-  // Se não houver consulta, registra o conteúdo do painel (GPS/erro) em vez
-  // de deixar o CI falhar apenas com "waitForResponse timeout".
+  await mapDestination.getByRole('heading',{name:expectedDestination.name,exact:true}).waitFor();
+  // Falhas futuras incluem diagnóstico do painel (por exemplo, GPS sem permissão).
   const mapRouteResponse=await mapRoutesRequest.catch(async failure => {
     const panel=await mapDestination.innerText().catch(()=>'(painel não disponível)');
     throw new Error(`Rota não requisitada após Enter na aba Mapa: ${String(failure)}. Painel: ${panel.slice(0,1200)}`);
