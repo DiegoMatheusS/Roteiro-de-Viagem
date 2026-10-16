@@ -104,20 +104,18 @@ try {
   await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
   await accountMenu.getByRole('button', { name: 'Início', exact: true }).click();
 
-  // Busca rápida: só localiza o endereço no mapa, sem abrir origem/destino.
-  await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
-  const directSearch = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
-  assert.equal(await directSearch.getByLabel('Origem', {exact:true}).count(),0);
-  await directSearch.getByLabel('Destino', {exact:true}).fill('Parada');
-  await directSearch.getByRole('button', {name:'Buscar destino'}).click();
+  // A busca da tela inicial é um input verdadeiro: teclado direto, sem formulário de origem/destino.
+  const quickSearch = page.getByRole('searchbox', {name:'Para onde quer ir?'});
+  await quickSearch.click();
+  assert.equal(await quickSearch.evaluate(element=>document.activeElement===element),true,'O toque deve focar o input do teclado');
+  assert.equal(await page.getByRole('dialog',{name:'Buscar destino no mapa'}).count(),0,'A busca rápida não abre modal');
+  await quickSearch.fill('Parada');
   const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
-  await directSearch.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
+  await quickSearch.press('Enter');
   const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
   await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
   await destinationMap.getByText('Dicas de viagem').waitFor();
-  // Quando o GPS ainda não está pronto, o usuário pode pedir as rotas manualmente.
-  await destinationMap.getByRole('button',{name:/Mostrar rotas|Atualizar rotas/}).click();
-  assert.equal((await choicesRequest).status(),200);
+  assert.equal((await choicesRequest).status(),200,'Enter deve calcular rotas automaticamente');
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
   await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
