@@ -6,10 +6,18 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.graphics.Insets;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   @Override public void onCreate(Bundle savedInstanceState) {
     registerPlugin(TravelNativePlugin.class);super.onCreate(savedInstanceState);
+    // O gesto e o botão Voltar seguem a navegação interna do Rolê, sem fechar a Activity.
+    getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true) {
+      @Override public void handleOnBackPressed() {
+        if(getBridge()!=null && getBridge().getWebView()!=null)
+          getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new Event('rdv:android-back'))",null);
+      }
+    });
     WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
     // Android 15: o WebView ajusta o viewport para o teclado.
     // Nao aplique o IME como padding novamente: empurra toda a tela para cima.
