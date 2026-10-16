@@ -21,6 +21,12 @@ import com.getcapacitor.PermissionState;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.annotation.ActivityCallback;
+import androidx.activity.result.ActivityResult;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.common.api.ApiException;
 import java.net.URL;
 import java.net.HttpURLConnection;
 import java.io.ByteArrayOutputStream;
@@ -134,6 +140,31 @@ public class TravelNativePlugin extends Plugin {
   }
   @PluginMethod public void openExternal(PluginCall call) {
     try {getActivity().startActivity(ExternalActions.intentFor(call.getString("url","")));call.resolve();}catch(Exception error){call.reject("Não foi possível abrir o contato. Confira os aplicativos instalados.");}
+  }
+  @PluginMethod public void signInGoogle(PluginCall call) {
+    String clientId=call.getString("clientId","");
+    if(clientId==null || clientId.length()>250 || !clientId.endsWith(".apps.googleusercontent.com") || !clientId.matches("[A-Za-z0-9_.-]+")) {
+      call.reject("O Google Login ainda não está configurado para este aplicativo.");return;
+    }
+    try {
+      GoogleSignInOptions options=new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        .requestEmail().requestIdToken(clientId).build();
+      startActivityForResult(call,GoogleSignIn.getClient(getContext(),options).getSignInIntent(),"googleSignInResult");
+    } catch(Exception error){call.reject("Não foi possível iniciar o login Google: "+error.getMessage());}
+  }
+  @ActivityCallback public void googleSignInResult(PluginCall call,ActivityResult result) {
+    if(call==null)return;
+    try {
+      GoogleSignInAccount account=GoogleSignIn.getSignedInAccountFromIntent(result.getData()).getResult(ApiException.class);
+      if(account==null || account.getIdToken()==null){call.reject("O Google não devolveu uma credencial.");return;}
+      JSObject value=new JSObject();value.put("credential",account.getIdToken());call.resolve(value);
+    } catch(ApiException error) {
+      if(error.getStatusCode()==12501 || error.getStatusCode()==16)call.reject("Login Google cancelado.");
+      else call.reject("Falha ao entrar com Google (código "+error.getStatusCode()+"). Confira a configuração OAuth e o SHA-1 da assinatura.");
+    } catch(Exception error){call.reject("Não foi possível autenticar com Google.");}
+  }
+  @PluginMethod public void exitApp(PluginCall call) {
+    getActivity().runOnUiThread(()->{call.resolve();getActivity().finish();});
   }
   @PluginMethod public void copyText(PluginCall call) {
     String value=call.getString("text","");if(value.length()>10000){call.reject("Mensagem muito grande.");return;}

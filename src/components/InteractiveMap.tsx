@@ -142,6 +142,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
   const fittedGeometryRef=useRef<string|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
+  const lastCenterRequestRef=useRef(0);
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
   const [viewportRevision, setViewportRevision] = useState(0);
   const visibleCallbackRef = useRef(onVisiblePlacesChange);
@@ -256,9 +257,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   }, [hasMapReady, routePath.length, originCoords?.[0], originCoords?.[1]]);
 
   useEffect(() => {
-    if (centerOnUserRequest < 1 || !userLiveCoords || !mapInstanceRef.current) return;
-    mapInstanceRef.current.flyTo(userLiveCoords, 15, {duration: 0.5});
-  }, [centerOnUserRequest, userLiveCoords?.[0], userLiveCoords?.[1]]);
+    // O GPS atualiza várias vezes por minuto; centralizar apenas sob comando evita
+    // a animação de descida do mapa a cada atualização ou troca de alternativa.
+    if (centerOnUserRequest <= lastCenterRequestRef.current) return;
+    lastCenterRequestRef.current=centerOnUserRequest;
+    if (!userLiveCoords || !mapInstanceRef.current) return;
+    mapInstanceRef.current.setView(userLiveCoords, 15, {animate:false});
+    // A posição atual é deliberadamente lida apenas quando o usuário pede centralização.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerOnUserRequest]);
 
 
   useEffect(() => {
@@ -720,7 +727,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     // GPS refreshes move markers without undoing the user's zoom and map position.
-    const geometryKey=JSON.stringify([originCoords,destinationCoords,routePath,routeAlternatives.map(r=>[r.id,r.routePath]),selectedRouteId,stops.map(s=>[s.lat,s.lng]),meetingPoints.map(p=>p.coords)]);
+    const geometryKey=JSON.stringify([originCoords,destinationCoords,routeAlternatives.length ? routeAlternatives.map(r=>[r.id,r.routePath]) : routePath,stops.map(s=>[s.lat,s.lng]),meetingPoints.map(p=>p.coords)]);
     if(fittedGeometryRef.current===geometryKey)return;
     if(bounds.length)fittedGeometryRef.current=geometryKey;
     if (bounds.length > 1) {
@@ -797,8 +804,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </div>}
       </section>}
       <div ref={mapContainerRef} className="w-full h-full" />
-      {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}
-      {fuel.error && <div className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-amber-50 rounded-xl p-2 shadow">{fuel.error}<button type="button" onClick={fuel.retry} className="ml-2 font-bold">Tentar novamente</button></div>}
+      {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
       {selectedStation && <FuelStationModal key={`${selectedStation}:${stationSection}`} stationId={selectedStation} initialSection={stationSection} onClose={() => setSelectedStation(null)} />}

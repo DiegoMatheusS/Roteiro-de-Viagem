@@ -54,15 +54,35 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const dragStart = React.useRef<number|null>(null);
   const swallowNextClick = React.useRef(false);
-  const handleGripRelease = (event:React.PointerEvent<HTMLButtonElement>) => {
+  const [dragOffset,setDragOffset]=useState(0);
+  const finishPanelDrag = (event:React.PointerEvent<HTMLDivElement>) => {
     if(dragStart.current===null)return;
-    const change=event.clientY-dragStart.current;
+    const delta=event.clientY-dragStart.current;
     dragStart.current=null;
-    if(Math.abs(change)<32)return;
+    setDragOffset(0);
+    if(Math.abs(delta)<38)return;
     swallowNextClick.current=true;
-    if(change>0){if(sheetExpanded)setSheetExpanded(false);else setCollapsed(true);}
+    if(delta>0){if(sheetExpanded)setSheetExpanded(false);else setCollapsed(true);}
     else{if(collapsed)setCollapsed(false);else setSheetExpanded(true);}
   };
+  // O painel inteiro acompanha o dedo, exceto botões, inputs e a lista rolável.
+  const startPanelDrag = (event:React.PointerEvent<HTMLDivElement>)=>{
+    const target=event.target as HTMLElement;
+    if(target.closest('input,textarea,select,a,[data-panel-scroll]'))return;
+    if(target.closest('button')&&!target.closest('[data-panel-grip]'))return;
+    dragStart.current=event.clientY;
+    swallowNextClick.current=false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  useEffect(()=>{
+    const close=(event:Event)=>{
+      if(sheet || preview){(event as CustomEvent).preventDefault();closeSheet();return;}
+      if(mapTarget){(event as CustomEvent).preventDefault();setMapTarget(null);setDisplayRoute(null);setCollapsed(false);return;}
+      if(!collapsed){(event as CustomEvent).preventDefault();setCollapsed(true);}
+    };
+    window.addEventListener('rdv:close-overlay',close);
+    return()=>window.removeEventListener('rdv:close-overlay',close);
+  },[sheet,preview,mapTarget,collapsed]);
   const [centerRequest,setCenterRequest] = useState(0);
   const centeredOnce=React.useRef(false);
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
@@ -186,16 +206,16 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
-      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
+      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
         focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
-    {/* Ações rápidas disponíveis também no Início: GPS acima, triângulo de alerta embaixo. */}
+    {/* Velocímetro, GPS e reporte alinhados horizontalmente e acompanhando o painel. */}
     <div aria-label="Controles de localização e ocorrência no início"
-      className="absolute top-[70px] right-4 z-40 flex flex-col items-center gap-3">
+      className={`absolute right-4 z-40 flex flex-row items-center gap-3 transition-[bottom] duration-300 ${collapsed?'bottom-[99px]':sheetExpanded?'bottom-[calc(67dvh+25px)]':'bottom-[calc(max(37dvh,300px)+25px)]'}`}>
       <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
         className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
         <Crosshair size={22} strokeWidth={2.2}/>
@@ -204,25 +224,29 @@ export function NavigationHome(props: NavigationHomeProps) {
         location={gps.status === 'ready' ? gps.position : null}
         speedKmH={gps.status === 'ready' && gps.position?.speedMetersPerSecond != null
           ? gps.position.speedMetersPerSecond * 3.6 : null}
-        menuPlacement="below"
+        menuPlacement="above"
       />
     </div>
-    <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[top,bottom] duration-300 ${collapsed?'bottom-28':'top-[24dvh]'}`}
-      role="status" aria-label="Velocímetro">
-      <strong className="text-2xl leading-none tabular-nums">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
-      <small className="text-[10px] text-slate-500 font-bold">km/h</small>
+    <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[bottom] duration-300 select-none ${collapsed?'bottom-[86px]':sheetExpanded?'bottom-[calc(67dvh+12px)]':'bottom-[calc(max(37dvh,300px)+12px)]'}`}
+      role="status" aria-label="Velocímetro" style={{userSelect:'none',WebkitUserSelect:'none'}} onContextMenu={event=>event.preventDefault()}>
+      <strong className="text-2xl leading-none tabular-nums select-none">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
+      <small className="text-[11px] text-slate-500 font-bold select-none">km/h</small>
     </div>
-    <div data-testid="home-main-sheet" className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[28px] bg-white/95 backdrop-blur-xl shadow-[0_-14px_45px_rgba(15,23,42,.14)] border-t border-white/90 flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[74px]':sheetExpanded?'h-[67dvh]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
+    <div data-testid="home-main-sheet"
+      onPointerDown={startPanelDrag}
+      onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}
+      onPointerUp={finishPanelDrag}
+      onPointerCancel={()=>{dragStart.current=null;setDragOffset(0);}}
+      style={{transform:dragOffset?`translateY(${dragOffset}px)`:undefined,transitionDuration:dragOffset?'0ms':undefined}}
+      className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[28px] bg-white/95 backdrop-blur-xl shadow-[0_-14px_45px_rgba(15,23,42,.14)] border-t border-white/90 flex flex-col transition-[height,transform] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[74px]':sheetExpanded?'h-[67dvh]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>{if(swallowNextClick.current){swallowNextClick.current=false;return;}if(sheetExpanded)setSheetExpanded(false);else setCollapsed(c=>!c);}}
-        onPointerDown={event=>{dragStart.current=event.clientY;swallowNextClick.current=false;event.currentTarget.setPointerCapture(event.pointerId);}}
-        onPointerUp={handleGripRelease}
-        onPointerCancel={()=>{dragStart.current=null;}}
+        data-panel-grip
         aria-expanded={!collapsed}
         style={{touchAction:'none'}}
         className="mx-auto w-full h-9 flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing select-none" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
-      {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-6">
+      {!collapsed && <div data-panel-scroll className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-5">
         <form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
           className="rounded-[20px] w-full bg-[#f3f7fb] border border-slate-200/80 px-4 py-2 flex items-center gap-3 text-slate-600 text-sm min-h-[54px] shadow-[0_3px_12px_#2239550e] focus-within:border-blue-400 focus-within:ring-[3px] focus-within:ring-blue-100/80 transition-shadow">
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
@@ -248,30 +272,24 @@ export function NavigationHome(props: NavigationHomeProps) {
         <section className="space-y-3">
           <div>
             <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Dar um rolê por aí?</h2>
-            <p className="text-[12px] mt-1 text-slate-500 leading-relaxed">Não sabe para onde ir e só quer andar? Escolha a distância ou o tempo, que eu monto o trajeto para você.</p>
+            <p className="text-[14px] mt-1 text-slate-500">Escolha como prefere passear.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')}
-              className="group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#1a5aa90c] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
+              className="group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[23px] p-3.5 min-h-[125px] flex flex-col items-start gap-2 text-left shadow-[0_8px_20px_#1a5aa90c] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
               <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
                 <Navigation size={21} strokeWidth={2.2}/>
               </span>
-              <strong className="text-blue-800 text-[14px] block tracking-tight">Por distância</strong>
-              <span className="text-slate-600 text-[11px] leading-snug flex-1">Quantos KM gostaria de percorrer?</span>
-              <span className="w-full bg-blue-600 text-white rounded-[12px] h-8 flex items-center justify-center text-[11px] font-bold mt-1 gap-1">
-                Escolher KM <ChevronRight size={13}/>
-              </span>
+              <strong className="text-blue-800 text-[16px] font-semibold block tracking-tight">Por distância</strong>
+              <ChevronRight size={20} className="self-end text-blue-600" aria-hidden="true"/>
             </button>
             <button type="button" onClick={()=>showSheet('hours')}
               className="group bg-gradient-to-br from-[#eafaf3] to-white border border-[#bde7d5] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#19765e0b] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
               <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1">
                 <Clock3 size={21} strokeWidth={2.2}/>
               </span>
-              <strong className="text-emerald-800 text-[14px] block tracking-tight">Por tempo</strong>
-              <span className="text-slate-600 text-[11px] leading-snug flex-1">Quantas horas gostaria de passear?</span>
-              <span className="w-full bg-emerald-600 text-white rounded-[12px] h-8 flex items-center justify-center text-[11px] font-bold mt-1 gap-1">
-                Escolher horas <ChevronRight size={13}/>
-              </span>
+              <strong className="text-emerald-800 text-[16px] font-semibold block tracking-tight">Por tempo</strong>
+              <ChevronRight size={20} className="self-end text-emerald-600" aria-hidden="true"/>
             </button>
           </div>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">

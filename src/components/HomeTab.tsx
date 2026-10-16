@@ -221,17 +221,17 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     <div className="min-h-[calc(100vh-4rem)] pb-24 bg-slate-50 overflow-y-auto">
       {/* TOP HEADER */}
       <div className="bg-white border-b border-slate-200 px-5 py-4">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white flex items-center justify-center shadow-sm border border-slate-100">
-              <img src="/roteiro-logo.png" alt="Logo Roteiro de Viagem" className="w-full h-full object-contain" />
+        <div className="max-w-xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="w-10 h-10 shrink-0 rounded-2xl overflow-hidden bg-white flex items-center justify-center shadow-sm border border-slate-100">
+              <img src="/roteiro-logo.png" alt="Logo do Rolê" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h1 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 leading-none">
-                Roteiro de Viagem
+              <h1 className="text-[21px] font-bold text-slate-900 tracking-[-.04em] flex items-center gap-1.5 leading-tight">
+                Rolê
               </h1>
               <p className="text-[11px] text-slate-500 font-medium mt-1">
-                O melhor da viagem também está no caminho.
+                Seu caminho, suas descobertas.
               </p>
             </div>
           </div>
@@ -240,7 +240,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           {currentVehicle && (
             <button
               onClick={() => setShowVehicleSwitcher(true)}
-              className="p-1.5 pl-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-emerald-300 transition-all text-right flex items-center gap-2 cursor-pointer shadow-2xs group"
+              className="w-[48%] max-w-[215px] min-w-[152px] min-h-[66px] px-3 py-2 rounded-[18px] border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-blue-300 transition-all duration-200 active:scale-[.98] text-right flex items-center justify-end gap-2 cursor-pointer shadow-sm group"
               title="Toque para trocar de veículo rapidamente"
             >
               <div>
@@ -250,10 +250,10 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   </span>
                   <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-emerald-600" />
                 </div>
-                <span className="text-xs font-extrabold text-emerald-800 truncate max-w-[120px] block leading-tight">
+                <span className="text-[13px] font-bold text-slate-900 truncate block leading-snug">
                   {currentVehicle.nickname || currentVehicle.model}
                 </span>
-                <span className="text-[10px] text-slate-500 font-medium block">
+                <span className="text-[11px] text-slate-500 font-medium block">
                   {currentVehicle.consumption.userConfigured} km/l
                 </span>
               </div>

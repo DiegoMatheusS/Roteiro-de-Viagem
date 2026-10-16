@@ -7,7 +7,7 @@ import type { StateConflict } from './services/stateMerge';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   TripPlan, 
   Vehicle, 
@@ -35,7 +35,9 @@ import { useLiveRouteConditions } from './hooks/useLiveRouteConditions';
 import { useTripTracking } from './hooks/useTripTracking';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
-import { X, Users, ArrowRight, KeyRound } from 'lucide-react';
+import { X, Users, ArrowRight, KeyRound, CornerUpLeft } from 'lucide-react';
+import { isNativeApp, TravelNative } from './services/nativeApp';
+import {GUEST_NAVIGATION_VEHICLE} from './services/guestNavigationVehicle';
 
 export default function App() {
   const auth = useAuth();
@@ -73,6 +75,35 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState('');
   const [syncConflicts,setSyncConflicts]=useState<StateConflict[]>([]);
   const [deviceId]=useState(getDeviceId);
+  const [exitNotice,setExitNotice] = useState(false);
+  const exitIntentAt = useRef(0);
+  useEffect(()=>{
+    if (!isNativeApp()) return;
+    const back=()=>{
+      // Prioridade: fechar overlays e menus; nenhum botão voltar deve encerrar a viagem.
+      const closeOverlay = new Event('rdv:close-overlay',{cancelable:true});
+      window.dispatchEvent(closeOverlay);
+      if(closeOverlay.defaultPrevented){setExitNotice(false);return;}
+      if(isSosOpen){setIsSosOpen(false);return;}
+      if(isPlanningOpen){setIsPlanningOpen(false);return;}
+      if(shareTripTarget){setShareTripTarget(null);return;}
+      if(showJoin){setShowJoin(false);return;}
+      if(activeConvoyId){setActiveConvoyId(null);return;}
+      if(isNavigationOpen){setIsNavigationOpen(false);return;}
+      if(advancedHome){setAdvancedHome(false);return;}
+      if(activeTab!=='inicio'){setActiveTab('inicio');setAdvancedHome(false);return;}
+      if(Date.now()-exitIntentAt.current<1900){void TravelNative.exitApp();return;}
+      exitIntentAt.current=Date.now();setExitNotice(true);
+    };
+    window.addEventListener('rdv:android-back',back);
+    return()=>window.removeEventListener('rdv:android-back',back);
+  },[isSosOpen,isPlanningOpen,shareTripTarget,showJoin,activeConvoyId,isNavigationOpen,advancedHome,activeTab]);
+  useEffect(()=>{
+    if(!exitNotice)return;
+    const timer=window.setTimeout(()=>setExitNotice(false),2000);
+    return()=>window.clearTimeout(timer);
+  },[exitNotice]);
+
   const ownsTracking=activeTrip?.trackingDeviceId===deviceId;
   const tracking = useTripTracking(ownsTracking ? activeTrip?.id : undefined);
   const convoyGps=useConvoyGps(auth.user?.id,accountReady);
@@ -414,7 +445,7 @@ export default function App() {
               />
             )}
             {activeTab === 'inicio' && advancedHome && (
-              <div><button type="button" className="ml-4 mt-4 rounded-xl bg-white border border-blue-200 p-3 text-xs font-bold text-blue-700" onClick={() => setAdvancedHome(false)}>← Voltar ao início Rolê</button><HomeTab
+              <div>{!isPlanningOpen && !shareTripTarget && !isSosOpen && !showJoin && !isNavigationOpen && <button type="button" className="fixed top-[104px] right-4 z-[62] flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-lg border border-blue-200 px-4 py-3 text-[14px] font-bold text-blue-700 shadow-[0_6px_24px_#1e40af24] active:scale-95 transition-transform" onClick={() => setAdvancedHome(false)}><CornerUpLeft size={20}/> Voltar ao Rolê</button>}<HomeTab
                 currentVehicle={currentVehicle}
                 vehicles={vehicles}
                 onSelectVehicle={handleSelectVehicle}
@@ -506,6 +537,7 @@ export default function App() {
             )}
           </main>
 
+          {exitNotice && <div role="status" className="fixed bottom-28 left-6 right-6 z-[100] mx-auto max-w-sm rounded-2xl bg-slate-950/90 text-white px-5 py-4 text-center text-[14px] font-semibold shadow-xl">Volte novamente para sair do Rolê</div>}
           {!isNavigationOpen && !isPlanningOpen && <NavigationTabBar
             activeTab={activeTab}
             onTabChange={(tab) => {setActiveTab(tab);if(tab==='inicio')setAdvancedHome(false);}}
@@ -552,10 +584,10 @@ export default function App() {
       )}
 
       {/* ACTIVE TRIP NAVIGATION HUD */}
-      {activeTrip && currentVehicle && isNavigationOpen && !activeConvoyId && (
+      {activeTrip && isNavigationOpen && !activeConvoyId && (
         <ActiveTripModal
           trip={activeTrip}
-          vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle}
+          vehicle={vehicles.find(v => v.id === activeTrip.vehicleId) || currentVehicle || GUEST_NAVIGATION_VEHICLE}
           convoyParticipants={currentConvoy?.participants}
           meetingPoints={currentConvoy?.meetingPoints}
           tracking={ownsTracking?tracking:{...tracking,distanceKm:activeTrip.trackedDistanceKm||0,error:'O GPS desta viagem está em outro aparelho. Retome a navegação neste aparelho para usá-lo aqui.',retry:resumeNavigation}}

@@ -32,7 +32,10 @@ test('road hazards require signed-in sender and admin approval; public route rev
     const admin=await call('POST','/auth/register',{email:'admin-alert@test.example',displayName:'Moderador',password:'strong-secret-123'});
     db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.data.user.id);
     const event={kind:'pothole',coords:[-23.5,-46.595],note:'Buraco na direita',accuracyMeters:5,locationTimestamp:Date.now()};
-    assert.equal((await call('POST','/road-alerts',event)).status,401);
+    const anonymous = await call('POST','/road-alerts',event);
+    assert.equal(anonymous.status,201,'Relatar uma ocorrência não deve exigir login');
+    assert.equal(anonymous.data.status,'pending','Relato anônimo passa por moderação');
+    assert.equal((await call('POST','/road-alerts',{...event,accuracyMeters:100})).status,400);
     assert.equal((await call('POST','/road-alerts',{...event,accuracyMeters:100},traveler.cookie)).status,400);
     assert.equal((await call('POST','/road-alerts',{...event,locationTimestamp:Date.now()-70000},traveler.cookie)).status,400);
     const created=await call('POST','/road-alerts',event,traveler.cookie);
@@ -43,7 +46,8 @@ test('road hazards require signed-in sender and admin approval; public route rev
     assert.equal((await call('GET','/admin/road-alerts')).status,401);
     assert.equal((await call('GET','/admin/road-alerts',undefined,traveler.cookie)).status,403);
     const queue=await call('GET','/admin/road-alerts',undefined,admin.cookie);
-    assert.equal(queue.data.total,1);
+    assert.equal(queue.data.total,2,'Relatos anônimo e identificado passam por moderação');
+    assert.equal(queue.data.items.some((item:any)=>item.submittedBy==='Viajante anônimo'),true);
     assert.equal(queue.data.items[0].submittedBy,'Relator');
     assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},traveler.cookie)).status,403);
     assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},admin.cookie)).status,200);

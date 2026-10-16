@@ -77,9 +77,12 @@ try {
   await homeReport.waitFor();
   const homeGpsBox = await homeGps.boundingBox();
   const homeReportBox = await homeReport.boundingBox();
-  assert.ok(homeGpsBox && homeReportBox &&
-    homeGpsBox.y + homeGpsBox.height <= homeReportBox.y,
-    'No Início, o botão triangular precisa ficar abaixo do GPS');
+  const speedCircleBox = await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
+  const centerY=(bounds:{y:number;height:number})=>bounds.y+bounds.height/2;
+  assert.ok(homeGpsBox && homeReportBox && speedCircleBox &&
+    Math.abs(centerY(homeGpsBox)-centerY(homeReportBox))<8 &&
+    Math.abs(centerY(speedCircleBox)-centerY(homeGpsBox))<16,
+    'GPS e reportar devem ficar na mesma altura do velocímetro');
   await homeReport.click();
   const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
@@ -128,7 +131,7 @@ try {
   await quickSearch.press('Enter');
   const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
   await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
-  await destinationMap.getByText('Dicas de viagem').waitFor();
+  await destinationMap.getByText('Rotas disponíveis').waitFor();
   assert.equal((await choicesRequest).status(),200,'Enter deve calcular rotas automaticamente');
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
@@ -168,6 +171,11 @@ try {
   assert.ok((await tripPreview.innerText()).includes('km'), 'A prévia deve mostrar distância real');
   await tripPreview.getByRole('button', { name: 'Fechar janela' }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
+  await page.getByRole('heading',{name:'Rolê',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Voltar ao Rolê'}).waitFor();
+  const vehicleSelector=page.getByTitle('Toque para trocar de veículo rapidamente');
+  const vehicleRect=await vehicleSelector.boundingBox();
+  assert.ok(vehicleRect && vehicleRect.width>=152,'O seletor do veículo deve ficar mais largo no planejamento');
   // GPS modes must ignore even an incomplete draft in the manual destination tab.
   await page.getByRole('button', { name: 'Origem e destino', exact: true }).click();
   await page.getByLabel('Origem', { exact: true }).fill('Origem manual ainda não selecionada');

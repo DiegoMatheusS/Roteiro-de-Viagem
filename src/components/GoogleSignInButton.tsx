@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fuelApi } from '../services/fuelApi';
-import { isNativeApp } from '../services/nativeApp';
+import { isNativeApp, TravelNative } from '../services/nativeApp';
 
 type GoogleAuthResponse = { credential?: string };
 type GoogleWindow = Window & {
@@ -34,11 +34,24 @@ export function GoogleSignInButton({ onCredential, onError, disabled = false }: 
   const onCredentialRef = useRef(onCredential);
   const onErrorRef = useRef(onError);
   const [enabled, setEnabled] = useState(false);
+  const [nativeClientId,setNativeClientId] = useState<string|null>(null);
+  const [nativeBusy,setNativeBusy] = useState(false);
+  const [configMessage,setConfigMessage] = useState('');
   onCredentialRef.current = onCredential;
   onErrorRef.current = onError;
 
   useEffect(() => {
-    if (isNativeApp()) return; // Google Identity Services web SDK does not support embedded Android WebViews.
+    if (isNativeApp()) {
+      let cancelled=false;
+      void fuelApi<{googleClientId?:string|null}>('/public-config')
+        .then(config=>{
+          if(cancelled)return;
+          if(config.googleClientId)setNativeClientId(config.googleClientId);
+          else setConfigMessage('Login Google indisponível: configurar GOOGLE_CLIENT_ID no servidor.');
+        })
+        .catch(()=>{if(!cancelled)setConfigMessage('Não foi possível consultar o login Google. Tente novamente.');});
+      return ()=>{cancelled=true;};
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -63,7 +76,19 @@ export function GoogleSignInButton({ onCredential, onError, disabled = false }: 
     return () => { cancelled = true; };
   }, []);
 
-  if (isNativeApp()) return null;
+  if (isNativeApp()) return <div className="flex flex-col items-center gap-2 w-full">
+    <button type="button" aria-label="Continuar com Google" disabled={disabled || nativeBusy || !nativeClientId}
+      onClick={()=>{if(!nativeClientId)return;setNativeBusy(true);
+        void TravelNative.signInGoogle({clientId:nativeClientId}).then(({credential})=>onCredentialRef.current(credential))
+          .catch(error=>onErrorRef.current((error as Error).message))
+          .finally(()=>setNativeBusy(false));
+      }}
+      className="flex items-center justify-center gap-3 w-full min-h-12 bg-white border border-slate-200 rounded-2xl text-[15px] font-semibold text-slate-800 shadow-sm active:scale-[.98] transition-transform disabled:opacity-60">
+      <span aria-hidden="true" className="font-bold text-blue-600 text-[19px]">G</span>
+      {nativeBusy?'Entrando com Google...':'Continuar com Google'}
+    </button>
+    {configMessage && <p role="status" className="text-xs text-slate-500 text-center">{configMessage}</p>}
+  </div>;
   return <div className="flex flex-col items-center gap-2">
     <div ref={container} aria-label="Continuar com Google" className={disabled ? 'pointer-events-none opacity-50' : ''} />
     {enabled && <p className="text-[11px] text-slate-500">Use sua conta Google para entrar ou criar seu cadastro.</p>}

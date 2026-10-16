@@ -34,9 +34,11 @@ const toAdmin = (row: any) => ({
 
 /** Apenas coordenadas e ocorrências verificáveis. Nunca publica relatos pendentes como fatos. */
 export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (key: string, max: number, ms: number) => void) {
-  app.post('/api/road-alerts', auth, (req, res) => {
+  // Relatos públicos não exigem login. Continua obrigatório GPS recente e preciso,
+  // limitação por IP, moderação e limites adicionais para usuários autenticados.
+  app.post('/api/road-alerts', (req, res) => {
     const reporter = user(res);
-    limit(`road-alert-submit:${reporter.id}`, 4, 3600000);
+    if (reporter) limit(`road-alert-submit:${reporter.id}`, 4, 3600000);
     limit(`road-alert-ip:${clientIp(req)}`, 8, 3600000);
     const kind: RoadAlertType = req.body?.kind;
     if (!ROAD_ALERT_TYPES.some(item => item.id === kind)) throw new ApiError('Selecione uma ocorrência válida.');
@@ -50,14 +52,16 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
       timestamp > Date.now() + 5000 || Date.now() - timestamp > 60000) {
       throw new ApiError('Para informar, ative o GPS preciso e obtenha uma localização recente.');
     }
-    const count = db.prepare("SELECT count(*) AS n FROM road_alerts WHERE user_id=? AND created_at>?")
-      .get(reporter.id, new Date(Date.now() - 86400000).toISOString()) as { n: number };
-    if (count.n >= 12) throw new ApiError('Limite diário de alertas atingido.', 429);
+    if (reporter) {
+      const count = db.prepare("SELECT count(*) AS n FROM road_alerts WHERE user_id=? AND created_at>?")
+        .get(reporter.id, new Date(Date.now() - 86400000).toISOString()) as { n: number };
+      if (count.n >= 12) throw new ApiError('Limite diário de alertas atingido.', 429);
+    }
     const id = randomUUID(), createdAt = now();
     const expiresAt = new Date(Date.now() + ROAD_ALERT_TTL_MS[kind]).toISOString();
     db.prepare(`INSERT INTO road_alerts(id,user_id,kind,lat,lng,note,status,created_at,expires_at)
       VALUES(?,?,?,?,?,?,'pending',?,?)`)
-      .run(id, reporter.id, kind, lat, lng, note.trim(), createdAt, expiresAt);
+      .run(id, reporter?.id ?? null, kind, lat, lng, note.trim(), createdAt, expiresAt);
     res.status(201).json({ id, status: 'pending', message: 'Alerta enviado para análise. Ainda não aparece publicamente.' });
   });
 
@@ -134,7 +138,7 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
     const offset = (page - 1) * 20;
     const total = (db.prepare('SELECT COUNT(*) AS n FROM road_alerts WHERE status=? AND expires_at>?')
       .get(status, now()) as { n: number }).n;
-    const rows = db.prepare(`SELECT a.*,u.display_name AS submitter FROM road_alerts a
+    const rows = db.prepare(`SELECT a.*,COALESCE(u.display_name,'Viajante anônimo') AS submitter FROM road_alerts a
       LEFT JOIN users u ON u.id=a.user_id WHERE a.status=? AND a.expires_at>?
       ORDER BY a.created_at DESC LIMIT 20 OFFSET ?`)
       .all(status, now(), offset) as any[];
