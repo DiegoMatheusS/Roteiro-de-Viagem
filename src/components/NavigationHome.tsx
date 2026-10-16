@@ -213,9 +213,9 @@ export function NavigationHome(props: NavigationHomeProps) {
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
-    {/* Ações rápidas disponíveis também no Início: GPS acima, triângulo de alerta embaixo. */}
+    {/* Velocímetro, GPS e reporte alinhados horizontalmente e acompanhando o painel. */}
     <div aria-label="Controles de localização e ocorrência no início"
-      className="absolute top-[70px] right-4 z-40 flex flex-col items-center gap-3">
+      className={`absolute right-4 z-40 flex flex-row items-center gap-3 transition-[bottom] duration-300 ${collapsed?'bottom-[99px]':sheetExpanded?'bottom-[calc(67dvh+25px)]':'bottom-[calc(max(37dvh,300px)+25px)]'}`}>
       <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
         className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
         <Crosshair size={22} strokeWidth={2.2}/>
@@ -224,7 +224,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         location={gps.status === 'ready' ? gps.position : null}
         speedKmH={gps.status === 'ready' && gps.position?.speedMetersPerSecond != null
           ? gps.position.speedMetersPerSecond * 3.6 : null}
-        menuPlacement="below"
+        menuPlacement="above"
       />
     </div>
     <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[bottom] duration-300 select-none ${collapsed?'bottom-[86px]':sheetExpanded?'bottom-[calc(67dvh+12px)]':'bottom-[calc(max(37dvh,300px)+12px)]'}`}
