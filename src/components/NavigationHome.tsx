@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, CarFront, Fuel, Route, SlidersHorizontal } from 'lucide-react';
+import { ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route } from 'lucide-react';
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
@@ -148,48 +148,73 @@ export function NavigationHome(props: NavigationHomeProps) {
       <strong className="text-2xl leading-none tabular-nums">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
       <small className="text-[10px] text-slate-500 font-bold">km/h</small>
     </div>
-    <div className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[32px] bg-white shadow-[0_-6px_22px_rgba(15,23,42,.10)] border-t border-slate-100 flex flex-col transition-[height] duration-200 ${collapsed?'h-[66px]':'h-[64dvh] min-h-[430px]'}`}>
-      <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>setCollapsed(c=>!c)} className="mx-auto w-14 h-6 flex items-center justify-center shrink-0"><span className="bg-slate-300 rounded-full w-11 h-1.5"/></button>
-      {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 pb-7 space-y-5">
-        <button className="rounded-2xl w-full bg-slate-100 p-4 flex items-center gap-3 text-slate-500 text-sm text-left" onClick={()=>showSheet('destination')}>
-          <Search size={21}/><span className="flex-1 font-medium">Para onde quer ir?</span><ChevronRight size={18}/>
+    <div className={\`absolute bottom-0 inset-x-0 z-30 rounded-t-[30px] bg-white shadow-[0_-9px_28px_rgba(15,23,42,.12)] border-t border-white/80 flex flex-col transition-[height] duration-200 \${collapsed?'h-[74px]':'h-[62dvh] min-h-[440px]'}\`}>
+      <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>setCollapsed(c=>!c)}
+        className="mx-auto w-16 h-9 flex items-center justify-center shrink-0" >
+        <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
+      </button>
+      {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-6">
+        <button type="button" aria-label="Para onde quer ir?" onClick={()=>showSheet('destination')}
+          className="rounded-[18px] w-full bg-slate-100 border border-slate-100 px-4 py-3.5 flex items-center gap-3 text-slate-600 text-sm text-left min-h-[56px] focus-visible:ring-2 focus-visible:ring-blue-400">
+          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600"/>
+          <span className="flex-1 font-medium">Para onde quer ir?</span>
+          <ChevronRight size={19} className="text-slate-500"/>
         </button>
         {gps.error && <p role="alert" className="bg-amber-50 p-3 rounded-xl text-xs text-amber-900">{gps.error} <button className="underline font-bold" onClick={()=>isNativeApp()?void TravelNative.openDeviceSettings({section:'app'}):gps.retry()}>Permitir localização</button></p>}
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
-          <div><h2 className="text-lg font-extrabold">Dar um rolê por aí?</h2>
-            <p className="text-xs mt-1 text-slate-600">Não sabe para onde ir e só quer andar? Escolha a distância ou o tempo, que eu crio o trajeto para você.</p></div>
+          <div>
+            <h2 className="text-[18px] font-extrabold tracking-[-.035em] text-slate-950">Dar um rolê por aí?</h2>
+            <p className="text-[12px] mt-1 text-slate-500 leading-relaxed">Não sabe para onde ir e só quer andar? Escolha a distância ou o tempo, que eu monto o trajeto para você.</p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <button type="button" className="bg-blue-50 border border-blue-200 rounded-2xl p-3 min-h-24 text-left flex gap-2" onClick={()=>showSheet('km')}>
-              <Navigation className="text-blue-700 shrink-0" size={20}/><span><strong className="text-blue-800 text-sm block">Por distância</strong><small className="text-slate-600 block mt-1 text-[11px]">Quantos KM gostaria de percorrer?</small></span>
+            <button type="button" onClick={()=>showSheet('km')}
+              className="group bg-gradient-to-br from-sky-50 to-white border border-sky-200 rounded-[20px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_2px_6px_rgba(37,99,235,.03)] active:scale-[.98] transition-transform">
+              <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
+                <Navigation size={21} strokeWidth={2.2}/>
+              </span>
+              <strong className="text-blue-800 text-[14px] block tracking-tight">Por distância</strong>
+              <span className="text-slate-600 text-[11px] leading-snug flex-1">Quantos KM gostaria de percorrer?</span>
+              <span className="w-full bg-blue-600 text-white rounded-[12px] h-8 flex items-center justify-center text-[11px] font-bold mt-1 gap-1">
+                Escolher KM <ChevronRight size={13}/>
+              </span>
             </button>
-            <button type="button" className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 min-h-24 text-left flex gap-2" onClick={()=>showSheet('hours')}>
-              <Clock3 className="text-emerald-700 shrink-0" size={20}/><span><strong className="text-emerald-800 text-sm block">Por tempo</strong><small className="text-slate-600 block mt-1 text-[11px]">Quantas horas gostaria de passear?</small></span>
+            <button type="button" onClick={()=>showSheet('hours')}
+              className="group bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-[20px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_2px_6px_rgba(22,163,74,.03)] active:scale-[.98] transition-transform">
+              <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1">
+                <Clock3 size={21} strokeWidth={2.2}/>
+              </span>
+              <strong className="text-emerald-800 text-[14px] block tracking-tight">Por tempo</strong>
+              <span className="text-slate-600 text-[11px] leading-snug flex-1">Quantas horas gostaria de passear?</span>
+              <span className="w-full bg-emerald-600 text-white rounded-[12px] h-8 flex items-center justify-center text-[11px] font-bold mt-1 gap-1">
+                Escolher horas <ChevronRight size={13}/>
+              </span>
             </button>
           </div>
-          <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-            <Route className="text-blue-700" size={21}/><span className="flex-1"><strong className="text-sm block">Rolê com origem e destino</strong><small className="text-[11px] text-slate-500">Escolha de onde sair e aonde chegar</small></span><ChevronRight size={17} className="text-slate-400"/>
+          <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
+            <span className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-blue-700"><Route size={21} strokeWidth={1.9}/></span>
+            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rolê com origem e destino</strong><small className="text-[11px] text-slate-500">Escolha de onde sair e aonde chegar</small></span><ChevronRight size={17} className="text-slate-400"/>
           </button>
         </section>
-        <section className="space-y-2">
-          <div className="flex items-center justify-between"><h2 className="text-base font-extrabold">Viagens recentes</h2><button type="button" className="text-blue-600 text-xs font-semibold" onClick={props.onOpenAllTrips}>Ver todas ›</button></div>
-          {recent.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-xl p-3">Seus passeios aparecerão aqui quando você criar uma rota.</p>}
-          {recent.map(trip=><button type="button" key={trip.id} onClick={()=>setPreview(trip)} className="w-full p-3 border rounded-2xl border-slate-200 bg-white shadow-sm flex gap-3 text-left items-center">
-            <span className="w-11 h-11 bg-blue-50 rounded-xl text-blue-700 flex shrink-0 items-center justify-center"><MapPin size={22}/></span>
-            <span className="flex-1 min-w-0"><strong className="text-sm truncate block">{trip.destinationName}</strong>
-              <span className="text-xs text-slate-500">{trip.distanceKm.toFixed(0)} km · {Math.floor(trip.durationMinutes/60)}h {Math.round(trip.durationMinutes%60)}min</span>
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-[16px] font-extrabold tracking-tight text-slate-950">Viagens recentes</h2><button type="button" className="text-blue-600 text-xs font-semibold shrink-0" onClick={props.onOpenAllTrips}>Ver todas <ChevronRight size={14} className="inline"/></button></div>
+          {recent.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-2xl p-4">Seus passeios aparecerão aqui quando você criar uma rota.</p>}
+          {recent.map(trip=><button type="button" key={trip.id} onClick={()=>setPreview(trip)} className="w-full p-3 border rounded-[18px] border-slate-200 bg-white shadow-[0_2px_7px_rgba(15,23,42,.035)] flex gap-3 text-left items-center min-h-[68px]">
+            <span className="w-12 h-12 bg-blue-50 rounded-[13px] text-blue-600 flex shrink-0 items-center justify-center"><MapPin size={23}/></span>
+            <span className="flex-1 min-w-0"><strong className="text-[13px] truncate block text-slate-900">{trip.destinationName}</strong>
+              <span className="text-[11px] text-slate-500">{trip.distanceKm.toFixed(0)} km · {Math.floor(trip.durationMinutes/60)}h {Math.round(trip.durationMinutes%60)}min</span>
               <span className="text-[10px] text-slate-400 block">{new Date(trip.createdAt).toLocaleDateString('pt-BR')}</span></span><ChevronRight size={17} className="text-slate-400"/>
           </button>)}
         </section>
-        <section className="space-y-2">
-          <div className="flex items-center justify-between"><h2 className="text-base font-extrabold">Viagens sugeridas</h2><button type="button" className="text-blue-600 text-xs font-semibold" onClick={props.onOpenAllSuggestions}>Ver todas ›</button></div>
-          {suggested.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-xl p-3">{liveCoords?'Ainda não há pontos turísticos cadastrados próximos.':'Ative o GPS para descobrir pontos turísticos reais próximos.'}</p>}
-          {suggested.map(place=><button type="button" key={place.id} disabled={busy} onClick={()=>void suggestDestination(place)} className="w-full p-3 border rounded-2xl border-slate-200 bg-white shadow-sm flex gap-3 text-left items-center disabled:opacity-50">
-            <span className="w-11 h-11 bg-emerald-50 rounded-xl text-emerald-700 flex shrink-0 items-center justify-center"><Compass size={22}/></span>
-            <span className="flex-1 min-w-0"><strong className="text-sm truncate block">{place.name}</strong><small className="text-xs text-slate-500 truncate block">{place.address||'Atração turística cadastrada'}</small></span><ChevronRight size={17} className="text-slate-400"/>
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-[16px] font-extrabold tracking-tight text-slate-950">Viagens sugeridas</h2><button type="button" className="text-blue-600 text-xs font-semibold shrink-0" onClick={props.onOpenAllSuggestions}>Ver todas <ChevronRight size={14} className="inline"/></button></div>
+          {suggested.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-2xl p-4">{liveCoords?'Ainda não há pontos turísticos cadastrados próximos.':'Ative o GPS para descobrir pontos turísticos reais próximos.'}</p>}
+          {suggested.map(place=><button type="button" key={place.id} disabled={busy} onClick={()=>void suggestDestination(place)} className="w-full p-3 border rounded-[18px] border-slate-200 bg-white shadow-[0_2px_7px_rgba(15,23,42,.035)] flex gap-3 text-left items-center min-h-[68px] disabled:opacity-50">
+            <span className="w-12 h-12 bg-emerald-50 rounded-[13px] text-emerald-700 flex shrink-0 items-center justify-center"><Compass size={23}/></span>
+            <span className="flex-1 min-w-0"><strong className="text-[13px] truncate block text-slate-900">{place.name}</strong><small className="text-[11px] text-slate-500 truncate block">{place.address||'Atração turística cadastrada'}</small></span><ChevronRight size={17} className="text-slate-400"/>
           </button>)}
         </section>
-        <button type="button" onClick={props.onAdvancedPlanning} className="w-full py-2 text-blue-700 underline text-sm font-semibold">Mais opções de planejamento</button>
+        <button type="button" onClick={props.onAdvancedPlanning} className="w-full py-2 text-blue-700 underline text-xs font-semibold">Mais opções de planejamento</button>
       </div>}
     </div>
     {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/55 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
