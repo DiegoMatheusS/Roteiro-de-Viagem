@@ -48,16 +48,22 @@ export async function privateRoadRoute(
     const serialized = JSON.stringify(result);
     // Limit per-account disk use; a large route still works but is not saved again.
     if (Buffer.byteLength(serialized) <= 350_000) {
-      const date = new Date().toISOString();
-      db.prepare(`INSERT INTO user_route_cache(user_id,cache_key,result_json,created_at)
-        VALUES(?,?,?,?) ON CONFLICT(user_id,cache_key) DO UPDATE SET
-        result_json=excluded.result_json,created_at=excluded.created_at`)
-        .run(ownerId, key, serialized, date);
-      db.prepare('DELETE FROM user_route_cache WHERE created_at<?')
-        .run(new Date(Date.now() - FALLBACK_MS).toISOString());
-      db.prepare(`DELETE FROM user_route_cache WHERE user_id=? AND cache_key NOT IN
-        (SELECT cache_key FROM user_route_cache WHERE user_id=? ORDER BY created_at DESC LIMIT 35)`)
-        .run(ownerId, ownerId);
+      // Cache storage is best-effort: a full volume must never prevent navigation.
+      try {
+        const date = new Date().toISOString();
+        db.prepare(`INSERT INTO user_route_cache(user_id,cache_key,result_json,created_at)
+          VALUES(?,?,?,?) ON CONFLICT(user_id,cache_key) DO UPDATE SET
+          result_json=excluded.result_json,created_at=excluded.created_at`)
+          .run(ownerId, key, serialized, date);
+        db.prepare('DELETE FROM user_route_cache WHERE created_at<?')
+          .run(new Date(Date.now() - FALLBACK_MS).toISOString());
+        db.prepare(`DELETE FROM user_route_cache WHERE user_id=? AND cache_key NOT IN
+          (SELECT cache_key FROM user_route_cache WHERE user_id=? ORDER BY created_at DESC LIMIT 18)`)
+          .run(ownerId, ownerId);
+        // The existing Railway data volume is 500 MB; cap cache across all travelers.
+        db.prepare(`DELETE FROM user_route_cache WHERE rowid NOT IN
+          (SELECT rowid FROM user_route_cache ORDER BY created_at DESC LIMIT 400)`).run();
+      } catch { /* provider result remains valid even when cache storage is unavailable */ }
     }
     return result;
   } catch (error) {
