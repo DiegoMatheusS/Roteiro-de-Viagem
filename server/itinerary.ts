@@ -171,18 +171,25 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
         historic: 8, museum: 8, attraction: 7, park: 6
       };
       const pathSamples = sampleRoutePath(options[0].routePath, 9);
-      const nearby = nearbyPlaceRows(db, pathSamples, 8)
+      const latitudeRange = pathSamples.map(point=>point[0]);
+      const longitudeRange = pathSamples.map(point=>point[1]);
+      const indexed = db.prepare(`SELECT name,lat,lng,category AS kind FROM locations
+        WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? LIMIT 300`)
+        .all(Math.min(...latitudeRange)-0.09,Math.max(...latitudeRange)+0.09,
+          Math.min(...longitudeRange)-0.10,Math.max(...longitudeRange)+0.10) as any[];
+      const nearby = [...nearbyPlaceRows(db, pathSamples, 8), ...indexed]
         .filter((p:any) => scenicKinds.has(p.kind) && Number.isFinite(p.lat) && Number.isFinite(p.lng)
-          && distanceBetweenKm(origin,[p.lat,p.lng])>0.35
+          && p.name && distanceBetweenKm(origin,[p.lat,p.lng])>0.35
           && distanceBetweenKm(destination,[p.lat,p.lng])>0.35);
       const distanceToRoute = (poi:any) => Math.min(...pathSamples.map(point=>distanceBetweenKm(point,[poi.lat,poi.lng])));
-      const candidates = nearby.sort((a:any,b:any) =>
+      const candidates = nearby.filter(poi=>distanceToRoute(poi)<=8).sort((a:any,b:any) =>
         (weights[b.kind] || 0) - (weights[a.kind] || 0) || distanceToRoute(a)-distanceToRoute(b))
         .slice(0,5);
       // No máximo duas consultas: nem uma rota fictícia nem centenas de chamadas ao OSRM.
-      let scenicAdded=0;
+      let scenicAdded=0,attempted=0;
       for (const poi of candidates) {
-        if (scenicAdded>=2) break;
+        if (scenicAdded>=2 || attempted>=3) break;
+        attempted++;
         try {
           const scenic = await roadRoute([origin,[poi.lat,poi.lng],destination],mapFetch,true);
           const durationSeconds = scenic.legsSeconds?.reduce((a,b)=>a+b,0) || 0;
