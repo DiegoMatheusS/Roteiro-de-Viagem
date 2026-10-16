@@ -262,7 +262,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         </div> : sheet==='search' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Para onde quer ir?</h2>
           <p className="text-xs text-slate-600">Escolha um endereço para abrir diretamente no mapa, sem iniciar o planejamento de viagem.</p>
-          <LocationSearch label="Buscar endereço" value={searchPlace} onChange={selectMapTarget} bias={liveCoords} placeholder="Cidade, rua, endereço ou atração" />
+          <LocationSearch label="Destino" value={searchPlace} onChange={selectMapTarget} bias={liveCoords} placeholder="Cidade, rua, endereço ou atração" />
         </div> : sheet==='destination' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
           <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)} /> Sair da minha localização (GPS)</label>
