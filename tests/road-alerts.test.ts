@@ -84,3 +84,53 @@ test('stopped vehicle alert expires quickly and rejected reports never appear',a
     assert.deepEqual((await alerts.json() as any).alerts,[]);
   } finally {await new Promise<void>(resolve=>server.close(()=>resolve()));db.close();}
 });
+
+
+test('new hazard categories and nearby community checks require three independent reports', async () => {
+  const db = openDatabase(':memory:');
+  const server = createApi({db}).listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
+  const call = async (method: string, path: string, body?: unknown, cookie = '') => {
+    const response = await fetch(base + path, {
+      method, headers: {'Content-Type':'application/json', Cookie:cookie},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return {status:response.status, data:await response.json() as any,
+      cookie:response.headers.get('set-cookie')?.split(';')[0] || ''};
+  };
+  try {
+    const owner = await call('POST','/auth/register',{email:'alerts-owner@test.example',displayName:'Autor',password:'strong-secret-123'});
+    const admin = await call('POST','/auth/register',{email:'alerts-admin@test.example',displayName:'Admin',password:'strong-secret-123'});
+    db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.data.user.id);
+    const sample = {coords:route[1], accuracyMeters:6, locationTimestamp:Date.now()};
+    const ids: string[] = [];
+    for (const kind of ['flooded_road','police_presence','robbery']) {
+      const created = await call('POST','/road-alerts',{...sample,kind},owner.cookie);
+      assert.equal(created.status,201);
+      ids.push(created.data.id);
+      assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},admin.cookie)).status,200);
+    }
+    assert.deepEqual((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.map((a:any)=>a.kind).sort(),
+      ['flooded_road','police_presence','robbery']);
+    const voters = [];
+    for (let i=0;i<3;i++) {
+      voters.push(await call('POST','/auth/register',{email:`alerts-voter-${i}@test.example`,displayName:'Colaborador',password:'strong-secret-123'}));
+    }
+    const endpoint = `/road-alerts/${ids[0]}/confirm`;
+    assert.equal((await call('POST',endpoint,{...sample,present:false})).status,401);
+    assert.equal((await call('POST',endpoint,{...sample,present:false},owner.cookie)).status,403);
+    assert.equal((await call('POST',endpoint,{...sample,present:false,coords:[0,0]},voters[0].cookie)).status,400);
+    assert.equal((await call('POST',endpoint,{...sample,present:false,accuracyMeters:200},voters[0].cookie)).status,400);
+    assert.equal((await call('POST',endpoint,{...sample,present:false},voters[0].cookie)).status,200);
+    assert.equal((await call('POST',endpoint,{...sample,present:false},voters[0].cookie)).status,409);
+    const second = await call('POST',endpoint,{...sample,present:false},voters[1].cookie);
+    assert.equal(second.status,200);
+    assert.equal(second.data.removed,false);
+    const third = await call('POST',endpoint,{...sample,present:false},voters[2].cookie);
+    assert.equal(third.status,200);
+    assert.equal(third.data.removed,true);
+    assert.equal((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.length,2);
+    assert.equal((await call('POST',endpoint,{...sample,present:true},admin.cookie)).status,409);
+  } finally { await new Promise<void>(resolve=>server.close(()=>resolve())); db.close(); }
+});

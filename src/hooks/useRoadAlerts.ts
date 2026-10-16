@@ -36,3 +36,18 @@ export async function submitRoadAlert(
       accuracyMeters:location.accuracyMeters, locationTimestamp:location.timestamp})
   });
 }
+
+/** Um voto por pessoa; a API exige posição recente próxima ao marcador. */
+export async function confirmRoadAlert(id: string, present: boolean, location: DeviceLocation) {
+  if (location.speedMetersPerSecond != null && location.speedMetersPerSecond * 3.6 > 5)
+    throw new Error('Pare em um local seguro antes de confirmar a ocorrência.');
+  if (location.accuracyMeters > 80 || Date.now() - location.timestamp > 60000 ||
+      location.timestamp > Date.now() + 5000)
+    throw new Error('O GPS precisa estar preciso e atualizado para confirmar.');
+  return fuelApi<{ok:boolean;removed:boolean;yes:number;no:number}>(`/road-alerts/${encodeURIComponent(id)}/confirm`, {
+    method: 'POST', body: JSON.stringify({
+      present, coords:location.coords, accuracyMeters:location.accuracyMeters,
+      locationTimestamp:location.timestamp
+    })
+  });
+}

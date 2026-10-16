@@ -59,3 +59,13 @@
   .transition-transform, .transition-\\[opacity\\,visibility\\] { transition-duration: 0.01ms !important; }
   .role-dialog-no-motion { animation: none !important; }
 }
+
+/* Balão compacto de alertas saindo do botão lateral. */
+@keyframes rdv-alert-pop {
+  from { opacity: 0; transform: translateX(12px) scale(.88); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+.rdv-alert-popover { animation: rdv-alert-pop 190ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .rdv-alert-popover { animation: none; }
+}
