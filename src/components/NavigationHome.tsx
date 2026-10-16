@@ -82,7 +82,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     };
     window.addEventListener('rdv:close-overlay',close);
     return()=>window.removeEventListener('rdv:close-overlay',close);
-  },[sheet,preview,mapTarget,collapsed,busy]);
+  },[sheet,preview,mapTarget,collapsed]);
   const [centerRequest,setCenterRequest] = useState(0);
   const centeredOnce=React.useRef(false);
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
