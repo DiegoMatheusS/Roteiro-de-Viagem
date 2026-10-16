@@ -123,7 +123,7 @@ export async function roadRoute(points: Coordinates[], mapFetch: MapFetch = fetc
   const key = `${baseUrl}:${coordinates}:${withGeometry}`;
   const cached = routeCache.get(key);
   if (cached && Date.now() - cached.time < 15 * 60000) return cached.result;
-  const response = await mapFetch(`${baseUrl}/route/v1/driving/${coordinates}?overview=${withGeometry ? 'full&geometries=geojson' : 'false'}&steps=false`, { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'RoteiroDeViagem/1.0' } });
+  const response = await mapFetch(`${baseUrl}/route/v1/driving/${coordinates}?overview=${withGeometry ? 'full&geometries=geojson' : 'false'}&steps=${withGeometry ? 'true' : 'false'}`, { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'RoteiroDeViagem/1.0' } });
   if (!response.ok) throw new Error('Cálculo de desvio indisponível.');
   const payload = await response.json() as any;
   const route = payload.routes?.[0];
@@ -132,7 +132,18 @@ export async function roadRoute(points: Coordinates[], mapFetch: MapFetch = fetc
   const geometry = withGeometry && Array.isArray(route.geometry?.coordinates) && route.geometry.coordinates.length >= 2 && route.geometry.coordinates.every((p: any) => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90)
     ? route.geometry.coordinates.map((p: number[]) => [p[1], p[0]] as Coordinates) : null;
   if (withGeometry && !geometry) throw new Error('O provedor não retornou o desenho rodoviário da rota.');
-  const result = { distanceKm: route.distance / 1000, legsKm: route.legs.map((leg: any) => leg.distance / 1000) as number[], legsSeconds: route.legs.every((leg: any) => Number.isFinite(leg.duration) && leg.duration >= 0) ? route.legs.map((leg: any) => leg.duration) as number[] : null, geometry };
+  let travelledMeters = 0;
+  const routeSteps = withGeometry ? route.legs.flatMap((leg: any) => Array.isArray(leg.steps) ? leg.steps : [])
+    .map((step: any) => {
+      const currentKm = travelledMeters / 1000;
+      travelledMeters += Number.isFinite(step.distance) ? step.distance : 0;
+      const location = step.maneuver?.location;
+      if (!Array.isArray(location) || !Number.isFinite(location[0]) || !Number.isFinite(location[1])) return null;
+      return { coords: [location[1], location[0]] as Coordinates, distanceFromStartKm: currentKm,
+        type: String(step.maneuver?.type || ''), modifier: String(step.maneuver?.modifier || ''),
+        name: String(step.name || '').slice(0, 120) };
+    }).filter((step: any) => step !== null) : [];
+  const result = { routeSteps, distanceKm: route.distance / 1000, legsKm: route.legs.map((leg: any) => leg.distance / 1000) as number[], legsSeconds: route.legs.every((leg: any) => Number.isFinite(leg.duration) && leg.duration >= 0) ? route.legs.map((leg: any) => leg.duration) as number[] : null, geometry };
   if (routeCache.size > 200) routeCache.clear();
   routeCache.set(key, { time: Date.now(), result });
   return result;
