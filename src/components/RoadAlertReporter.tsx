@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Camera, CarFront, Construction, MapPin, Shield, ShieldAlert, Waves, X } from 'lucide-react';
+import { AlertTriangle, Cctv, CarFront, Construction, Waves, X } from 'lucide-react';
+import { PoliceOfficerIcon, PotholeIcon, RobberyIcon, TollBoothIcon } from './RoadAlertIcons';
 import { ROAD_ALERT_TYPES, type RoadAlertType } from '../types/roadAlerts';
 import type { DeviceLocation } from '../services/locationService';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { submitRoadAlert } from '../hooks/useRoadAlerts';
 
 const alertIcons: Record<RoadAlertType, React.ElementType> = {
-  pothole: AlertTriangle,
+  pothole: PotholeIcon,
   broken_vehicle: CarFront,
-  speed_camera: Camera,
+  speed_camera: Cctv,
   road_obstruction: Construction,
   flooded_road: Waves,
-  police_presence: Shield,
-  robbery: ShieldAlert
+  police_presence: PoliceOfficerIcon,
+  robbery: RobberyIcon
 };
 export function RoadAlertReporter({
   location, speedKmH, onSubmitted, menuPlacement = 'above'
@@ -60,14 +61,14 @@ export function RoadAlertReporter({
             const Icon = alertIcons[item.id];
             return <button role="menuitem" key={item.id} type="button" aria-label={item.label} title={item.label}
               onClick={() => {setKind(item.id);setOpen(true);setMenuOpen(false);setError('');setMessage('');}}
-              className="flex aspect-square min-h-12 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-blue-700 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:scale-95">
+              className="flex aspect-square min-h-12 items-center justify-center rounded-2xl border border-slate-100 bg-white text-blue-700 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:scale-95">
               <Icon size={23} strokeWidth={2} aria-hidden="true"/>
             </button>;
           })}
           <button role="menuitem" type="button" aria-label="Pedágio" title="Pedágio"
             onClick={() => {setMenuOpen(false);setTollInfo(true);}}
             className="flex aspect-square min-h-12 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-emerald-700 shadow-sm transition-colors hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 active:scale-95">
-            <MapPin size={23} strokeWidth={2} aria-hidden="true"/>
+            <TollBoothIcon size={23} strokeWidth={2} aria-hidden="true"/>
           </button>
         </div>
       </div>}

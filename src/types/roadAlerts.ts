@@ -1,12 +1,12 @@
 /** Alertas de trânsito enviados pela comunidade, publicados apenas após moderação. */
 export const ROAD_ALERT_TYPES = [
-  { id: 'pothole', label: 'Buraco na pista', icon: '⚠️' },
+  { id: 'pothole', label: 'Buraco na pista', icon: '🕳️' },
   { id: 'broken_vehicle', label: 'Veículo parado / quebrado', icon: '🚗' },
   { id: 'speed_camera', label: 'Radar de velocidade', icon: '📷' },
   { id: 'road_obstruction', label: 'Obstáculo na via', icon: '🚧' },
   { id: 'flooded_road', label: 'Alagamento', icon: '🌊' },
-  { id: 'police_presence', label: 'Policiamento', icon: '🛡️' },
-  { id: 'robbery', label: 'Roubo ou assalto', icon: '🚨' }
+  { id: 'police_presence', label: 'Policiamento', icon: '👮' },
+  { id: 'robbery', label: 'Roubo ou assalto', icon: '🦹' }
 ] as const;
 export type RoadAlertType = typeof ROAD_ALERT_TYPES[number]['id'];
 export type RoadAlertStatus = 'pending' | 'approved' | 'rejected' | 'expired';
