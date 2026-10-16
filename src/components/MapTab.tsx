@@ -8,7 +8,8 @@ import type { Vehicle, TripPlan, ConvoyParticipant, MeetingPoint } from '../type
 import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
-import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, X, ChevronRight, LocateFixed, MapPin, Compass, Store, ChevronUp } from 'lucide-react';
+import { RoadAlertReporter } from './RoadAlertReporter';
+import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, X, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
   conditions: ConditionsStatus; routeVehicleType?: 'car' | 'motorcycle'; sosOpen?: boolean;
@@ -23,6 +24,7 @@ export function MapTab(props: MapTabProps) {
   const roadAlerts = useRoadAlerts(trip?.routePath || []);
 
   const [showRain, setShowRain] = useState(false), [showStops, setShowStops] = useState(true), [showFuel, setShowFuel] = useState(true), [confirmEnd, setConfirmEnd] = useState(false);
+  const [layerMenuOpen,setLayerMenuOpen] = useState(false);
   const location = useDeviceLocation(!props.sosOpen, 'map-destination-search');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchDestination, setSearchDestination] = useState<LocationSelection>({ name: '' });
@@ -107,11 +109,40 @@ export function MapTab(props: MapTabProps) {
       <div className="flex gap-3 items-start"><button onClick={props.onBackToMenu} aria-label="Voltar ao menu" className="p-2 rounded-xl bg-emerald-50 text-emerald-800 shrink-0"><ArrowLeft size={20} /></button><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-slate-500">{props.activeTrip ? 'Em andamento' : trip ? 'Viagem programada' : 'Seu mapa'}</p><h3 className="font-bold text-sm truncate">{trip?.destinationName || 'Planeje sua primeira viagem'}</h3><p className="text-xs text-slate-500">{trip ? `${trip.distanceKm.toFixed(1)} km · ${Math.round(trip.durationMinutes)} min` : 'Escolha origem e destino no Início.'}</p></div></div>
       {trip && <><div className="grid grid-cols-3 gap-2 text-[10px] font-bold"><button onClick={() => props.onOpenShareModal?.(trip)} className="p-2 border rounded-xl flex items-center justify-center gap-1"><Share2 size={13} />Compartilhar</button><button onClick={() => props.onOpenConvoyModal?.(trip)} className="p-2 border rounded-xl flex items-center justify-center gap-1 text-violet-700"><Users size={13} />Comboio</button><button onClick={() => props.activeTrip ? props.onContinueTrip() : props.onStartTrip?.(trip)} className="p-2 bg-emerald-700 text-white rounded-xl flex items-center justify-center gap-1"><Play size={13} />{props.activeTrip ? 'Navegar' : 'Iniciar'}</button></div><button onClick={() => setConfirmEnd(true)} className="w-full p-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-2"><PowerOff size={14} />Encerrar viagem</button></>}
     </div>
-    <div className="absolute top-3 right-3 z-30 flex flex-col gap-2"><button onClick={props.onOpenSos} className="h-10 w-11 rounded-xl bg-rose-700 text-white text-xs font-black shadow-lg">SOS</button><button onClick={() => setShowRain(!showRain)} aria-label="Mostrar previsão de chuva" className={`p-3 rounded-xl shadow-lg ${showRain ? 'bg-blue-700 text-white' : 'bg-white'}`}><CloudRain size={18} /></button><button onClick={() => setShowStops(!showStops)} aria-label="Mostrar paradas" className={`p-3 rounded-xl shadow-lg ${showStops ? 'bg-emerald-700 text-white' : 'bg-white'}`}><Mountain size={18} /></button><button onClick={() => setShowFuel(!showFuel)} aria-label="Mostrar postos" className={`p-3 rounded-xl shadow-lg ${showFuel ? 'bg-amber-600 text-white' : 'bg-white'}`}><Fuel size={18} /></button>
-      <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
-        className="w-11 h-11 rounded-full bg-white text-blue-700 border border-slate-100 shadow-lg flex items-center justify-center">
-        <LocateFixed size={22} strokeWidth={2.2}/>
+    {/* Ações secundárias agrupadas: GPS e reportar permanecem sempre visíveis. */}
+    <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
+      <button type="button" onClick={props.onOpenSos}
+        className="h-10 w-12 rounded-xl bg-rose-700 text-white text-xs font-black shadow-lg">SOS</button>
+      <button type="button" aria-label="Camadas do mapa" aria-expanded={layerMenuOpen}
+        onClick={()=>setLayerMenuOpen(v=>!v)}
+        className="w-12 h-11 rounded-xl bg-white text-slate-700 border border-slate-200 shadow-lg flex items-center justify-center">
+        <Layers size={20}/>
       </button>
+      {layerMenuOpen && <div role="group" aria-label="Configurações das camadas do mapa"
+        className="absolute top-[102px] right-0 w-[177px] bg-white border border-slate-100 rounded-2xl p-2 shadow-xl space-y-1 text-xs">
+        <button type="button" onClick={()=>setShowRain(v=>!v)} aria-label="Mostrar previsão de chuva" aria-pressed={showRain}
+          className="w-full p-2.5 flex items-center gap-2 text-left rounded-xl hover:bg-slate-50">
+          <CloudRain size={17} className={showRain?'text-blue-600':'text-slate-500'}/> Previsão de chuva</button>
+        <button type="button" onClick={()=>setShowStops(v=>!v)} aria-label="Mostrar paradas" aria-pressed={showStops}
+          className="w-full p-2.5 flex items-center gap-2 text-left rounded-xl hover:bg-slate-50">
+          <Mountain size={17} className={showStops?'text-emerald-600':'text-slate-500'}/> Paradas</button>
+        <button type="button" onClick={()=>setShowFuel(v=>!v)} aria-label="Mostrar postos" aria-pressed={showFuel}
+          className="w-full p-2.5 flex items-center gap-2 text-left rounded-xl hover:bg-slate-50">
+          <Fuel size={17} className={showFuel?'text-blue-600':'text-slate-500'}/> Postos</button>
+      </div>}
+    </div>
+    {/* GPS em cima e triângulo de ocorrência embaixo, junto à lateral direita. */}
+    <div aria-label="Controles de localização e ocorrência"
+      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[118px]' : 'bottom-[140px]'}`}>
+      <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
+        className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
+        <LocateFixed size={24} strokeWidth={2.2}/>
+      </button>
+      <RoadAlertReporter location={location.status==='ready' ? location.position : null}
+        speedKmH={location.status==='ready' && location.position?.speedMetersPerSecond!=null
+          ? location.position.speedMetersPerSecond*3.6 : null}
+        menuPlacement={sheetExpanded ? 'below' : 'above'}
+        onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
     {locationHint && <p role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[210px] rounded-xl shadow p-3 text-xs text-amber-900">{locationHint}</p>}
     {trip && <div className="absolute bottom-44 left-3 right-16 max-w-[250px] z-30"><RouteConditionsStatus trip={trip} conditions={props.conditions} /></div>}

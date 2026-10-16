@@ -35,6 +35,7 @@ import { useLiveRouteConditions } from './hooks/useLiveRouteConditions';
 import { useTripTracking } from './hooks/useTripTracking';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
+import { X, Users, ArrowRight, KeyRound } from 'lucide-react';
 
 export default function App() {
   const auth = useAuth();
@@ -65,6 +66,8 @@ export default function App() {
   const [joinCode, setJoinCode] = useState('');
   const [joinVehicleType, setJoinVehicleType] = useState<'car' | 'motorcycle' | ''>('');
   const [showJoin, setShowJoin] = useState(false);
+  const [joinError, setJoinError] = useState('');
+  const [joinBusy, setJoinBusy] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
   const [syncState, setSyncState] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
@@ -149,11 +152,21 @@ export default function App() {
     } catch (error) { setAppError((error as Error).message); }
   };
   const joinConvoy = async () => {
-    if (!auth.user) { auth.promptLogin(); return; }
+    if (!auth.user) { setShowJoin(false); auth.promptLogin(); return; }
     const vehicleType = currentVehicle?.type || joinVehicleType;
-    if (!vehicleType) { setAppError('Escolha o tipo de veículo para entrar no Comboio.'); return; }
-    try { const result = await convoyService.joinConvoyByCode(joinCode, { id: profile.id, name: profile.name, vehicleType, vehicleNickname: currentVehicle?.nickname }); setActiveConvoyId(result.convoy.id); setShowJoin(false); setJoinCode(''); }
-    catch (error) { setAppError((error as Error).message); }
+    if (!vehicleType) { setJoinError('Selecione o tipo de veículo para participar do comboio.'); return; }
+    if (joinBusy) return;
+    setJoinError(''); setJoinBusy(true);
+    try {
+      const result = await convoyService.joinConvoyByCode(joinCode.trim(), {
+        id: profile.id, name: profile.name, vehicleType, vehicleNickname: currentVehicle?.nickname
+      });
+      setActiveConvoyId(result.convoy.id);
+      setShowJoin(false);
+      setJoinCode('');
+      setJoinVehicleType('');
+    } catch (error) { setJoinError((error as Error).message); }
+    finally { setJoinBusy(false); }
   };
 
   // Handle vehicle selection
@@ -307,7 +320,47 @@ export default function App() {
       </div>}
       {/* Conta/login agora ficam em Perfil, mantendo o mapa limpo. */}
       {convoyGps.session && !activeConvoyId && <div role="status" className="p-3 bg-violet-50 text-violet-900 text-xs flex flex-wrap items-center gap-3"><span>{convoyGps.ready?'GPS do comboio ativo':'Comboio aguardando GPS'} · atualização automática</span><button onClick={()=>setActiveConvoyId(convoyGps.session!.convoyId)} className="underline font-bold">Abrir comboio</button><button onClick={()=>void convoyService.stopSharing()} className="underline">Parar compartilhamento</button>{convoyGps.error&&<span>{convoyGps.error}</span>}</div>}
-      {showJoin && <form onSubmit={e => { e.preventDefault(); void joinConvoy(); }} className="p-3 bg-violet-50 flex flex-wrap gap-3 text-xs"><label>Código do comboio<input aria-label="Código do comboio" value={joinCode} onChange={e => setJoinCode(e.target.value)} required className="block border p-2 rounded-xl" /></label>{!currentVehicle && <label>Seu veículo<select aria-label="Tipo de veículo no comboio" required value={joinVehicleType} onChange={e => setJoinVehicleType(e.target.value as 'car' | 'motorcycle' | '')} className="block border p-2 rounded-xl"><option value="">Escolha</option><option value="motorcycle">Moto</option><option value="car">Carro</option></select></label>}<button className="font-bold text-violet-800">Entrar</button><p>Seu nome e veículo serão vistos pelo grupo. O GPS começa desligado.</p></form>}
+      {showJoin && <div className="fixed inset-0 z-[95] bg-slate-950/50 flex items-end sm:items-center justify-center px-0 sm:px-4"
+        role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget && !joinBusy){setShowJoin(false);setJoinError('');}}}>
+        <section role="dialog" aria-modal="true" aria-label="Entrar no comboio"
+          onKeyDown={event=>{if(event.key==='Escape'&&!joinBusy){setShowJoin(false);setJoinError('');}}}
+          className="w-full max-w-md bg-white rounded-t-[30px] sm:rounded-[28px] p-5 sm:p-6 pb-[max(24px,env(safe-area-inset-bottom))] shadow-2xl animate-[role-dialog-enter_.28s_cubic-bezier(.22,1,.36,1)_both]">
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div className="flex gap-3 items-center">
+              <span className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center"><Users size={24}/></span>
+              <div><h2 className="text-xl font-extrabold text-slate-950">Entrar no comboio</h2>
+                <p className="text-xs text-slate-500 mt-1">Participe de uma viagem em grupo</p></div>
+            </div>
+            <button type="button" aria-label="Fechar entrada no comboio" disabled={joinBusy}
+              onClick={()=>{setShowJoin(false);setJoinError('');}}
+              className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center disabled:opacity-50"><X size={19}/></button>
+          </div>
+          <form onSubmit={event=>{event.preventDefault();void joinConvoy();}} className="space-y-4">
+            <label className="block text-xs text-slate-700 font-bold">Código do comboio
+              <span className="mt-2 flex gap-3 items-center border border-slate-200 bg-slate-50 rounded-2xl px-4 h-14 focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-400">
+                <KeyRound size={19} className="text-blue-700 shrink-0"/>
+                <input aria-label="Código do comboio" autoFocus autoComplete="off" required maxLength={64} value={joinCode}
+                  onChange={e=>{setJoinCode(e.target.value);if(joinError)setJoinError('');}}
+                  placeholder="Digite o código recebido" className="bg-transparent outline-none flex-1 min-w-0 text-sm font-medium text-slate-900"/>
+              </span>
+            </label>
+            {!currentVehicle && <label className="block text-xs text-slate-700 font-bold">Seu veículo
+              <select aria-label="Tipo de veículo no comboio" required value={joinVehicleType}
+                onChange={e=>setJoinVehicleType(e.target.value as 'car' | 'motorcycle' | '')}
+                className="mt-2 block w-full border border-slate-200 bg-slate-50 rounded-2xl px-4 h-12 text-sm text-slate-800">
+                <option value="">Escolha seu veículo</option><option value="motorcycle">Moto</option><option value="car">Carro</option>
+              </select>
+            </label>}
+            <p className="text-xs leading-relaxed text-slate-600 bg-blue-50/70 rounded-xl p-3">
+              Seu nome e tipo de veículo serão vistos pelos participantes. A localização ao vivo começa desligada.
+            </p>
+            {joinError && <p role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl p-3">{joinError}</p>}
+            <button type="submit" disabled={joinBusy || !joinCode.trim()} className="w-full rounded-2xl h-13 min-h-13 px-4 py-3.5 bg-blue-600 text-white text-sm font-extrabold flex items-center justify-center gap-2 disabled:opacity-50">
+              {joinBusy?'Entrando...':'Entrar'}{!joinBusy && <ArrowRight size={19}/>}
+            </button>
+          </form>
+        </section>
+      </div>}
       {appError && (
         <div role="alert" className="fixed top-3 left-3 right-3 z-70 mx-auto max-w-xl p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-3 shadow-lg">
           <span className="flex-1">{appError}</span>
@@ -448,7 +501,7 @@ export default function App() {
                 accountLabel={auth.user?.displayName}
                 onLogin={auth.promptLogin}
                 onLogout={() => auth.logout().catch(error => setAppError(error.message))}
-                onOpenConvoy={() => setShowJoin(value => !value)}
+                onOpenConvoy={() => {setJoinError('');setShowJoin(true);}}
               />
             )}
           </main>

@@ -35,10 +35,12 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
       className="fixed left-4 top-5 z-[61] w-12 h-12 rounded-full bg-white border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,.13)] flex items-center justify-center text-slate-900 active:scale-95 transition-transform">
       <Menu size={22} strokeWidth={2.1} />
     </button>
-    {open && <div className="fixed inset-0 z-[82] bg-slate-950/45 flex flex-col justify-end" role="presentation"
+    {/* Mantido montado para animar tanto a subida como a descida; oculto da navegação por teclado quando fechado. */}
+    <div className={`fixed inset-0 z-[82] bg-slate-950/45 flex flex-col justify-end transition-[opacity,visibility] duration-300 ease-out ${open ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
+      role="presentation" aria-hidden={!open} inert={!open}
       onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <nav id="role-menu" role="dialog" aria-modal="true" aria-label="Menu do Rolê"
-        className="bg-white rounded-t-[30px] border-t border-slate-100 w-full max-w-xl mx-auto shadow-[0_-14px_50px_rgba(15,23,42,.16)] overflow-y-auto max-h-[90dvh] pb-[max(24px,env(safe-area-inset-bottom))]">
+      <nav id="role-menu" role="dialog" aria-modal={open} aria-label="Menu do Rolê"
+        className={`bg-white rounded-t-[30px] border-t border-slate-100 w-full max-w-xl mx-auto shadow-[0_-14px_50px_rgba(15,23,42,.16)] overflow-y-auto max-h-[90dvh] pb-[max(24px,env(safe-area-inset-bottom))] transform-gpu will-change-transform transition-transform duration-[340ms] ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="flex items-center justify-center h-8">
           <div className="w-12 h-1.5 rounded-full bg-slate-300" aria-hidden="true" />
         </div>
@@ -89,6 +91,6 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
         </div>
         {hasActiveConvoy && <p role="status" className="mx-6 mt-4 px-3 py-2.5 bg-emerald-50 text-emerald-900 rounded-xl text-xs">Você participa de um comboio ativo.</p>}
       </nav>
-    </div>}
+    </div>
   </>;
 }

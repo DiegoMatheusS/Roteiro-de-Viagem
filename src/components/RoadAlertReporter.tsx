@@ -12,8 +12,8 @@ const alertIcons: Record<RoadAlertType, React.ElementType> = {
   road_obstruction: Construction
 };
 export function RoadAlertReporter({
-  location, speedKmH, onSubmitted
-}: { location: DeviceLocation | null; speedKmH: number | null; onSubmitted: () => void }) {
+  location, speedKmH, onSubmitted, menuPlacement = 'above'
+}: { location: DeviceLocation | null; speedKmH: number | null; onSubmitted: () => void; menuPlacement?: 'above' | 'below' }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [tollInfo, setTollInfo] = useState(false);
@@ -38,7 +38,7 @@ export function RoadAlertReporter({
   const selected = ROAD_ALERT_TYPES.find(type => type.id === kind);
   return <>
     <div className="relative">
-      {menuOpen && <div role="menu" aria-label="Escolher ocorrência" className="absolute bottom-[calc(100%+8px)] right-0 flex flex-col gap-2 w-48">
+      {menuOpen && <div role="menu" aria-label="Escolher ocorrência" className={`absolute ${menuPlacement === 'above' ? 'bottom-[calc(100%+10px)]' : 'top-[calc(100%+10px)]'} right-0 flex flex-col gap-2 w-52 max-w-[calc(100vw-32px)]`}>
         {ROAD_ALERT_TYPES.map(item => {
           const Icon = alertIcons[item.id];
           return <button role="menuitem" key={item.id} type="button" onClick={() => {setKind(item.id);setOpen(true);setMenuOpen(false);setError('');setMessage('');}}
@@ -52,8 +52,8 @@ export function RoadAlertReporter({
         </button>
       </div>}
       <button type="button" aria-label="Reportar problema na estrada" aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}
-        className="w-12 h-12 rounded-full bg-blue-600 text-white border-2 border-white flex items-center justify-center shadow-xl">
-        {menuOpen ? <X size={24}/> : <AlertTriangle size={24}/>}
+        className="w-12 h-12 rounded-full bg-white text-amber-700 border border-amber-200 flex items-center justify-center shadow-[0_4px_18px_rgba(15,23,42,.16)] active:scale-95 transition-transform">
+        {menuOpen ? <X size={23}/> : <AlertTriangle size={25} strokeWidth={2.3}/>}
       </button>
     </div>
     {tollInfo && <div className="fixed inset-0 z-[100] bg-black/65 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Contribuir com pedágio">
