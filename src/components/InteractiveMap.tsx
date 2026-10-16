@@ -38,6 +38,8 @@ interface InteractiveMapProps {
   navigationMode?: boolean;
   travelledDistanceKm?: number;
   totalRouteKm?: number;
+  blueRoute?: boolean;
+  followUser?: boolean;
   roadAlerts?: RoadAlert[];
 }
 
@@ -112,6 +114,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   navigationMode = false,
   travelledDistanceKm = 0,
   totalRouteKm = 0,
+  blueRoute = false,
+  followUser = true,
   roadAlerts = [],
   className = 'w-full h-full'
 }) => {
@@ -365,7 +369,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (routePath && routePath.length > 1) {
       L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
-      if (navigationMode) {
+      if (navigationMode || blueRoute) {
         const progress = splitRouteAtPosition(routePath, userLiveCoords, travelledDistanceKm, totalRouteKm);
         if (progress.remaining.length > 1) {
           L.polyline(progress.remaining, { color: '#67c7ff', weight: 7, opacity: 1,
@@ -606,6 +610,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     navigationMode,
     travelledDistanceKm,
     totalRouteKm,
+    blueRoute,
     showRainLayer,
     weatherPoints,
     userLiveCoords,
@@ -620,9 +625,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const changed = !last || Math.abs(last[0] - userLiveCoords[0]) + Math.abs(last[1] - userLiveCoords[1]) > 0.00004;
     if (!changed) return;
     if (!last) map.setView(userLiveCoords, 16, { animate: false });
-    else map.panTo(userLiveCoords, { animate: true, duration: 0.5 });
+    else if (followUser) map.panTo(userLiveCoords, { animate: true, duration: 0.5 });
     lastFollowRef.current = userLiveCoords;
-  }, [navigationMode, userLiveCoords]);
+  }, [navigationMode, userLiveCoords, followUser]);
 
   return (
     <div className={`relative overflow-hidden ${className}`}>

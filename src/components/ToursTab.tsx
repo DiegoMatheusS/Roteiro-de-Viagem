@@ -119,7 +119,7 @@ export const ToursTab: React.FC<ToursTabProps> = ({
 
   return (
     <div className="min-h-[calc(100vh-4rem)] pb-24 bg-white overflow-y-auto">
-      <div className="max-w-xl mx-auto p-4 sm:p-5 space-y-5">
+      <div className="max-w-xl mx-auto px-4 pb-5 pt-20 sm:px-5 space-y-5">
         {/* TOP BAR: Explorar Passeios & Filter Icon */}
         <div className="flex items-center justify-between pt-1">
           <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">

@@ -49,7 +49,7 @@ export const SavedTab: React.FC<SavedTabProps> = ({
   return (
     <div className="min-h-[calc(100vh-4rem)] pb-24 bg-slate-50 overflow-y-auto">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-5">
+      <div className="bg-white border-b border-slate-200 pl-20 pr-6 py-5">
         <h1 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
           <Bookmark className="w-5 h-5 text-emerald-600" />
           <span>Minhas Viagens</span>
