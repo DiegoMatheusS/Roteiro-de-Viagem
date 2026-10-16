@@ -54,15 +54,35 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const dragStart = React.useRef<number|null>(null);
   const swallowNextClick = React.useRef(false);
-  const handleGripRelease = (event:React.PointerEvent<HTMLButtonElement>) => {
+  const [dragOffset,setDragOffset]=useState(0);
+  const finishPanelDrag = (event:React.PointerEvent<HTMLDivElement>) => {
     if(dragStart.current===null)return;
-    const change=event.clientY-dragStart.current;
+    const delta=event.clientY-dragStart.current;
     dragStart.current=null;
-    if(Math.abs(change)<32)return;
+    setDragOffset(0);
+    if(Math.abs(delta)<38)return;
     swallowNextClick.current=true;
-    if(change>0){if(sheetExpanded)setSheetExpanded(false);else setCollapsed(true);}
+    if(delta>0){if(sheetExpanded)setSheetExpanded(false);else setCollapsed(true);}
     else{if(collapsed)setCollapsed(false);else setSheetExpanded(true);}
   };
+  // O painel inteiro acompanha o dedo, exceto botões, inputs e a lista rolável.
+  const startPanelDrag = (event:React.PointerEvent<HTMLDivElement>)=>{
+    const target=event.target as HTMLElement;
+    if(target.closest('input,textarea,select,a,[data-panel-scroll]'))return;
+    if(target.closest('button')&&!target.closest('[data-panel-grip]'))return;
+    dragStart.current=event.clientY;
+    swallowNextClick.current=false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  useEffect(()=>{
+    const close=(event:Event)=>{
+      if(sheet || preview){(event as CustomEvent).preventDefault();closeSheet();return;}
+      if(mapTarget){(event as CustomEvent).preventDefault();setMapTarget(null);setDisplayRoute(null);setCollapsed(false);return;}
+      if(!collapsed){(event as CustomEvent).preventDefault();setCollapsed(true);}
+    };
+    window.addEventListener('rdv:close-overlay',close);
+    return()=>window.removeEventListener('rdv:close-overlay',close);
+  },[sheet,preview,mapTarget,collapsed,busy]);
   const [centerRequest,setCenterRequest] = useState(0);
   const centeredOnce=React.useRef(false);
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
@@ -186,7 +206,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
-      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
+      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
         focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
@@ -207,22 +227,26 @@ export function NavigationHome(props: NavigationHomeProps) {
         menuPlacement="below"
       />
     </div>
-    <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[top,bottom] duration-300 ${collapsed?'bottom-28':'top-[24dvh]'}`}
-      role="status" aria-label="Velocímetro">
-      <strong className="text-2xl leading-none tabular-nums">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
-      <small className="text-[10px] text-slate-500 font-bold">km/h</small>
+    <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[bottom] duration-300 select-none ${collapsed?'bottom-[86px]':sheetExpanded?'bottom-[calc(67dvh+12px)]':'bottom-[calc(max(37dvh,300px)+12px)]'}`}
+      role="status" aria-label="Velocímetro" style={{userSelect:'none',WebkitUserSelect:'none'}} onContextMenu={event=>event.preventDefault()}>
+      <strong className="text-2xl leading-none tabular-nums select-none">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
+      <small className="text-[11px] text-slate-500 font-bold select-none">km/h</small>
     </div>
-    <div data-testid="home-main-sheet" className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[28px] bg-white/95 backdrop-blur-xl shadow-[0_-14px_45px_rgba(15,23,42,.14)] border-t border-white/90 flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[74px]':sheetExpanded?'h-[67dvh]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
+    <div data-testid="home-main-sheet"
+      onPointerDown={startPanelDrag}
+      onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}
+      onPointerUp={finishPanelDrag}
+      onPointerCancel={()=>{dragStart.current=null;setDragOffset(0);}}
+      style={{transform:dragOffset?`translateY(${dragOffset}px)`:undefined,transitionDuration:dragOffset?'0ms':undefined}}
+      className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[28px] bg-white/95 backdrop-blur-xl shadow-[0_-14px_45px_rgba(15,23,42,.14)] border-t border-white/90 flex flex-col transition-[height,transform] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[74px]':sheetExpanded?'h-[67dvh]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>{if(swallowNextClick.current){swallowNextClick.current=false;return;}if(sheetExpanded)setSheetExpanded(false);else setCollapsed(c=>!c);}}
-        onPointerDown={event=>{dragStart.current=event.clientY;swallowNextClick.current=false;event.currentTarget.setPointerCapture(event.pointerId);}}
-        onPointerUp={handleGripRelease}
-        onPointerCancel={()=>{dragStart.current=null;}}
+        data-panel-grip
         aria-expanded={!collapsed}
         style={{touchAction:'none'}}
         className="mx-auto w-full h-9 flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing select-none" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
-      {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-6">
+      {!collapsed && <div data-panel-scroll className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-5">
         <form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
           className="rounded-[20px] w-full bg-[#f3f7fb] border border-slate-200/80 px-4 py-2 flex items-center gap-3 text-slate-600 text-sm min-h-[54px] shadow-[0_3px_12px_#2239550e] focus-within:border-blue-400 focus-within:ring-[3px] focus-within:ring-blue-100/80 transition-shadow">
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
