@@ -3,8 +3,8 @@ import {Geolocation as NativeGeolocation} from '@capacitor/geolocation';
 import {getCurrentDeviceLocation} from '../services/locationService';
 import {isNativeApp, TravelNative} from '../services/nativeApp';
 
-const webPermissionHelp = 'Se o navegador já bloqueou o GPS, clique no ícone ao lado do endereço do site, abra as permissões do site e altere Localização para Permitir. Volte ao Rolê e toque em Tentar GPS. O navegador não permite reabrir automaticamente uma permissão que já foi bloqueada.';
-const nativePermissionHelp = 'Nas configurações do aplicativo, permita Localização precisa (durante o uso). Volte ao Rolê e toque novamente em Tentar GPS.';
+const webPermissionHelp = 'Se o navegador já bloqueou o GPS, clique no ícone ao lado do endereço do site, abra as permissões do site e altere Localização para Permitir. Volte ao Rolê e toque em Permitir localização. O navegador não permite reabrir automaticamente uma permissão que já foi bloqueada.';
+const nativePermissionHelp = 'Nas configurações do aplicativo, permita Localização precisa (durante o uso). Volte ao Rolê e toque novamente em Permitir localização.';
 
 function denied(error: unknown): boolean {
   const message = String((error as {message?:string})?.message || '');
