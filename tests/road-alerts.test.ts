@@ -46,7 +46,8 @@ test('road hazards require signed-in sender and admin approval; public route rev
     assert.equal((await call('GET','/admin/road-alerts')).status,401);
     assert.equal((await call('GET','/admin/road-alerts',undefined,traveler.cookie)).status,403);
     const queue=await call('GET','/admin/road-alerts',undefined,admin.cookie);
-    assert.equal(queue.data.total,1);
+    assert.equal(queue.data.total,2,'Relatos anônimo e identificado passam por moderação');
+    assert.equal(queue.data.items.some((item:any)=>item.submittedBy==='Viajante anônimo'),true);
     assert.equal(queue.data.items[0].submittedBy,'Relator');
     assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},traveler.cookie)).status,403);
     assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},admin.cookie)).status,200);
