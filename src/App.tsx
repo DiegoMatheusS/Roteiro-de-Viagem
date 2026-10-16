@@ -445,7 +445,7 @@ export default function App() {
               />
             )}
             {activeTab === 'inicio' && advancedHome && (
-              <div><button type="button" className="fixed top-5 right-4 z-[62] flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-lg border border-blue-200 px-4 py-3 text-[14px] font-bold text-blue-700 shadow-[0_6px_24px_#1e40af24] active:scale-95 transition-transform" onClick={() => setAdvancedHome(false)}><CornerUpLeft size={20}/> Voltar ao Rolê</button><HomeTab
+              <div><button type="button" className="fixed top-[104px] right-4 z-[62] flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-lg border border-blue-200 px-4 py-3 text-[14px] font-bold text-blue-700 shadow-[0_6px_24px_#1e40af24] active:scale-95 transition-transform" onClick={() => setAdvancedHome(false)}><CornerUpLeft size={20}/> Voltar ao Rolê</button><HomeTab
                 currentVehicle={currentVehicle}
                 vehicles={vehicles}
                 onSelectVehicle={handleSelectVehicle}
