@@ -57,3 +57,13 @@
 .map-place-actions { display: flex; border-top: 1px solid #dceaf6; background: #f1f8fe; }
 .map-place-suggest { flex: 1; min-height: 32px; color: #176bb5; border: 0; background: transparent; }
 .map-place-comments { display: grid; place-items: center; width: 32px; min-height: 32px; border: 0; border-left: 1px solid #dceaf6; color: #176bb5; background: transparent; }
+
+/* Entrada do formulário de comboio a partir do rodapé. */
+@keyframes role-dialog-enter {
+  from { transform: translateY(36px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transition-transform, .transition-\\[opacity\\,visibility\\] { transition-duration: 0.01ms !important; }
+  .role-dialog-no-motion { animation: none !important; }
+}

@@ -1,7 +1,8 @@
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
-import { clientIp, ApiError, asyncRoute, validate } from './http';
-import { roadRoute, validateCoordinates, nearbyPlaceRows, type Coordinates, type MapFetch } from './maps';
+import { clientIp, ApiError, asyncRoute, validate, user } from './http';
+import { validateCoordinates, nearbyPlaceRows, type Coordinates, type MapFetch } from './maps';
+import { privateRoadRoute, type CachedRoad } from './routeCache';
 import { sampleRoutePath } from '../src/types/itinerary';
 import type { RouteStop } from '../src/types';
 
@@ -81,6 +82,28 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         address: row.address, sourceUrl: row.source_url
       }))
       .filter(place => distanceKm(origin, place.coords) >= 0.05);
+    // Grow a shared index from previously discovered OSM attractions, not private addresses.
+    const span = localRadiusKm / 111;
+    const localAttractions = (db.prepare(`SELECT * FROM locations WHERE lat BETWEEN ? AND ?
+      AND lng BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT 500`)
+      .all(origin[0]-span, origin[0]+span, origin[1]-span*2, origin[1]+span*2) as any[])
+      .map((place): Candidate | null => {
+        const mapping: Record<string, { category: RouteStop['category']; interest: Interest }> = {
+          museum: { category: 'museu', interest: 'museus' },
+          viewpoint: { category: 'mirante', interest: 'panoramico' },
+          restaurant: { category: 'restaurante', interest: 'gastronomico' },
+          cafe: { category: 'restaurante', interest: 'gastronomico' },
+          park: { category: 'parque', interest: 'natureza' },
+          nature_reserve: { category: 'parque', interest: 'natureza' },
+          attraction: { category: 'monumento', interest: 'historico' },
+          historic: { category: 'monumento', interest: 'historico' }
+        };
+        const matched = mapping[place.category];
+        if (!matched || !place.name || !Number.isFinite(place.lat) || !Number.isFinite(place.lng) ||
+            distanceKm(origin,[place.lat,place.lng]) > localRadiusKm) return null;
+        return { id: place.id, name: place.name, coords: [place.lat,place.lng],
+          address: place.address, sourceUrl: place.source_url, ...matched };
+      }).filter((place): place is Candidate => !!place);
     const query = `[out:json][timeout:18];(
       nwr(around:${radiusM},${origin[0]},${origin[1]})["tourism"~"^(viewpoint|attraction|museum|gallery|picnic_site)$"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["amenity"~"^(restaurant|cafe)$"]["name"];
@@ -90,7 +113,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     let records: any[] = [];
     let discoveryUnavailable = false;
     // Evita depender de uma consulta pública externa quando o próprio Admin já cadastrou opções.
-    if (adminCandidates.filter(place => selected.has(place.interest)).length < 6) {
+    if ([...adminCandidates, ...localAttractions].filter(place => selected.has(place.interest)).length < 6) {
       try {
         const response = await mapFetch(process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter', {
           method: 'POST', body: new URLSearchParams({ data: query }),
@@ -106,7 +129,15 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     const osmCandidates = records.slice(0, 200).map(candidateFromOsm)
       .filter((place: Candidate | null): place is Candidate => !!place && selected.has(place.interest) &&
         distanceKm(origin, place.coords) >= 0.1 && distanceKm(origin, place.coords) <= radiusM / 1000 + 2);
-    const candidates = [...new Map([...adminCandidates.filter(place => selected.has(place.interest)), ...osmCandidates]
+    // Store validated public POIs as they are discovered, even if this route uses a different stop.
+    const upsertPlace = db.prepare(`INSERT INTO locations(id,name,address,lat,lng,source_url,category,updated_at)
+      VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+      name=excluded.name,address=excluded.address,lat=excluded.lat,lng=excluded.lng,
+      source_url=excluded.source_url,category=excluded.category,updated_at=excluded.updated_at`);
+    const discoveredAt = new Date().toISOString();
+    for (const place of osmCandidates) upsertPlace.run(place.id,place.name,place.address,
+      place.coords[0],place.coords[1],place.sourceUrl,place.category,discoveredAt);
+    const candidates = [...new Map([...adminCandidates.filter(place => selected.has(place.interest)), ...localAttractions.filter(place => selected.has(place.interest)), ...osmCandidates]
       .map((place: Candidate) => [place.id, place] as const)).values()];
     // Spread shortlisted candidates across interests and directions instead of taking the first OSM results.
     const idealDistance = Math.min(radiusM / 1000, estimatedKm * (tripType === 'round_trip' ? 0.27 : 0.72));
@@ -124,11 +155,11 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         place.interest !== shortlist[a].interest);
       if (other) attempts.push([shortlist[a], other]);
     }
-    let best: { selected: Candidate[]; score: number; road: Awaited<ReturnType<typeof roadRoute>>; totalMinutes: number; path: Coordinates[] } | null = null;
+    let best: { selected: Candidate[]; score: number; road: CachedRoad; totalMinutes: number; path: Coordinates[] } | null = null;
     for (const points of attempts.slice(0, 11)) {
       const path = [origin, ...points.map(place => place.coords), ...(tripType === 'round_trip' ? [origin] : [])];
       try {
-        const road = await roadRoute(path, mapFetch, true);
+        const road = await privateRoadRoute(db, user(res)?.id, path, mapFetch, true);
         if (!road.geometry || !road.legsSeconds) continue;
         const drivingMinutes = Math.ceil(road.legsSeconds.reduce((sum, item) => sum + item, 0) / 60);
         const totalMinutes = drivingMinutes + points.length * 20;
@@ -157,7 +188,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
           ? [origin, waypoint(bearing), waypoint(bearing + Math.PI / 2), origin]
           : [origin, waypoint(bearing)];
         try {
-          const road = await roadRoute(path, mapFetch, true);
+          const road = await privateRoadRoute(db, user(res)?.id, path, mapFetch, true);
           if (!road.geometry || !road.legsSeconds || road.distanceKm < 0.03) continue;
           const drivingMinutes = Math.ceil(road.legsSeconds.reduce((sum, seconds) => sum + seconds, 0) / 60);
           const desired = mode === 'km' ? target : target * 60;
@@ -179,6 +210,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     const actual = mode === 'km' ? best.road.distanceKm : best.totalMinutes;
     const desired = mode === 'km' ? target : target * 60;
     const warnings: string[] = [];
+    if (best.road.stale) warnings.push('O serviço de rotas está indisponível. Este trajeto veio do histórico da sua conta e pode estar desatualizado. Confira as condições antes de seguir.');
     if (Math.abs(actual - desired) / desired > 0.1) {
       warnings.push(`O roteiro real tem ${best.road.distanceKm.toFixed(1)} km e aproximadamente ${best.totalMinutes} minutos, diferente da sua preferência. Confira antes de iniciar.`);
     }

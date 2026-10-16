@@ -19,7 +19,8 @@ import {
   CheckCircle, 
   X, 
   Radio, 
-  Compass, 
+  Compass,
+  LocateFixed,
   ShieldCheck,
   Award
 } from 'lucide-react';
@@ -54,6 +55,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
+  const [centerRequest,setCenterRequest] = useState(0);
   const [manualCompletion, setManualCompletion] = useState(false);
   const [manualDistance, setManualDistance] = useState('');
   const [unlockedCelebration, setUnlockedCelebration] = useState<Achievement[] | null>(null);
@@ -161,6 +163,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           stops={trip.stops}
           weatherPoints={trip.weatherPoints}
           roadAlerts={roadAlerts.alerts}
+          centerOnUserRequest={centerRequest}
           tolls={trip.tolls || []}
           tollVehicleType={vehicle.type} fuelKind={vehicleFuelKind(vehicle)}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
@@ -168,9 +171,14 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           className="w-full h-full"
         />
 
-        <div className="absolute bottom-24 right-4 z-30"><RoadAlertReporter
-          location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
-          onSubmitted={() => { void roadAlerts.reload(); }} /></div>
+        <div className="absolute bottom-24 right-4 z-30 flex flex-col items-center gap-3">
+          <button type="button" aria-label="Centralizar mapa na minha localização" onClick={()=>setCenterRequest(v=>v+1)}
+            disabled={!isGpsActive} className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-xl flex items-center justify-center disabled:opacity-60">
+            <LocateFixed size={24} strokeWidth={2.2}/>
+          </button>
+          <RoadAlertReporter location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
+            onSubmitted={() => { void roadAlerts.reload(); }} />
+        </div>
         {upcoming && <div role="status" className="absolute top-14 left-3 right-3 z-30 bg-amber-50 border-2 border-amber-400 rounded-xl px-3 py-2 shadow-lg max-w-[310px] text-xs font-bold">
           {ROAD_ALERT_TYPES.find(type => type.id === upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
           <span className="block font-normal text-[10px] text-amber-800">Alerta comunitário aprovado · confira a situação da via.</span>
