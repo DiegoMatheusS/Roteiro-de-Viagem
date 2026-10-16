@@ -16,6 +16,7 @@ import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { InteractiveMap } from './InteractiveMap';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
+import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
 
 interface NavigationHomeProps {
@@ -38,10 +39,14 @@ export function NavigationHome(props: NavigationHomeProps) {
   const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
-  const [sheet, setSheet] = useState<'km'|'hours'|'destination'|'search'|null>(null);
+  const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [searchPlace,setSearchPlace] = useState<LocationSelection>({name:''});
+  const [searchBusy,setSearchBusy] = useState(false);
+  const [searchError,setSearchError] = useState('');
+  const searchGeneration = React.useRef(0);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];path:[number,number][]}|null>(null);
   const [centerRequest,setCenterRequest] = useState(0);
@@ -72,7 +77,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     return () => controller.abort();
   }, [preview?.id, props.currentVehicle?.type]);
 
-  const showSheet = (value:'km'|'hours'|'destination'|'search') => {setError('');setSheet(value);};
+  const showSheet = (value:'km'|'hours'|'destination') => {setError('');setSheet(value);};
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
   const currentValue = sheet === 'km' ? km : hours;
   const validation = sheet === 'km' || sheet === 'hours' ? getTouristTargetError(sheet, currentValue) : '';
@@ -140,7 +145,25 @@ export function NavigationHome(props: NavigationHomeProps) {
   const selectMapTarget = (place:LocationSelection) => {
     setSearchPlace(place);
     if (!place.coords) return;
-    setMapTarget(place);setDisplayRoute(null);setSheet(null);setCollapsed(true);setError('');
+    // Fecha o teclado antes de revelar o mapa e as opções de rotas.
+    searchInputRef.current?.blur();
+    setMapTarget(place);setDisplayRoute(null);setSheet(null);setCollapsed(true);setError('');setSearchError('');
+  };
+  const submitQuickSearch = async (event:React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query=searchPlace.name.trim();
+    if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
+    if(searchBusy)return;
+    const generation=++searchGeneration.current;
+    setSearchBusy(true);setSearchError('');
+    try {
+      const result=await fuelApi<{results:LocationSelection[];unavailable?:boolean}>(`/locations/search?q=${encodeURIComponent(query)}${liveCoords?`&lat=${liveCoords[0]}&lng=${liveCoords[1]}`:''}`);
+      if(generation!==searchGeneration.current)return;
+      const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
+      if(!found)throw new Error('Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
+      selectMapTarget(found);
+    }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
+    finally{if(generation===searchGeneration.current)setSearchBusy(false);}
   };
   const stepValue = (increase:boolean) => {
     const amount = sheet === 'km' ? 10 : 0.5;
@@ -179,12 +202,19 @@ export function NavigationHome(props: NavigationHomeProps) {
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
       {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-6">
-        <button type="button" aria-label="Para onde quer ir?" onClick={()=>showSheet('search')}
-          className="rounded-[18px] w-full bg-slate-100 border border-slate-100 px-4 py-3.5 flex items-center gap-3 text-slate-600 text-sm text-left min-h-[56px] focus-visible:ring-2 focus-visible:ring-blue-400">
-          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600"/>
-          <span className="flex-1 font-medium">Para onde quer ir?</span>
-          <ChevronRight size={19} className="text-slate-500"/>
-        </button>
+        <form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
+          className="rounded-[18px] w-full bg-slate-100 border border-slate-100 px-4 py-2 flex items-center gap-3 text-slate-600 text-sm min-h-[56px] focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
+          <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
+            aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" value={searchPlace.name}
+            onChange={event=>{searchGeneration.current++;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
+          <button type="submit" aria-label="Pesquisar destino" disabled={searchBusy || searchPlace.name.trim().length<3}
+            className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
+            {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
+          </button>
+        </form>
+        {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>
         {gps.error && <p role="alert" className="bg-amber-50 p-3 rounded-xl text-xs text-amber-900">{gps.error} <button className="underline font-bold" onClick={()=>isNativeApp()?void TravelNative.openDeviceSettings({section:'app'}):gps.retry()}>Permitir localização</button></p>}
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
@@ -247,7 +277,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onMapRoute={(origin,path)=>setDisplayRoute({origin,path})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/55 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
-      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='search'?'Buscar destino no mapa':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>
+      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>
         <div className="flex justify-end p-4 shrink-0"><button type="button" aria-label="Fechar janela" onClick={closeSheet} className="text-slate-500"><X size={20}/></button></div>
         {preview ? <div className="flex flex-col min-h-0 flex-1">
           <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} blueRoute showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
@@ -259,10 +289,6 @@ export function NavigationHome(props: NavigationHomeProps) {
             <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{props.onViewTripDetails(preview);setPreview(null);}}>Detalhes</button>
               <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar</button></div>
           </div>
-        </div> : sheet==='search' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
-          <h2 className="text-xl font-extrabold">Para onde quer ir?</h2>
-          <p className="text-xs text-slate-600">Escolha um endereço para abrir diretamente no mapa, sem iniciar o planejamento de viagem.</p>
-          <LocationSearch label="Destino" value={searchPlace} onChange={selectMapTarget} bias={liveCoords} placeholder="Cidade, rua, endereço ou atração" />
         </div> : sheet==='destination' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
           <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)} /> Sair da minha localização (GPS)</label>
