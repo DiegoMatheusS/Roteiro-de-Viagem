@@ -11,6 +11,7 @@ export const TravelNative = registerPlugin<{
   openDeviceSettings(options:{section:'app'|'location'|'notifications'}):Promise<void>;
   openExternal(options:{url:string}):Promise<void>;
   copyText(options:{text:string}):Promise<void>;
+  exitApp():Promise<void>;
 }>('TravelNative');
 export async function nativeRequest(path: string, options: RequestInit = {}) {
   const form: { name: string; value?: string; data?: string; mime?: string }[] = [];
