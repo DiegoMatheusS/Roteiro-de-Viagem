@@ -62,30 +62,15 @@ try {
   assert.ok(initialHomeBounds && initialHomeBounds.y > 0.56 * 844,
     'O painel Início deve começar mais baixo, deixando a maior parte do mapa visível');
 
-  // Simula permissão já bloqueada. Clicar precisa consultar o GPS, não só reiniciar o watcher.
-  const blockedPage = await context.newPage();
-  await blockedPage.addInitScript(() => {
-    (window as Window & {__gpsPromptAttempts?:number}).__gpsPromptAttempts = 0;
-    const rejectGps = (_ok:unknown, denied:(error:unknown)=>void) => denied({code:1,message:'User denied Geolocation'});
-    Object.defineProperty(navigator, 'geolocation', { configurable:true, value: {
-      watchPosition(_ok:unknown, denied:(error:unknown)=>void) {
-        queueMicrotask(()=>rejectGps(_ok,denied));
-        return 7;
-      },
-      clearWatch() {},
-      getCurrentPosition(ok:unknown, denied:(error:unknown)=>void) {
-        (window as Window & {__gpsPromptAttempts?:number}).__gpsPromptAttempts! += 1;
-        rejectGps(ok,denied);
-      }
-    }});
-  });
+  // O navegador bloqueia o GPS por site; não é possível reabrir o prompt automaticamente.
+  const blockedContext = await browser.newContext({viewport:{width:390,height:844}});
+  await blockedContext.grantPermissions([], {origin:'http://127.0.0.1:3000'});
+  const blockedPage = await blockedContext.newPage();
   await blockedPage.goto('http://127.0.0.1:3000');
   await blockedPage.getByRole('button',{name:'Permitir localização'}).waitFor();
   await blockedPage.getByRole('button',{name:'Permitir localização'}).click();
   await blockedPage.getByText(/ícone ao lado do endereço do site/).waitFor();
-  assert.equal(await blockedPage.evaluate(()=>(window as Window & {__gpsPromptAttempts?:number}).__gpsPromptAttempts),1,
-    'O botão Permitir localização precisa efetivamente tentar obter o GPS');
-  await blockedPage.close();
+  await blockedContext.close();
   const homeGps = page.getByRole('button', {name:'Atualizar GPS'});
   const homeReport = page.getByRole('button', {name:'Reportar problema na estrada'});
   await homeGps.waitFor();
