@@ -25,6 +25,12 @@ export function AuthProvider({ children, adminOnly = false }: { children: React.
     void load();const resume=()=>{if(!document.hidden)void load();};window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
     return()=>{disposed=true;window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
   },[]);
+  useEffect(()=>{
+    if(!open)return;
+    const close=(event:Event)=>{event.preventDefault();setOpen(false);};
+    window.addEventListener('rdv:close-overlay',close);
+    return()=>window.removeEventListener('rdv:close-overlay',close);
+  },[open]);
   const logout = async () => { await convoyService.stopSharing(); await fuelApi('/auth/logout', { method: 'POST', body: '{}' }); remember(null); };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,8 +76,8 @@ export function AuthProvider({ children, adminOnly = false }: { children: React.
     {children}
     {open && <div className="fixed inset-0 z-90 bg-slate-900/60 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-label={adminOnly ? "Acesso administrativo" : "Conta do viajante"}>
       <form onSubmit={submit} className="w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex justify-between items-center gap-2"><div className="flex items-center gap-2"><img src="/roteiro-logo.png" alt="" className="w-9 h-9 object-contain" /><h2 className="font-bold">{adminOnly ? 'Entrar no painel administrativo' : register ? 'Criar conta' : 'Entrar para contribuir'}</h2></div><button type="button" aria-label="Fechar login" onClick={() => setOpen(false)}>✕</button></div>
-        <p className="text-xs text-slate-500">{adminOnly ? 'Acesso exclusivo a administradores previamente autorizados.' : pendingGoogleCredential ? 'Sua conta Google foi confirmada. Para associar um cadastro já existente, informe a senha atual dele.' : 'Sua conta identifica contribuições e confirmações de preços.'}</p>
+        <div className="flex justify-between items-center gap-2"><div className="flex items-center gap-2"><img src="/roteiro-logo.png" alt="" className="w-9 h-9 object-contain" /><h2 className="font-bold">{adminOnly ? 'Entrar no painel administrativo' : register ? 'Criar conta' : 'Entrar no Rolê'}</h2></div><button type="button" aria-label="Fechar login" onClick={() => setOpen(false)}>✕</button></div>
+        <p className="text-xs text-slate-500">{adminOnly ? 'Acesso exclusivo a administradores previamente autorizados.' : pendingGoogleCredential ? 'Sua conta Google foi confirmada. Para associar um cadastro já existente, informe a senha atual dele.' : 'Use sua conta para sincronizar viagens e garagem. Navegar e reportar ocorrências não exigem login.'}</p>
         {register && !adminOnly && !pendingGoogleCredential && <label className="block text-xs font-semibold">Nome de exibição<input name="displayName" required minLength={2} maxLength={50} className="mt-1 w-full border rounded-xl p-3" autoComplete="name" /></label>}
         {!pendingGoogleCredential && <label className="block text-xs font-semibold">E-mail<input name="email" type="email" required className="mt-1 w-full border rounded-xl p-3" autoComplete="email" /></label>}
         <label className="block text-xs font-semibold">{pendingGoogleCredential ? 'Senha atual do cadastro' : 'Senha'}<input name="password" type="password" required minLength={register && !adminOnly && !pendingGoogleCredential ? 10 : 1} maxLength={128} className="mt-1 w-full border rounded-xl p-3" autoComplete={register && !adminOnly && !pendingGoogleCredential ? 'new-password' : 'current-password'} /></label>
