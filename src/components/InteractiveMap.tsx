@@ -15,7 +15,7 @@ import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
 
-export type MapStyleType = 'light' | 'voyager' | 'satellite' | 'topo' | 'osm';
+export type MapStyleType = 'light' | 'satellite' | 'topo';
 export interface MapVisiblePlace {
   id: string;
   name: string;
@@ -60,20 +60,14 @@ interface InteractiveMapProps {
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
+// O CARTO passou a renderizar “API KEY REQUIRED” sem chave. Mapa padrão: OSM oficial sem token.
 const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
   light: {
-    name: 'Claro',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '© CARTO, © OpenStreetMap colaboradores',
+    name: 'Claro (OpenStreetMap)',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores',
     maxZoom: 19,
-    icon: '☀️'
-  },
-  voyager: {
-    name: 'Colorido & Cênico',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '© CartoDB, © OpenStreetMap colaboradores',
-    maxZoom: 19,
-    icon: '🎨'
+    icon: '🗺️'
   },
   satellite: {
     name: 'Satélite Real',
@@ -85,16 +79,9 @@ const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribut
   topo: {
     name: 'Relevo / Serras',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenTopoMap, © OpenStreetMap',
+    attribution: '© OpenTopoMap, © OpenStreetMap colaboradores',
     maxZoom: 17,
     icon: '⛰️'
-  },
-  osm: {
-    name: 'Padrão Rodoviário',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenStreetMap colaboradores',
-    maxZoom: 19,
-    icon: '🗺️'
   }
 };
 
@@ -171,6 +158,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
+  const [tileError, setTileError] = useState(false);
+  const [tileRetryCount, setTileRetryCount] = useState(0);
   const [selectedRoadAlert, setSelectedRoadAlert] = useState<RoadAlert | null>(null);
   const [alertCheckBusy, setAlertCheckBusy] = useState(false);
   const [alertCheckMessage, setAlertCheckMessage] = useState('');
@@ -207,15 +196,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     });
 
     // Estilo Waze: zoom apenas por pinça ou gesto; sem controles + e −.
-
-    // Initial vibrant CartoDB Voyager Tile Layer
-    const tileConfig = TILE_PROVIDERS['light'];
-    const tileLayer = L.tileLayer(tileConfig.url, {
-      maxZoom: tileConfig.maxZoom,
-      attribution: tileConfig.attribution,
-      subdomains: 'abcd'
-    }).addTo(map);
-    currentTileLayerRef.current = tileLayer;
 
     const group = L.layerGroup().addTo(map);
     layersGroupRef.current = group;
@@ -402,11 +382,22 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     const tileConfig = TILE_PROVIDERS[roadStyle || navigationMode ? 'light' : currentStyle];
+    setTileError(false);
+    let consecutiveErrors = 0;
     const newTileLayer = L.tileLayer(tileConfig.url, {
       maxZoom: tileConfig.maxZoom,
       attribution: tileConfig.attribution,
-      subdomains: 'abcd'
-    }).addTo(map);
+      subdomains: tileConfig.url.includes('{s}') ? 'abc' : ''
+    });
+    newTileLayer.on('tileerror', () => {
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= 3) setTileError(true);
+    });
+    newTileLayer.on('tileload', () => {
+      consecutiveErrors = 0;
+      setTileError(false);
+    });
+    newTileLayer.addTo(map);
 
     // Ensure tile layer sits at the very bottom
     newTileLayer.bringToBack();
@@ -416,7 +407,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if (mapInstanceRef.current === map) map.invalidateSize();
     }, 100);
     return () => clearTimeout(timer);
-  }, [currentStyle, roadStyle, navigationMode]);
+  }, [currentStyle, roadStyle, navigationMode, tileRetryCount]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -755,6 +746,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   return (
     <div className={`relative overflow-hidden ${className}`}>
       {/* MAP CANVAS */}
+      {tileError && <div role="alert" className="absolute left-3 right-3 top-[75px] z-[65] mx-auto max-w-[310px] rounded-xl border border-amber-200 bg-white/95 p-3 text-center text-xs text-slate-800 shadow-xl">
+        O mapa não conseguiu carregar os blocos de imagem. Verifique sua conexão.
+        <button type="button" className="ml-2 font-bold text-blue-700 underline" onClick={() => setTileRetryCount(count => count + 1)}>Tentar novamente</button>
+      </div>}
       {selectedRoadAlert && <section role="dialog" aria-label="Confirmar ocorrência no mapa"
         className="absolute top-[max(16px,env(safe-area-inset-top))] left-1/2 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] border border-slate-200 bg-white/95 p-4 shadow-[0_12px_36px_rgba(15,23,42,.22)] backdrop-blur-md">
         <div className="flex items-start justify-between gap-3">
