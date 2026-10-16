@@ -24,7 +24,7 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
   const coordinates = String(url).split('/driving/')[1].split('?')[0].split(';');
   const geometric = String(url).includes('geometries=geojson');
   const distance = geometric ? (coordinates.length - 1) * 20000 : coordinates.includes('-46.629,-23.551') ? 102000 : 100000;
-  return new Response(JSON.stringify({ code: 'Ok', routes: [{ distance, legs: coordinates.slice(1).map(() => ({ distance: distance / (coordinates.length - 1), duration: 600 })), geometry: { type: 'LineString', coordinates: coordinates.map(point => point.split(',').map(Number)) } }] }));
+  return new Response(JSON.stringify({ code: 'Ok', routes: [{ distance, duration:600 * (coordinates.length-1), legs: coordinates.slice(1).map(() => ({ distance: distance / (coordinates.length - 1), duration: 600 })), geometry: { type: 'LineString', coordinates: coordinates.map(point => point.split(',').map(Number)) } }] }));
 };
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-ui-'));
 const db = openDatabase(':memory:');
@@ -102,8 +102,24 @@ try {
   await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
   await accountMenu.getByRole('button', { name: 'Início', exact: true }).click();
 
-  // A pesquisa rápida precisa abrir um mapa de percurso verificado antes de iniciar.
+  // Busca rápida: só localiza o endereço no mapa, sem abrir origem/destino.
   await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
+  const directSearch = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
+  assert.equal(await directSearch.getByLabel('Origem', {exact:true}).count(),0);
+  await directSearch.getByLabel('Destino', {exact:true}).fill('Parada');
+  await directSearch.getByRole('button', {name:'Buscar destino'}).click();
+  await directSearch.getByRole('button', {name:/Parada Alfa de teste/}).click();
+  const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
+  await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
+  await destinationMap.getByText('Dicas de viagem').waitFor();
+  const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
+  await destinationMap.getByRole('button',{name:'Mostrar rotas'}).click();
+  assert.equal((await choicesRequest).status(),200);
+  await destinationMap.getByText('Rota mais rápida').waitFor();
+  assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
+  await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
+  // O formulário detalhado de origem e destino continua disponível separadamente.
+  await page.getByRole('button', {name:'Rolê com origem e destino'}).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
   // Garante que a pesquisa manual funcione mesmo quando o GPS não respondeu ainda.
   await destinationSheet.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
