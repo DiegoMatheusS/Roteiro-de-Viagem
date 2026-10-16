@@ -455,6 +455,7 @@ export function buildPlannedTrip(input: RoutePlanningInput, option: RouteOptionC
     tolls: presetTrip?.tolls, weatherSource: presetTrip?.weatherSource, weatherUpdatedAt: presetTrip?.weatherUpdatedAt, departureAt: presetTrip?.departureAt,
     routeWarnings: presetTrip?.routeWarnings,
     routePath: option.routePath,
+    routeSteps: presetTrip?.routeSteps,
     stops: option.stops,
     weatherPoints: option.weatherPoints,
     hasRainRisk: option.hasRainRisk,
