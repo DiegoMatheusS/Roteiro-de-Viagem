@@ -43,7 +43,7 @@ const adminPage = await adminContext.newPage();
 adminPage.setDefaultTimeout(15000);
 page.setDefaultTimeout(15000);
 const errors: string[] = [];
-page.on('pageerror', error => errors.push(error.message));
+page.on('pageerror', error => errors.push(error.stack || error.message));
 adminPage.on('pageerror', error => errors.push(error.message));
 fs.mkdirSync('test-results', { recursive: true });
 try {
