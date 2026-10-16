@@ -13,7 +13,7 @@ const alertIcons: Record<RoadAlertType, React.ElementType> = {
 };
 export function RoadAlertReporter({
   location, speedKmH, onSubmitted, menuPlacement = 'above'
-}: { location: DeviceLocation | null; speedKmH: number | null; onSubmitted: () => void; menuPlacement?: 'above' | 'below' }) {
+}: { location: DeviceLocation | null; speedKmH: number | null; onSubmitted?: () => void; menuPlacement?: 'above' | 'below' }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [tollInfo, setTollInfo] = useState(false);
@@ -31,14 +31,14 @@ export function RoadAlertReporter({
         throw new Error('Você está em movimento. Pare em segurança antes de enviar.');
       await submitRoadAlert(kind, fresh, note);
       setMessage('Enviado para análise. O alerta só aparece após aprovação.');
-      setStopped(false); setNote(''); onSubmitted();
+      setStopped(false); setNote(''); onSubmitted?.();
     } catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
   };
   const selected = ROAD_ALERT_TYPES.find(type => type.id === kind);
   return <>
     <div className="relative">
-      {menuOpen && <div role="menu" aria-label="Escolher ocorrência" className={`absolute ${menuPlacement === 'above' ? 'bottom-[calc(100%+10px)]' : 'top-[calc(100%+10px)]'} right-0 flex flex-col gap-2 w-52 max-w-[calc(100vw-32px)]`}>
+      {menuOpen && <div role="menu" aria-label="Escolher ocorrência" className={`absolute ${menuPlacement === 'above' ? 'bottom-[calc(100%+10px)]' : 'top-[calc(100%+10px)]'} right-0 flex flex-col gap-2 w-52 max-w-[calc(100vw-32px)] max-h-[min(65dvh,390px)] overflow-y-auto overscroll-contain rounded-2xl p-1`}>
         {ROAD_ALERT_TYPES.map(item => {
           const Icon = alertIcons[item.id];
           return <button role="menuitem" key={item.id} type="button" onClick={() => {setKind(item.id);setOpen(true);setMenuOpen(false);setError('');setMessage('');}}

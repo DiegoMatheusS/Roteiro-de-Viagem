@@ -14,6 +14,7 @@ import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
 import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { InteractiveMap } from './InteractiveMap';
+import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 
 interface NavigationHomeProps {
@@ -139,9 +140,19 @@ export function NavigationHome(props: NavigationHomeProps) {
       <InteractiveMap navigationMode followUser={false} userLiveCoords={liveCoords}
         showFuelStations={false} className="w-full h-full" />
     </div>
-    <div className="absolute top-[70px] right-4 z-30">
+    {/* Ações rápidas disponíveis também no Início: GPS acima, triângulo de alerta embaixo. */}
+    <div aria-label="Controles de localização e ocorrência no início"
+      className="absolute top-[70px] right-4 z-40 flex flex-col items-center gap-3">
       <button type="button" aria-label="Atualizar GPS" onClick={gps.retry}
-        className="w-11 h-11 rounded-full shadow-md bg-white text-blue-700 flex items-center justify-center"><Crosshair size={20}/></button>
+        className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
+        <Crosshair size={22} strokeWidth={2.2}/>
+      </button>
+      <RoadAlertReporter
+        location={gps.status === 'ready' ? gps.position : null}
+        speedKmH={gps.status === 'ready' && gps.position?.speedMetersPerSecond != null
+          ? gps.position.speedMetersPerSecond * 3.6 : null}
+        menuPlacement="below"
+      />
     </div>
     <div className={`absolute left-4 z-30 rounded-full bg-white border-4 border-sky-500 shadow-lg w-[74px] h-[74px] flex flex-col justify-center items-center ${collapsed?'bottom-28':'top-[24dvh]'}`}
       role="status" aria-label="Velocímetro">
