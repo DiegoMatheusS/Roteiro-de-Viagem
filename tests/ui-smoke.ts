@@ -77,9 +77,12 @@ try {
   await homeReport.waitFor();
   const homeGpsBox = await homeGps.boundingBox();
   const homeReportBox = await homeReport.boundingBox();
-  assert.ok(homeGpsBox && homeReportBox &&
-    homeGpsBox.y + homeGpsBox.height <= homeReportBox.y,
-    'No Início, o botão triangular precisa ficar abaixo do GPS');
+  const speedCircleBox = await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
+  const centerY=(bounds:{y:number;height:number})=>bounds.y+bounds.height/2;
+  assert.ok(homeGpsBox && homeReportBox && speedCircleBox &&
+    Math.abs(centerY(homeGpsBox)-centerY(homeReportBox))<8 &&
+    Math.abs(centerY(speedCircleBox)-centerY(homeGpsBox))<16,
+    'GPS e reportar devem ficar na mesma altura do velocímetro');
   await homeReport.click();
   const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
