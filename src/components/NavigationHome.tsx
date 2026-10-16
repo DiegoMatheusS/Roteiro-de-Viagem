@@ -55,7 +55,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     void requestTolls(preview, props.currentVehicle.type, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
-        setPreview(current => current?.id === preview.id ? tollBudgetPatch(current, result) : current);
+        setPreview(current => current?.id === preview.id ? { ...current, ...tollBudgetPatch(current, result) } : current);
         if (result.mapUnavailable) setTollNotice('Cobertura de pedágios indisponível. Confira os valores antes de viajar.');
       })
       .catch(() => {
