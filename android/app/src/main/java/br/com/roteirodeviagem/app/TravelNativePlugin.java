@@ -135,6 +135,9 @@ public class TravelNativePlugin extends Plugin {
   @PluginMethod public void openExternal(PluginCall call) {
     try {getActivity().startActivity(ExternalActions.intentFor(call.getString("url","")));call.resolve();}catch(Exception error){call.reject("Não foi possível abrir o contato. Confira os aplicativos instalados.");}
   }
+  @PluginMethod public void exitApp(PluginCall call) {
+    getActivity().runOnUiThread(()->{call.resolve();getActivity().finish();});
+  }
   @PluginMethod public void copyText(PluginCall call) {
     String value=call.getString("text","");if(value.length()>10000){call.reject("Mensagem muito grande.");return;}
     getActivity().runOnUiThread(()->{((ClipboardManager)getContext().getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Localização SOS",value));call.resolve();});
