@@ -36,3 +36,22 @@ test('mapa cobre a tela inteira e painel pode ser arrastado para baixo',()=>{
   assert.match(home,/onPointerUp=\{handleGripRelease\}/);
   assert.match(home,/setCollapsed\(true\)/);
 });
+
+test('mapa troca rota sem refazer zoom, não mostra avisos de postos em loop',()=>{
+  const map=source('src/components/InteractiveMap.tsx');
+  assert.doesNotMatch(map,/JSON\.stringify\(\[originCoords,destinationCoords,routePath,routeAlternatives\.map\(r=>\[r\.id,r\.routePath\]\),selectedRouteId/);
+  assert.doesNotMatch(map,/\{fuel\.error &&/);
+  const home=source('src/components/NavigationHome.tsx');
+  assert.match(home,/onSelectCoordinates=\{\(\)=>\{setCollapsed\(true\)/);
+  assert.match(home,/onPointerMove=/);
+  assert.match(home,/select-none/);
+});
+
+test('navegação, alertas e botão Google funcionam sem login obrigatório',()=>{
+  const route=source('src/components/DestinationExplorer.tsx');
+  assert.match(route,/GUEST_NAVIGATION_VEHICLE/);
+  const alerts=source('server/roadAlerts.ts');
+  assert.match(alerts,/app\.post\('\/api\/road-alerts', \(req, res\)/);
+  const google=source('src/components/GoogleSignInButton.tsx');
+  assert.match(google,/TravelNative\.signInGoogle/);
+});
