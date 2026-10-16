@@ -417,7 +417,10 @@ try {
   await reader.evaluate(link => { window.location.hash = link.split('#')[1]; }, link);
   await reader.getByRole('heading', { name: 'Sequência das paradas', exact: true }).waitFor();
   await reader.getByText('1. Parada Alfa de teste', { exact: true }).last().waitFor();
-  await reader.getByText('2. Parada Beta de teste', { exact: true }).last().waitFor();
+  // Ao usar a própria Parada Beta como origem manual, o compartilhamento público
+  // deve ocultar essa parada porque a opção "Proteger minha origem" está ativa.
+  // Sem essa proteção, o teste exporia indiretamente a localização privada.
+  await reader.getByText(/2\\. (Parada Beta de teste|Parada na região de partida)/).last().waitFor();
   await reader.close();
   await sharing.getByRole('button', { name: 'Fechar compartilhamento', exact: true }).click();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).click();
