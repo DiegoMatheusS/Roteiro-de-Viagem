@@ -1,8 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
 @layer base {
   body {
-    font-family: Inter, Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 400;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   
   .font-mono, .tabular-nums {
@@ -80,4 +89,18 @@
 @media (prefers-reduced-motion: no-preference) {
   .rdv-route-sheet { animation: rdv-sheet-enter 300ms cubic-bezier(.22,1,.36,1) both; }
   @keyframes rdv-sheet-enter { from { opacity: .5; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+}
+
+/* Tipografia e movimento padronizados, sem excesso de sombras ou texto. */
+.rdv-navigation-screen h2, .rdv-route-sheet h2 { font-size: clamp(20px,5.4vw,24px); font-weight: 600; letter-spacing: -.035em; }
+.rdv-navigation-screen .font-extrabold, .rdv-route-sheet .font-extrabold { font-weight: 600; }
+.rdv-home-sheet button:not([data-panel-grip]), .rdv-route-sheet button {
+  transition-duration: 240ms;
+}
+.rdv-navigation-screen .select-none, [aria-label="Velocímetro"] * {
+  -webkit-user-select: none !important; user-select: none !important;
+  -webkit-touch-callout: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rdv-home-sheet, .rdv-route-sheet, .rdv-navigation-screen button { animation: none !important; transition-duration: 0.01ms !important; }
 }
