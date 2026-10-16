@@ -111,7 +111,7 @@ export function MapTab(props: MapTabProps) {
     </div>
     {/* Ações secundárias agrupadas: GPS e reportar permanecem sempre visíveis. */}
     <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
-      <button type="button" aria-label="Abrir SOS" onClick={props.onOpenSos}
+      <button type="button" onClick={props.onOpenSos}
         className="h-10 w-12 rounded-xl bg-rose-700 text-white text-xs font-black shadow-lg">SOS</button>
       <button type="button" aria-label="Camadas do mapa" aria-expanded={layerMenuOpen}
         onClick={()=>setLayerMenuOpen(v=>!v)}
