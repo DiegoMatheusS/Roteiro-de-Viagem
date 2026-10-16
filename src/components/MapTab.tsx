@@ -22,7 +22,7 @@ export function MapTab(props: MapTabProps) {
   const roadAlerts = useRoadAlerts(trip?.routePath || []);
 
   const [showRain, setShowRain] = useState(false), [showStops, setShowStops] = useState(true), [showFuel, setShowFuel] = useState(true), [confirmEnd, setConfirmEnd] = useState(false);
-  const location = useDeviceLocation(true, 'map-destination-search');
+  const location = useDeviceLocation(!props.sosOpen, 'map-destination-search');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchDestination, setSearchDestination] = useState<LocationSelection>({ name: '' });
   const [searchOrigin, setSearchOrigin] = useState<LocationSelection>({ name: '' });
