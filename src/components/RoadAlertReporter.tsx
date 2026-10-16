@@ -52,19 +52,19 @@ export function RoadAlertReporter({
   const selected = ROAD_ALERT_TYPES.find(type => type.id === kind);
   return <>
     <div className="relative" ref={menuRef}>
-      {menuOpen && <div role="group" aria-label="Escolher ocorrência" data-testid="road-alert-balloon"
+      {menuOpen && <div role="menu" aria-label="Escolher ocorrência" data-testid="road-alert-balloon"
         className={`rdv-alert-popover absolute ${menuPlacement === 'above' ? 'bottom-0 origin-bottom-right' : 'top-0 origin-top-right'} right-[calc(100%+12px)] z-50 w-[min(288px,calc(100vw-82px))] rounded-[22px] border border-slate-200 bg-white/95 backdrop-blur-lg p-3 shadow-[0_12px_34px_rgba(15,23,42,.18)]`}>
         <span aria-hidden="true" className={`absolute -right-[6px] ${menuPlacement === 'above' ? 'bottom-4' : 'top-4'} h-3 w-3 rotate-45 border-r border-t border-slate-200 bg-white`}/>
         <div className="relative grid grid-cols-4 gap-2">
           {ROAD_ALERT_TYPES.map(item => {
             const Icon = alertIcons[item.id];
-            return <button key={item.id} type="button" aria-label={item.label} title={item.label}
+            return <button role="menuitem" key={item.id} type="button" aria-label={item.label} title={item.label}
               onClick={() => {setKind(item.id);setOpen(true);setMenuOpen(false);setError('');setMessage('');}}
               className="flex aspect-square min-h-12 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-blue-700 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:scale-95">
               <Icon size={23} strokeWidth={2} aria-hidden="true"/>
             </button>;
           })}
-          <button type="button" aria-label="Pedágio" title="Pedágio"
+          <button role="menuitem" type="button" aria-label="Pedágio" title="Pedágio"
             onClick={() => {setMenuOpen(false);setTollInfo(true);}}
             className="flex aspect-square min-h-12 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-emerald-700 shadow-sm transition-colors hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 active:scale-95">
             <MapPin size={23} strokeWidth={2} aria-hidden="true"/>
