@@ -43,7 +43,10 @@ try{
  await owner.getByRole('button',{name:'Compartilhar Localização',exact:true}).click();await rider.getByRole('button',{name:'Compartilhar Localização',exact:true}).click();
  await owner.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();await rider.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();
  await owner.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===2);
- await owner.locator('.leaflet-control-zoom-in').click();await owner.waitForFunction(()=>!document.querySelector('.leaflet-zoom-anim'));
+ // O mapa nao exibe mais +/-. Testa o zoom por gesto (duplo clique) sem mudar a preferencia do usuario.
+ assert.equal(await owner.locator('.leaflet-control-zoom-in, .leaflet-control-zoom-out').count(),0);
+ await owner.locator('.leaflet-container').last().dblclick({position:{x:110,y:150}});
+ await owner.waitForFunction(()=>!document.querySelector('.leaflet-zoom-anim'));
  const fixedMarkerBefore=await owner.locator('.convoy-participant-marker[title="Organizador"]').getAttribute('style');
  const before=await owner.locator('.convoy-participant-marker[title="Motociclista"]').getAttribute('style');
  await rider.getByRole('button',{name:'Voltar ao menu e manter comboio ativo',exact:true}).click();await rider.getByRole('button',{name:'Abrir menu'}).click();await rider.getByRole('button',{name:'Perfil',exact:true}).click();await rider.getByRole('button',{name:'Abrir comboio',exact:true}).waitFor();
