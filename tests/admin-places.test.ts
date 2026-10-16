@@ -114,3 +114,51 @@ test('admin pode cadastrar, filtrar e publicar novos tipos de pontos turísticos
     assert.ok(response.body.items.every((item: any) => item.kind !== 'fuel'));
   } finally { await f.close(); }
 });
+
+test('mapa recebe apenas tarifas aprovadas e vigentes, separadas por veículo', async () => {
+  const f = await fixture();
+  try {
+    const place = (await f.call('/admin/places', { ...draft, kind: 'toll' }, f.cookie)).body;
+    const endpoint = `/admin/places/${encodeURIComponent(place.id)}/tariffs`;
+    for (const [vehicleType, price] of [['car', 12.5], ['motorcycle', 0]] as const) {
+      assert.equal((await f.call(endpoint, { confirmed: true, vehicleType, price, observedAt: new Date().toISOString() }, f.cookie)).status, 201);
+    }
+    let publicPlace = (await f.call('/places/search', { points: [[draft.lat, draft.lng]], discover: false })).body.places[0];
+    assert.equal(publicPlace.address, draft.address);
+    assert.deepEqual(publicPlace.tollTariffs.map((tariff: any) => [tariff.vehicleType, tariff.price]).sort(), [['car', 12.5], ['motorcycle', 0]]);
+    f.db.prepare("UPDATE toll_entries SET status='pending' WHERE vehicle_type='car'").run();
+    f.db.prepare("UPDATE toll_entries SET valid_until='2020-01-01' WHERE vehicle_type='motorcycle'").run();
+    publicPlace = (await f.call(`/places/${encodeURIComponent(place.id)}`)).body;
+    assert.deepEqual(publicPlace.tollTariffs, []);
+  } finally { await f.close(); }
+});
+
+test('descobre atrações reais uma vez e preserva cadastro editado pelo admin', async () => {
+  let calls = 0;
+  const f = await fixture(async () => {
+    calls++;
+    return new Response(JSON.stringify({ elements: [
+      { type: 'way', id: 9876, center: { lat: draft.lat, lon: draft.lng }, tags: { name: 'Museu do mapa', tourism: 'museum', 'addr:street': 'Rua do Museu' } },
+      { type: 'node', id: 9877, lat: draft.lat, lon: draft.lng, tags: { name: 'Pedágio do mapa', barrier: 'toll_booth' } }
+    ] }));
+  });
+  try {
+    const body = { points: [[draft.lat, draft.lng]] };
+    assert.equal((await f.call('/places/search', { ...body, discover: false })).body.places.length, 0);
+    assert.equal(calls, 0);
+    let places = (await f.call('/places/search', body)).body.places;
+    assert.equal(places.length, 2);
+    const museum = places.find((place: any) => place.kind === 'museum');
+    assert.equal(museum.name, 'Museu do mapa');
+    assert.equal(museum.address, 'Rua do Museu');
+    assert.ok(f.db.prepare('SELECT id FROM toll_places WHERE id=?').get('osm:node:9877'));
+    assert.equal((await f.call(`/admin/places/${encodeURIComponent(museum.id)}`, { ...museum, name: 'Nome conferido pelo admin', active: true }, f.cookie, 'PATCH')).status, 200);
+    places = (await f.call('/places/search', body)).body.places;
+    assert.equal(calls, 1);
+    assert.equal(places.find((place: any) => place.kind === 'museum').name, 'Nome conferido pelo admin');
+    f.db.prepare("DELETE FROM map_queries WHERE id LIKE 'places:%'").run();
+    places = (await f.call('/places/search', body)).body.places;
+    assert.equal(calls, 2);
+    assert.equal(places.find((place: any) => place.kind === 'museum').name, 'Nome conferido pelo admin');
+  } finally { await f.close(); }
+});

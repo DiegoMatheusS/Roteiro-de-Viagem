@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../../types/admin';
+import { LocationSearch } from '../LocationSearch';
+import type { LocationSelection } from '../../types/itinerary';
 import { buttonClass, inputClass } from './shared';
 
 const blank = (touristOnly = false) => ({ name: '', kind: touristOnly ? 'waterfall' : 'fuel', address: '', lat: '', lng: '', phone: '', website: '', description: '', openingHours: '' });
 
 export function ManualPlaceForm({ busy, onSave, touristOnly = false }: { busy: boolean; onSave: (body: unknown) => Promise<void>; touristOnly?: boolean }) {
+  const [location, setLocation] = useState<LocationSelection>({ name: '' });
   const [draft, setDraft] = useState(() => blank(touristOnly));
   const [error, setError] = useState(''), [confirmed, setConfirmed] = useState(false);
   const update = (key: keyof ReturnType<typeof blank>, value: string) => setDraft(current => ({ ...current, [key]: value }));
@@ -13,10 +16,14 @@ export function ManualPlaceForm({ busy, onSave, touristOnly = false }: { busy: b
     try {
       const lat = Number(draft.lat.replace(',', '.')), lng = Number(draft.lng.replace(',', '.'));
       if (!draft.lat.trim() || !draft.lng.trim() || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error('Informe latitude e longitude válidas para o local.');
-      await onSave({ ...draft, lat, lng }); setDraft(blank(touristOnly)); setConfirmed(false);
+      await onSave({ ...draft, lat, lng }); setDraft(blank(touristOnly)); setLocation({name: ''}); setConfirmed(false);
     } catch (error) { setError((error as Error).message); }
   }}>
     <h3 className="font-bold">{touristOnly ? 'Cadastrar ponto turístico' : 'Cadastrar local'}</h3>
+    <LocationSearch label="Buscar endereço ou estabelecimento" value={location} onChange={selected => {
+      setLocation(selected);
+      if (selected.coords) setDraft(current => ({ ...current, name: current.name || selected.name, address: selected.address || current.address, lat: String(selected.coords![0]), lng: String(selected.coords![1]) }));
+    }} placeholder="Ex.: nome do posto, rua e cidade" />
     <div className="grid md:grid-cols-2 gap-3">
       <label className="text-xs font-semibold">Tipo de local<select aria-label="Tipo de local" value={draft.kind} onChange={event => update('kind', event.target.value)} className={`${inputClass} mt-1`}>{PLACE_KINDS.filter(kind => !touristOnly || (TOURIST_PLACE_KINDS as readonly string[]).includes(kind.id)).map(kind => <option key={kind.id} value={kind.id}>{kind.icon} {kind.label}</option>)}</select></label>
       <label className="text-xs font-semibold">Nome do local<input required maxLength={150} value={draft.name} onChange={event => update('name', event.target.value)} placeholder="Nome do estabelecimento ou atração" className={`${inputClass} mt-1`} /></label>
@@ -27,7 +34,7 @@ export function ManualPlaceForm({ busy, onSave, touristOnly = false }: { busy: b
       <label className="text-xs font-semibold">Site do local<input type="url" maxLength={300} value={draft.website} onChange={event => update('website', event.target.value)} placeholder="https://" className={`${inputClass} mt-1`} /></label>
       <label className="md:col-span-2 text-xs font-semibold">Horário de funcionamento<input maxLength={200} value={draft.openingHours} onChange={event => update('openingHours', event.target.value)} placeholder="Ex.: Seg a sex, das 8h às 18h" className={`${inputClass} mt-1`} /></label>
     </div>
-    <p className="text-xs text-slate-500">Copie a latitude e a longitude do ponto no mapa. A posição define onde o local aparece para os viajantes.</p>
+    <p className="text-xs text-slate-500">A busca preenche a posição e o endereço. Confira e ajuste as coordenadas se necessário: elas definem o ponto exibido no mapa.</p>
     <label className="block text-xs font-semibold">Descrição<textarea maxLength={1000} value={draft.description} onChange={event => update('description', event.target.value)} className={`${inputClass} mt-1`} /></label>
     <label className="flex items-start gap-2 text-xs"><input required type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} className="mt-0.5" />Conferi o nome, o endereço e a localização deste local.</label>
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}

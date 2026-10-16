@@ -1,6 +1,6 @@
 import type { RouteToll } from '../types/tolls';
 import { TollModal } from './TollModal';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
 import { Layers, Mountain, Eye, Sparkles } from 'lucide-react';
@@ -8,9 +8,11 @@ import { useFuelStations } from '../hooks/useFuelStations';
 import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { PlaceModal } from './PlaceModal';
-import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place } from '../types/admin';
+import { TOURIST_PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { mapContributionIcon } from './mapContributionIcon';
+import { fuelMarkerPrice, catalogTollForVehicle, tollMarkerPrice } from '../services/mapPrices';
+import type { FuelKind } from '../types/fuel';
 import { splitRouteAtPosition } from '../services/routeProgress';
 
 export type MapStyleType = 'light' | 'voyager' | 'satellite' | 'topo' | 'osm';
@@ -33,6 +35,7 @@ interface InteractiveMapProps {
   weatherPoints?: WeatherPoint[];
   tolls?: RouteToll[];
   tollVehicleType?: 'car' | 'motorcycle';
+  fuelKind?: FuelKind;
   showRainLayer?: boolean;
   userLiveCoords?: [number, number];
   focusedCoords?: [number, number] | null;
@@ -59,7 +62,7 @@ const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp
 
 const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
   light: {
-    name: 'Claro',
+    name: 'Minimalista',
     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     attribution: '© CARTO, © OpenStreetMap colaboradores',
     maxZoom: 19,
@@ -117,6 +120,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   weatherPoints = [],
   tolls = [],
   tollVehicleType,
+  fuelKind = 'gasolina_comum',
   userLiveCoords,
   focusedCoords,
   convoyParticipants = [],
@@ -137,6 +141,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const currentTileLayerRef = useRef<L.TileLayer | null>(null);
+  const vectorLayerRef = useRef<ReturnType<typeof import('../services/minimalMapLayer').addMinimalMap> | null>(null);
+  const mapPlacePointsRef = useRef<[number, number][]>([]);
+  const [mapFallback, setMapFallback] = useState(false);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -150,8 +157,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   visibleCallbackRef.current = onVisiblePlacesChange;
   const visibleKeyRef = useRef('');
   const [hasMapReady, setHasMapReady] = useState(false);
-  const discoveryPoints = routePath.length ? routePath : originCoords ? [originCoords]
-    : viewportCenter ? [viewportCenter] : [];
+  const discoveryPoints = viewportCenter && !navigationMode ? [viewportCenter]
+    : routePath.length ? routePath : originCoords ? [originCoords] : viewportCenter ? [viewportCenter] : [];
 
   const fuel = useFuelStations(discoveryPoints, showFuelStations);
   const places = useNearbyPlaces(discoveryPoints, showFuelStations && discoveryPoints.length > 0);
@@ -162,11 +169,33 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const openStation = (id: string, section: 'prices' | 'comments' = 'prices') => { setStationSection(section); setSelectedStation(id); };
   const openToll = (id: string, section: 'prices' | 'comments' = 'prices', place: Place | null = null) => { setTollSection(section); setCatalogToll(place); setSelectedTollId(id); };
   const [selectedTollId,setSelectedTollId]=useState<string|null>(null);
-  const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
+  const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? catalogTollForVehicle(catalogToll, tollVehicleType || 'car') : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
-  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(navigationMode || roadStyle ? 'light' : 'voyager');
+  const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
+
+  // Avoid stacking cards over one another. The exploration sheet uses this same
+  // selection, so every listed place corresponds to a visible marker.
+  const renderedIds = useMemo(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return new Set<string>();
+    const candidates = [
+      ...tolls.map(toll => ({ id: toll.id, coords: toll.coords, priority: 0 })),
+      ...fuel.stations.map(station => ({ id: station.id, coords: [station.lat, station.lng] as [number, number], priority: station.prices.some(price => !price.stale && !price.disputed) ? 1 : 3 })),
+      ...places.map(place => ({ id: place.id, coords: [place.lat, place.lng] as [number, number], priority: place.kind === 'toll' ? 0 : (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind) ? 2 : 4 }))
+    ];
+    const bounds = map.getBounds(), center = map.getCenter();
+    const occupied: L.Point[] = [], ids = new Set<string>();
+    for (const place of candidates.filter(place => bounds.contains(place.coords)).sort((a, b) => a.priority - b.priority || map.distance(a.coords, center) - map.distance(b.coords, center))) {
+      if (ids.has(place.id)) continue;
+      const pixel = map.latLngToContainerPoint(place.coords);
+      if (occupied.some(other => Math.abs(other.x - pixel.x) < 160 && Math.abs(other.y - pixel.y) < 110)) continue;
+      occupied.push(pixel); ids.add(place.id);
+      if (ids.size >= 24) break;
+    }
+    return ids;
+  }, [fuel.stations, places, tolls, viewportRevision, hasMapReady]);
 
   // Initialize Map
   useEffect(() => {
@@ -176,6 +205,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const map = L.map(mapContainerRef.current, {
       center: originCoords || [-14.2, -51.9],
       zoom: originCoords ? 11 : 4,
+      minZoom: 2,
+      maxZoom: 19,
+      maxBounds: [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1,
       zoomControl: false,
       zoomAnimation: false,
       fadeAnimation: false,
@@ -184,15 +217,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // A interface rodoviária e a tela inicial usam gestos para zoom, sem botões + / -.
     if (!navigationMode && !roadStyle) L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-    // Initial vibrant CartoDB Voyager Tile Layer
-    const tileConfig = TILE_PROVIDERS[navigationMode || roadStyle ? 'light' : 'voyager'];
-    const tileLayer = L.tileLayer(tileConfig.url, {
-      maxZoom: tileConfig.maxZoom,
-      attribution: tileConfig.attribution,
-      subdomains: 'abcd'
-    }).addTo(map);
-    currentTileLayerRef.current = tileLayer;
 
     const group = L.layerGroup().addTo(map);
     layersGroupRef.current = group;
@@ -219,6 +243,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return () => {
       clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      vectorLayerRef.current?.remove();
+      vectorLayerRef.current = null;
       map.stop();
       map.remove();
       mapInstanceRef.current = null;
@@ -231,7 +257,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!map) return;
     const handleMovement = () => {
       setViewportRevision(value => value + 1);
-      if (routePath.length || originCoords) return;
+      if (navigationMode) return;
       if (map.getZoom() < 10) { setViewportCenter(null); return; }
       const center = map.getCenter();
       setViewportCenter(current => {
@@ -243,7 +269,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     map.on('zoomend', handleMovement);
     handleMovement();
     return () => { map.off('moveend', handleMovement); map.off('zoomend', handleMovement); };
-  }, [hasMapReady, routePath.length, originCoords?.[0], originCoords?.[1]]);
+  }, [hasMapReady, navigationMode]);
 
   useEffect(() => {
     if (centerOnUserRequest < 1 || !userLiveCoords || !mapInstanceRef.current) return;
@@ -255,13 +281,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
     if(!tollVehicleType)return;
-    for(const toll of navigationMode ? [] : tolls) {
-      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
+    for(const toll of tolls.filter(toll => renderedIds.has(toll.id))) {
+      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,kind:'toll',priceLabel:tollMarkerPrice(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
       marker.on('click',() => openToll(toll.id));
     }
-  },[tolls,tollVehicleType,navigationMode]);
+  },[tolls,tollVehicleType,navigationMode,renderedIds]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -275,22 +301,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group = fuelLayerGroupRef.current;
     if (!group) return;
     group.clearLayers();
-    for (const station of navigationMode ? [] : fuel.stations) {
-      const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
+    for (const station of fuel.stations.filter(station => renderedIds.has(station.id))) {
+      const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, kind: 'fuel', address: station.address, priceLabel: fuelMarkerPrice(station, fuelKind), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => openStation(station.id));
     }
-    for (const place of places.filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
+    for (const place of places.filter(place => renderedIds.has(place.id))) {
       if (place.kind === 'toll') {
-        if (tolls.some(toll => toll.id === place.id)) continue;
-        const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
+        if (tollVehicleType && tolls.some(toll => toll.id === place.id)) continue;
+        const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, kind: 'toll', address: place.address, priceLabel: tollMarkerPrice(catalogTollForVehicle(place, tollVehicleType || 'car')), onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
         L.marker([place.lat, place.lng], { icon, title: place.name, keyboard: false, zIndexOffset: 1700 }).addTo(group);
         continue;
       }
-      const emoji = PLACE_KINDS.find(kind => kind.id === place.kind)?.icon || '📍';
-      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:white;border:2px solid #ea580c;border-radius:50%;padding:5px;font-size:18px">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = mapContributionIcon({ className: 'managed-place-marker', name: place.name, kind: place.kind, address: place.address, onOpen: () => setSelectedPlace(place) });
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
       marker.bindTooltip(tooltip); marker.on('click', () => setSelectedPlace(place));
@@ -299,26 +324,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
       });
     }
-  }, [fuel.stations, places, tolls, navigationMode]);
+  }, [fuel.stations, places, tolls, navigationMode, fuelKind, tollVehicleType, renderedIds]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.
   useEffect(() => {
     const map = mapInstanceRef.current;
     const publish = visibleCallbackRef.current;
-    if (!map || !publish) return;
+    if (!map) return;
     const bounds = map.getBounds();
     const all: MapVisiblePlace[] = [
-      ...(!navigationMode && showFuelStations ? fuel.stations.map(station => ({
+      ...(showFuelStations ? fuel.stations.map(station => ({
         id: station.id, name: station.name, kind: 'fuel', address: station.address,
         coords: [station.lat, station.lng] as [number, number]
       })) : []),
       ...(showFuelStations ? places
-        .filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))
         .filter(place => place.kind !== 'toll' || !tolls.some(toll => toll.id === place.id))
         .map(place => ({id: place.id, name: place.name, kind: place.kind, address: place.address,
           coords: [place.lat, place.lng] as [number, number]})) : []),
-      ...(!navigationMode && tollVehicleType ? tolls.map(toll => ({
+      ...(tollVehicleType ? tolls.map(toll => ({
         id: toll.id, name: toll.name, kind:'toll', address:'',
         coords: toll.coords
       })) : []),
@@ -330,19 +354,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     ];
     const unique = new Map<string,MapVisiblePlace>();
     for(const place of all) {
-      if (!bounds.contains(place.coords)) continue;
+      if (!bounds.contains(place.coords) || !place.id.startsWith('stop:') && !renderedIds.has(place.id)) continue;
       const placeKey = place.coords.map(n=>n.toFixed(5)).join(',') + ':' + place.name.toLowerCase();
       if (!unique.has(placeKey)) unique.set(placeKey, place);
     }
     const center = map.getCenter();
     const ordered = [...unique.values()]
       .sort((a,b) => map.distance(a.coords,center)-map.distance(b.coords,center)).slice(0,25);
-    const signature = JSON.stringify(ordered.map(p=>p.id));
+    mapPlacePointsRef.current = ordered.map(place => place.coords);
+    vectorLayerRef.current?.setPlaces(mapPlacePointsRef.current);
+    const signature = JSON.stringify(ordered);
     if (signature !== visibleKeyRef.current) {
       visibleKeyRef.current = signature;
-      publish(ordered);
+      publish?.(ordered);
     }
-  }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations, tollVehicleType, viewportRevision, hasMapReady]);
+  }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations, tollVehicleType, viewportRevision, hasMapReady, renderedIds]);
 
   // Somente eventos aprovados, com expiração válida, são apresentados no mapa.
   useEffect(() => {
@@ -364,30 +390,39 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [roadAlerts]);
 
-  // Switch map tiles when user changes style
+  // Keep all existing Leaflet interactions while rendering a genuinely styled vector base.
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
-
-    if (currentTileLayerRef.current) {
-      map.removeLayer(currentTileLayerRef.current);
-    }
-
-    const tileConfig = TILE_PROVIDERS[roadStyle || navigationMode ? 'light' : currentStyle];
-    const newTileLayer = L.tileLayer(tileConfig.url, {
-      maxZoom: tileConfig.maxZoom,
-      attribution: tileConfig.attribution,
-      subdomains: 'abcd'
-    }).addTo(map);
-
-    // Ensure tile layer sits at the very bottom
-    newTileLayer.bringToBack();
-    currentTileLayerRef.current = newTileLayer;
-
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current === map) map.invalidateSize();
-    }, 100);
-    return () => clearTimeout(timer);
+    let disposed = false;
+    let fallbackStarted = false;
+    setMapFallback(false);
+    const raster = (style: MapStyleType) => {
+      const config = TILE_PROVIDERS[style];
+      const layer = L.tileLayer(config.url, { maxZoom: config.maxZoom, attribution: config.attribution, subdomains: style === 'osm' || style === 'topo' ? 'abc' : 'abcd' }).addTo(map);
+      layer.bringToBack(); currentTileLayerRef.current = layer;
+    };
+    const fallback = () => {
+      if (disposed || fallbackStarted) return;
+      fallbackStarted = true;
+      vectorLayerRef.current?.remove(); vectorLayerRef.current = null;
+      setMapFallback(true); raster('voyager');
+    };
+    const minimal = roadStyle || navigationMode || currentStyle === 'light';
+    if (minimal) {
+      void import('../services/minimalMapLayer').then(({ addMinimalMap }) => {
+        if (disposed) return;
+        const layer = addMinimalMap(map, fallback);
+        vectorLayerRef.current = layer;
+        layer.setPlaces(mapPlacePointsRef.current);
+      }).catch(fallback);
+    } else raster(currentStyle);
+    return () => {
+      disposed = true;
+      vectorLayerRef.current?.remove(); vectorLayerRef.current = null;
+      if (currentTileLayerRef.current && map.hasLayer(currentTileLayerRef.current)) map.removeLayer(currentTileLayerRef.current);
+      currentTileLayerRef.current = null;
+    };
   }, [currentStyle, roadStyle, navigationMode]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
@@ -471,8 +506,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (routePath && routePath.length > 1) {
       L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
-      if (navigationMode || blueRoute) {
-        const progress = splitRouteAtPosition(routePath, userLiveCoords, travelledDistanceKm, totalRouteKm);
+      if (navigationMode || blueRoute || roadStyle) {
+        const progress = splitRouteAtPosition(routePath, navigationMode || travelledDistanceKm > 0 ? userLiveCoords : undefined, travelledDistanceKm, totalRouteKm);
         if (progress.remaining.length > 1) {
           L.polyline(progress.remaining, { color: '#67c7ff', weight: 7, opacity: 1,
             lineCap: 'round', lineJoin: 'round' }).addTo(group);
@@ -514,7 +549,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (stop.category === 'monumento') { emoji = '🗿'; color = '#0891b2'; }
 
         const fuelReference = stop.category === 'posto' ? stop.sourceUrl?.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/) : null;
-        const stopIcon = fuelReference ? mapContributionIcon({ className: 'custom-stop-marker', name: stop.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`), onComments: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`, 'comments') }) : L.divIcon({
+        const stopIcon = fuelReference ? mapContributionIcon({ className: 'custom-stop-marker', name: stop.name, kind: 'fuel', address: stop.description, onPrices: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`), onComments: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`, 'comments') }) : L.divIcon({
           className: 'custom-stop-marker',
           html: `
             <div style="
@@ -734,6 +769,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
+      {mapFallback && <p role="status" className="absolute top-2 left-3 z-30 max-w-[230px] rounded-lg bg-white/95 px-3 py-2 text-[11px] text-slate-600 shadow">Mapa alternativo: o visual minimalista não carregou neste aparelho.</p>}
       {/* MAP CANVAS */}
       <div ref={mapContainerRef} className="w-full h-full" />
       {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}

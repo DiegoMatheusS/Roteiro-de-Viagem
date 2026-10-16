@@ -386,6 +386,7 @@ export default function App() {
 
             {activeTab === 'mapa' && (
               <MapTab
+                travelledDistanceKm={ownsTracking ? tracking.distanceKm : activeTrip?.trackedDistanceKm || 0}
                 currentVehicle={currentVehicle}
                 convoyParticipants={currentConvoy?.participants}
                 meetingPoints={currentConvoy?.meetingPoints}

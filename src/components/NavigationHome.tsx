@@ -13,6 +13,9 @@ import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
 import { isNativeApp, TravelNative } from '../services/nativeApp';
+import { PreviewFuelEstimate } from './PreviewFuelEstimate';
+import { TripCostSummary } from './TripCostSummary';
+import { vehicleFuelKind } from '../services/tripBudget';
 import { InteractiveMap } from './InteractiveMap';
 import { LocationSearch } from './LocationSearch';
 
@@ -221,9 +224,11 @@ export function NavigationHome(props: NavigationHomeProps) {
       <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>
         <div className="flex justify-end p-4 shrink-0"><button type="button" aria-label="Fechar janela" onClick={closeSheet} className="text-slate-500"><X size={20}/></button></div>
         {preview ? <div className="flex flex-col min-h-0 flex-1">
-          <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} blueRoute showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
-          <div className="p-5 space-y-3 shrink-0"><h2 className="font-extrabold text-xl">{preview.destinationName}</h2><p className="text-sm text-slate-500">{preview.distanceKm.toFixed(1)} km · {Math.round(preview.durationMinutes)} min · {preview.stops.length} paradas</p>
+          <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} roadStyle blueRoute fuelKind={vehicleFuelKind(props.currentVehicle)} showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
+          <div className="p-5 space-y-3 shrink-0 max-h-[49dvh] overflow-y-auto"><h2 className="font-extrabold text-xl">{preview.destinationName}</h2><p className="text-sm text-slate-500">{preview.distanceKm.toFixed(1)} km · {Math.round(preview.durationMinutes)} min · {preview.stops.length} paradas</p>
             <p className="text-[11px] text-slate-500">Percurso por estradas reais. Os postos e os pontos turísticos disponíveis aparecem no mapa.</p>
+            {props.currentVehicle && <PreviewFuelEstimate key={preview.id} trip={preview} vehicle={props.currentVehicle} onChange={patch => setPreview(current => current ? { ...current, ...patch } : current)} />}
+            <TripCostSummary trip={preview} />
             {tollNotice && <p role="status" className="text-xs text-amber-800">{tollNotice}</p>}
             {preview.routeWarnings?.map(warning => <p key={warning} className="text-xs text-amber-800">{warning}</p>)}
             {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}

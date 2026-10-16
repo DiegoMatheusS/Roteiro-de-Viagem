@@ -24,6 +24,7 @@ export interface Place {
   id: string; name: string; kind: typeof PLACE_KINDS[number]['id']; lat: number; lng: number;
   address: string; sourceUrl: string; description: string; website: string; phone: string;
   active: boolean; openingHours?: string;
+  tollTariffs?: { id: string; vehicleType: 'car' | 'motorcycle'; price: number; headingDegrees: number | null; observedAt: string; validUntil: string }[];
 }
 export interface PlaceComment {
   id: string; body: string; displayName: string; createdAt: string; status: string;

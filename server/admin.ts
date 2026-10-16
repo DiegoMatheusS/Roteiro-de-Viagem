@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
 import { ApiError, auth, administrator, asyncRoute, now, user, validate, observationDate } from './http';
 import { lookupMapPlace, validateCoordinates, nearbyPlaceRows, type MapFetch } from './maps';
+import { discoverPlaces } from './placeDiscovery';
+import { clientIp } from './http';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { validatePriceDraft } from '../src/services/fuelPriceRules';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place, type PriceHistory } from '../src/types/admin';
@@ -52,12 +54,32 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     return { items: db.prepare(`${select} LIMIT ? OFFSET ?`).all(...params, size, offset), total: (db.prepare(count).get(...params) as any).count, page, pageSize: size };
   };
 
-  app.post('/api/places/search', (req, res) => {
+  const publicPlace = (row: any): Place => {
+    const place = placeDto(row);
+    if (place.kind === 'toll') {
+      const entries = db.prepare(`SELECT id,vehicle_type AS vehicleType,price,heading AS headingDegrees,observed_at AS observedAt,valid_until AS validUntil
+        FROM toll_entries WHERE toll_id=? AND status='approved' AND valid_until>? AND price IS NOT NULL
+        ORDER BY observed_at DESC,reviewed_at DESC,id DESC`).all(place.id, now()) as NonNullable<Place['tollTariffs']>;
+      const seen = new Set<string>();
+      place.tollTariffs = entries.filter(entry => {
+        const key = `${entry.vehicleType}:${entry.headingDegrees}`;
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    }
+    return place;
+  };
+
+  app.post('/api/places/search', asyncRoute(async (req, res) => {
+    limit(`nearby-places:${clientIp(req)}`, 30, 60000);
     const points = validate(() => validateCoordinates(req.body.points));
-    const places = nearbyPlaceRows(db, points, 5).filter(place => place.kind !== 'fuel').slice(0, 100).map(placeDto);
-    res.json({ places });
-  });
-  app.get('/api/places/:id', (req, res) => res.json(placeDto(activePlace(req.params.id))));
+    if (req.body.discover === false) {
+      res.json({ places: nearbyPlaceRows(db, points, 5).filter(place => place.kind !== 'fuel').slice(0, 100).map(publicPlace), mapUnavailable: false }); return;
+    }
+    const result = await discoverPlaces(db, points, options.mapFetch || fetch);
+    res.json({ places: result.places.map(publicPlace), mapUnavailable: result.mapUnavailable });
+  }));
+  app.get('/api/places/:id', (req, res) => res.json(publicPlace(activePlace(req.params.id))));
   app.get('/api/places/:id/comments', (req, res) => {
     activePlace(req.params.id);
     const params = [req.params.id, user(res)?.id || ''];

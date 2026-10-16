@@ -44,10 +44,16 @@
 }
 
 
-/* Rolê: mapa minimalista, sem relevos e cores de vegetação.
-   Mantém nomes e ruas do provedor de mapas raster existente. */
-.rdv-flat-map .leaflet-tile-pane {
-  filter: grayscale(1) brightness(1.10) contrast(.87);
-}
-.rdv-flat-map .leaflet-container { background: #f8fafc; }
+/* Vector colors belong to map features; filters would also erase water/forest colors. */
+.rdv-flat-map .leaflet-container { background: #edf0ef; }
 .rdv-flat-map .leaflet-control-attribution { font-size: 8px !important; }
+.map-place-card { width: 152px; overflow: hidden; border: 1px solid #cbdff0; border-radius: 11px; background: #fff; box-shadow: 0 3px 12px #183c5b20; color: #25435d; font: 500 10px system-ui; }
+.map-place-card button { cursor: pointer; font: inherit; }
+.map-place-card button:focus-visible { outline: 2px solid #1367ba; outline-offset: -2px; }
+.map-place-main { display: flex; align-items: center; gap: 7px; width: 100%; padding: 5px 7px; min-height: 39px; text-align: left; background: #fff; border: 0; }
+.map-place-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.map-place-symbol { display: grid; place-items: center; color: #1973c3; background: #e7f3fe; border-radius: 7px; width: 28px; height: 28px; flex: 0 0 auto; }
+.map-place-price { border-top: 1px solid #edf3f8; padding: 5px 6px; text-align: center; font-size: 9px; font-weight: 650; color: #174b79; }
+.map-place-actions { display: flex; border-top: 1px solid #dceaf6; background: #f1f8fe; }
+.map-place-suggest { flex: 1; min-height: 32px; color: #176bb5; border: 0; background: transparent; }
+.map-place-comments { display: grid; place-items: center; width: 32px; min-height: 32px; border: 0; border-left: 1px solid #dceaf6; color: #176bb5; background: transparent; }

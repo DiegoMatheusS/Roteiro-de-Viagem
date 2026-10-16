@@ -2,6 +2,7 @@ import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsSt
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
+import { vehicleFuelKind } from '../services/tripBudget';
 import { InteractiveMap } from './InteractiveMap';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
@@ -161,7 +162,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           weatherPoints={trip.weatherPoints}
           roadAlerts={roadAlerts.alerts}
           tolls={trip.tolls || []}
-          tollVehicleType={vehicle.type}
+          tollVehicleType={vehicle.type} fuelKind={vehicleFuelKind(vehicle)}
           userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
           showRainLayer={trip.hasRainRisk}
           className="w-full h-full"
