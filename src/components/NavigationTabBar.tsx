@@ -6,6 +6,8 @@ interface NavigationTabBarProps {
   activeTab: MainTabType;
   onTabChange: (tab: MainTabType) => void;
   hasActiveConvoy?: boolean;
+  userName?: string | null;
+  signedIn?: boolean;
 }
 const sections: { id: MainTabType; label: string; icon: React.ElementType; detail: string }[] = [
   { id: 'inicio', label: 'Início', icon: Compass, detail: 'Buscar destino ou criar um novo rolê' },
@@ -14,7 +16,7 @@ const sections: { id: MainTabType; label: string; icon: React.ElementType; detai
   { id: 'salvos', label: 'Minhas viagens', icon: Bookmark, detail: 'Roteiros salvos e histórico' },
   { id: 'ajustes', label: 'Perfil', icon: UserRound, detail: 'Conta, garagem e preferências' }
 ];
-export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = false }: NavigationTabBarProps) {
+export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = false, userName, signedIn = false }: NavigationTabBarProps) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -23,6 +25,10 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
     return () => window.removeEventListener('keydown', dismiss);
   }, [open]);
   const navigate = (tab: MainTabType) => { onTabChange(tab); setOpen(false); };
+  const displayName = signedIn && userName?.trim() ? userName.trim() : 'Entrar ou criar conta';
+  const initials = signedIn && userName?.trim()
+    ? userName.trim().split(/\s+/).slice(0, 2).map(word => word.charAt(0).toLocaleUpperCase('pt-BR')).join('')
+    : null;
   return <>
     <button type="button" aria-label="Abrir menu" aria-expanded={open} aria-controls="role-menu"
       onClick={() => setOpen(true)}
@@ -36,13 +42,22 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
         <div className="flex items-center justify-center h-8">
           <div className="w-12 h-1.5 rounded-full bg-slate-300" aria-hidden="true" />
         </div>
-        <div className="flex justify-between items-start gap-4 px-6 pt-1 pb-5">
-          <div>
-            <h2 className="font-extrabold tracking-[-.05em] text-[30px] leading-none text-slate-950">Rolê<span className="text-blue-600">.</span></h2>
-            <p className="text-xs text-slate-500 mt-2">Seu caminho, seu ritmo.</p>
-          </div>
+        <div className="flex items-center gap-3 px-5 pt-1 pb-5">
+          <button type="button" onClick={() => navigate('ajustes')} aria-label="Abrir meu perfil"
+            className="group min-w-0 flex-1 flex items-center gap-3 rounded-[18px] p-1.5 -ml-1.5 text-left active:bg-slate-50 focus-visible:outline-blue-600">
+            <span className="w-14 h-14 shrink-0 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 p-[2px] shadow-sm">
+              <span className="w-full h-full rounded-full bg-white flex items-center justify-center text-blue-700 font-extrabold text-base">
+                {initials || <UserRound size={25} strokeWidth={1.9}/>}
+              </span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="text-[17px] font-extrabold tracking-tight block text-slate-900 truncate">{displayName}</strong>
+              <span className="text-[11px] text-slate-500 block mt-0.5">{signedIn ? 'Ver meu perfil e garagem' : 'Acessar meu perfil'}</span>
+            </span>
+            <ChevronRight size={18} className="text-slate-400 shrink-0"/>
+          </button>
           <button type="button" aria-label="Fechar menu" onClick={() => setOpen(false)}
-            className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-700"><X size={20}/></button>
+            className="w-10 h-10 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-slate-700"><X size={20}/></button>
         </div>
         <div className="px-5 pb-4">
           <button type="button" onClick={() => navigate('inicio')}
