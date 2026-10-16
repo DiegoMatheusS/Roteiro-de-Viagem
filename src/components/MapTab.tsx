@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
 import type { LocationSelection } from '../types/itinerary';
+import type { VerifiedRouteChoice } from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -35,7 +36,7 @@ export function MapTab(props: MapTabProps) {
   const searchGeneration=useRef(0);
   const searchInputRef=useRef<HTMLInputElement>(null);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
-  const [exploreRoute,setExploreRoute] = useState<{origin:[number,number];path:[number,number][]}|null>(null);
+  const [exploreRoute,setExploreRoute] = useState<{origin:[number,number];options:VerifiedRouteChoice[];selectedId:string}|null>(null);
   const [sheetExpanded,setSheetExpanded] = useState(false);
   const [visiblePlaces,setVisiblePlaces] = useState<MapVisiblePlace[]>([]);
   const [focusedCoords,setFocusedCoords] = useState<[number,number] | null>(null);
@@ -124,7 +125,10 @@ export function MapTab(props: MapTabProps) {
     return gps.coords;
   };
   return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map">
-    <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.path || [] : trip?.routePath || []} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
+    <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute.selectedId)?.routePath || [] : trip?.routePath || []}
+      routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
+      selectedRouteId={exploreRoute?.selectedId}
+      onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
       userLiveCoords={location.status === "ready" ? location.position?.coords : undefined}
       centerOnUserRequest={centerRequest} focusedCoords={focusedCoords}
       onVisiblePlacesChange={updateVisible} stops={showStops ? trip?.stops || [] : []} weatherPoints={trip?.weatherPoints || []} roadAlerts={roadAlerts.alerts} onRoadAlertUpdated={()=>{void roadAlerts.reload();}} tolls={trip?.tolls || []} tollVehicleType={props.routeVehicleType} showRainLayer={showRain} showFuelStations={showFuel} className="w-full h-full" />
@@ -177,7 +181,7 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      className={`absolute bottom-0 inset-x-0 z-30 bg-white rounded-t-[28px] shadow-[0_-6px_30px_rgba(15,23,42,.12)] flex flex-col transition-[height] duration-300 ease-out ${sheetExpanded ? 'h-[37dvh] min-h-[300px] max-h-[65dvh]' : searchError ? 'h-[170px]' : 'h-[116px]'}`}>
+      className={`absolute bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${sheetExpanded ? 'h-[37dvh] min-h-[300px] max-h-[65dvh]' : searchError ? 'h-[170px]' : 'h-[116px]'}`}>
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
         aria-expanded={sheetExpanded}
         className="w-full h-8 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
@@ -250,7 +254,8 @@ export function MapTab(props: MapTabProps) {
     {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget}
       vehicle={props.currentVehicle} gpsAvailable={location.status==='ready'} getOrigin={getExplorationOrigin}
       onStartTrip={trip=>props.onStartTrip?.(trip)}
-      onMapRoute={(origin,path)=>{setExploreRoute({origin,path});setFocusedCoords(null);}}
+      selectedRouteId={exploreRoute?.selectedId}
+      onMapRoute={(origin,options,selectedId)=>{setExploreRoute({origin,options,selectedId});setFocusedCoords(null);}}
       onClose={()=>{setMapTarget(null);setExploreRoute(null);setFocusedCoords(null);}} />}
     {showRain && <p className="absolute top-60 left-3 z-30 bg-white rounded-xl p-2 text-[10px] max-w-[220px] shadow">{trip?.weatherPoints.length ? 'Previsão nos pontos do percurso · Open-Meteo. Não é radar ao vivo.' : 'Previsão indisponível. Atualize no planejamento.'}</p>}
     {confirmEnd && trip && <div role="dialog" aria-modal="true" aria-label="Encerrar viagem programada" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white p-5 rounded-2xl max-w-sm space-y-4"><h3 className="font-bold">Encerrar esta viagem?</h3><p className="text-sm text-slate-600">{props.activeTrip ? 'A navegação será interrompida.' : 'O roteiro deixará de estar programado.'} Você poderá consultar a viagem encerrada no histórico.</p><div className="flex gap-2"><button onClick={() => setConfirmEnd(false)} className="p-3 border rounded-xl">Manter viagem</button><button onClick={() => { props.onEndTrip(trip); setConfirmEnd(false); }} className="p-3 bg-rose-700 text-white rounded-xl">Sim, encerrar</button></div></div></div>}
