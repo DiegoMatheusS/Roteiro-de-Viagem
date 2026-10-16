@@ -3,13 +3,14 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap } from './InteractiveMap';
+import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
 import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
-  Navigation, ArrowLeft, PowerOff,
+  Navigation, ArrowLeft, PowerOff, ArrowUp, CornerUpLeft, CornerUpRight, RotateCcw,
   MapPin, 
   AlertOctagon, 
   Home, 
@@ -63,6 +64,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   if (!isOpen) return null;
 
   const currentSpeed = tracking.speedKmH;
+  const nextTurn = nextNavigationGuidance(trip.routePath,trip.routeSteps,tracking.status === 'ready' ? tracking.position?.coords : undefined);
   const isGpsActive = tracking.status === 'ready';
   const distanceTraveledKm = tracking.distanceKm;
   const remainingKm = Math.max(0, trip.distanceKm - distanceTraveledKm);
@@ -136,6 +138,16 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+      </div>
+      <div role="status" aria-label="Próxima orientação de navegação" className="bg-[#111827] text-white px-4 py-3 min-h-[78px] flex gap-4 items-center shadow-lg shrink-0 z-20">
+        <div className="shrink-0 w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center">
+          {nextTurn?.direction === 'left' ? <CornerUpLeft size={34} strokeWidth={2.8} /> : nextTurn?.direction === 'right' ? <CornerUpRight size={34} strokeWidth={2.8} /> : nextTurn?.direction === 'roundabout' ? <RotateCcw size={32} strokeWidth={2.6}/> : nextTurn?.direction === 'arrive' ? <MapPin size={30}/> : <ArrowUp size={34} strokeWidth={2.8}/>} 
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] text-slate-300 font-semibold">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
+          <p className="text-xl leading-tight font-black truncate">{nextTurn?.text || 'Siga o trajeto indicado'}</p>
+          {nextTurn?.road && <p className="text-xs text-slate-200 truncate">{nextTurn.road}</p>}
         </div>
       </div>
       {tracking.error && <div role="alert" className="px-4 py-2 text-xs bg-amber-50 text-amber-900 flex items-center justify-between gap-2">{tracking.error}<button onClick={tracking.retry} className="font-bold">Tentar GPS novamente</button></div>}
