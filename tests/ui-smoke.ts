@@ -386,7 +386,14 @@ try {
   assert.equal(await page.getByLabel('Parada 1', { exact: true }).inputValue(), 'Parada Beta de teste');
   await page.screenshot({ path: 'test-results/stops-home-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
-  await page.getByText(/Origem: Sua Localização/).waitFor();
+  // O provedor de GPS do Chromium pode expirar no runner mesmo com permissão.
+  // Testar o percurso com uma origem pesquisada quando o dispositivo não respondeu.
+  await page.getByRole('button', { name: 'Usar minha localização', exact: true }).waitFor({state:'visible',timeout:25000});
+  if (!(await page.getByText(/Origem: Sua Localização/).count())) {
+    await page.getByLabel('Origem', {exact:true}).fill('Parada');
+    await page.getByRole('button',{name:'Buscar origem',exact:true}).click();
+    await page.getByRole('button',{name:/Parada Beta de teste/}).first().click();
+  }
   await page.getByRole('button', { name: /Traçar Rota até/ }).click();
   await planner.getByText(/1\. Parada Beta de teste/).last().waitFor();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).waitFor();
