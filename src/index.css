@@ -14,10 +14,8 @@
     text-rendering: optimizeLegibility;
   }
   
-  .font-mono, .tabular-nums {
-    font-family: 'JetBrains Mono', monospace;
-    font-variant-numeric: tabular-nums;
-  }
+  .font-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .tabular-nums { font-family: inherit; font-variant-numeric: tabular-nums; }
 }
 
 /* Custom leaflet map adjustments */
@@ -103,4 +101,91 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .rdv-home-sheet, .rdv-route-sheet, .rdv-navigation-screen button { animation: none !important; transition-duration: 0.01ms !important; }
+}
+
+/* Rolê público: controles de alto contraste e velocímetro em todas as telas do mapa. */
+.rdv-choice-card {
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.rdv-choice-card:active { transform: scale(.98); }
+.rdv-choice-card:focus-visible {
+  outline: 3px solid #1d4ed8; outline-offset: 3px;
+}
+.rdv-primary-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 52px;
+  padding: 8px 5px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #ffffff;
+  white-space: nowrap;
+  transition: background-color 220ms ease;
+}
+.rdv-primary-action--blue { background-color: #1d4ed8; }
+.rdv-primary-action--green { background-color: #047857; }
+.rdv-choice-card:hover .rdv-primary-action--blue,
+.rdv-choice-card:active .rdv-primary-action--blue { background-color: #1e40af; }
+.rdv-choice-card:hover .rdv-primary-action--green,
+.rdv-choice-card:active .rdv-primary-action--green { background-color: #065f46; }
+.rdv-choice-card:disabled .rdv-primary-action { background-color: #475569; color: #fff; }
+.rdv-choice-card:disabled { cursor: not-allowed; }
+
+.rdv-speedometer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2.5px solid var(--speed-border);
+  background: rgba(255,255,255,.95);
+  box-shadow: 0 6px 22px rgba(15,23,42,.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--speed-number);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: Inter, system-ui, sans-serif;
+  transition: border-color 220ms ease, color 220ms ease;
+}
+.rdv-speedometer--neutral { --speed-border: #94a3b8; --speed-number: #475569; }
+.rdv-speedometer--normal { --speed-border: #2563eb; --speed-number: #1d4ed8; }
+.rdv-speedometer--attention { --speed-border: #c2410c; --speed-number: #9a3412; }
+.rdv-speedometer--excess { --speed-border: #b91c1c; --speed-number: #b91c1c; }
+.rdv-speedometer__number {
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.rdv-speedometer__unit {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--speed-number);
+}
+.rdv-speedometer__limit {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: .02em;
+  color: var(--speed-number);
+}
+@media (max-width: 359px) {
+  .rdv-choice-card { min-height: 148px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rdv-choice-card, .rdv-primary-action, .rdv-speedometer {
+    transition: none !important;
+    animation: none !important;
+  }
 }
