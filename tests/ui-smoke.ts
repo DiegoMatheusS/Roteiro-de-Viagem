@@ -55,6 +55,25 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
+  const homeGps = page.getByRole('button', {name:'Atualizar GPS'});
+  const homeReport = page.getByRole('button', {name:'Reportar problema na estrada'});
+  await homeGps.waitFor();
+  await homeReport.waitFor();
+  const homeGpsBox = await homeGps.boundingBox();
+  const homeReportBox = await homeReport.boundingBox();
+  assert.ok(homeGpsBox && homeReportBox &&
+    homeGpsBox.y + homeGpsBox.height <= homeReportBox.y,
+    'No Início, o botão triangular precisa ficar abaixo do GPS');
+  await homeReport.click();
+  const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
+  await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
+  await homeReportOptions.getByRole('menuitem', {name:'Carro quebrado'}).waitFor();
+  await homeReportOptions.getByRole('menuitem', {name:'Pedágio'}).waitFor();
+  await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).click();
+  const homeReportDialog = page.getByRole('dialog', {name:'Reportar ocorrência na via'});
+  await homeReportDialog.getByText(/Pare em segurança/).waitFor();
+  assert.equal(await homeReportDialog.getByRole('button', {name:'Enviar para análise'}).isDisabled(), true);
+  await homeReportDialog.getByRole('button', {name:'Fechar ocorrência'}).click();
   await page.getByRole('button', {name:'Abrir menu'}).click();
   const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
   await roleMenu.getByRole('button', {name:'Começar um rolê'}).waitFor();
