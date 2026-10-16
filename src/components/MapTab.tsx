@@ -209,7 +209,7 @@ export function MapTab(props: MapTabProps) {
       </div>
     </section>
     {searchOpen && <div className="fixed inset-0 z-[85] bg-slate-950/50 flex flex-col justify-end"
-      role="presentation" onMouseDown={event => {if(event.target === event.currentTarget && !searchBusy)setSearchOpen(false);}}>
+      role="presentation" onMouseDown={event => {if(event.target === event.currentTarget)setSearchOpen(false);}}>
       <section role="dialog" aria-modal="true" aria-label="Buscar destino no mapa"
         className="bg-white rounded-t-[30px] max-w-xl mx-auto w-full pb-[max(20px,env(safe-area-inset-bottom))] shadow-2xl max-h-[87dvh] overflow-y-auto">
         <div className="flex justify-between items-center px-5 pt-4 pb-2">
