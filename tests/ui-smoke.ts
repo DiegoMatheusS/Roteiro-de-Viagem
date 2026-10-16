@@ -119,6 +119,7 @@ try {
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
   await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
+  await page.getByRole('heading',{name:'Dar um rolê por aí?'}).waitFor();
   // O formulário detalhado de origem e destino continua disponível separadamente.
   await page.getByRole('button', {name:'Rolê com origem e destino'}).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
@@ -487,6 +488,7 @@ try {
   await adminPage.screenshot({ path: 'test-results/admin-failure.png', fullPage: true });
   console.error('Admin no erro:', (await adminPage.locator('body').innerText()).slice(-6000));
   console.error('Tela no erro:', (await page.locator('body').innerText()).slice(-6000));
+  console.error('Erros JS:', JSON.stringify(errors), 'URL:',page.url());
   throw error;
 } finally {
   if (adminBrowser !== browser) await adminBrowser.close();
