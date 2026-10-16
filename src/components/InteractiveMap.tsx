@@ -30,6 +30,10 @@ interface InteractiveMapProps {
   originLabel?: string;
   destinationLabel?: string;
   routePath?: [number, number][];
+  /** Percursos simultâneos; um está selecionado e os demais permanecem clicáveis. */
+  routeAlternatives?: {id:string; routePath:[number,number][]}[];
+  selectedRouteId?: string;
+  onSelectRoute?: (id: string) => void;
   routeModality?: RouteModality;
   stops?: RouteStop[];
   weatherPoints?: WeatherPoint[];
@@ -101,6 +105,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   originLabel = 'Origem',
   destinationLabel = 'Destino',
   routePath = [],
+  routeAlternatives = [],
+  selectedRouteId,
+  onSelectRoute,
   routeModality = 'panoramica',
   stops = [],
   showRainLayer = false,
@@ -484,6 +491,19 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       bounds.push(destinationCoords);
     }
 
+    // Desenha todas as alternativas abaixo do percurso ativo; toque numa linha para escolhê-la.
+    // Usamos a geometria devolvida pelo OSRM, nunca uma linha reta estimada.
+    if (!navigationMode && routeAlternatives.length > 1) {
+      for (const option of routeAlternatives) {
+        if (option.id === selectedRouteId || option.routePath.length < 2) continue;
+        L.polyline(option.routePath, {color:'#ffffff',weight:9,opacity:.86,lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
+        const alternative = L.polyline(option.routePath, {color:'#64748b',weight:5,opacity:.78,lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false}).addTo(group);
+        alternative.on('click',()=>onSelectRoute?.(option.id));
+        alternative.bindTooltip('Selecionar rota alternativa', {sticky:true,direction:'top'});
+        option.routePath.forEach(point=>bounds.push(point));
+      }
+    }
+
     // Navegação: azul claro à frente; azul escuro no trecho já percorrido.
     // A posição vem do GPS, sem colorir como concluído quando estiver fora da rota.
     const modalityStyle = MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica;
@@ -700,12 +720,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     // GPS refreshes move markers without undoing the user's zoom and map position.
-    const geometryKey=JSON.stringify([originCoords,destinationCoords,routePath,stops.map(s=>[s.lat,s.lng]),meetingPoints.map(p=>p.coords)]);
+    const geometryKey=JSON.stringify([originCoords,destinationCoords,routePath,routeAlternatives.map(r=>[r.id,r.routePath]),selectedRouteId,stops.map(s=>[s.lat,s.lng]),meetingPoints.map(p=>p.coords)]);
     if(fittedGeometryRef.current===geometryKey)return;
     if(bounds.length)fittedGeometryRef.current=geometryKey;
     if (bounds.length > 1) {
+      const sheetOverlay = roadStyle && routeAlternatives.length > 0;
       map.fitBounds(bounds as L.LatLngBoundsExpression, {
-        padding: [60, 60],
+        paddingTopLeft: [36, 70],
+        paddingBottomRight: [36, sheetOverlay ? Math.min(360, Math.round(map.getSize().y * .46)) : 64],
         maxZoom: 13,
         animate: false
       });
@@ -718,6 +740,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     originLabel,
     destinationLabel,
     routePath,
+    routeAlternatives,
+    selectedRouteId,
+    onSelectRoute,
     routeModality,
     stops,
     navigationMode,

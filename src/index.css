@@ -2,7 +2,7 @@
 
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: Inter, Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   }
   
   .font-mono, .tabular-nums {
@@ -68,4 +68,16 @@
 .rdv-alert-popover { animation: rdv-alert-pop 190ms cubic-bezier(.2,.8,.2,1) both; }
 @media (prefers-reduced-motion: reduce) {
   .rdv-alert-popover { animation: none; }
+}
+
+/* Rolê: experiência de navegação com mapa full-bleed e folhas flutuantes. */
+.rdv-navigation-screen { overscroll-behavior: none; }
+.rdv-home-sheet, .rdv-route-sheet { -webkit-font-smoothing: antialiased; letter-spacing: -.012em; }
+.rdv-home-sheet button, .rdv-route-sheet button { -webkit-tap-highlight-color: transparent; }
+.rdv-home-sheet > div, .rdv-route-sheet > div { overscroll-behavior: contain; }
+.rdv-home-sheet input[type="search"] { font-size: 16px; }
+.rdv-home-sheet button:focus-visible, .rdv-route-sheet button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .rdv-route-sheet { animation: rdv-sheet-enter 300ms cubic-bezier(.22,1,.36,1) both; }
+  @keyframes rdv-sheet-enter { from { opacity: .5; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
 }

@@ -4,6 +4,7 @@ import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
 import type { LocationSelection } from '../types/itinerary';
+import type { VerifiedRouteChoice } from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
@@ -49,7 +50,19 @@ export function NavigationHome(props: NavigationHomeProps) {
   const searchGeneration = React.useRef(0);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
-  const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];path:[number,number][]}|null>(null);
+  const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];options:VerifiedRouteChoice[];selectedId:string}|null>(null);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const dragStart = React.useRef<number|null>(null);
+  const swallowNextClick = React.useRef(false);
+  const handleGripRelease = (event:React.PointerEvent<HTMLButtonElement>) => {
+    if(dragStart.current===null)return;
+    const change=event.clientY-dragStart.current;
+    dragStart.current=null;
+    if(Math.abs(change)<32)return;
+    swallowNextClick.current=true;
+    if(change>0){if(sheetExpanded)setSheetExpanded(false);else setCollapsed(true);}
+    else{if(collapsed)setCollapsed(false);else setSheetExpanded(true);}
+  };
   const [centerRequest,setCenterRequest] = useState(0);
   const centeredOnce=React.useRef(false);
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
@@ -171,11 +184,13 @@ export function NavigationHome(props: NavigationHomeProps) {
     const n = Math.max(sheet === 'km' ? 1 : 0.1,(parseTouristTarget(currentValue) || 0) + (increase ? amount : -amount));
     if(sheet === 'km')setKm(String(n));else setHours(String(n));
   };
-  return <div className="relative bg-white h-[100dvh] overflow-hidden" aria-label="Início do Rolê">
-    <div className={`absolute top-0 inset-x-0 rdv-flat-map ${collapsed?'bottom-0':'h-[42dvh] min-h-[260px]'}`}>
+  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
+    <div className="absolute inset-0 rdv-flat-map">
       <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
-        focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.path || []}
+        focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
+        routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
+        onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
     {/* Ações rápidas disponíveis também no Início: GPS acima, triângulo de alerta embaixo. */}
@@ -192,19 +207,24 @@ export function NavigationHome(props: NavigationHomeProps) {
         menuPlacement="below"
       />
     </div>
-    <div className={`absolute left-4 z-30 rounded-full bg-white border-4 border-sky-500 shadow-lg w-[74px] h-[74px] flex flex-col justify-center items-center ${collapsed?'bottom-28':'top-[24dvh]'}`}
+    <div className={`absolute left-4 z-30 rounded-full bg-white/95 backdrop-blur-md border-[3px] border-sky-500 shadow-[0_6px_22px_#0e3b5f2d] w-[74px] h-[74px] flex flex-col justify-center items-center transition-[top,bottom] duration-300 ${collapsed?'bottom-28':'top-[24dvh]'}`}
       role="status" aria-label="Velocímetro">
       <strong className="text-2xl leading-none tabular-nums">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
       <small className="text-[10px] text-slate-500 font-bold">km/h</small>
     </div>
-    <div data-testid="home-main-sheet" className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[30px] bg-white shadow-[0_-9px_28px_rgba(15,23,42,.12)] border-t border-white/80 flex flex-col transition-[height] duration-200 ${collapsed?'h-[74px]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
-      <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>setCollapsed(c=>!c)}
-        className="mx-auto w-16 h-9 flex items-center justify-center shrink-0" >
+    <div data-testid="home-main-sheet" className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[28px] bg-white/95 backdrop-blur-xl shadow-[0_-14px_45px_rgba(15,23,42,.14)] border-t border-white/90 flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[74px]':sheetExpanded?'h-[67dvh]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
+      <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>{if(swallowNextClick.current){swallowNextClick.current=false;return;}if(sheetExpanded)setSheetExpanded(false);else setCollapsed(c=>!c);}}
+        onPointerDown={event=>{dragStart.current=event.clientY;swallowNextClick.current=false;event.currentTarget.setPointerCapture(event.pointerId);}}
+        onPointerUp={handleGripRelease}
+        onPointerCancel={()=>{dragStart.current=null;}}
+        aria-expanded={!collapsed}
+        style={{touchAction:'none'}}
+        className="mx-auto w-full h-9 flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing select-none" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
       {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-6">
         <form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
-          className="rounded-[18px] w-full bg-slate-100 border border-slate-100 px-4 py-2 flex items-center gap-3 text-slate-600 text-sm min-h-[56px] focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+          className="rounded-[20px] w-full bg-[#f3f7fb] border border-slate-200/80 px-4 py-2 flex items-center gap-3 text-slate-600 text-sm min-h-[54px] shadow-[0_3px_12px_#2239550e] focus-within:border-blue-400 focus-within:ring-[3px] focus-within:ring-blue-100/80 transition-shadow">
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
           <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
             aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" value={searchPlace.name}
@@ -227,12 +247,12 @@ export function NavigationHome(props: NavigationHomeProps) {
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
           <div>
-            <h2 className="text-[18px] font-extrabold tracking-[-.035em] text-slate-950">Dar um rolê por aí?</h2>
+            <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Dar um rolê por aí?</h2>
             <p className="text-[12px] mt-1 text-slate-500 leading-relaxed">Não sabe para onde ir e só quer andar? Escolha a distância ou o tempo, que eu monto o trajeto para você.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')}
-              className="group bg-gradient-to-br from-sky-50 to-white border border-sky-200 rounded-[20px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_2px_6px_rgba(37,99,235,.03)] active:scale-[.98] transition-transform">
+              className="group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#1a5aa90c] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
               <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
                 <Navigation size={21} strokeWidth={2.2}/>
               </span>
@@ -243,7 +263,7 @@ export function NavigationHome(props: NavigationHomeProps) {
               </span>
             </button>
             <button type="button" onClick={()=>showSheet('hours')}
-              className="group bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-[20px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_2px_6px_rgba(22,163,74,.03)] active:scale-[.98] transition-transform">
+              className="group bg-gradient-to-br from-[#eafaf3] to-white border border-[#bde7d5] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#19765e0b] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
               <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1">
                 <Clock3 size={21} strokeWidth={2.2}/>
               </span>
@@ -282,7 +302,8 @@ export function NavigationHome(props: NavigationHomeProps) {
     </div>
     {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget} vehicle={props.currentVehicle}
       gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates} onStartTrip={props.onStartTrip}
-      onMapRoute={(origin,path)=>setDisplayRoute({origin,path})}
+      selectedRouteId={displayRoute?.selectedId}
+      onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/55 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
       <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>

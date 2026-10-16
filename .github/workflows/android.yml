@@ -107,6 +107,13 @@ jobs:
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/bundle/release/app-release.aab
             android-dist/
+      - name: Disponibilizar APK de teste da PR
+        uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          retention-days: 5
+          name: role-android-pr-preview
+          path: android/app/build/outputs/apk/debug/app-debug.apk
       - name: Remover chave temporária
         if: always()
         run: rm -f "$RUNNER_TEMP/rdv-release.jks"

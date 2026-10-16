@@ -132,6 +132,20 @@ try {
   assert.equal((await choicesRequest).status(),200,'Enter deve calcular rotas automaticamente');
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
+  const routeButtons = destinationMap.locator('button[aria-pressed]');
+  if (await routeButtons.count() > 1) {
+    await routeButtons.nth(1).click();
+    assert.equal(await routeButtons.nth(1).getAttribute('aria-pressed'),'true',
+      'Selecionar uma alternativa atualiza a rota ativa no painel');
+    assert.ok(await page.locator('.leaflet-overlay-pane path[stroke="#64748b"]').count() > 0,
+      'Outras rotas continuam visíveis em cinza no mapa');
+  }
+  // Regressão: antes o botão somente carregava opções sem abrir a navegação.
+  await destinationMap.getByRole('button',{name:'Iniciar rota selecionada'}).click();
+  await page.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
+  await page.getByRole('button',{name:'Encerrar viagem',exact:true}).click();
+  await page.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
+  await page.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
   await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.getByRole('heading',{name:'Dar um rolê por aí?'}).waitFor();
   // O formulário detalhado de origem e destino continua disponível separadamente.
