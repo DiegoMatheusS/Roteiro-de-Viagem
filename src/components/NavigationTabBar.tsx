@@ -24,6 +24,12 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
     window.addEventListener('keydown', dismiss);
     return () => window.removeEventListener('keydown', dismiss);
   }, [open]);
+  useEffect(()=>{
+    if(!open)return;
+    const close=(event:Event)=>{event.preventDefault();setOpen(false);};
+    window.addEventListener('rdv:close-overlay',close);
+    return()=>window.removeEventListener('rdv:close-overlay',close);
+  },[open]);
   const navigate = (tab: MainTabType) => { onTabChange(tab); setOpen(false); };
   const displayName = signedIn && userName?.trim() ? userName.trim() : 'Entrar ou criar conta';
   const initials = signedIn && userName?.trim()
