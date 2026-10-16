@@ -343,7 +343,13 @@ try {
   await bottomMapSearch.press('Enter');
   const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
   await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
-  assert.equal((await mapRoutesRequest).status(),200,'Enter na aba Mapa deve calcular as rotas');
+  // Se não houver consulta, registra o conteúdo do painel (GPS/erro) em vez
+  // de deixar o CI falhar apenas com "waitForResponse timeout".
+  const mapRouteResponse=await mapRoutesRequest.catch(async failure => {
+    const panel=await mapDestination.innerText().catch(()=>'(painel não disponível)');
+    throw new Error(`Rota não requisitada após Enter na aba Mapa: ${String(failure)}. Painel: ${panel.slice(0,1200)}`);
+  });
+  assert.equal(mapRouteResponse.status(),200,'Enter na aba Mapa deve calcular as rotas');
   await mapDestination.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,
     'As rotas da pesquisa direta devem aparecer desenhadas no Mapa');
