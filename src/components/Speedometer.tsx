@@ -45,7 +45,7 @@ export function Speedometer({ position, className = '' }: Props) {
       (state === 'excess' ? ' Acima do limite informado.' :
         state === 'attention' ? ' Próximo do limite.' : ''));
   return (
-    <div role="status" aria-label={label}
+    <div role="status" aria-label={`Velocímetro. ${label}`}
       title={limit === null ? 'Limite da via indisponível' : 'Limite cadastrado no OpenStreetMap: ' + limit + ' km/h. Confira a sinalização.'}
       className={['rdv-speedometer', variants[state], className].join(' ')}>
       <strong className="rdv-speedometer__number">{displayed}</strong>
