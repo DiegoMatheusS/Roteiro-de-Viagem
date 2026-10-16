@@ -16,6 +16,7 @@ import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { InteractiveMap } from './InteractiveMap';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
+import { DestinationExplorer } from './DestinationExplorer';
 
 interface NavigationHomeProps {
   currentVehicle: Vehicle | null;
@@ -37,9 +38,13 @@ export function NavigationHome(props: NavigationHomeProps) {
   const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
-  const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
+  const [sheet, setSheet] = useState<'km'|'hours'|'destination'|'search'|null>(null);
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [searchPlace,setSearchPlace] = useState<LocationSelection>({name:''});
+  const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
+  const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];path:[number,number][]}|null>(null);
+  const [centerRequest,setCenterRequest] = useState(0);
   const [km, setKm] = useState('150'), [hours, setHours] = useState('3');
   const [tripType, setTripType] = useState<'round_trip'|'one_way'>('round_trip');
   const [preference, setPreference] = useState<'tranquila'|'curvas'|'cidades'>('tranquila');
@@ -65,7 +70,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     return () => controller.abort();
   }, [preview?.id, props.currentVehicle?.type]);
 
-  const showSheet = (value:'km'|'hours'|'destination') => {setError('');setSheet(value);};
+  const showSheet = (value:'km'|'hours'|'destination'|'search') => {setError('');setSheet(value);};
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
   const currentValue = sheet === 'km' ? km : hours;
   const validation = sheet === 'km' || sheet === 'hours' ? getTouristTargetError(sheet, currentValue) : '';
@@ -130,6 +135,11 @@ export function NavigationHome(props: NavigationHomeProps) {
       setPreview(trip);
     } catch(err) {setError((err as Error).message);} finally {setBusy(false);}
   };
+  const selectMapTarget = (place:LocationSelection) => {
+    setSearchPlace(place);
+    if (!place.coords) return;
+    setMapTarget(place);setDisplayRoute(null);setSheet(null);setCollapsed(true);setError('');
+  };
   const stepValue = (increase:boolean) => {
     const amount = sheet === 'km' ? 10 : 0.5;
     const n = Math.max(sheet === 'km' ? 1 : 0.1,(parseTouristTarget(currentValue) || 0) + (increase ? amount : -amount));
@@ -137,13 +147,15 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   return <div className="relative bg-white h-[100dvh] overflow-hidden" aria-label="Início do Rolê">
     <div className={`absolute top-0 inset-x-0 rdv-flat-map ${collapsed?'bottom-0':'h-[42dvh] min-h-[260px]'}`}>
-      <InteractiveMap navigationMode followUser={false} userLiveCoords={liveCoords}
-        showFuelStations={false} className="w-full h-full" />
+      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
+        destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
+        focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.path || []}
+        blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
     {/* Ações rápidas disponíveis também no Início: GPS acima, triângulo de alerta embaixo. */}
     <div aria-label="Controles de localização e ocorrência no início"
       className="absolute top-[70px] right-4 z-40 flex flex-col items-center gap-3">
-      <button type="button" aria-label="Atualizar GPS" onClick={gps.retry}
+      <button type="button" aria-label="Atualizar GPS" onClick={()=>{gps.retry();setCenterRequest(value=>value+1);}}
         className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
         <Crosshair size={22} strokeWidth={2.2}/>
       </button>
@@ -165,7 +177,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
       {!collapsed && <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto px-4 sm:px-5 pb-8 space-y-6">
-        <button type="button" aria-label="Para onde quer ir?" onClick={()=>showSheet('destination')}
+        <button type="button" aria-label="Para onde quer ir?" onClick={()=>showSheet('search')}
           className="rounded-[18px] w-full bg-slate-100 border border-slate-100 px-4 py-3.5 flex items-center gap-3 text-slate-600 text-sm text-left min-h-[56px] focus-visible:ring-2 focus-visible:ring-blue-400">
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600"/>
           <span className="flex-1 font-medium">Para onde quer ir?</span>
@@ -228,8 +240,12 @@ export function NavigationHome(props: NavigationHomeProps) {
         <button type="button" onClick={props.onAdvancedPlanning} className="w-full py-2 text-blue-700 underline text-xs font-semibold">Mais opções de planejamento</button>
       </div>}
     </div>
+    {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget} vehicle={props.currentVehicle}
+      gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates} onStartTrip={props.onStartTrip}
+      onMapRoute={(origin,path)=>setDisplayRoute({origin,path})}
+      onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/55 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
-      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>
+      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='search'?'Buscar destino no mapa':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>
         <div className="flex justify-end p-4 shrink-0"><button type="button" aria-label="Fechar janela" onClick={closeSheet} className="text-slate-500"><X size={20}/></button></div>
         {preview ? <div className="flex flex-col min-h-0 flex-1">
           <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} blueRoute showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
@@ -241,6 +257,10 @@ export function NavigationHome(props: NavigationHomeProps) {
             <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{props.onViewTripDetails(preview);setPreview(null);}}>Detalhes</button>
               <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar</button></div>
           </div>
+        </div> : sheet==='search' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
+          <h2 className="text-xl font-extrabold">Para onde quer ir?</h2>
+          <p className="text-xs text-slate-600">Escolha um endereço para abrir diretamente no mapa, sem iniciar o planejamento de viagem.</p>
+          <LocationSearch label="Buscar endereço" value={searchPlace} onChange={selectMapTarget} bias={liveCoords} placeholder="Cidade, rua, endereço ou atração" />
         </div> : sheet==='destination' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
           <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)} /> Sair da minha localização (GPS)</label>
