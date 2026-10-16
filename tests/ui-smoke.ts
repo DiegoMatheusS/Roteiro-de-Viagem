@@ -151,6 +151,16 @@ try {
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
   await planner.getByText(/Percurso por estradas reais/).first().waitFor();
   const fuelMarker = page.locator('.fuel-station-marker').first();
+  if (!(await fuelMarker.count())) {
+    const debug = await page.evaluate(() => ({
+      mapCount: document.querySelectorAll('.leaflet-container').length,
+      stationMarkers: document.querySelectorAll('.fuel-station-marker').length,
+      mapCards: document.querySelectorAll('.map-place-card').length,
+      body: document.body.innerText.slice(-1200),
+      mapClasses: [...document.querySelectorAll('.leaflet-container')].map(el => ({parent:el.parentElement?.className,html:el.innerHTML.slice(-500)}))
+    }));
+    console.log('MAP_MARKER_DEBUG', JSON.stringify(debug));
+  }
   await fuelMarker.getByRole('button', { name: 'Comentários de Posto de teste de interface', exact: true }).click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByRole('heading', { name: 'Comentários do posto', exact: true }).waitFor();
