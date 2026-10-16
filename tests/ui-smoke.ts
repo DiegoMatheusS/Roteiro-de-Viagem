@@ -128,7 +128,7 @@ try {
   await quickSearch.press('Enter');
   const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
   await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
-  await destinationMap.getByText('Dicas de viagem').waitFor();
+  await destinationMap.getByText('Rotas disponíveis').waitFor();
   assert.equal((await choicesRequest).status(),200,'Enter deve calcular rotas automaticamente');
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
