@@ -3,13 +3,15 @@ import { TollModal } from './TollModal';
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
-import { Layers, Mountain, Eye, Sparkles } from 'lucide-react';
+import { Layers, Mountain, Eye, Sparkles, X } from 'lucide-react';
 import { useFuelStations } from '../hooks/useFuelStations';
 import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { PlaceModal } from './PlaceModal';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
+import { confirmRoadAlert } from '../hooks/useRoadAlerts';
+import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
 
@@ -49,6 +51,7 @@ interface InteractiveMapProps {
   roadStyle?: boolean;
   followUser?: boolean;
   roadAlerts?: RoadAlert[];
+  onRoadAlertUpdated?: () => void;
   /** Lista apenas marcadores realmente renderizados dentro do viewport do mapa. */
   onVisiblePlacesChange?: (places: MapVisiblePlace[]) => void;
   /** Cada incremento centraliza o mapa no GPS, sem forçar acompanhamento ao arrastar. */
@@ -130,6 +133,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   roadStyle = false,
   followUser = true,
   roadAlerts = [],
+  onRoadAlertUpdated,
   onVisiblePlacesChange,
   centerOnUserRequest = 0,
   className = 'w-full h-full'
@@ -167,6 +171,26 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
+  const [selectedRoadAlert, setSelectedRoadAlert] = useState<RoadAlert | null>(null);
+  const [alertCheckBusy, setAlertCheckBusy] = useState(false);
+  const [alertCheckMessage, setAlertCheckMessage] = useState('');
+  const [alertCheckError, setAlertCheckError] = useState('');
+  const [alertCheckDone, setAlertCheckDone] = useState(false);
+  const checkRoadAlert = async (present: boolean) => {
+    if (!selectedRoadAlert || alertCheckBusy) return;
+    setAlertCheckBusy(true); setAlertCheckError('');
+    try {
+      const gps = await getCurrentDeviceLocation();
+      const answer = await confirmRoadAlert(selectedRoadAlert.id, present, gps);
+      setAlertCheckDone(true);
+      setAlertCheckMessage(answer.removed
+        ? 'Ocorrência retirada do mapa após confirmação da comunidade.'
+        : 'Confirmação registrada. Obrigado por ajudar a manter o mapa atualizado.');
+      onRoadAlertUpdated?.();
+    } catch (error) {
+      setAlertCheckError((error as Error).message);
+    } finally { setAlertCheckBusy(false); }
+  };
 
   // Initialize Map
   useEffect(() => {
@@ -359,7 +383,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         iconSize: [34, 34], iconAnchor: [17, 17]
       });
       const marker = L.marker([alert.lat, alert.lng], { icon, keyboard: true, zIndexOffset: 2100 }).addTo(group);
-      marker.bindPopup(`<strong>${escapeHtml(kind.label)}</strong><br><span>Confirmado pelo administrador.</span><br><span>${escapeHtml(alert.note)}</span><br><small>Validade: ${escapeHtml(new Date(alert.expiresAt).toLocaleString('pt-BR'))}</small>`);
+      marker.on('click', () => {
+        setSelectedRoadAlert(alert);
+        setAlertCheckMessage('');
+        setAlertCheckError('');
+        setAlertCheckDone(false);
+      });
     }
   }, [roadAlerts]);
 
@@ -726,6 +755,27 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   return (
     <div className={`relative overflow-hidden ${className}`}>
       {/* MAP CANVAS */}
+      {selectedRoadAlert && <section role="dialog" aria-label="Confirmar ocorrência no mapa"
+        className="absolute top-[max(16px,env(safe-area-inset-top))] left-1/2 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] border border-slate-200 bg-white/95 p-4 shadow-[0_12px_36px_rgba(15,23,42,.22)] backdrop-blur-md">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-amber-700">{ROAD_ALERT_TYPES.find(item => item.id === selectedRoadAlert.kind)?.label}</p>
+            <h3 className="mt-1 text-[15px] font-extrabold text-slate-900">Ainda continua lá?</h3>
+          </div>
+          <button type="button" aria-label="Fechar confirmação de ocorrência" onClick={() => setSelectedRoadAlert(null)}
+            className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"><X size={20}/></button>
+        </div>
+        {selectedRoadAlert.note && <p className="mt-2 line-clamp-2 text-xs text-slate-600">{selectedRoadAlert.note}</p>}
+        {!alertCheckDone && <p className="mt-2 text-[11px] text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
+        {alertCheckError && <p role="alert" className="mt-2 text-xs text-rose-700">{alertCheckError}</p>}
+        {alertCheckMessage && <p role="status" className="mt-2 text-xs text-emerald-700">{alertCheckMessage}</p>}
+        {!alertCheckDone && <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(true)}
+            className="min-h-11 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Sim</button>
+          <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(false)}
+            className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50">Não</button>
+        </div>}
+      </section>}
       <div ref={mapContainerRef} className="w-full h-full" />
       {fuel.loading && <p className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-white/95 rounded-xl p-2 shadow">Buscando postos reais...</p>}
       {fuel.error && <div className="absolute bottom-20 left-4 right-4 z-30 text-xs bg-amber-50 rounded-xl p-2 shadow">{fuel.error}<button type="button" onClick={fuel.retry} className="ml-2 font-bold">Tentar novamente</button></div>}
