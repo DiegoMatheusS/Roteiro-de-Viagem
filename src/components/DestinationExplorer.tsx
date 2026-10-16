@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapPin, Navigation, X } from 'lucide-react';
 import type { TripPlan, Vehicle } from '../types';
 import type { LocationSelection } from '../types/itinerary';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { fetchRouteChoices, choiceLabel, choiceToTrip, type VerifiedRouteChoice } from '../services/routeChoices';
+import { requestTolls, tollBudgetPatch, type TollResult } from '../services/routeConditions';
 
 interface DestinationExplorerProps {
   target: LocationSelection;
@@ -21,8 +22,20 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   const [origin,setOrigin] = useState<[number,number]|null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
+  const [tollChecks,setTollChecks] = useState<Record<string,TollResult>>({});
   const nearby = useNearbyPlaces(target.coords ? [target.coords] : [],Boolean(target.coords));
   const tips = nearby.filter(place=>(TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind)).slice(0,3);
+  // Confere os pedágios da opção selecionada sem afirmar ausência de cobrança quando os dados faltam.
+  useEffect(() => {
+    const choice=routes[selected];
+    if(!vehicle || !origin || !target.coords || !choice || tollChecks[choice.id])return;
+    const controller=new AbortController();
+    const trip=choiceToTrip(choice,vehicle,origin,{name:target.name,coords:target.coords});
+    void requestTolls(trip,vehicle.type,controller.signal).then(result=>{
+      if(!controller.signal.aborted)setTollChecks(previous=>({...previous,[choice.id]:result}));
+    }).catch(()=>{ /* consulta opcional: situação permanece não verificada */ });
+    return ()=>controller.abort();
+  },[routes,selected,origin,vehicle?.id,target.coords?.[0],target.coords?.[1]]);
   const loadRoutes = async () => {
     if (!target.coords || busy) return;
     setBusy(true);setError('');
@@ -30,7 +43,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
       const position=await getOrigin();
       const choices=await fetchRouteChoices(position,target.coords);
       if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
-      setRoutes(choices);setSelected(0);setOrigin(position);
+      setRoutes(choices);setSelected(0);setOrigin(position);setTollChecks({});
       onMapRoute(position,choices[0].routePath);
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
@@ -38,7 +51,9 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   const depart = () => {
     if (!routes.length || !origin) {void loadRoutes();return;}
     if(!vehicle || !target.coords){setError('Cadastre um veículo no Perfil → Minha Garagem antes de navegar.');return;}
-    onStartTrip(choiceToTrip(routes[selected],vehicle,origin,{name:target.name,coords:target.coords}));
+    const trip=choiceToTrip(routes[selected],vehicle,origin,{name:target.name,coords:target.coords});
+    const verified=tollChecks[routes[selected].id];
+    onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
   };
   return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white rounded-t-[28px] shadow-[0_-8px_28px_#0f172a20] border-t border-slate-100 max-h-[65dvh] flex flex-col">
     <div className="h-7 shrink-0 flex justify-center items-center"><span className="h-1.5 w-12 bg-slate-300 rounded-full"/></div>
@@ -68,7 +83,11 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
           className={`w-full text-left p-3 rounded-2xl border ${index===selected?'border-blue-500 bg-blue-50':'border-slate-200 bg-white'}`}>
           <div className="flex justify-between gap-2"><strong className="text-[13px]">{choiceLabel(route,index)}</strong><strong className="text-xs text-blue-700">{route.durationMinutes} min</strong></div>
           <p className="text-[11px] text-slate-600 mt-1">{route.distanceKm.toFixed(1)} km{route.scenicStop ? ` · Via ${route.scenicStop.name}` : ''}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Pedágios: verificar · Trânsito em tempo real: indisponível</p>
+          <p className="text-[10px] text-slate-500 mt-1">
+            {tollChecks[route.id]?.tolls.length
+              ? `Com pedágio · ${tollChecks[route.id].knownCost.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} conhecido`
+              : 'Pedágios: não confirmados'} · Trânsito ao vivo: indisponível
+          </p>
         </button>)}
         {routes.length>0 && <p className="text-[11px] text-slate-500">Toque em uma rota para ver o caminho azul no mapa. “Sair agora” inicia a selecionada.</p>}
         {!gpsAvailable && <p className="text-xs text-amber-800">Ative o GPS para calcular as rotas a partir da sua localização.</p>}
