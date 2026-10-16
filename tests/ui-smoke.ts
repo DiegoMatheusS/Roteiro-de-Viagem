@@ -80,6 +80,11 @@ try {
   // A pesquisa rápida precisa abrir um mapa de percurso verificado antes de iniciar.
   await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
+  // Garante que a pesquisa manual funcione mesmo quando o GPS não respondeu ainda.
+  await destinationSheet.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
+  await destinationSheet.getByLabel('Origem', { exact: true }).fill('Parada');
+  await destinationSheet.getByRole('button', { name: 'Buscar origem', exact: true }).click();
+  await destinationSheet.getByRole('button', { name: /Parada Beta de teste/ }).click();
   await destinationSheet.getByLabel('Destino', { exact: true }).fill('Parada');
   await destinationSheet.getByRole('button', { name: 'Buscar destino', exact: true }).click();
   await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).click();
