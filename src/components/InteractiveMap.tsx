@@ -165,7 +165,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
-  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(navigationMode || roadStyle ? 'light' : 'voyager');
+  const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
 
   // Initialize Map
@@ -182,11 +182,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       attributionControl: true
     });
 
-    // A interface rodoviária e a tela inicial usam gestos para zoom, sem botões + / -.
-    if (!navigationMode && !roadStyle) L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // Estilo Waze: zoom apenas por pinça ou gesto; sem controles + e −.
 
     // Initial vibrant CartoDB Voyager Tile Layer
-    const tileConfig = TILE_PROVIDERS[navigationMode || roadStyle ? 'light' : 'voyager'];
+    const tileConfig = TILE_PROVIDERS['light'];
     const tileLayer = L.tileLayer(tileConfig.url, {
       maxZoom: tileConfig.maxZoom,
       attribution: tileConfig.attribution,
@@ -290,7 +289,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         continue;
       }
       const emoji = PLACE_KINDS.find(kind => kind.id === place.kind)?.icon || '📍';
-      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:white;border:2px solid #ea580c;border-radius:50%;padding:5px;font-size:18px">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:#2563eb;border:2px solid white;border-radius:11px;padding:5px;font-size:18px;box-shadow:0 2px 8px #0003">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
       marker.bindTooltip(tooltip); marker.on('click', () => setSelectedPlace(place));
