@@ -50,14 +50,14 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
   };
-  // Busca direta (Enter): tenta calcular as rotas assim que o destino aparece.
-  // Mesmo antes do rastreador marcar 'ready', solicita o GPS uma única vez.
-  // Caso a permissão seja negada, mostra o erro e permite tentar novamente.
+  // A busca direta calcula automaticamente quando o GPS estiver pronto.
+  // Não disputa leituras de geolocalização enquanto o rastreador inicia:
+  // na tela Mapa isso poderia esgotar o timeout antes de consultar rotas.
   useEffect(()=>{
-    if(initialAttempt.current)return;
+    if(!gpsAvailable || initialAttempt.current)return;
     initialAttempt.current=true;
     void loadRoutes();
-  },[]);
+  },[gpsAvailable]);
   const depart = () => {
     if (!routes.length || !origin) {void loadRoutes();return;}
     if(!vehicle || !target.coords){setError('Cadastre um veículo no Perfil → Minha Garagem antes de navegar.');return;}
