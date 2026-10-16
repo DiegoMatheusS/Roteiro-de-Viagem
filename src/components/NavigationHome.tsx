@@ -45,6 +45,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];path:[number,number][]}|null>(null);
   const [centerRequest,setCenterRequest] = useState(0);
+  const centeredOnce=React.useRef(false);
+  useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
   const [km, setKm] = useState('150'), [hours, setHours] = useState('3');
   const [tripType, setTripType] = useState<'round_trip'|'one_way'>('round_trip');
   const [preference, setPreference] = useState<'tranquila'|'curvas'|'cidades'>('tranquila');
