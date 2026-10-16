@@ -12,11 +12,12 @@ interface DestinationExplorerProps {
   vehicle: Vehicle | null;
   gpsAvailable: boolean;
   getOrigin: () => Promise<[number,number]>;
-  onMapRoute: (origin: [number,number], path:[number,number][]) => void;
+  onMapRoute: (origin: [number,number], options:VerifiedRouteChoice[], selectedId:string) => void;
+  selectedRouteId?:string;
   onStartTrip: (trip:TripPlan) => void;
   onClose: () => void;
 }
-export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMapRoute,onStartTrip,onClose}:DestinationExplorerProps) {
+export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMapRoute,onStartTrip,onClose,selectedRouteId}:DestinationExplorerProps) {
   const [routes,setRoutes] = useState<VerifiedRouteChoice[]>([]);
   const [selected,setSelected] = useState(0);
   const [origin,setOrigin] = useState<[number,number]|null>(null);
@@ -27,6 +28,11 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   const nearby = useNearbyPlaces(target.coords ? [target.coords] : [],Boolean(target.coords));
   const tips = nearby.filter(place=>(TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind)).slice(0,3);
   const hasScenicRoute = routes.some(route=>['panoramic','tourist','stroll'].includes(route.kind));
+  useEffect(()=>{
+    if(!selectedRouteId)return;
+    const index=routes.findIndex(route=>route.id===selectedRouteId);
+    if(index!==-1)setSelected(index);
+  },[selectedRouteId,routes]);
   // Confere os pedágios da opção selecionada sem afirmar ausência de cobrança quando os dados faltam.
   useEffect(() => {
     const choice=routes[selected];
@@ -38,16 +44,17 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     }).catch(()=>{ /* consulta opcional: situação permanece não verificada */ });
     return ()=>controller.abort();
   },[routes,selected,origin,vehicle?.id,target.coords?.[0],target.coords?.[1]]);
-  const loadRoutes = async () => {
-    if (!target.coords || busy) return;
+  const loadRoutes = async ():Promise<{choices:VerifiedRouteChoice[];position:[number,number]}|null> => {
+    if (!target.coords || busy) return null;
     setBusy(true);setError('');
     try {
       const position=await getOrigin();
       const choices=await fetchRouteChoices(position,target.coords);
       if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
       setRoutes(choices);setSelected(0);setOrigin(position);setTollChecks({});
-      onMapRoute(position,choices[0].routePath);
-    } catch(e) {setError((e as Error).message);}
+      onMapRoute(position,choices,choices[0].id);
+      return {choices,position};
+    } catch(e) {setError((e as Error).message);return null;}
     finally {setBusy(false);}
   };
   // A busca direta calcula automaticamente quando o GPS estiver pronto.
@@ -58,14 +65,21 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     initialAttempt.current=true;
     void loadRoutes();
   },[gpsAvailable]);
-  const depart = () => {
-    if (!routes.length || !origin) {void loadRoutes();return;}
-    if(!vehicle || !target.coords){setError('Cadastre um veículo no Perfil → Minha Garagem antes de navegar.');return;}
-    const trip=choiceToTrip(routes[selected],vehicle,origin,{name:target.name,coords:target.coords});
-    const verified=tollChecks[routes[selected].id];
+  const depart = async () => {
+    if(busy)return;
+    if(!vehicle){setError('Para iniciar, cadastre ou selecione um veículo no Perfil → Minha Garagem.');return;}
+    if(!target.coords){setError('O destino está sem coordenadas. Pesquise novamente.');return;}
+    // O primeiro toque também inicia a navegação quando a lista ainda não foi calculada.
+    const result=routes.length && origin ? {choices:routes,position:origin} : await loadRoutes();
+    if(!result)return;
+    const choice=result.choices[Math.min(selected,result.choices.length-1)];
+    if(!choice){setError('Não foi possível preparar a rota. Tente novamente.');return;}
+    setError('');
+    const trip=choiceToTrip(choice,vehicle,result.position,{name:target.name,coords:target.coords});
+    const verified=tollChecks[choice.id];
     onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
   };
-  return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white rounded-t-[28px] shadow-[0_-8px_28px_#0f172a20] border-t border-slate-100 max-h-[65dvh] flex flex-col">
+  return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[61dvh] flex flex-col rdv-route-sheet">
     <div className="h-7 shrink-0 flex justify-center items-center"><span className="h-1.5 w-12 bg-slate-300 rounded-full"/></div>
     <div className="overflow-y-auto w-full max-w-xl mx-auto px-4 pb-5 space-y-4">
       <div className="flex items-start gap-3">
@@ -76,11 +90,12 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
         </div>
         <button type="button" aria-label="Sair da visualização do destino" onClick={onClose} className="p-2 bg-slate-100 text-slate-600 rounded-full"><X size={18}/></button>
       </div>
-      <button type="button" disabled={busy} onClick={depart}
-        className="w-full h-12 rounded-2xl bg-blue-600 text-white font-extrabold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-        <Navigation size={19}/>{busy?'Calculando rotas...':'Sair agora'}
+      <button type="button" disabled={busy} onClick={()=>void depart()}
+        className="w-full min-h-14 rounded-2xl bg-[#2167e8] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60">
+        <Navigation size={21}/>{busy?'Preparando sua navegação...':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
       </button>
-      <section className="space-y-2"><h3 className="text-sm font-extrabold">Dicas de viagem</h3>
+      {error && <p role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl p-3">{error}</p>}
+      <section className="space-y-2"><h3 className="text-sm font-bold">Dicas de viagem</h3>
         <p className="text-xs text-slate-600">No Rolê, a viagem começa pelo caminho: descubra atrações, paisagens e lugares para conhecer. Confira também o clima e os pedágios.</p>
         {tips.map(place=><p key={place.id} className="text-xs px-3 py-2 bg-emerald-50 text-emerald-900 rounded-xl">{place.name} · atração cadastrada próxima</p>)}
       </section>
@@ -89,8 +104,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
           <button type="button" disabled={busy} onClick={()=>void loadRoutes()} className="text-xs text-blue-700 font-bold">{routes.length?'Atualizar rotas':'Mostrar rotas'}</button></div>
         {!routes.length && !error && <p className="text-xs text-slate-500">{busy ? 'Calculando rotas a partir do GPS...' : 'Destino marcado no mapa. Toque em Mostrar rotas para tentar novamente.'}</p>}
         {routes.map((route,index)=><button key={route.id} type="button" aria-pressed={index===selected}
-          onClick={()=>{setSelected(index);if(origin)onMapRoute(origin,route.routePath);}}
-          className={`w-full text-left p-3 rounded-2xl border ${index===selected?'border-blue-500 bg-blue-50':'border-slate-200 bg-white'}`}>
+          onClick={()=>{setSelected(index);if(origin)onMapRoute(origin,routes,route.id);}}
+          className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 active:scale-[.99] ${index===selected?'border-blue-500 bg-blue-50 shadow-[0_5px_16px_#2563eb20]':'border-slate-200 bg-white hover:border-blue-200'}`}>
           <div className="flex justify-between gap-2"><strong className="text-[13px]">{choiceLabel(route,index)}{index===0 && route.kind!=='fast' && route.kind!=='alternative' ? ' · sugerida pelo Rolê' : ''}</strong><strong className="text-xs text-blue-700">{route.durationMinutes} min</strong></div>
           <p className="text-[11px] text-slate-600 mt-1">{route.distanceKm.toFixed(1)} km{route.scenicStop ? ` · Via ${route.scenicStop.name}` : ''}</p>
           <p className="text-[10px] text-slate-500 mt-1">
@@ -100,9 +115,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
           </p>
         </button>)}
         {routes.length>0 && !hasScenicRoute && <p className="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-2">Ainda não encontramos uma rota por atrações cadastradas neste trajeto. As alternativas abaixo são rodoviárias, sem garantia de pontos turísticos.</p>}
-        {routes.length>0 && <p className="text-[11px] text-slate-500">Toque numa opção para ver o percurso no mapa. “Sair agora” inicia a rota selecionada, priorizando o passeio.</p>}
+        {routes.length>0 && <p className="text-[11px] text-slate-500">Todas as opções ficam desenhadas no mapa. Toque numa linha ou numa opção para selecionar; iniciar navega pela rota em azul.</p>}
         {!gpsAvailable && <p className="text-xs text-amber-800">Ative o GPS para calcular as rotas a partir da sua localização.</p>}
-        {error && <p role="alert" className="text-xs text-rose-700 bg-rose-50 p-3 rounded-xl">{error}</p>}
       </section>
     </div>
   </section>;
