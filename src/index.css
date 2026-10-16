@@ -51,3 +51,13 @@
 }
 .rdv-flat-map .leaflet-container { background: #f8fafc; }
 .rdv-flat-map .leaflet-control-attribution { font-size: 8px !important; }
+
+/* Entrada do formulário de comboio a partir do rodapé. */
+@keyframes role-dialog-enter {
+  from { transform: translateY(36px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transition-transform, .transition-\\[opacity\\,visibility\\] { transition-duration: 0.01ms !important; }
+  .role-dialog-no-motion { animation: none !important; }
+}
