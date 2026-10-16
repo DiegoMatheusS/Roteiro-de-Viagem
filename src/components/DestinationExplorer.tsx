@@ -4,6 +4,7 @@ import type { TripPlan, Vehicle } from '../types';
 import type { LocationSelection } from '../types/itinerary';
 import { fetchRouteChoices, choiceLabel, choiceToTrip, type VerifiedRouteChoice } from '../services/routeChoices';
 import { requestTolls, tollBudgetPatch, type TollResult } from '../services/routeConditions';
+import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 
 interface DestinationExplorerProps {
   target: LocationSelection;
@@ -62,7 +63,6 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   },[gpsAvailable]);
   const depart = async () => {
     if(busy)return;
-    if(!vehicle){setError('Para iniciar, cadastre ou selecione um veículo no Perfil → Minha Garagem.');return;}
     if(!target.coords){setError('O destino está sem coordenadas. Pesquise novamente.');return;}
     // O primeiro toque também inicia a navegação quando a lista ainda não foi calculada.
     const result=routes.length && origin ? {choices:routes,position:origin} : await loadRoutes();
@@ -70,7 +70,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     const choice=result.choices[Math.min(selected,result.choices.length-1)];
     if(!choice){setError('Não foi possível preparar a rota. Tente novamente.');return;}
     setError('');
-    const trip=choiceToTrip(choice,vehicle,result.position,{name:target.name,coords:target.coords});
+    const trip=choiceToTrip(choice,vehicle || GUEST_NAVIGATION_VEHICLE,result.position,{name:target.name,coords:target.coords});
     const verified=tollChecks[choice.id];
     onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
   };
