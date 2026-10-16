@@ -23,7 +23,7 @@ export function nextNavigationGuidance(path: [number, number][], steps: Navigati
   // Nunca anunciar conversões quando o usuário estiver fora da via mapeada.
   if(bestError>250)return null;
   const progressKm = routeMeters>0 ? bestMeters/routeMeters * steps.reduce((max,step)=>Math.max(max,step.distanceFromStartKm),0) : 0;
-  const upcoming=steps.find(step=>step.type!=='depart' && step.distanceFromStartKm>=progressKm-0.025);
+  const upcoming=steps.find((step,index)=>step.type!=='depart' && (step.type!=='arrive' || index===steps.length-1) && step.distanceFromStartKm>=progressKm-0.025);
   if(!upcoming)return null;
   const modifier=upcoming.modifier||'';
   const direction=upcoming.type==='arrive'?'arrive':upcoming.type==='roundabout'||upcoming.type==='rotary'?'roundabout':
