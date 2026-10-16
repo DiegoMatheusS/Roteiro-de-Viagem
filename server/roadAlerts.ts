@@ -80,6 +80,44 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
     res.json({ alerts, source: 'Contribuições verificadas pelo administrador', updatedAt: now() });
   });
 
+  // Confirmações feitas no local: três relatos independentes de ausência retiram o marcador.
+  app.post('/api/road-alerts/:id/confirm', auth, (req, res) => {
+    const reporter = user(res);
+    limit(`road-alert-check:${reporter.id}`, 12, 3600000);
+    limit(`road-alert-check-ip:${clientIp(req)}`, 24, 3600000);
+    if (typeof req.body?.present !== 'boolean') throw new ApiError('Confirme se a ocorrência ainda está lá.');
+    const accuracy = req.body?.accuracyMeters, timestamp = req.body?.locationTimestamp;
+    if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 80 ||
+      typeof timestamp !== 'number' || !Number.isFinite(timestamp) ||
+      timestamp > Date.now() + 5000 || Date.now() - timestamp > 60000) {
+      throw new ApiError('Confirme apenas com GPS preciso e atualizado.');
+    }
+    const [[lat,lng]] = validate(() => validateCoordinates([req.body?.coords]));
+    const alert = db.prepare("SELECT id,user_id,lat,lng FROM road_alerts WHERE id=? AND status='approved' AND expires_at>?")
+      .get(req.params.id, now()) as {id:string;user_id:string|null;lat:number;lng:number}|undefined;
+    if (!alert) throw new ApiError('Ocorrência não está mais ativa.', 409);
+    if (alert.user_id === reporter.id) throw new ApiError('O autor não pode confirmar o próprio alerta.', 403);
+    if (distanceToRouteKm([lat,lng], [[alert.lat,alert.lng], [alert.lat,alert.lng]]) > 0.7)
+      throw new ApiError('Aproxime-se do local da ocorrência para confirmar.');
+    const present = req.body.present ? 1 : 0;
+    let removed = false, yes = 0, no = 0;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const inserted = db.prepare('INSERT OR IGNORE INTO road_alert_checks(alert_id,user_id,present,created_at) VALUES(?,?,?,?)')
+        .run(alert.id, reporter.id, present, now());
+      if (inserted.changes !== 1) throw new ApiError('Você já respondeu sobre esta ocorrência.', 409);
+      const counts = db.prepare('SELECT SUM(CASE WHEN present=1 THEN 1 ELSE 0 END) AS yes, SUM(CASE WHEN present=0 THEN 1 ELSE 0 END) AS no FROM road_alert_checks WHERE alert_id=?')
+        .get(alert.id) as {yes:number|null;no:number|null};
+      yes = counts.yes || 0; no = counts.no || 0;
+      if (no >= 3 && no >= yes * 2) {
+        removed = db.prepare("UPDATE road_alerts SET status='expired', expires_at=? WHERE id=? AND status='approved'")
+          .run(now(),alert.id).changes === 1;
+      }
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    res.json({ok:true,removed,yes,no});
+  });
+
   app.get('/api/road-alerts/mine', auth, (_req, res) => {
     const entries = db.prepare('SELECT * FROM road_alerts WHERE user_id=? ORDER BY created_at DESC LIMIT 30')
       .all(user(res).id) as any[];
