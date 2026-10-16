@@ -14,6 +14,13 @@ import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
 
 export type MapStyleType = 'light' | 'voyager' | 'satellite' | 'topo' | 'osm';
+export interface MapVisiblePlace {
+  id: string;
+  name: string;
+  kind: string;
+  address: string;
+  coords: [number, number];
+}
 
 interface InteractiveMapProps {
   originCoords?: [number, number];
@@ -42,6 +49,10 @@ interface InteractiveMapProps {
   roadStyle?: boolean;
   followUser?: boolean;
   roadAlerts?: RoadAlert[];
+  /** Lista apenas marcadores realmente renderizados dentro do viewport do mapa. */
+  onVisiblePlacesChange?: (places: MapVisiblePlace[]) => void;
+  /** Cada incremento centraliza o mapa no GPS, sem forçar acompanhamento ao arrastar. */
+  centerOnUserRequest?: number;
 }
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -119,6 +130,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   roadStyle = false,
   followUser = true,
   roadAlerts = [],
+  onVisiblePlacesChange,
+  centerOnUserRequest = 0,
   className = 'w-full h-full'
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -131,8 +144,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
   const fittedGeometryRef=useRef<string|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
-  const fuel = useFuelStations(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
-  const places = useNearbyPlaces(routePath.length ? routePath : originCoords ? [originCoords] : [], showFuelStations);
+  const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
+  const [viewportRevision, setViewportRevision] = useState(0);
+  const visibleCallbackRef = useRef(onVisiblePlacesChange);
+  visibleCallbackRef.current = onVisiblePlacesChange;
+  const visibleKeyRef = useRef('');
+  const [hasMapReady, setHasMapReady] = useState(false);
+  const discoveryPoints = routePath.length ? routePath : originCoords ? [originCoords]
+    : viewportCenter ? [viewportCenter] : [];
+
+  const fuel = useFuelStations(discoveryPoints, showFuelStations);
+  const places = useNearbyPlaces(discoveryPoints, showFuelStations && discoveryPoints.length > 0);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [stationSection, setStationSection] = useState<'prices' | 'comments'>('prices');
   const [tollSection, setTollSection] = useState<'prices' | 'comments'>('prices');
@@ -160,8 +182,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       attributionControl: true
     });
 
-    // Add zoom control at bottom-right
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // A interface rodoviária e a tela inicial usam gestos para zoom, sem botões + / -.
+    if (!navigationMode && !roadStyle) L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     // Initial vibrant CartoDB Voyager Tile Layer
     const tileConfig = TILE_PROVIDERS[navigationMode || roadStyle ? 'light' : 'voyager'];
@@ -182,6 +204,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     roadAlertGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
+    setHasMapReady(true);
 
     // Handle container resize to ensure tiles NEVER remain blank white
     const resizeObserver = new ResizeObserver(() => {
@@ -201,6 +224,32 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // O mapa pode ser explorado sem GPS: descobrir dados do local central após zoom.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const handleMovement = () => {
+      setViewportRevision(value => value + 1);
+      if (routePath.length || originCoords) return;
+      if (map.getZoom() < 10) { setViewportCenter(null); return; }
+      const center = map.getCenter();
+      setViewportCenter(current => {
+        const next: [number, number] = [Math.round(center.lat * 100)/100, Math.round(center.lng * 100)/100];
+        return current && current[0]===next[0] && current[1]===next[1] ? current : next;
+      });
+    };
+    map.on('moveend', handleMovement);
+    map.on('zoomend', handleMovement);
+    handleMovement();
+    return () => { map.off('moveend', handleMovement); map.off('zoomend', handleMovement); };
+  }, [hasMapReady, routePath.length, originCoords?.[0], originCoords?.[1]]);
+
+  useEffect(() => {
+    if (centerOnUserRequest < 1 || !userLiveCoords || !mapInstanceRef.current) return;
+    mapInstanceRef.current.flyTo(userLiveCoords, 15, {duration: 0.5});
+  }, [centerOnUserRequest, userLiveCoords?.[0], userLiveCoords?.[1]]);
+
 
   useEffect(() => {
     const group=tollLayerGroupRef.current;
@@ -251,6 +300,49 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       });
     }
   }, [fuel.stations, places, tolls, navigationMode]);
+
+  // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
+  // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const publish = visibleCallbackRef.current;
+    if (!map || !publish) return;
+    const bounds = map.getBounds();
+    const all: MapVisiblePlace[] = [
+      ...(!navigationMode && showFuelStations ? fuel.stations.map(station => ({
+        id: station.id, name: station.name, kind: 'fuel', address: station.address,
+        coords: [station.lat, station.lng] as [number, number]
+      })) : []),
+      ...(showFuelStations ? places
+        .filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))
+        .filter(place => place.kind !== 'toll' || !tolls.some(toll => toll.id === place.id))
+        .map(place => ({id: place.id, name: place.name, kind: place.kind, address: place.address,
+          coords: [place.lat, place.lng] as [number, number]})) : []),
+      ...(!navigationMode && tollVehicleType ? tolls.map(toll => ({
+        id: toll.id, name: toll.name, kind:'toll', address:'',
+        coords: toll.coords
+      })) : []),
+      ...stops.filter(stop => stop.category !== 'posto' || Boolean(stop.type)).map(stop => ({
+        id: 'stop:' + stop.name + ':' + stop.lat + ':' + stop.lng,
+        name: stop.name, kind: stop.category, address: stop.description,
+        coords: [stop.lat, stop.lng] as [number, number]
+      }))
+    ];
+    const unique = new Map<string,MapVisiblePlace>();
+    for(const place of all) {
+      if (!bounds.contains(place.coords)) continue;
+      const placeKey = place.coords.map(n=>n.toFixed(5)).join(',') + ':' + place.name.toLowerCase();
+      if (!unique.has(placeKey)) unique.set(placeKey, place);
+    }
+    const center = map.getCenter();
+    const ordered = [...unique.values()]
+      .sort((a,b) => map.distance(a.coords,center)-map.distance(b.coords,center)).slice(0,25);
+    const signature = JSON.stringify(ordered.map(p=>p.id));
+    if (signature !== visibleKeyRef.current) {
+      visibleKeyRef.current = signature;
+      publish(ordered);
+    }
+  }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations, tollVehicleType, viewportRevision, hasMapReady]);
 
   // Somente eventos aprovados, com expiração válida, são apresentados no mapa.
   useEffect(() => {
