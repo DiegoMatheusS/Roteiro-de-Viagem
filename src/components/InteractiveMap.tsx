@@ -724,8 +724,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if(fittedGeometryRef.current===geometryKey)return;
     if(bounds.length)fittedGeometryRef.current=geometryKey;
     if (bounds.length > 1) {
+      const sheetOverlay = roadStyle && routeAlternatives.length > 0;
       map.fitBounds(bounds as L.LatLngBoundsExpression, {
-        padding: [60, 60],
+        paddingTopLeft: [36, 70],
+        paddingBottomRight: [36, sheetOverlay ? Math.min(360, Math.round(map.getSize().y * .46)) : 64],
         maxZoom: 13,
         animate: false
       });
