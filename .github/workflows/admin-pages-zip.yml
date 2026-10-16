@@ -36,6 +36,7 @@ jobs:
           test -s dist-admin/index.html
           test -d dist-admin/assets
           test -s dist-admin/_worker.js
+          node --input-type=module -e "import worker from './dist-admin/_worker.js'; const result = await worker.fetch(new Request('https://admin.example/api/admin/summary'), {}); if (result.status !== 503) throw new Error('Admin build incorrectly blocks admin API routes');"
           test -s dist-admin/_routes.json
           test ! -e dist-admin/.env
           test ! -e dist-admin/admin-entry.html
