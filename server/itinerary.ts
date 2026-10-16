@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
 import { clientIp, ApiError, asyncRoute, validate, now, auth, user } from './http';
-import { validateCoordinates, nearbyPlaceRows, type MapFetch, type Coordinates } from './maps';
+import { validateCoordinates, nearbyPlaceRows, roadRoute, type MapFetch, type Coordinates } from './maps';
 import { privateRoadRoute } from './routeCache';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { createHash } from 'node:crypto';
@@ -121,6 +121,72 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
       throw new ApiError('Não foi possível pesquisar locais reais. Tente novamente.', 503);
     } finally { geocodingBusy = false; }
   }));
+  // Alternativas reais: as opções exibidas usam geometrias independentes do OSRM.
+  // Sem API de tráfego, não atribuímos congestionamento a qualquer trajeto.
+  app.post('/api/routes/alternatives', asyncRoute(async (req, res) => {
+    limit(`alternatives:${clientIp(req)}`, 20, 60000);
+    const origin = validate(() => validateCoordinates([req.body?.originCoords]))[0];
+    const destination = validate(() => validateCoordinates([req.body?.destinationCoords]))[0];
+    const base = process.env.ROUTING_URL || 'https://router.project-osrm.org';
+    const path = `${origin[1]},${origin[0]};${destination[1]},${destination[0]}`;
+    const url = `${base}/route/v1/driving/${path}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+    let payload: any;
+    try {
+      const response = await mapFetch(url, {signal:AbortSignal.timeout(18000),headers:{'User-Agent':'RoteiroDeViagem/1.0'}});
+      if (!response.ok) throw new Error('Serviço de rotas indisponível.');
+      payload = await response.json();
+    } catch { throw new ApiError('Não foi possível consultar rotas rodoviárias agora.', 503); }
+    if (payload?.code !== 'Ok' || !Array.isArray(payload.routes)) throw new ApiError('Não foram encontradas rotas rodoviárias verificadas.', 503);
+    const options: any[] = [];
+    const addOption = (route: any, kind: 'fast'|'alternative'|'tourist', stop?: any) => {
+      const coords = route.geometry?.coordinates;
+      if (!Array.isArray(coords) || coords.length < 2 || !Number.isFinite(route.distance) || !Number.isFinite(route.duration)) return;
+      if (coords.some((pair:any) => !Array.isArray(pair) || !Number.isFinite(pair[0]) || !Number.isFinite(pair[1]))) return;
+      const routePath = sampleRoutePath(coords.map((pair:number[]) => [pair[1],pair[0]] as Coordinates),2500);
+      const signature = [routePath[Math.floor(routePath.length / 3)],routePath[Math.floor(routePath.length * 2 / 3)]].map(point => point.map(v=>v.toFixed(3)).join(':')).join('|');
+      if (options.some(opt => opt.signature === signature)) return;
+      let progress = 0;
+      const routeSteps = (route.legs || []).flatMap((leg:any) => Array.isArray(leg.steps) ? leg.steps : [])
+        .map((step:any) => {
+          const distanceFromStartKm = progress / 1000;
+          progress += Number.isFinite(step.distance) ? step.distance : 0;
+          const point = step.maneuver?.location;
+          return Array.isArray(point) && point.length >= 2 && point.every(Number.isFinite)
+            ? { coords:[point[1],point[0]], distanceFromStartKm, type:String(step.maneuver?.type || ''),
+                modifier:String(step.maneuver?.modifier || ''), name:String(step.name || '').slice(0,120) } : null;
+        }).filter(Boolean);
+      options.push({ id:`option-${options.length+1}`, kind, distanceKm:Number((route.distance/1000).toFixed(2)),
+        durationMinutes:Math.ceil(route.duration/60), routePath, routeSteps,
+        scenicStop:stop ? {name:stop.name,coords:[stop.lat,stop.lng]} : undefined,
+        trafficStatus:'unavailable', tollStatus:'unchecked', signature });
+    };
+    const routes = payload.routes.filter((route:any)=>Number.isFinite(route?.duration)).sort((a:any,b:any)=>a.duration-b.duration);
+    for (const route of routes.slice(0,4)) addOption(route,options.length===0?'fast':'alternative');
+    // Só chama de turística uma rota que passa por uma atração cadastrada e foi roteada por vias reais.
+    if (options.length && distanceBetweenKm(origin,destination) > 4) {
+      const midpoint: Coordinates = [(origin[0]+destination[0])/2,(origin[1]+destination[1])/2];
+      const touristKinds = new Set(['waterfall','viewpoint','museum','park','attraction','historic','nature_reserve','beach']);
+      const poi = nearbyPlaceRows(db,[midpoint],Math.min(15,Math.max(4,distanceBetweenKm(origin,destination)/5)))
+        .find((p:any)=>touristKinds.has(p.kind) && distanceBetweenKm(origin,[p.lat,p.lng])>1 && distanceBetweenKm(destination,[p.lat,p.lng])>1);
+      if (poi) try {
+        const scenic = await roadRoute([origin,[poi.lat,poi.lng],destination],mapFetch,true);
+        const scenicRoute = {
+          distance:scenic.distanceKm*1000,
+          duration:scenic.legsSeconds?.reduce((a,b)=>a+b,0) || 0,
+          geometry:{coordinates:scenic.geometry?.map(point=>[point[1],point[0]])},
+          legs:[],
+        };
+        if (scenicRoute.duration>0 && scenicRoute.duration <= routes[0].duration*2
+            && scenic.geometry?.length && !options.some(opt=>Math.abs(opt.distanceKm-scenic.distanceKm)<0.1))
+          options.push({id:`option-${options.length+1}`,kind:'tourist',distanceKm:Number(scenic.distanceKm.toFixed(2)),
+            durationMinutes:Math.ceil(scenicRoute.duration/60),routePath:sampleRoutePath(scenic.geometry,2500),
+            routeSteps:scenic.routeSteps||[],scenicStop:{name:poi.name,coords:[poi.lat,poi.lng]},
+            trafficStatus:'unavailable',tollStatus:'unchecked'});
+      } catch { /* rota turística é opcional; jamais desenhar linha fictícia */ }
+    }
+    res.json({options:options.map(({signature,...option})=>option),trafficDataAvailable:false});
+  }));
+
   app.post('/api/routes/itinerary', asyncRoute(async (req, res) => {
     limit(`itinerary:${clientIp(req)}`, 30, 60000);
     const origin = validate(() => validateCoordinates([req.body.originCoords]))[0];
@@ -168,6 +234,6 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
         base.forEach((point, index) => { if (distanceBetweenKm(point, [place.lat, place.lng]) < distanceBetweenKm(base[closest], [place.lat, place.lng])) closest = index; });
         return { id: `suggestion-${place.id}`, location: locationDto(place), stayMinutes: 20, afterIndex: Math.min(Math.max(-1, closest - 1), Math.max(-1, manualStops.length - 1)) };
       });
-    res.json({ distanceKm: Number(road.distanceKm.toFixed(2)), drivingMinutes, durationMinutes, routePath: sampleRoutePath(road.geometry!, 2500), waypoints, manualStops, acceptedSuggestions, suggestions, warnings, exceedsLimit, tollsStatus: 'unknown' });
+    res.json({ distanceKm: Number(road.distanceKm.toFixed(2)), drivingMinutes, durationMinutes, routePath: sampleRoutePath(road.geometry!, 2500), routeSteps: road.routeSteps || [], waypoints, manualStops, acceptedSuggestions, suggestions, warnings, exceedsLimit, tollsStatus: 'unknown' });
   }));
 }
