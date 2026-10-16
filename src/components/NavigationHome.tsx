@@ -75,6 +75,12 @@ export function NavigationHome(props: NavigationHomeProps) {
     return false;
   };
   const gpsCoordinates = async (): Promise<[number,number]> => {
+    // A posição já fornecida pelo rastreador evita uma segunda leitura GPS desnecessária.
+    const tracked = gps.status === 'ready' ? gps.position : null;
+    if (tracked && Date.now() - tracked.timestamp >= -5000
+      && Date.now() - tracked.timestamp < 30000 && tracked.accuracyMeters <= 100) {
+      return tracked.coords;
+    }
     const position = await getCurrentDeviceLocation();
     if (position.accuracyMeters > 150) throw new Error('O sinal GPS está impreciso. Tente novamente em local aberto.');
     return position.coords;
