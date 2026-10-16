@@ -399,6 +399,7 @@ export default function App() {
                 activeConvoyId={activeConvoyId}
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onNavigateHome={handleReturnHome}
+                sosOpen={isSosOpen}
                 onOpenSos={() => setIsSosOpen(true)}
                 onStartTrip={handleStartTrip}
                 onOpenShareModal={(trip) => setShareTripTarget(trip)}

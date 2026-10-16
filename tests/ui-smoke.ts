@@ -56,7 +56,10 @@ try {
   await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
   await page.getByRole('button', {name:'Abrir menu'}).click();
-  await page.getByRole('button', {name:'Perfil',exact:true}).click();
+  const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
+  await roleMenu.getByRole('button', {name:'Começar um rolê'}).waitFor();
+  await roleMenu.getByText('Seu caminho, seu ritmo.').waitFor();
+  await roleMenu.getByRole('button', {name:'Perfil',exact:true}).click();
   await page.getByRole('button', { name: 'Entrar / Criar conta' }).click();
   const login = page.getByRole('dialog', { name: 'Conta do viajante' });
   await login.getByRole('button', { name: 'Ainda não tenho conta' }).click();
@@ -256,6 +259,13 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
+  const bottomMapSearch = page.getByRole('searchbox', { name: 'Para onde quer ir?' });
+  await bottomMapSearch.fill('Parada');
+  const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
+  await mapSearchDialog.getByRole('heading', { name: 'Para onde vamos?' }).waitFor();
+  await mapSearchDialog.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
+  await mapSearchDialog.getByLabel('Origem', { exact: true }).waitFor();
+  await mapSearchDialog.getByRole('button', { name: 'Fechar busca do mapa' }).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });

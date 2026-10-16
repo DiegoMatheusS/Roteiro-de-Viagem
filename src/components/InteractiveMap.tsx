@@ -39,6 +39,7 @@ interface InteractiveMapProps {
   travelledDistanceKm?: number;
   totalRouteKm?: number;
   blueRoute?: boolean;
+  roadStyle?: boolean;
   followUser?: boolean;
   roadAlerts?: RoadAlert[];
 }
@@ -115,6 +116,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   travelledDistanceKm = 0,
   totalRouteKm = 0,
   blueRoute = false,
+  roadStyle = false,
   followUser = true,
   roadAlerts = [],
   className = 'w-full h-full'
@@ -141,7 +143,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
-  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(navigationMode ? 'light' : 'voyager');
+  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(navigationMode || roadStyle ? 'light' : 'voyager');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
 
   // Initialize Map
@@ -162,7 +164,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     // Initial vibrant CartoDB Voyager Tile Layer
-    const tileConfig = TILE_PROVIDERS[navigationMode ? 'light' : 'voyager'];
+    const tileConfig = TILE_PROVIDERS[navigationMode || roadStyle ? 'light' : 'voyager'];
     const tileLayer = L.tileLayer(tileConfig.url, {
       maxZoom: tileConfig.maxZoom,
       attribution: tileConfig.attribution,
@@ -279,7 +281,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       map.removeLayer(currentTileLayerRef.current);
     }
 
-    const tileConfig = TILE_PROVIDERS[currentStyle];
+    const tileConfig = TILE_PROVIDERS[roadStyle || navigationMode ? 'light' : currentStyle];
     const newTileLayer = L.tileLayer(tileConfig.url, {
       maxZoom: tileConfig.maxZoom,
       attribution: tileConfig.attribution,
@@ -294,7 +296,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if (mapInstanceRef.current === map) map.invalidateSize();
     }, 100);
     return () => clearTimeout(timer);
-  }, [currentStyle]);
+  }, [currentStyle, roadStyle, navigationMode]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -349,7 +351,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 1. Origin Marker
     if (originCoords && !navigationMode) {
-      const originIcon = createHtmlIcon('#059669', originLabel, '🟢');
+      const originIcon = roadStyle ? L.divIcon({
+        className:'map-origin-dot',
+        html:'<span style="display:block;width:16px;height:16px;background:#16a34a;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
+        iconSize:[16,16],iconAnchor:[8,8]
+      }) : createHtmlIcon('#059669', originLabel, '🟢');
       const originMarker = L.marker(originCoords, { icon: originIcon }).addTo(group);
       originMarker.bindPopup(`<b>Partida:</b> ${escapeHtml(originLabel)}`);
       bounds.push(originCoords);
@@ -357,7 +363,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 2. Destination Marker
     if (destinationCoords) {
-      const destIcon = createHtmlIcon('#2563eb', destinationLabel, '🏁');
+      const destIcon = roadStyle ? L.divIcon({
+        className:'map-destination-dot',
+        html:'<span style="display:block;width:17px;height:17px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
+        iconSize:[17,17],iconAnchor:[9,9]
+      }) : createHtmlIcon('#2563eb', destinationLabel, '🏁');
       const destMarker = L.marker(destinationCoords, { icon: destIcon }).addTo(group);
       destMarker.bindPopup(`<b>Chegada:</b> ${escapeHtml(destinationLabel)}`);
       bounds.push(destinationCoords);
@@ -387,7 +397,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       }
       routePath.forEach((point, index) => {
         bounds.push(point);
-        if (!navigationMode && index > 0 && index < routePath.length - 1 && index % 3 === 0) {
+        if (!navigationMode && !roadStyle && !blueRoute && index > 0 && index < routePath.length - 1 && index % 3 === 0) {
           const milestoneIcon = L.divIcon({
             className: 'route-milestone-marker',
             html: `<div style="width:10px;height:10px;background:#fff;border:2.5px solid ${modalityStyle.primary};border-radius:50%"></div>`,
@@ -461,9 +471,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             width: 20px;
             height: 20px;
             background-color: #2563eb;
-            border: 3.5px solid white;
+            border: none;
             border-radius: 50%;
-            box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.4);
+            box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.15), 0 2px 8px #163b8070;
           "></div>
         `,
         iconSize: [20, 20],
@@ -611,6 +621,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     travelledDistanceKm,
     totalRouteKm,
     blueRoute,
+    roadStyle,
     showRainLayer,
     weatherPoints,
     userLiveCoords,
@@ -640,7 +651,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       {selectedStation && <FuelStationModal key={`${selectedStation}:${stationSection}`} stationId={selectedStation} initialSection={stationSection} onClose={() => setSelectedStation(null)} />}
 
       {/* MAP STYLE SWITCHER CONTROL (Requirement: Colorido, Satélite, Relevo) */}
-      {!navigationMode && <div className="absolute bottom-5 left-4 z-30">
+      {!navigationMode && !roadStyle && <div className="absolute bottom-5 left-4 z-30">
         <div className="relative">
           <button
             onClick={() => setShowStyleMenu(!showStyleMenu)}
