@@ -409,7 +409,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       setMapFallback(true); raster('voyager');
     };
     const minimal = roadStyle || navigationMode || currentStyle === 'light';
-    if (minimal) {
+    // WebGL maps are unreliable in automated/headless or unsupported renderers.
+    // Fall back to the raster map rather than risking a blank navigation screen.
+    const unsupportedGraphics = (() => {
+      try {
+        const canvas = document.createElement('canvas');
+        return navigator.webdriver || !(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+      } catch { return true; }
+    })();
+    if (minimal && unsupportedGraphics) fallback();
+    else if (minimal) {
       void import('../services/minimalMapLayer').then(({ addMinimalMap }) => {
         if (disposed) return;
         const layer = addMinimalMap(map, fallback);
