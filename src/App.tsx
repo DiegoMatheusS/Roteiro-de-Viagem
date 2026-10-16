@@ -312,7 +312,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className={`bg-slate-50 text-slate-900 flex flex-col font-sans ${(activeTab==='inicio'||activeTab==='mapa')&&!advancedHome?'h-[100dvh] overflow-hidden':'min-h-screen'}`}>
       {auth.user && syncState !== 'synced' && <div role="status" className="px-4 py-2 text-xs bg-amber-50 text-amber-950 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
         <span>{syncState === 'pending' ? 'Salvando suas viagens na conta...' : syncState === 'conflict' ? syncMessage : syncMessage || 'Seus dados ainda não foram salvos no servidor.'}</span>
         {['error','offline'].includes(syncState) && <button onClick={() => void cloudState.retry()} className="underline font-semibold">Tentar salvar novamente</button>}
@@ -384,7 +384,7 @@ export default function App() {
       ) : (
         <>
           {/* MAIN TABS CONTAINER */}
-          <main className="flex-1">
+          <main className="flex-1 min-h-0 relative">
             {activeTab === 'inicio' && !advancedHome && (
               <NavigationHome
                 currentVehicle={currentVehicle}
