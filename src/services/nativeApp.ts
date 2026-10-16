@@ -12,6 +12,7 @@ export const TravelNative = registerPlugin<{
   openExternal(options:{url:string}):Promise<void>;
   copyText(options:{text:string}):Promise<void>;
   exitApp():Promise<void>;
+  signInGoogle(options:{clientId:string}):Promise<{credential:string}>;
 }>('TravelNative');
 export async function nativeRequest(path: string, options: RequestInit = {}) {
   const form: { name: string; value?: string; data?: string; mime?: string }[] = [];
