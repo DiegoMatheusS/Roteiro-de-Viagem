@@ -108,12 +108,11 @@ try {
   assert.equal(await directSearch.getByLabel('Origem', {exact:true}).count(),0);
   await directSearch.getByLabel('Destino', {exact:true}).fill('Parada');
   await directSearch.getByRole('button', {name:'Buscar destino'}).click();
-  await directSearch.getByRole('button', {name:/Parada Alfa de teste/}).click();
+  const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
+  await directSearch.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
   const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
   await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
   await destinationMap.getByText('Dicas de viagem').waitFor();
-  const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
-  await destinationMap.getByRole('button',{name:'Mostrar rotas'}).click();
   assert.equal((await choicesRequest).status(),200);
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
