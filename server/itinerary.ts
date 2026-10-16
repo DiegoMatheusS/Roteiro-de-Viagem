@@ -138,7 +138,7 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     } catch { throw new ApiError('Não foi possível consultar rotas rodoviárias agora.', 503); }
     if (payload?.code !== 'Ok' || !Array.isArray(payload.routes)) throw new ApiError('Não foram encontradas rotas rodoviárias verificadas.', 503);
     const options: any[] = [];
-    const addOption = (route: any, kind: 'fast'|'alternative'|'tourist', stop?: any) => {
+    const addOption = (route: any, kind: 'fast'|'alternative'|'tourist'|'panoramic'|'stroll', stop?: any) => {
       const coords = route.geometry?.coordinates;
       if (!Array.isArray(coords) || coords.length < 2 || !Number.isFinite(route.distance) || !Number.isFinite(route.duration)) return;
       if (coords.some((pair:any) => !Array.isArray(pair) || !Number.isFinite(pair[0]) || !Number.isFinite(pair[1]))) return;
@@ -162,28 +162,58 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     };
     const routes = payload.routes.filter((route:any)=>Number.isFinite(route?.duration)).sort((a:any,b:any)=>a.duration-b.duration);
     for (const route of routes.slice(0,4)) addOption(route,options.length===0?'fast':'alternative');
-    // Só chama de turística uma rota que passa por uma atração cadastrada e foi roteada por vias reais.
-    if (options.length && distanceBetweenKm(origin,destination) > 4) {
-      const midpoint: Coordinates = [(origin[0]+destination[0])/2,(origin[1]+destination[1])/2];
-      const touristKinds = new Set(['waterfall','viewpoint','museum','park','attraction','historic','nature_reserve','beach']);
-      const poi = nearbyPlaceRows(db,[midpoint],Math.min(15,Math.max(4,distanceBetweenKm(origin,destination)/5)))
-        .find((p:any)=>touristKinds.has(p.kind) && distanceBetweenKm(origin,[p.lat,p.lng])>1 && distanceBetweenKm(destination,[p.lat,p.lng])>1);
-      if (poi) try {
-        const scenic = await roadRoute([origin,[poi.lat,poi.lng],destination],mapFetch,true);
-        const scenicRoute = {
-          distance:scenic.distanceKm*1000,
-          duration:scenic.legsSeconds?.reduce((a,b)=>a+b,0) || 0,
-          geometry:{coordinates:scenic.geometry?.map((point: Coordinates)=>[point[1],point[0]])},
-          legs:[],
-        };
-        if (scenicRoute.duration>0 && scenicRoute.duration <= routes[0].duration*2
-            && scenic.geometry?.length && !options.some(opt=>Math.abs(opt.distanceKm-scenic.distanceKm)<0.1))
-          options.push({id:`option-${options.length+1}`,kind:'tourist',distanceKm:Number(scenic.distanceKm.toFixed(2)),
-            durationMinutes:Math.ceil(scenicRoute.duration/60),routePath:sampleRoutePath(scenic.geometry,2500),
-            routeSteps:scenic.routeSteps||[],scenicStop:{name:poi.name,coords:[poi.lat,poi.lng]},
-            trafficStatus:'unavailable',tollStatus:'unchecked'});
-      } catch { /* rota turística é opcional; jamais desenhar linha fictícia */ }
+    // Rolê prioriza experiências reais: buscar atrações próximas ao trajeto rodoviário,
+    // não apenas no ponto médio (que pode estar longe de vias acessíveis).
+    if (options.length && distanceBetweenKm(origin,destination) > 1.5) {
+      const scenicKinds = new Set(['waterfall','viewpoint','museum','park','attraction','historic','nature_reserve','beach']);
+      const weights: Record<string, number> = {
+        waterfall: 11, viewpoint: 10, beach: 10, nature_reserve: 9,
+        historic: 8, museum: 8, attraction: 7, park: 6
+      };
+      const pathSamples = sampleRoutePath(options[0].routePath, 9);
+      const nearby = nearbyPlaceRows(db, pathSamples, 8)
+        .filter((p:any) => scenicKinds.has(p.kind) && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+          && distanceBetweenKm(origin,[p.lat,p.lng])>0.35
+          && distanceBetweenKm(destination,[p.lat,p.lng])>0.35);
+      const distanceToRoute = (poi:any) => Math.min(...pathSamples.map(point=>distanceBetweenKm(point,[poi.lat,poi.lng])));
+      const candidates = nearby.sort((a:any,b:any) =>
+        (weights[b.kind] || 0) - (weights[a.kind] || 0) || distanceToRoute(a)-distanceToRoute(b))
+        .slice(0,5);
+      // No máximo duas consultas: nem uma rota fictícia nem centenas de chamadas ao OSRM.
+      let scenicAdded=0;
+      for (const poi of candidates) {
+        if (scenicAdded>=2) break;
+        try {
+          const scenic = await roadRoute([origin,[poi.lat,poi.lng],destination],mapFetch,true);
+          const durationSeconds = scenic.legsSeconds?.reduce((a,b)=>a+b,0) || 0;
+          if (!scenic.geometry || durationSeconds<=0) continue;
+          const baseSeconds = routes[0].duration;
+          // Um passeio aceita desvio, mas não um caminho excessivamente longo.
+          if (durationSeconds>Math.max(baseSeconds*2.2,baseSeconds+1800))continue;
+          const path = sampleRoutePath(scenic.geometry,2500);
+          const sampleSignature = (points:Coordinates[]) =>
+            [points[Math.floor(points.length/3)],points[Math.floor(points.length*2/3)]]
+              .map(point=>point.map(v=>v.toFixed(3)).join(':')).join('|');
+          const signature = sampleSignature(path);
+          if (options.some(option=>option.signature === signature)) continue;
+          const kind = ['viewpoint','waterfall','beach','nature_reserve'].includes(poi.kind) ? 'panoramic'
+            : poi.kind === 'park' ? 'stroll' : 'tourist';
+          options.push({
+            id:`option-${options.length+1}`,kind,
+            distanceKm:Number(scenic.distanceKm.toFixed(2)),
+            durationMinutes:Math.ceil(durationSeconds/60),routePath:path,
+            routeSteps:scenic.routeSteps || [],
+            scenicStop:{name:poi.name,kind:poi.kind,coords:[poi.lat,poi.lng]},
+            trafficStatus:'unavailable',tollStatus:'unchecked',signature
+          });
+          scenicAdded++;
+        } catch { /* Sem rota real verificada, não anunciar ponto turístico no trajeto. */ }
+      }
     }
+    // Diferencial do Rolê: passeio primeiro; caminho rápido apenas como alternativa.
+    const roleOrder: Record<string, number> = {panoramic:0,tourist:1,stroll:2,alternative:3,fast:4};
+    options.sort((a,b)=>(roleOrder[a.kind]??4)-(roleOrder[b.kind]??4)
+      || a.durationMinutes-b.durationMinutes);
     res.json({options:options.map(({signature,...option})=>option),trafficDataAvailable:false});
   }));
 
