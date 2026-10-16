@@ -28,7 +28,9 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
 };
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-ui-'));
 const db = openDatabase(':memory:');
-const api = createApi({ db, photoDirectory: path.join(directory, 'photos'), mapFetch });
+// O teste percorre muitas telas e duas contas no mesmo IP em menos de um minuto.
+// Mantém os limites específicos de login, cadastro e contribuições intactos.
+const api = createApi({ db, photoDirectory: path.join(directory, 'photos'), mapFetch, requestLimitPerMinute: 1000 });
 const server = api.listen(3001, '127.0.0.1');
 await new Promise<void>(resolve => server.once('listening', resolve));
 const vite = await createServer({ server: { host: '127.0.0.1', port: 3000, strictPort: true } });
