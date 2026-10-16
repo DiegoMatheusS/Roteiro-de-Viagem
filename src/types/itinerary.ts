@@ -6,6 +6,7 @@ export interface SuggestedStop { id: string; location: LocationSelection; stayMi
 export interface PlanningLimits { mode: 'km' | 'hours' | 'destination'; target?: number }
 export interface ItineraryResult {
   distanceKm: number; drivingMinutes: number; durationMinutes: number; routePath: [number, number][];
+  routeSteps?: import('./index').NavigationManeuver[];
   waypoints: [number, number][]; manualStops: MandatoryStop[]; acceptedSuggestions: SuggestedStop[];
   suggestions: SuggestedStop[]; warnings: string[]; exceedsLimit: boolean; tollsStatus: 'unknown';
 }
