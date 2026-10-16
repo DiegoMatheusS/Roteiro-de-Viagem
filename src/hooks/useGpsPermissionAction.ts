@@ -9,7 +9,7 @@ const nativePermissionHelp = 'Nas configurações do aplicativo, permita Localiz
 function denied(error: unknown): boolean {
   const message = String((error as {message?:string})?.message || '');
   const code = (error as {code?:number|string})?.code;
-  return code === 1 || /permission|denied|permiss[aã]o|negad|not authorized/i.test(message);
+  return code === 1 || /permission|denied|permiss[aã]o|negad|n[aã]o permitid[ao]|acesso.*localiza|not authorized/i.test(message);
 }
 
 /** Executa sob o clique do usuário: pede GPS ou abre as configurações quando já bloqueado. */
