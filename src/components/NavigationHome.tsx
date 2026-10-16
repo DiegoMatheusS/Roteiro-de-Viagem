@@ -272,30 +272,24 @@ export function NavigationHome(props: NavigationHomeProps) {
         <section className="space-y-3">
           <div>
             <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Dar um rolê por aí?</h2>
-            <p className="text-[12px] mt-1 text-slate-500 leading-relaxed">Não sabe para onde ir e só quer andar? Escolha a distância ou o tempo, que eu monto o trajeto para você.</p>
+            <p className="text-[14px] mt-1 text-slate-500">Escolha como prefere passear.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')}
-              className="group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#1a5aa90c] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
+              className="group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[23px] p-3.5 min-h-[125px] flex flex-col items-start gap-2 text-left shadow-[0_8px_20px_#1a5aa90c] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
               <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
                 <Navigation size={21} strokeWidth={2.2}/>
               </span>
-              <strong className="text-blue-800 text-[14px] block tracking-tight">Por distância</strong>
-              <span className="text-slate-600 text-[11px] leading-snug flex-1">Quantos KM gostaria de percorrer?</span>
-              <span className="w-full bg-blue-600 text-white rounded-[12px] h-8 flex items-center justify-center text-[11px] font-bold mt-1 gap-1">
-                Escolher KM <ChevronRight size={13}/>
-              </span>
+              <strong className="text-blue-800 text-[16px] font-semibold block tracking-tight">Por distância</strong>
+              <ChevronRight size={20} className="self-end text-blue-600" aria-hidden="true"/>
             </button>
             <button type="button" onClick={()=>showSheet('hours')}
               className="group bg-gradient-to-br from-[#eafaf3] to-white border border-[#bde7d5] rounded-[23px] p-3.5 min-h-[156px] flex flex-col items-start gap-1 text-left shadow-[0_8px_20px_#19765e0b] hover:-translate-y-0.5 active:scale-[.98] transition-transform duration-200">
               <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1">
                 <Clock3 size={21} strokeWidth={2.2}/>
               </span>
-              <strong className="text-emerald-800 text-[14px] block tracking-tight">Por tempo</strong>
-              <span className="text-slate-600 text-[11px] leading-snug flex-1">Quantas horas gostaria de passear?</span>
-              <span className="w-full bg-emerald-600 text-white rounded-[12px] h-8 flex items-center justify-center text-[11px] font-bold mt-1 gap-1">
-                Escolher horas <ChevronRight size={13}/>
-              </span>
+              <strong className="text-emerald-800 text-[16px] font-semibold block tracking-tight">Por tempo</strong>
+              <ChevronRight size={20} className="self-end text-emerald-600" aria-hidden="true"/>
             </button>
           </div>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
