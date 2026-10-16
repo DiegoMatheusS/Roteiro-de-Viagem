@@ -330,16 +330,23 @@ try {
   await exploration.getByRole('heading', { name: 'Viagens sugeridas' }).waitFor();
   await exploration.getByRole('heading', { name: 'Estabelecimentos no mapa' }).waitFor();
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
+  // Na aba Mapa, a barra e um campo real: foco imediato, Enter e rotas automaticas.
   const bottomMapSearch = page.getByRole('searchbox', { name: 'Para onde quer ir?' });
+  await bottomMapSearch.click();
+  assert.equal(await bottomMapSearch.evaluate(element=>document.activeElement===element),true,
+    'Tocar na busca do Mapa deve focar o input para abrir o teclado');
+  assert.equal(await page.getByRole('dialog', { name: 'Buscar destino no mapa' }).count(),0,
+    'A barra do Mapa nao deve abrir outro modal');
   await bottomMapSearch.fill('Parada');
-  const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
-  await mapSearchDialog.getByRole('heading', { name: 'Para onde vamos?' }).waitFor();
-  assert.equal(await mapSearchDialog.getByLabel('Origem', { exact:true }).count(),0);
-  await mapSearchDialog.getByLabel('Destino', {exact:true}).fill('Parada');
-  await mapSearchDialog.getByRole('button', {name:'Buscar destino'}).click();
-  await mapSearchDialog.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
+  const mapRoutesRequest = page.waitForResponse(response =>
+    response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
+  await bottomMapSearch.press('Enter');
   const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
   await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
+  assert.equal((await mapRoutesRequest).status(),200,'Enter na aba Mapa deve calcular as rotas');
+  await mapDestination.getByText('Rota mais rápida').waitFor();
+  assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,
+    'As rotas da pesquisa direta devem aparecer desenhadas no Mapa');
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
