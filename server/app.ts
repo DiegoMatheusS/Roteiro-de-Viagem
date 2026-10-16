@@ -26,7 +26,7 @@ import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from './googleAuth'
 import { stationOpeningStatus } from './openingHours';
 
 const scryptAsync = promisify(scrypt);
-export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch }) {
+export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; requestLimitPerMinute?: number }) {
   const { db } = options;
   const photosDir = path.resolve(options.photoDirectory || process.env.PHOTO_DIRECTORY || './data/photos');
   fs.mkdirSync(photosDir, { recursive: true, mode: 0o700 });
@@ -58,7 +58,8 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     try {
-      limit(`requests:${clientIp(req)}`, 180, 60000);
+      // Testes E2E executam vários navegadores no mesmo IP; produção mantém 180/minuto.
+      limit(`requests:${clientIp(req)}`, options.requestLimitPerMinute ?? 180, 60000);
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
         const allowed = new Set([process.env.PUBLIC_APP_URL || 'http://localhost:3000', process.env.PUBLIC_ADMIN_URL, ...(process.env.NODE_ENV !== 'production' ? ['http://127.0.0.1:3000'] : [])].filter((entry): entry is string => !!entry));
         if (!allowed.has(req.headers.origin)) throw new ApiError('Origem da solicitação não permitida.', 403);

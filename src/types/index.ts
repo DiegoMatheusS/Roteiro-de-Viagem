@@ -120,6 +120,15 @@ export interface WeatherPoint {
   warning?: string;
 }
 
+/** Manobra retornada pelo roteador rodoviário (nunca estimada pela interface). */
+export interface NavigationManeuver {
+  coords: [number, number];
+  distanceFromStartKm: number;
+  type: string;
+  modifier?: string;
+  name: string;
+}
+
 export interface TripPlan {
   id: string;
   title: string;
@@ -137,6 +146,7 @@ export interface TripPlan {
   tollsMapUnavailable?: boolean;
   vehicleId: string;
   routePath: [number, number][]; // coordinates for Leaflet polyline
+  routeSteps?: NavigationManeuver[];
   manualStops?: import('./itinerary').MandatoryStop[];
   acceptedSuggestions?: import('./itinerary').SuggestedStop[];
   planningLimits?: import('./itinerary').PlanningLimits;

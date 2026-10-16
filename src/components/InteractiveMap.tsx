@@ -165,7 +165,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
-  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(navigationMode || roadStyle ? 'light' : 'voyager');
+  const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
 
   // Initialize Map
@@ -182,11 +182,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       attributionControl: true
     });
 
-    // A interface rodoviária e a tela inicial usam gestos para zoom, sem botões + / -.
-    if (!navigationMode && !roadStyle) L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // Estilo Waze: zoom apenas por pinça ou gesto; sem controles + e −.
 
     // Initial vibrant CartoDB Voyager Tile Layer
-    const tileConfig = TILE_PROVIDERS[navigationMode || roadStyle ? 'light' : 'voyager'];
+    const tileConfig = TILE_PROVIDERS['light'];
     const tileLayer = L.tileLayer(tileConfig.url, {
       maxZoom: tileConfig.maxZoom,
       attribution: tileConfig.attribution,
@@ -255,7 +254,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
     if(!tollVehicleType)return;
-    for(const toll of navigationMode ? [] : tolls) {
+    for(const toll of navigationMode ? [] : (Array.isArray(tolls) ? tolls : [])) {
       const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
@@ -275,14 +274,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group = fuelLayerGroupRef.current;
     if (!group) return;
     group.clearLayers();
-    for (const station of navigationMode ? [] : fuel.stations) {
+    for (const station of navigationMode ? [] : (Array.isArray(fuel.stations) ? fuel.stations : [])) {
       const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => openStation(station.id));
     }
-    for (const place of places.filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
+    for (const place of (Array.isArray(places) ? places : []).filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
       if (place.kind === 'toll') {
         if (tolls.some(toll => toll.id === place.id)) continue;
         const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
@@ -290,7 +289,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         continue;
       }
       const emoji = PLACE_KINDS.find(kind => kind.id === place.kind)?.icon || '📍';
-      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:white;border:2px solid #ea580c;border-radius:50%;padding:5px;font-size:18px">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:#2563eb;border:2px solid white;border-radius:11px;padding:5px;font-size:18px;box-shadow:0 2px 8px #0003">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
       marker.bindTooltip(tooltip); marker.on('click', () => setSelectedPlace(place));
@@ -350,7 +349,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!group) return;
     group.clearLayers();
     const now = Date.now();
-    for (const alert of roadAlerts) {
+    for (const alert of (Array.isArray(roadAlerts) ? roadAlerts : [])) {
       if (Date.parse(alert.expiresAt) <= now) continue;
       const kind = ROAD_ALERT_TYPES.find(value => value.id === alert.kind);
       if (!kind) continue;
@@ -558,18 +557,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (userLiveCoords) {
       const liveIcon = L.divIcon({
         className: 'user-live-marker',
-        html: `
-          <div style="
-            width: 20px;
-            height: 20px;
-            background-color: #2563eb;
-            border: none;
-            border-radius: 50%;
-            box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.15), 0 2px 8px #163b8070;
-          "></div>
-        `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
+        html: `<div style="width:32px;height:32px;display:grid;place-items:center;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 0 0 7px #2563eb25,0 3px 12px #0f172a66;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
       });
       L.marker(userLiveCoords, { icon: liveIcon, zIndexOffset: 1000 })
         .addTo(group)

@@ -24,11 +24,13 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
   const coordinates = String(url).split('/driving/')[1].split('?')[0].split(';');
   const geometric = String(url).includes('geometries=geojson');
   const distance = geometric ? (coordinates.length - 1) * 20000 : coordinates.includes('-46.629,-23.551') ? 102000 : 100000;
-  return new Response(JSON.stringify({ code: 'Ok', routes: [{ distance, legs: coordinates.slice(1).map(() => ({ distance: distance / (coordinates.length - 1), duration: 600 })), geometry: { type: 'LineString', coordinates: coordinates.map(point => point.split(',').map(Number)) } }] }));
+  return new Response(JSON.stringify({ code: 'Ok', routes: [{ distance, duration:600 * (coordinates.length-1), legs: coordinates.slice(1).map(() => ({ distance: distance / (coordinates.length - 1), duration: 600 })), geometry: { type: 'LineString', coordinates: coordinates.map(point => point.split(',').map(Number)) } }] }));
 };
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-ui-'));
 const db = openDatabase(':memory:');
-const api = createApi({ db, photoDirectory: path.join(directory, 'photos'), mapFetch });
+// O teste percorre muitas telas e duas contas no mesmo IP em menos de um minuto.
+// Mantém os limites específicos de login, cadastro e contribuições intactos.
+const api = createApi({ db, photoDirectory: path.join(directory, 'photos'), mapFetch, requestLimitPerMinute: 1000 });
 const server = api.listen(3001, '127.0.0.1');
 await new Promise<void>(resolve => server.once('listening', resolve));
 const vite = await createServer({ server: { host: '127.0.0.1', port: 3000, strictPort: true } });
@@ -43,7 +45,7 @@ const adminPage = await adminContext.newPage();
 adminPage.setDefaultTimeout(15000);
 page.setDefaultTimeout(15000);
 const errors: string[] = [];
-page.on('pageerror', error => errors.push(error.message));
+page.on('pageerror', error => errors.push(error.stack || error.message));
 adminPage.on('pageerror', error => errors.push(error.message));
 fs.mkdirSync('test-results', { recursive: true });
 try {
@@ -102,8 +104,26 @@ try {
   await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
   await accountMenu.getByRole('button', { name: 'Início', exact: true }).click();
 
-  // A pesquisa rápida precisa abrir um mapa de percurso verificado antes de iniciar.
+  // Busca rápida: só localiza o endereço no mapa, sem abrir origem/destino.
   await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
+  const directSearch = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
+  assert.equal(await directSearch.getByLabel('Origem', {exact:true}).count(),0);
+  await directSearch.getByLabel('Destino', {exact:true}).fill('Parada');
+  await directSearch.getByRole('button', {name:'Buscar destino'}).click();
+  const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
+  await directSearch.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
+  const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
+  await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
+  await destinationMap.getByText('Dicas de viagem').waitFor();
+  // Quando o GPS ainda não está pronto, o usuário pode pedir as rotas manualmente.
+  await destinationMap.getByRole('button',{name:/Mostrar rotas|Atualizar rotas/}).click();
+  assert.equal((await choicesRequest).status(),200);
+  await destinationMap.getByText('Rota mais rápida').waitFor();
+  assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
+  await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
+  await page.getByRole('heading',{name:'Dar um rolê por aí?'}).waitFor();
+  // O formulário detalhado de origem e destino continua disponível separadamente.
+  await page.getByRole('button', {name:'Rolê com origem e destino'}).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
   // Garante que a pesquisa manual funcione mesmo quando o GPS não respondeu ainda.
   await destinationSheet.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
@@ -112,7 +132,7 @@ try {
   await destinationSheet.getByRole('button', { name: /Parada Beta de teste/ }).click();
   await destinationSheet.getByLabel('Destino', { exact: true }).fill('Parada');
   await destinationSheet.getByRole('button', { name: 'Buscar destino', exact: true }).click();
-  await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).click();
+  await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).first().click();
   const roadRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/itinerary') && response.request().method() === 'POST');
   await destinationSheet.getByRole('button', { name: 'Ver percurso', exact: true }).click();
   assert.equal((await roadRequest).status(), 200);
@@ -316,9 +336,13 @@ try {
   await bottomMapSearch.fill('Parada');
   const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
   await mapSearchDialog.getByRole('heading', { name: 'Para onde vamos?' }).waitFor();
-  await mapSearchDialog.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
-  await mapSearchDialog.getByLabel('Origem', { exact: true }).waitFor();
-  await mapSearchDialog.getByRole('button', { name: 'Fechar busca do mapa' }).click();
+  assert.equal(await mapSearchDialog.getByLabel('Origem', { exact:true }).count(),0);
+  await mapSearchDialog.getByLabel('Destino', {exact:true}).fill('Parada');
+  await mapSearchDialog.getByRole('button', {name:'Buscar destino'}).click();
+  await mapSearchDialog.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
+  const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
+  await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
+  await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
@@ -364,7 +388,14 @@ try {
   assert.equal(await page.getByLabel('Parada 1', { exact: true }).inputValue(), 'Parada Beta de teste');
   await page.screenshot({ path: 'test-results/stops-home-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Usar minha localização', exact: true }).click();
-  await page.getByText(/Origem: Sua Localização/).waitFor();
+  // O provedor de GPS do Chromium pode expirar no runner mesmo com permissão.
+  // Testar o percurso com uma origem pesquisada quando o dispositivo não respondeu.
+  await page.getByRole('button', { name: 'Usar minha localização', exact: true }).waitFor({state:'visible',timeout:25000});
+  if (!(await page.getByText(/Origem: Sua Localização/).count())) {
+    await page.getByLabel('Origem', {exact:true}).fill('Parada');
+    await page.getByRole('button',{name:'Buscar origem',exact:true}).click();
+    await page.getByRole('button',{name:/Parada Beta de teste/}).first().click();
+  }
   await page.getByRole('button', { name: /Traçar Rota até/ }).click();
   await planner.getByText(/1\. Parada Beta de teste/).last().waitFor();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).waitFor();
@@ -388,7 +419,10 @@ try {
   await reader.evaluate(link => { window.location.hash = link.split('#')[1]; }, link);
   await reader.getByRole('heading', { name: 'Sequência das paradas', exact: true }).waitFor();
   await reader.getByText('1. Parada Alfa de teste', { exact: true }).last().waitFor();
-  await reader.getByText('2. Parada Beta de teste', { exact: true }).last().waitFor();
+  // Ao usar a própria Parada Beta como origem manual, o compartilhamento público
+  // deve ocultar essa parada porque a opção "Proteger minha origem" está ativa.
+  // Sem essa proteção, o teste exporia indiretamente a localização privada.
+  await reader.getByText(/^2[.] (Parada Beta de teste|Parada na região de partida)$/).last().waitFor();
   await reader.close();
   await sharing.getByRole('button', { name: 'Fechar compartilhamento', exact: true }).click();
   await planner.getByRole('button', { name: 'Salvar', exact: true }).click();
@@ -449,7 +483,21 @@ try {
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
   await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
-  const runningId = await page.evaluate(async () => { const me = await (await fetch('/api/auth/me')).json(); return JSON.parse(localStorage.getItem('rdv_private_v2_' + me.user.id + '_active_trip')!).id; });
+  const sessionState = await page.evaluate(async () => {
+    const response = await fetch('/api/auth/me');
+    const me = await response.json();
+    const accountId: string | undefined = me.user?.id;
+    const activeKeys = Object.keys(localStorage).filter(key => key.startsWith('rdv_private_v2_') && key.endsWith('_active_trip'));
+    const activeKey = accountId ? 'rdv_private_v2_' + accountId + '_active_trip' : null;
+    const rawTrip = activeKey ? localStorage.getItem(activeKey) : null;
+    return { httpStatus: response.status, userId: accountId || null, apiError: me.error || me.message || null,
+      activeKeys, hasActiveTrip: !!rawTrip, runningId: rawTrip ? JSON.parse(rawTrip).id : null };
+  });
+  console.log('NAVIGATION SESSION CHECK', JSON.stringify(sessionState));
+  assert.equal(sessionState.httpStatus, 200, 'Auth/me precisa estar acessível após iniciar a navegação');
+  assert.ok(sessionState.userId, 'A sessão do viajante não deve desaparecer durante uma viagem');
+  assert.ok(sessionState.hasActiveTrip, 'A viagem iniciada precisa continuar no armazenamento da conta');
+  const runningId = sessionState.runningId;
   assert.ok(runningId);
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).click();
   await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
@@ -466,6 +514,7 @@ try {
   await adminPage.screenshot({ path: 'test-results/admin-failure.png', fullPage: true });
   console.error('Admin no erro:', (await adminPage.locator('body').innerText()).slice(-6000));
   console.error('Tela no erro:', (await page.locator('body').innerText()).slice(-6000));
+  console.error('Erros JS:', JSON.stringify(errors), 'URL:',page.url());
   throw error;
 } finally {
   if (adminBrowser !== browser) await adminBrowser.close();

@@ -1,5 +1,5 @@
 import { fuelApi } from './fuelApi';
-import type { RouteStop, TripPlan, Vehicle } from '../types';
+import type { RouteStop, TripPlan, Vehicle, NavigationManeuver } from '../types';
 import type { PlanningLimits } from '../types/itinerary';
 
 export interface TouristRequest {
@@ -20,6 +20,7 @@ interface VerifiedTouristResult {
   distanceKm: number;
   durationMinutes: number;
   routePath: [number, number][];
+  routeSteps?: NavigationManeuver[];
   waypoints: [number, number][];
   stops: (RouteStop & { locationId: string })[];
   warnings: string[];
@@ -101,6 +102,7 @@ export async function generateVerifiedTouristCircuit(request: TouristRequest): P
     distanceKm: result.distanceKm,
     durationMinutes: result.durationMinutes,
     routePath: result.routePath,
+    routeSteps: result.routeSteps,
     waypointOrder: result.waypoints,
     routingSource: result.routingSource,
     tollsStatus: result.tollsStatus,

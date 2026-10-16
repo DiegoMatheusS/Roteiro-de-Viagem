@@ -11,7 +11,7 @@ export function useNearbyPlaces(points: [number, number][], enabled: boolean) {
     const controller = new AbortController();
     setPlaces([]);
     fuelApi<{ places: Place[] }>('/places/search', { method: 'POST', body: JSON.stringify({ points: sampleRoutePath(points) }), signal: controller.signal })
-      .then(result => { if (!controller.signal.aborted) setPlaces(result.places); }).catch(() => {});
+      .then(result => { if (!controller.signal.aborted) setPlaces(Array.isArray(result.places) ? result.places : []); }).catch(() => {});
     return () => controller.abort();
   }, [key, enabled]);
   return places;

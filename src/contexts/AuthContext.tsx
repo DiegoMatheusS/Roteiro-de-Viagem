@@ -20,7 +20,8 @@ export function AuthProvider({ children, adminOnly = false }: { children: React.
   const remember=(value:FuelUser|null)=>{if(value)localStorage.setItem('rdv_auth_cache_v1',JSON.stringify({user:value,until:Date.now()+7*86400000}));else localStorage.removeItem('rdv_auth_cache_v1');setUser(value);};
   useEffect(()=>{
     let disposed=false;
-    const load=async()=>{try{const result=await fuelApi<{user:FuelUser|null}>('/auth/me');if(!disposed)remember(result.user);}catch(error){if(disposed)return;if(error instanceof FuelApiError&&error.status<500)return;try{const cached=JSON.parse(localStorage.getItem('rdv_auth_cache_v1')||'null');if(cached?.until>Date.now()&&typeof cached.user?.id==='string'&&typeof cached.user?.displayName==='string')setUser({...cached.user,role:'user'});}catch{}}finally{if(!disposed)setLoading(false);}};
+    const load=async()=>{try{const result=await fuelApi<{user:FuelUser|null}>('/auth/me');if(!disposed)remember(result.user);}catch(error){if(disposed)return;// HTTP 429 e outras falhas temporarias nao invalidam a sessao local.
+      if(error instanceof FuelApiError&&error.status<500&&error.status!==429)return;try{const cached=JSON.parse(localStorage.getItem('rdv_auth_cache_v1')||'null');if(cached?.until>Date.now()&&typeof cached.user?.id==='string'&&typeof cached.user?.displayName==='string')setUser({...cached.user,role:'user'});}catch{}}finally{if(!disposed)setLoading(false);}};
     void load();const resume=()=>{if(!document.hidden)void load();};window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
     return()=>{disposed=true;window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
   },[]);

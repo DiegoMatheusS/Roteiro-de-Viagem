@@ -232,6 +232,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       distanceKm: Number(best.road.distanceKm.toFixed(2)),
       durationMinutes: best.totalMinutes,
       routePath: sampleRoutePath(best.road.geometry!, 2500),
+      routeSteps: best.road.routeSteps || [],
       waypoints: best.path,
       stops, warnings, routingSource: 'OSRM', tollsStatus: 'unknown'
     });

@@ -15,7 +15,7 @@ export function applyItinerary(trip: TripPlan, result: ItineraryResult): TripPla
   result.acceptedSuggestions.filter(stop => stop.afterIndex === -1).forEach(stop => append(stop, 'suggested'));
   result.manualStops.forEach((stop, index) => { append(stop, 'mandatory'); result.acceptedSuggestions.filter(stop => stop.afterIndex === index).forEach(stop => append(stop, 'suggested')); });
   if (!result.manualStops.length) result.acceptedSuggestions.filter(stop => stop.afterIndex === 0).forEach(stop => append(stop, 'suggested'));
-  return { ...trip, title: `Roteiro: ${trip.originName} → ${trip.destinationName}`, distanceKm: result.distanceKm, durationMinutes: result.durationMinutes, drivingMinutes: result.drivingMinutes, routePath: result.routePath, manualStops: result.manualStops, acceptedSuggestions: result.acceptedSuggestions, stops, waypointOrder: result.waypoints,
+  return { ...trip, title: `Roteiro: ${trip.originName} → ${trip.destinationName}`, distanceKm: result.distanceKm, durationMinutes: result.durationMinutes, drivingMinutes: result.drivingMinutes, routePath: result.routePath, routeSteps: result.routeSteps, manualStops: result.manualStops, acceptedSuggestions: result.acceptedSuggestions, stops, waypointOrder: result.waypoints,
     routingSource: 'OSRM', tollsStatus: 'unknown', knownTollsCost: 0, routeWarnings: result.warnings, weatherPoints: [], hasRainRisk: false };
 }
 export function withPlanningLimits(trip: TripPlan, limits: PlanningLimits) { return { ...trip, planningLimits: limits }; }
