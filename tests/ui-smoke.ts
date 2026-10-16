@@ -58,8 +58,8 @@ try {
   await page.getByRole('button', {name:'Abrir menu'}).click();
   const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
   await roleMenu.getByRole('button', {name:'Começar um rolê'}).waitFor();
-  await roleMenu.getByText('Seu caminho, seu ritmo.').waitFor();
-  await roleMenu.getByRole('button', {name:'Perfil',exact:true}).click();
+  await roleMenu.getByRole('button', {name:'Abrir meu perfil'}).getByText('Entrar ou criar conta').waitFor();
+  await roleMenu.getByRole('button', {name:'Abrir meu perfil'}).click();
   await page.getByRole('button', { name: 'Entrar / Criar conta' }).click();
   const login = page.getByRole('dialog', { name: 'Conta do viajante' });
   await login.getByRole('button', { name: 'Ainda não tenho conta' }).click();
@@ -78,7 +78,9 @@ try {
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
-  await page.getByRole('button', { name: 'Início', exact: true }).click();
+  const accountMenu = page.getByRole('dialog', { name: 'Menu do Rolê' });
+  await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
+  await accountMenu.getByRole('button', { name: 'Início', exact: true }).click();
 
   // A pesquisa rápida precisa abrir um mapa de percurso verificado antes de iniciar.
   await page.getByRole('button', { name: 'Para onde quer ir?' }).click();
@@ -259,6 +261,21 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
+  await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
+  const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
+  const grab = await expandMapPanel.boundingBox();
+  assert.ok(grab, 'O puxador do painel precisa estar visível');
+  await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
+  await page.mouse.down();
+  await page.mouse.move(grab!.x+grab!.width/2,grab!.y-110,{steps:6});
+  await page.mouse.up();
+  await page.getByRole('button', { name: 'Recolher painel do mapa' }).waitFor();
+  await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
+  await expandMapPanel.click();
+  const exploration = page.getByRole('region', { name: 'Explorar destinos e estabelecimentos' });
+  await exploration.getByRole('heading', { name: 'Viagens sugeridas' }).waitFor();
+  await exploration.getByRole('heading', { name: 'Estabelecimentos no mapa' }).waitFor();
+  await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
   const bottomMapSearch = page.getByRole('searchbox', { name: 'Para onde quer ir?' });
   await bottomMapSearch.fill('Parada');
   const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
@@ -389,9 +406,10 @@ try {
   // Navigation controls preserve the active trip in the menu and can end a planned trip.
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
-  const alter = await page.getByRole('button', { name: 'Alterar rota', exact: true }).boundingBox();
-  const zoom = await page.locator('.leaflet-control-zoom-out').boundingBox();
-  assert.ok(alter && zoom && (alter.x + alter.width <= zoom.x || zoom.x + zoom.width <= alter.x || alter.y + alter.height <= zoom.y || zoom.y + zoom.height <= alter.y));
+  // Na tela rodoviaria o zoom esta disponivel por gestos, sem controles + / -.
+  assert.equal(await page.locator('.leaflet-control-zoom-out').count(), 0);
+  await page.getByRole('button', { name: 'Alterar rota', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
   await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();

@@ -457,6 +457,8 @@ export default function App() {
             activeTab={activeTab}
             onTabChange={(tab) => {setActiveTab(tab);if(tab==='inicio')setAdvancedHome(false);}}
             hasActiveConvoy={!!convoyService.getActiveConvoy()}
+            signedIn={Boolean(auth.user)}
+            userName={auth.user?.displayName || profile.name}
           />}
         </>
       )}
