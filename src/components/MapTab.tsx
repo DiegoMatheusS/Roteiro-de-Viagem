@@ -1,6 +1,6 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LocationSearch } from './LocationSearch';
+import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
 import type { LocationSelection } from '../types/itinerary';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
@@ -10,7 +10,7 @@ import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { RoadAlertReporter } from './RoadAlertReporter';
-import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, X, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
+import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
   conditions: ConditionsStatus; routeVehicleType?: 'car' | 'motorcycle'; sosOpen?: boolean;
@@ -27,8 +27,11 @@ export function MapTab(props: MapTabProps) {
   const [showRain, setShowRain] = useState(false), [showStops, setShowStops] = useState(true), [showFuel, setShowFuel] = useState(true), [confirmEnd, setConfirmEnd] = useState(false);
   const [layerMenuOpen,setLayerMenuOpen] = useState(false);
   const location = useDeviceLocation(!props.sosOpen, 'map-destination-search');
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchDestination, setSearchDestination] = useState<LocationSelection>({ name: '' });
+  const [searchBusy,setSearchBusy] = useState(false);
+  const [searchError,setSearchError] = useState('');
+  const searchGeneration=useRef(0);
+  const searchInputRef=useRef<HTMLInputElement>(null);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [exploreRoute,setExploreRoute] = useState<{origin:[number,number];path:[number,number][]}|null>(null);
   const [sheetExpanded,setSheetExpanded] = useState(false);
@@ -70,8 +73,26 @@ export function MapTab(props: MapTabProps) {
   const focusDestination = (target:LocationSelection) => {
     setSearchDestination(target);
     if(!target.coords)return;
+    searchInputRef.current?.blur();
     setMapTarget(target);setExploreRoute(null);setFocusedCoords(target.coords);
-    setSearchOpen(false);setSheetExpanded(false);
+    setSheetExpanded(false);setSearchError('');
+  };
+  const submitQuickSearch = async (event:React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query=searchDestination.name.trim();
+    if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
+    if(searchBusy)return;
+    const generation=++searchGeneration.current;
+    setSearchBusy(true);setSearchError('');
+    try {
+      const bias=location.status==='ready' ? location.position?.coords : undefined;
+      const result=await fuelApi<{results:LocationSelection[];unavailable?:boolean}>(`/locations/search?q=${encodeURIComponent(query)}${bias?`&lat=${bias[0]}&lng=${bias[1]}`:''}`);
+      if(generation!==searchGeneration.current)return;
+      const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
+      if(!found)throw new Error('Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
+      focusDestination(found);
+    }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
+    finally{if(generation===searchGeneration.current)setSearchBusy(false);}
   };
   const selectSuggestion = (place:MapVisiblePlace) =>
     focusDestination({name:place.name,coords:place.coords,address:place.address});
@@ -141,7 +162,7 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      className={`absolute bottom-0 inset-x-0 z-30 bg-white rounded-t-[28px] shadow-[0_-6px_30px_rgba(15,23,42,.12)] flex flex-col transition-[height] duration-300 ease-out ${sheetExpanded ? 'h-[76dvh]' : 'h-[116px]'}`}>
+      className={`absolute bottom-0 inset-x-0 z-30 bg-white rounded-t-[28px] shadow-[0_-6px_30px_rgba(15,23,42,.12)] flex flex-col transition-[height] duration-300 ease-out ${sheetExpanded ? 'h-[76dvh]' : searchError ? 'h-[170px]' : 'h-[116px]'}`}>
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
         aria-expanded={sheetExpanded}
         className="w-full h-8 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
@@ -161,17 +182,20 @@ export function MapTab(props: MapTabProps) {
       </button>
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         <div className="max-w-xl mx-auto space-y-5">
-          <div className="flex items-center gap-3 bg-slate-100 rounded-2xl h-14 px-4 border border-slate-100 focus-within:border-blue-300">
-            <Search size={21} className="text-slate-600 shrink-0" />
-            <input type="search" aria-label="Para onde quer ir?" placeholder="Para onde quer ir?"
+          <form role="search" aria-label="Busca rápida de destinos no mapa"
+            onSubmit={event=>void submitQuickSearch(event)}
+            className="flex items-center gap-3 bg-slate-100 rounded-2xl h-14 px-4 border border-slate-100 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
+            <Search size={21} className="text-slate-600 shrink-0" aria-hidden="true"/>
+            <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off"
+              aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" maxLength={150}
               value={searchDestination.name}
-              onChange={event => {setSearchDestination({name:event.target.value});setSearchOpen(true);}}
-              onFocus={() => setSearchOpen(true)}
-              className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-800 placeholder:text-slate-500" />
-            <button type="button" aria-label="Abrir busca de destino"
-              className="w-9 h-9 rounded-xl text-blue-600 flex items-center justify-center"
-              onClick={() => setSearchOpen(true)}><ChevronRight size={20}/></button>
-          </div>
+              onChange={event=>{searchGeneration.current++;setSearchBusy(false);setSearchError('');setSearchDestination({name:event.target.value});}}
+              className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-800 placeholder:text-slate-500"/>
+            <button type="submit" aria-label="Pesquisar destino" disabled={searchBusy || searchDestination.name.trim().length<3}
+              className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
+              {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
+          </form>
+          {searchError && <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs">{searchError}</p>}
           {sheetExpanded && <div className="space-y-6 pb-4">
             <section className="space-y-2.5">
               <div className="flex items-center justify-between">
@@ -208,29 +232,6 @@ export function MapTab(props: MapTabProps) {
         </div>
       </div>
     </section>
-    {searchOpen && <div className="fixed inset-0 z-[85] bg-slate-950/50 flex flex-col justify-end"
-      role="presentation" onMouseDown={event => {if(event.target === event.currentTarget)setSearchOpen(false);}}>
-      <section role="dialog" aria-modal="true" aria-label="Buscar destino no mapa"
-        className="bg-white rounded-t-[30px] max-w-xl mx-auto w-full pb-[max(20px,env(safe-area-inset-bottom))] shadow-2xl max-h-[87dvh] overflow-y-auto">
-        <div className="flex justify-between items-center px-5 pt-4 pb-2">
-          <h2 className="text-xl font-extrabold text-slate-900">Para onde vamos?</h2>
-          <button type="button" aria-label="Fechar busca do mapa" onClick={() => setSearchOpen(false)}
-            className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><X size={19}/></button>
-        </div>
-        <div className="px-5 space-y-4">
-          <p className="text-xs text-slate-600">Selecione um local para mostrá-lo no mapa. Depois, escolha um caminho em Fazer viagem.</p>
-          <LocationSearch label="Destino" value={searchDestination} onChange={focusDestination}
-            placeholder="Cidade, rua, parque ou endereço" bias={location.position?.coords}/>
-          {location.error && <p role="status" className="bg-amber-50 text-amber-900 p-3 text-xs rounded-xl">
-            {location.error} O destino pode ser visto mesmo sem GPS; o cálculo de rotas precisa da sua localização.
-          </p>}
-          <button type="button" disabled={!searchDestination.coords} onClick={()=>focusDestination(searchDestination)}
-            className="w-full bg-blue-600 text-white rounded-2xl min-h-12 font-bold text-sm disabled:opacity-50">
-            Mostrar no mapa
-          </button>
-        </div>
-      </section>
-    </div>}
     {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget}
       vehicle={props.currentVehicle} gpsAvailable={location.status==='ready'} getOrigin={getExplorationOrigin}
       onStartTrip={trip=>props.onStartTrip?.(trip)}
