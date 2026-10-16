@@ -85,6 +85,40 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
     UPDATE users SET role='admin' WHERE role='moderator';
     UPDATE photos SET observed_at=created_at WHERE observed_at IS NULL;
   `);
+  // SQLite não permite ampliar um CHECK em uma coluna existente. Preserva os relatos já armazenados.
+  const alertSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='road_alerts'").get() as {sql:string}).sql;
+  if (!alertSql.includes("'flooded_road'")) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`
+        CREATE TABLE road_alerts_next (
+          id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+          lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
+          note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+          reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL, reviewed_at TEXT
+        );
+        INSERT INTO road_alerts_next SELECT * FROM road_alerts;
+        DROP TABLE road_alerts;
+        ALTER TABLE road_alerts_next RENAME TO road_alerts;
+        CREATE INDEX road_alerts_geo ON road_alerts(status,expires_at,lat,lng);
+        CREATE INDEX road_alerts_user ON road_alerts(user_id,created_at);
+      `);
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
+  // Somente uma confirmação por conta e ocorrência. Sem dados de GPS armazenados nos votos.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS road_alert_checks (
+      alert_id TEXT NOT NULL REFERENCES road_alerts(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      present INTEGER NOT NULL CHECK(present IN (0,1)),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY(alert_id,user_id)
+    );
+    CREATE INDEX IF NOT EXISTS road_alert_checks_alert ON road_alert_checks(alert_id,present);
+  `);
   // Existing approvals remain valid; previously automatic publications must be reviewed.
   db.prepare(`UPDATE prices SET approved_by=(SELECT moderator_id FROM moderation_actions WHERE target_type='prices' AND target_id=prices.id AND action='approve' ORDER BY created_at DESC LIMIT 1),
     approved_at=(SELECT created_at FROM moderation_actions WHERE target_type='prices' AND target_id=prices.id AND action='approve' ORDER BY created_at DESC LIMIT 1)
