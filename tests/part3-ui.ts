@@ -59,6 +59,7 @@ try {
   await page.getByRole('button',{name:'Mapa',exact:true}).click();
   await page.getByRole('button',{name:'Atualizar clima e pedágios',exact:true}).waitFor();
   await page.waitForFunction(id=>JSON.parse(localStorage.getItem('rdv_private_v2_'+id+'_trips')||'[]')[0]?.weatherSource==='Open-Meteo',traveler.user.id);
+  await page.getByRole('button',{name:'Camadas do mapa',exact:true}).click();
   await page.getByRole('button',{name:'Mostrar previsão de chuva',exact:true}).click();
   await page.locator('.weather-forecast-marker').first().waitFor();
   assert.ok(await page.locator('.weather-forecast-marker').count()>=2);
