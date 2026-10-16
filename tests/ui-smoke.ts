@@ -481,7 +481,21 @@ try {
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
   await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
-  const runningId = await page.evaluate(async () => { const me = await (await fetch('/api/auth/me')).json(); return JSON.parse(localStorage.getItem('rdv_private_v2_' + me.user.id + '_active_trip')!).id; });
+  const sessionState = await page.evaluate(async () => {
+    const response = await fetch('/api/auth/me');
+    const me = await response.json();
+    const accountId: string | undefined = me.user?.id;
+    const activeKeys = Object.keys(localStorage).filter(key => key.startsWith('rdv_private_v2_') && key.endsWith('_active_trip'));
+    const activeKey = accountId ? 'rdv_private_v2_' + accountId + '_active_trip' : null;
+    const rawTrip = activeKey ? localStorage.getItem(activeKey) : null;
+    return { httpStatus: response.status, userId: accountId || null, apiError: me.error || me.message || null,
+      activeKeys, hasActiveTrip: !!rawTrip, runningId: rawTrip ? JSON.parse(rawTrip).id : null };
+  });
+  console.log('NAVIGATION SESSION CHECK', JSON.stringify(sessionState));
+  assert.equal(sessionState.httpStatus, 200, 'Auth/me precisa estar acessível após iniciar a navegação');
+  assert.ok(sessionState.userId, 'A sessão do viajante não deve desaparecer durante uma viagem');
+  assert.ok(sessionState.hasActiveTrip, 'A viagem iniciada precisa continuar no armazenamento da conta');
+  const runningId = sessionState.runningId;
   assert.ok(runningId);
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).click();
   await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
