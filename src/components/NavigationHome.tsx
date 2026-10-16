@@ -188,7 +188,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     <div className="absolute inset-0 rdv-flat-map">
       <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
-        focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute.selectedId)?.routePath || []}
+        focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
