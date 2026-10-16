@@ -79,16 +79,16 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     const verified=tollChecks[choice.id];
     onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
   };
-  return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[61dvh] flex flex-col rdv-route-sheet">
+  return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[49dvh] flex flex-col rdv-route-sheet">
     <div className="h-7 shrink-0 flex justify-center items-center"><span className="h-1.5 w-12 bg-slate-300 rounded-full"/></div>
     <div className="overflow-y-auto w-full max-w-xl mx-auto px-4 pb-5 space-y-4">
       <div className="flex items-start gap-3">
-        <span className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><MapPin size={24}/></span>
+        <span className="w-11 h-11 rounded-[15px] bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><MapPin size={24}/></span>
         <div className="flex-1 min-w-0"><p className="text-[10px] font-bold uppercase text-slate-500">Destino localizado no mapa</p>
-          <h2 className="text-[16px] font-extrabold truncate">{target.name}</h2>
+          <h2 className="text-[19px] font-bold tracking-tight truncate">{target.name}</h2>
           {target.address && <p className="text-xs text-slate-500 truncate">{target.address}</p>}
         </div>
-        <button type="button" aria-label="Sair da visualização do destino" onClick={onClose} className="p-2 bg-slate-100 text-slate-600 rounded-full"><X size={18}/></button>
+        <button type="button" aria-label="Sair da visualização do destino" onClick={onClose} className="p-2.5 bg-slate-100 text-slate-600 rounded-full active:scale-95 transition-transform"><X size={18}/></button>
       </div>
       <button type="button" disabled={busy} onClick={()=>void depart()}
         className="w-full min-h-14 rounded-2xl bg-[#2167e8] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60">
