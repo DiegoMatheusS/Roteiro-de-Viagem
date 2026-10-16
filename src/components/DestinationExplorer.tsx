@@ -50,12 +50,14 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
   };
-  // GPS disponível: carregar primeiro as opções de passeio sem exigir um toque extra.
+  // Busca direta (Enter): tenta calcular as rotas assim que o destino aparece.
+  // Mesmo antes do rastreador marcar 'ready', solicita o GPS uma única vez.
+  // Caso a permissão seja negada, mostra o erro e permite tentar novamente.
   useEffect(()=>{
-    if(!gpsAvailable || initialAttempt.current)return;
+    if(initialAttempt.current)return;
     initialAttempt.current=true;
     void loadRoutes();
-  },[gpsAvailable]);
+  },[]);
   const depart = () => {
     if (!routes.length || !origin) {void loadRoutes();return;}
     if(!vehicle || !target.coords){setError('Cadastre um veículo no Perfil → Minha Garagem antes de navegar.');return;}
@@ -85,7 +87,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
       <section aria-label="Fazer viagem" className="space-y-2">
         <div className="flex justify-between items-center gap-2"><h3 className="text-sm font-extrabold">Fazer viagem</h3>
           <button type="button" disabled={busy} onClick={()=>void loadRoutes()} className="text-xs text-blue-700 font-bold">{routes.length?'Atualizar rotas':'Mostrar rotas'}</button></div>
-        {!routes.length && <p className="text-xs text-slate-500">Buscando caminhos interessantes com atrações reais desde o seu GPS. O destino já está marcado no mapa.</p>}
+        {!routes.length && !error && <p className="text-xs text-slate-500">{busy ? 'Calculando rotas a partir do GPS...' : 'Destino marcado no mapa. Toque em Mostrar rotas para tentar novamente.'}</p>}
         {routes.map((route,index)=><button key={route.id} type="button" aria-pressed={index===selected}
           onClick={()=>{setSelected(index);if(origin)onMapRoute(origin,route.routePath);}}
           className={`w-full text-left p-3 rounded-2xl border ${index===selected?'border-blue-500 bg-blue-50':'border-slate-200 bg-white'}`}>
