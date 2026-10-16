@@ -1,9 +1,27 @@
 import React, { useRef, useState } from 'react';
 import { fuelApi } from '../services/fuelApi';
+import { useAuth } from '../contexts/AuthContext';
 import type { LocationSelection } from '../types/itinerary';
 
 export function LocationSearch({ label, value, onChange, bias, placeholder }: { label: string; value: LocationSelection; onChange: (value: LocationSelection) => void; bias?: [number, number]; placeholder?: string }) {
+  const { user } = useAuth();
   const [results, setResults] = useState<LocationSelection[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const selectPlace = (place: LocationSelection) => {
+    generation.current++; setResults([]); setError(''); onChange(place);
+    // Explicit selection, not every keystroke, is stored privately for the signed-in traveler.
+    if (user && place.id) void fuelApi('/me/locations', {
+      method: 'POST', body: JSON.stringify({ locationId: place.id })
+    }).catch(() => { /* a failed history write must not block route planning */ });
+  };
+  const myPlaces = async () => {
+    const current = ++generation.current;
+    setBusy(true); setError('');
+    try {
+      const found = await fuelApi<{ results: LocationSelection[] }>('/me/locations');
+      if (current === generation.current) { setResults(found.results); if (!found.results.length) setError('Nenhum local salvo ainda.'); }
+    } catch (error) { if (current === generation.current) setError((error as Error).message); }
+    finally { if (current === generation.current) setBusy(false); }
+  };
   const generation = useRef(0);
   const search = async () => {
     const current = ++generation.current;
@@ -18,8 +36,9 @@ export function LocationSearch({ label, value, onChange, bias, placeholder }: { 
     finally { if (current === generation.current) setBusy(false); }
   };
   return <div className="space-y-2"><label className="block text-xs font-bold text-slate-700">{label}<div className="flex gap-2 mt-1"><input aria-label={label} value={value.name} placeholder={placeholder || 'Cidade, endereço ou estabelecimento'} maxLength={150} onChange={e => { generation.current++; setBusy(false); setResults([]); setError(''); onChange({ name: e.target.value }); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); search(); } }} className="border border-slate-200 rounded-xl p-3 text-sm w-full min-w-0" /><button type="button" disabled={busy || value.name.trim().length < 3} onClick={search} aria-label={`Buscar ${label.toLowerCase()}`} className="border rounded-xl px-3 text-xs font-bold text-emerald-700 disabled:opacity-50">{busy ? '...' : 'Buscar'}</button></div></label>
+    {user && <button type="button" onClick={() => void myPlaces()} className="text-xs text-blue-700 underline">Meus locais salvos</button>}
     {value.coords && <p className="text-[11px] text-emerald-700">✓ Localização definida {value.sourceUrl && <a href={value.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline ml-1">Ver no mapa</a>}</p>}
     {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-    {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id} type="button" onClick={() => { generation.current++; setResults([]); setError(''); onChange(result); }} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span></button>)}<p className="text-[10px] p-2 text-slate-500">Dados © OpenStreetMap · busca Photon</p></div>}
+    {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id} type="button" onClick={() => selectPlace(result)} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span></button>)}<p className="text-[10px] p-2 text-slate-500">Locais © OpenStreetMap · índice do app e Photon quando necessário</p></div>}
   </div>;
 }
