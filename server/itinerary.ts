@@ -1,7 +1,8 @@
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
-import { clientIp, ApiError, asyncRoute, validate, now } from './http';
-import { roadRoute, validateCoordinates, nearbyPlaceRows, type MapFetch, type Coordinates } from './maps';
+import { clientIp, ApiError, asyncRoute, validate, now, auth, user } from './http';
+import { validateCoordinates, nearbyPlaceRows, type MapFetch, type Coordinates } from './maps';
+import { privateRoadRoute } from './routeCache';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { createHash } from 'node:crypto';
 import { sampleRoutePath, type LocationSelection, type MandatoryStop, type SuggestedStop } from '../src/types/itinerary';
@@ -19,16 +20,70 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     if (!row) throw new ApiError('Localização não encontrada. Pesquise e selecione novamente.');
     return locationDto(row);
   };
+  // Only explicitly selected, provider-verified places are saved; never keep raw text searches or GPS history.
+  app.post('/api/me/locations', auth, (req, res) => {
+    const owner = user(res).id;
+    limit(`save-location:${owner}`, 30, 60000);
+    const selection = findLocation(req.body?.locationId);
+    if (!selection.id || !selection.coords) throw new ApiError('Selecione um local verificado.');
+    db.prepare(`INSERT INTO user_saved_locations
+      (user_id,location_id,name,address,lat,lng,source_url,category,saved_at)
+      VALUES(?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(user_id,location_id) DO UPDATE SET
+        name=excluded.name,address=excluded.address,lat=excluded.lat,lng=excluded.lng,
+        source_url=excluded.source_url,category=excluded.category,saved_at=excluded.saved_at`)
+      .run(owner, selection.id, selection.name, selection.address || '',
+        selection.coords[0], selection.coords[1], selection.sourceUrl || '',
+        selection.category || '', now());
+    db.prepare(`DELETE FROM user_saved_locations WHERE user_id=? AND location_id NOT IN
+      (SELECT location_id FROM user_saved_locations WHERE user_id=? ORDER BY saved_at DESC LIMIT 50)`)
+      .run(owner, owner);
+    res.status(201).json({ saved: true });
+  });
+  app.get('/api/me/locations', auth, (_req, res) => {
+    const rows = db.prepare('SELECT * FROM user_saved_locations WHERE user_id=? ORDER BY saved_at DESC LIMIT 50')
+      .all(user(res).id) as any[];
+    res.json({ results: rows.map(locationDto) });
+  });
+  app.delete('/api/me/locations/:id', auth, (req, res) => {
+    if (req.params.id.length > 100) throw new ApiError('Local inválido.');
+    db.prepare('DELETE FROM user_saved_locations WHERE user_id=? AND location_id=?')
+      .run(user(res).id, req.params.id);
+    res.json({ ok: true });
+  });
+  app.delete('/api/me/locations', auth, (_req, res) => {
+    db.prepare('DELETE FROM user_saved_locations WHERE user_id=?').run(user(res).id);
+    res.json({ ok: true });
+  });
   app.get('/api/locations/search', asyncRoute(async (req, res) => {
     limit(`geocoding:${clientIp(req)}`, 15, 60000);
     const q = String(req.query.q || '').trim();
     if (q.length < 3 || q.length > 150) throw new ApiError('Pesquise um nome ou endereço de 3 a 150 caracteres.');
     const bias = req.query.lat !== undefined && req.query.lng !== undefined ? validate(() => validateCoordinates([[Number(req.query.lat), Number(req.query.lng)]]))[0] : undefined;
-    const local = (db.prepare("SELECT * FROM stations WHERE active=1 AND (name LIKE ? OR address LIKE ?) ORDER BY name LIMIT 8").all(`%${q}%`, `%${q}%`) as any[]).map(locationDto);
+    // Public OSM places are indexed once, then reused across users without a provider request.
+    // Private selections are visible only to the authenticated owner.
+    const escaped = q.replace(/[!%_]/g, token => '!' + token);
+    const match = `%${escaped}%`;
+    const privateRows = user(res) ? db.prepare(`SELECT * FROM user_saved_locations WHERE user_id=?
+      AND (name LIKE ? ESCAPE '!' OR address LIKE ? ESCAPE '!') ORDER BY saved_at DESC LIMIT 10`)
+      .all(user(res).id, match, match) as any[] : [];
+    const publicRows = db.prepare(`SELECT * FROM locations
+      WHERE name LIKE ? ESCAPE '!' OR address LIKE ? ESCAPE '!' ORDER BY updated_at DESC LIMIT 12`)
+      .all(match, match) as any[];
+    const stationRows = db.prepare(`SELECT * FROM stations WHERE active=1
+      AND (name LIKE ? ESCAPE '!' OR address LIKE ? ESCAPE '!') ORDER BY managed DESC,name LIMIT 12`)
+      .all(match, match) as any[];
+    const local = [...new Map([...privateRows, ...stationRows, ...publicRows]
+      .map(row => locationDto(row)).map(place => [place.id, place])).values()].slice(0, 10);
     const key = createHash('sha256').update(JSON.stringify([q.toLowerCase(), bias?.map(v => Number(v.toFixed(2))), process.env.GEOCODING_URL || 'https://photon.komoot.io'])).digest('hex');
     const cached = db.prepare('SELECT * FROM geocoding_queries WHERE id=?').get(key) as any;
     const merge = (ids: string[]) => [...new Map([...local, ...ids.flatMap(id => { try { return [findLocation(id)]; } catch { return []; } })].map(item => [item.id, item])).values()].slice(0, 10);
     if (cached && Date.now() - Date.parse(cached.updated_at) < 86400000) { res.json({ results: merge(JSON.parse(cached.location_ids)), cached: true }); return; }
+    // Prefer our growing local address index whenever it has enough useful matches.
+    // Exact address searches may return a single verified local match without Photon.
+    if (local.length >= 5 || local.some(place => place.address?.toLowerCase() === q.toLowerCase())) {
+      res.json({ results: local, cached: true, source: 'local' }); return;
+    }
     // Explicit searches only, one upstream request at a time and at least one second apart.
     if (geocodingBusy || Date.now() - lastSearch < 1000) {
       if (local.length) { res.json({ results: local, limited: true }); return; }
@@ -94,12 +149,14 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     const waypoints: Coordinates[] = [origin, ...ordered.map(stop => stop.location.coords!), destination];
     if (req.body.roundTrip === true && distanceBetweenKm(origin, destination) > 0.01) waypoints.push(origin);
     let road;
-    try { road = await roadRoute(waypoints, mapFetch, true); } catch (error) { throw new ApiError((error as Error).message, 503); }
+    try { road = await privateRoadRoute(db, user(res)?.id, waypoints, mapFetch, true); }
+    catch (error) { throw new ApiError((error as Error).message, 503); }
     if (!road.legsSeconds) throw new ApiError('O provedor não retornou a duração rodoviária.', 503);
     const drivingMinutes = Math.ceil(road.legsSeconds.reduce((sum, seconds) => sum + seconds, 0) / 60);
     const durationMinutes = drivingMinutes + ordered.reduce((sum, stop) => sum + stop.stayMinutes, 0);
     const exceedsLimit = limits.mode === 'km' && road.distanceKm > limits.target || limits.mode === 'hours' && durationMinutes > limits.target * 60;
     const warnings: string[] = [];
+    if (road.stale) warnings.push('Rota recuperada do histórico da sua conta porque o serviço de mapas está indisponível. O percurso pode estar desatualizado; confirme as condições antes de seguir.');
     if (exceedsLimit) warnings.push(`O percurso com as paradas escolhidas exige ${road.distanceKm.toFixed(1)} km e ${durationMinutes} minutos, acima do limite definido. Nenhuma parada obrigatória foi removida.`);
     if (!exceedsLimit && limits.mode === 'km' && road.distanceKm < limits.target * 0.9) warnings.push(`O percurso escolhido usa ${road.distanceKm.toFixed(1)} dos ${limits.target} km desejados. Você pode aceitar sugestões ou adicionar paradas para ampliar o passeio.`);
     const nearPath = sampleRoutePath(road.geometry!, 50);
