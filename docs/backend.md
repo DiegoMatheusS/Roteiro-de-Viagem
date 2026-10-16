@@ -45,8 +45,9 @@ no snapshot privativo `traveler_states`; ele não alimenta o catálogo público.
 de GPS potencialmente sensíveis. Uma rota reutilizada em até 24 horas não precisa de
 nova chamada. Se o serviço externo falhar, rotas de até 48 horas podem ser
 recuperadas com aviso explícito de que estão desatualizadas. Resultados muito
-grandes não são colocados em cache; há limite de 35 trajetos por usuário e
-limpeza por prazo. Novas rotas ainda exigem um motor de roteamento OSRM; cache
+grandes não são colocados em cache; há limite de 18 trajetos por usuário,
+400 registros globalmente e limpeza por prazo. Falhas ao gravar o cache não
+interrompem um cálculo rodoviário bem-sucedido. Novas rotas ainda exigem um motor de roteamento OSRM; cache
 **não equivale a um mapa ou roteador autônomo** nem fornece tráfego/obras ao vivo.
 
 É necessário manter backups e isolamento de contas; o arquivo SQLite contém
