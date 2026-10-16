@@ -30,7 +30,7 @@ export async function privateRoadRoute(
   if (!ownerId) return roadRoute(points, fetcher, withGeometry);
   const origin = process.env.ROUTING_URL || 'https://router.project-osrm.org';
   const key = createHash('sha256').update(JSON.stringify({
-    origin, withGeometry, points: points.map(pair => pair.map(value => Number(value.toFixed(6))))
+    origin, withGeometry, instructionsVersion: 2, points: points.map(pair => pair.map(value => Number(value.toFixed(6))))
   })).digest('hex');
   const row = db.prepare('SELECT result_json,created_at FROM user_route_cache WHERE user_id=? AND cache_key=?')
     .get(ownerId, key) as { result_json: string; created_at: string } | undefined;
