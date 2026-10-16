@@ -254,7 +254,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
     if(!tollVehicleType)return;
-    for(const toll of navigationMode ? [] : tolls) {
+    for(const toll of navigationMode ? [] : (Array.isArray(tolls) ? tolls : [])) {
       const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
@@ -274,14 +274,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group = fuelLayerGroupRef.current;
     if (!group) return;
     group.clearLayers();
-    for (const station of navigationMode ? [] : fuel.stations) {
+    for (const station of navigationMode ? [] : (Array.isArray(fuel.stations) ? fuel.stations : [])) {
       const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => openStation(station.id));
     }
-    for (const place of places.filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
+    for (const place of (Array.isArray(places) ? places : []).filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
       if (place.kind === 'toll') {
         if (tolls.some(toll => toll.id === place.id)) continue;
         const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
@@ -349,7 +349,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!group) return;
     group.clearLayers();
     const now = Date.now();
-    for (const alert of roadAlerts) {
+    for (const alert of (Array.isArray(roadAlerts) ? roadAlerts : [])) {
       if (Date.parse(alert.expiresAt) <= now) continue;
       const kind = ROAD_ALERT_TYPES.find(value => value.id === alert.kind);
       if (!kind) continue;
