@@ -332,9 +332,13 @@ try {
   await bottomMapSearch.fill('Parada');
   const mapSearchDialog = page.getByRole('dialog', { name: 'Buscar destino no mapa' });
   await mapSearchDialog.getByRole('heading', { name: 'Para onde vamos?' }).waitFor();
-  await mapSearchDialog.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
-  await mapSearchDialog.getByLabel('Origem', { exact: true }).waitFor();
-  await mapSearchDialog.getByRole('button', { name: 'Fechar busca do mapa' }).click();
+  assert.equal(await mapSearchDialog.getByLabel('Origem', { exact:true }).count(),0);
+  await mapSearchDialog.getByLabel('Destino', {exact:true}).fill('Parada');
+  await mapSearchDialog.getByRole('button', {name:'Buscar destino'}).click();
+  await mapSearchDialog.getByRole('button', {name:/Parada Alfa de teste/}).click();
+  const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
+  await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
+  await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
