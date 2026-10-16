@@ -128,7 +128,7 @@ try {
   await destinationSheet.getByRole('button', { name: /Parada Beta de teste/ }).click();
   await destinationSheet.getByLabel('Destino', { exact: true }).fill('Parada');
   await destinationSheet.getByRole('button', { name: 'Buscar destino', exact: true }).click();
-  await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).click();
+  await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).first().click();
   const roadRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/itinerary') && response.request().method() === 'POST');
   await destinationSheet.getByRole('button', { name: 'Ver percurso', exact: true }).click();
   assert.equal((await roadRequest).status(), 200);
@@ -335,7 +335,7 @@ try {
   assert.equal(await mapSearchDialog.getByLabel('Origem', { exact:true }).count(),0);
   await mapSearchDialog.getByLabel('Destino', {exact:true}).fill('Parada');
   await mapSearchDialog.getByRole('button', {name:'Buscar destino'}).click();
-  await mapSearchDialog.getByRole('button', {name:/Parada Alfa de teste/}).click();
+  await mapSearchDialog.getByRole('button', {name:/Parada Alfa de teste/}).first().click();
   const mapDestination = page.getByRole('region',{name:'Destino no mapa'});
   await mapDestination.getByRole('heading',{name:'Parada Alfa de teste'}).waitFor();
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
