@@ -67,7 +67,9 @@ test('searches reuse stored public OSM places and keep private selections scoped
 });
 
 test('private route cache survives process restart in SQLite and has an explicit stale fallback', async () => {
-  const db = openDatabase(':memory:');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-route-cache-'));
+  const filename = path.join(directory, 'data.sqlite');
+  let db = openDatabase(filename);
   try {
     db.prepare('INSERT INTO users(id,email,display_name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)')
       .run('owner','owner@example.com','Owner','test','user',new Date().toISOString());
@@ -82,6 +84,8 @@ test('private route cache survives process restart in SQLite and has an explicit
     const result = await privateRoadRoute(db,'owner',points,provider as typeof fetch,true);
     assert.equal(result.distanceKm,3.5);
     assert.equal(calls,1);
+    // Reopening the real database simulates a Railway container restart with the same volume.
+    db.close(); db = openDatabase(filename);
     const again = await privateRoadRoute(db,'owner',points,async () => { throw new Error('No provider'); },true);
     assert.equal(again.stored,true);
     assert.equal(again.stale,undefined);
@@ -101,5 +105,5 @@ test('private route cache survives process restart in SQLite and has an explicit
     const fallback = await privateRoadRoute(db,'owner',olderPoints,down as typeof fetch,true);
     assert.equal(fallback.stored,true);assert.equal(fallback.stale,true);
     await assert.rejects(privateRoadRoute(db,'other',olderPoints,down as typeof fetch,true),/Service unavailable/);
-  } finally { db.close(); }
+  } finally { db.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
