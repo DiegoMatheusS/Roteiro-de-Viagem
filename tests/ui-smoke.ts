@@ -113,6 +113,8 @@ try {
   const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
   await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
   await destinationMap.getByText('Dicas de viagem').waitFor();
+  // Quando o GPS ainda não está pronto, o usuário pode pedir as rotas manualmente.
+  await destinationMap.getByRole('button',{name:/Mostrar rotas|Atualizar rotas/}).click();
   assert.equal((await choicesRequest).status(),200);
   await destinationMap.getByText('Rota mais rápida').waitFor();
   assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
