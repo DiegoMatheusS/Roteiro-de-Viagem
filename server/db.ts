@@ -48,6 +48,25 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
     CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, place_id TEXT NOT NULL REFERENCES stations(id), user_id TEXT NOT NULL REFERENCES users(id), body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS locations (id TEXT PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, source_url TEXT NOT NULL, category TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS geocoding_queries (id TEXT PRIMARY KEY, location_ids TEXT NOT NULL, updated_at TEXT NOT NULL);
+    -- Public POIs continue in locations/stations. Personal selections must not enter the shared search index.
+    CREATE TABLE IF NOT EXISTS user_saved_locations (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      location_id TEXT NOT NULL,
+      name TEXT NOT NULL, address TEXT NOT NULL DEFAULT '',
+      lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90),
+      lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
+      source_url TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT '',
+      saved_at TEXT NOT NULL,
+      PRIMARY KEY(user_id,location_id)
+    );
+    CREATE INDEX IF NOT EXISTS user_saved_locations_recent ON user_saved_locations(user_id,saved_at DESC);
+    -- Private per-account cache: includes precise GPS origins, never shared across accounts.
+    CREATE TABLE IF NOT EXISTS user_route_cache (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      cache_key TEXT NOT NULL, result_json TEXT NOT NULL,
+      created_at TEXT NOT NULL, PRIMARY KEY(user_id,cache_key)
+    );
+    CREATE INDEX IF NOT EXISTS user_route_cache_age ON user_route_cache(created_at);
     CREATE TABLE IF NOT EXISTS shared_routes (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), snapshot TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS traveler_states (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, snapshot TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS photo_uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
