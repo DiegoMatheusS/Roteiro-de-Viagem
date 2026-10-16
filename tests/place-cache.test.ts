@@ -98,7 +98,7 @@ test('private route cache survives process restart in SQLite and has an explicit
     const olderPoints: [number,number][] = [[-24.5,-47.61],[-24.5,-47.6]];
     const { createHash } = await import('node:crypto');
     const cacheKey=createHash('sha256').update(JSON.stringify({origin:'https://router.project-osrm.org',withGeometry:true,
-      points:olderPoints.map(p=>p.map(n=>Number(n.toFixed(6))))})).digest('hex');
+      instructionsVersion:2,points:olderPoints.map(p=>p.map(n=>Number(n.toFixed(6))))})).digest('hex');
     db.prepare('INSERT INTO user_route_cache(user_id,cache_key,result_json,created_at) VALUES(?,?,?,?)')
       .run('owner',cacheKey,JSON.stringify(result),new Date(Date.now()-25*3600_000).toISOString());
     const down = async () => {throw new Error('Service unavailable');};
