@@ -396,9 +396,10 @@ try {
   // Navigation controls preserve the active trip in the menu and can end a planned trip.
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
-  const alter = await page.getByRole('button', { name: 'Alterar rota', exact: true }).boundingBox();
-  const zoom = await page.locator('.leaflet-control-zoom-out').boundingBox();
-  assert.ok(alter && zoom && (alter.x + alter.width <= zoom.x || zoom.x + zoom.width <= alter.x || alter.y + alter.height <= zoom.y || zoom.y + zoom.height <= alter.y));
+  // Na tela rodoviaria o zoom esta disponivel por gestos, sem controles + / -.
+  assert.equal(await page.locator('.leaflet-control-zoom-out').count(), 0);
+  await page.getByRole('button', { name: 'Alterar rota', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
   await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
