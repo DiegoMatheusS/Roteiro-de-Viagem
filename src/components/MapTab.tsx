@@ -4,6 +4,7 @@ import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
 import type { LocationSelection } from '../types/itinerary';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import type { Vehicle, TripPlan, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
@@ -27,6 +28,7 @@ export function MapTab(props: MapTabProps) {
   const [showRain, setShowRain] = useState(false), [showStops, setShowStops] = useState(true), [showFuel, setShowFuel] = useState(true), [confirmEnd, setConfirmEnd] = useState(false);
   const [layerMenuOpen,setLayerMenuOpen] = useState(false);
   const location = useDeviceLocation(!props.sosOpen, 'map-destination-search');
+  const locationAccess = useGpsPermissionAction(location.retry);
   const [searchDestination, setSearchDestination] = useState<LocationSelection>({ name: '' });
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
@@ -62,8 +64,13 @@ export function MapTab(props: MapTabProps) {
       setFocusedCoords(null);
       setCenterRequest(value=>value+1);
     } else {
-      setLocationHint(location.error || 'Ative a localização para centralizar o mapa.');
-      location.retry();
+      setLocationHint('');
+      void locationAccess.request().then(granted => {
+        if (granted) {
+          setFocusedCoords(null);
+          setCenterRequest(value => value + 1);
+        }
+      });
     }
   };
   const showPlace = (place:MapVisiblePlace) => {
@@ -161,13 +168,16 @@ export function MapTab(props: MapTabProps) {
         menuPlacement={sheetExpanded ? 'below' : 'above'}
         onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
-    {locationHint && <p role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[210px] rounded-xl shadow p-3 text-xs text-amber-900">{locationHint}</p>}
+    {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
+      <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>
+      {!locationAccess.requesting && <button type="button" onClick={()=>void locationAccess.request()} className="font-bold underline">Tentar GPS</button>}
+    </div>}
     {trip && <div className="absolute bottom-44 left-3 right-16 max-w-[250px] z-30"><RouteConditionsStatus trip={trip} conditions={props.conditions} /></div>}
     {trip && <button onClick={() => props.onOpenRoutePlanner(trip.originName, trip.destinationName, trip.destinationCoords, trip.originCoords)} className="absolute bottom-28 left-3 z-30 px-4 py-3 bg-white border rounded-xl shadow-xl text-xs font-bold flex gap-2"><Navigation size={16} />Alterar rota</button>}
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      className={`absolute bottom-0 inset-x-0 z-30 bg-white rounded-t-[28px] shadow-[0_-6px_30px_rgba(15,23,42,.12)] flex flex-col transition-[height] duration-300 ease-out ${sheetExpanded ? 'h-[76dvh]' : searchError ? 'h-[170px]' : 'h-[116px]'}`}>
+      className={`absolute bottom-0 inset-x-0 z-30 bg-white rounded-t-[28px] shadow-[0_-6px_30px_rgba(15,23,42,.12)] flex flex-col transition-[height] duration-300 ease-out ${sheetExpanded ? 'h-[37dvh] min-h-[300px] max-h-[65dvh]' : searchError ? 'h-[170px]' : 'h-[116px]'}`}>
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
         aria-expanded={sheetExpanded}
         className="w-full h-8 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none"

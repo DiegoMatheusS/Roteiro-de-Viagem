@@ -5,6 +5,7 @@ import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
 import type { LocationSelection } from '../types/itinerary';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { getTouristTargetError, getTouristTargetWarning, parseTouristTarget } from '../services/touristTargetInput';
@@ -12,7 +13,6 @@ import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/tou
 import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
-import { isNativeApp, TravelNative } from '../services/nativeApp';
 import { InteractiveMap } from './InteractiveMap';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
@@ -35,6 +35,7 @@ const touristKinds: readonly string[] = TOURIST_PLACE_KINDS;
 
 export function NavigationHome(props: NavigationHomeProps) {
   const gps = useDeviceLocation(true, 'role-home');
+  const locationAccess = useGpsPermissionAction(gps.retry);
   const liveCoords = gps.status === 'ready' ? gps.position?.coords : undefined;
   const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
@@ -180,7 +181,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     {/* Ações rápidas disponíveis também no Início: GPS acima, triângulo de alerta embaixo. */}
     <div aria-label="Controles de localização e ocorrência no início"
       className="absolute top-[70px] right-4 z-40 flex flex-col items-center gap-3">
-      <button type="button" aria-label="Atualizar GPS" onClick={()=>{gps.retry();setCenterRequest(value=>value+1);}}
+      <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
         className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
         <Crosshair size={22} strokeWidth={2.2}/>
       </button>
@@ -196,7 +197,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       <strong className="text-2xl leading-none tabular-nums">{gps.position?.speedMetersPerSecond == null ? '0' : Math.round(gps.position.speedMetersPerSecond*3.6)}</strong>
       <small className="text-[10px] text-slate-500 font-bold">km/h</small>
     </div>
-    <div className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[30px] bg-white shadow-[0_-9px_28px_rgba(15,23,42,.12)] border-t border-white/80 flex flex-col transition-[height] duration-200 ${collapsed?'h-[74px]':'h-[62dvh] min-h-[440px]'}`}>
+    <div data-testid="home-main-sheet" className={`absolute bottom-0 inset-x-0 z-30 rounded-t-[30px] bg-white shadow-[0_-9px_28px_rgba(15,23,42,.12)] border-t border-white/80 flex flex-col transition-[height] duration-200 ${collapsed?'h-[74px]':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>setCollapsed(c=>!c)}
         className="mx-auto w-16 h-9 flex items-center justify-center shrink-0" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
@@ -215,7 +216,14 @@ export function NavigationHome(props: NavigationHomeProps) {
           </button>
         </form>
         {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>}
-        {gps.error && <p role="alert" className="bg-amber-50 p-3 rounded-xl text-xs text-amber-900">{gps.error} <button className="underline font-bold" onClick={()=>isNativeApp()?void TravelNative.openDeviceSettings({section:'app'}):gps.retry()}>Permitir localização</button></p>}
+        {(gps.error || locationAccess.help) && <div role="alert" className="bg-amber-50 p-3 rounded-xl text-xs text-amber-900 space-y-2">
+          <p>{gps.error}</p>
+          {locationAccess.help && <p className="font-medium">{locationAccess.help}</p>}
+          <button type="button" disabled={locationAccess.requesting}
+            className="underline font-bold disabled:opacity-50" onClick={()=>void locationAccess.request()}>
+            {locationAccess.requesting?'Solicitando GPS...':'Permitir localização'}
+          </button>
+        </div>}
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
           <div>

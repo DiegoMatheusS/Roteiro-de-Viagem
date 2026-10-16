@@ -57,6 +57,20 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
+  const homePanel = page.getByTestId('home-main-sheet');
+  const initialHomeBounds = await homePanel.boundingBox();
+  assert.ok(initialHomeBounds && initialHomeBounds.y > 0.56 * 844,
+    'O painel Início deve começar mais baixo, deixando a maior parte do mapa visível');
+
+  // O navegador bloqueia o GPS por site; não é possível reabrir o prompt automaticamente.
+  const blockedContext = await browser.newContext({viewport:{width:390,height:844}});
+  await blockedContext.grantPermissions([], {origin:'http://127.0.0.1:3000'});
+  const blockedPage = await blockedContext.newPage();
+  await blockedPage.goto('http://127.0.0.1:3000');
+  await blockedPage.getByRole('button',{name:'Permitir localização'}).waitFor();
+  await blockedPage.getByRole('button',{name:'Permitir localização'}).click();
+  await blockedPage.getByText(/ícone ao lado do endereço do site/).waitFor();
+  await blockedContext.close();
   const homeGps = page.getByRole('button', {name:'Atualizar GPS'});
   const homeReport = page.getByRole('button', {name:'Reportar problema na estrada'});
   await homeGps.waitFor();
@@ -317,6 +331,10 @@ try {
   assert.equal(await reportDialog.getByRole('button', { name: 'Enviar para análise' }).isDisabled(), true);
   await reportDialog.getByRole('button', { name: 'Fechar ocorrência' }).click();
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
+  const mapPanel = page.getByTestId('map-explore-sheet');
+  const initialMapBounds = await mapPanel.boundingBox();
+  assert.ok(initialMapBounds && initialMapBounds.height < 180,
+    'Ao entrar no Mapa, o painel deve ficar recolhido por padrão');
   const grab = await expandMapPanel.boundingBox();
   assert.ok(grab, 'O puxador do painel precisa estar visível');
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
@@ -324,6 +342,9 @@ try {
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y-110,{steps:6});
   await page.mouse.up();
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).waitFor();
+  const expandedMapBounds = await mapPanel.boundingBox();
+  assert.ok(expandedMapBounds && expandedMapBounds.y > 0.55 * 844,
+    'Ao expandir o menu do Mapa, o painel deve continuar mais abaixo da metade da tela');
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
   await expandMapPanel.click();
   const exploration = page.getByRole('region', { name: 'Explorar destinos e estabelecimentos' });
