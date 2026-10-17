@@ -238,3 +238,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Usuários com preferência de movimento reduzido recebem centralização sem animação; o zoom por gesto e a navegação não deixam de funcionar.
 - Sem animação de rotação por bússola nesta fase: o Leaflet ainda é responsável pelos gestos. A remoção integral do adaptador e a rotação controlada pelo rumo precisam de uma etapa posterior e de testes físicos.
 - Efeitos da câmera e da pinça precisam ser confirmados em aparelho Android real; os testes automatizados cobrem as regressões de código, UI, build e emulador, não medem FPS de dispositivos diferentes.
+
+## Paradas e comboios vetoriais — PR #52
+
+- Paradas turísticas verificadas, pontos de encontro e participantes **com GPS compartilhado voluntariamente** são exibidos como marcadores DOM nativos do MapLibre. São exibidos apenas pontos com coordenadas válidas; locais e posições não são inventados.
+- Participantes sem compartilhamento de localização ativo, localização vencida há mais de 3 minutos ou coordenadas inválidas não aparecem. Identificações e detalhes são inseridos com `textContent`, sem interpretar HTML fornecido pelo usuário.
+- O marcador de um participante é atualizado incrementalmente por `setLngLat`, sem recriar os demais participantes e sem reiniciar a câmera. O fallback Leaflet utiliza `setLatLng` para o mesmo propósito.
+- Os pontos de encontro continuam mostrando quantos participantes confirmaram chegada. Paradas com referência OSM de posto preservam os comandos de preços e comentários. No fallback raster, os mesmos marcadores e pop-ups permanecem.
+- O renderizador MapLibre ainda usa a ponte de câmera/gestos Leaflet. Remover a dependência do Leaflet exige migrar os gestos e os overlays meteorológicos e validar o Android físico.
