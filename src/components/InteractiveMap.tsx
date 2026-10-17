@@ -1033,7 +1033,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !navigationMode || !userLiveCoords) { lastFollowRef.current = null; return; }
+    if (!map || !navigationMode || !userLiveCoords) {
+      lastFollowRef.current = null;
+      if (!navigationMode) followSuspendedRef.current=false;
+      return;
+    }
     const last = lastFollowRef.current;
     const changed = !last || Math.abs(last[0] - userLiveCoords[0]) + Math.abs(last[1] - userLiveCoords[1]) > 0.00004;
     if (!changed) return;
