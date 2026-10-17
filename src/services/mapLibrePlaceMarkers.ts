@@ -38,15 +38,16 @@ export function addRoleMaplibreMarkers(
     let offset: [number,number]=[0,-22];
     if (entry.kind === 'place') {
       root = iconElement(mapPlaceIcon(entry.category),'managed-place-marker');
-      const button=document.createElement('button');
-      button.type='button';
-      button.setAttribute('aria-label',`Ver ${entry.name}`);
-      button.title=entry.name;
-      button.style.cssText='display:block;padding:0;margin:0;background:transparent;border:0;cursor:pointer;';
-      const child=root.firstElementChild;
-      if(child) button.append(child);
-      root.append(button);
-      button.addEventListener('click',event=>{event.stopPropagation();actions.onPlace(entry.id);});
+      root.title=entry.name;
+      root.tabIndex=0;
+      root.setAttribute('role','button');
+      root.setAttribute('aria-label',`Ver ${entry.name}`);
+      root.addEventListener('click',event=>{event.stopPropagation();actions.onPlace(entry.id);});
+      root.addEventListener('keydown',event=>{
+        if (event.key==='Enter' || event.key===' ') {
+          event.preventDefault();event.stopPropagation();actions.onPlace(entry.id);
+        }
+      });
       anchor='center';offset=[0,0];
     } else {
       const isFuel=entry.kind==='fuel';
