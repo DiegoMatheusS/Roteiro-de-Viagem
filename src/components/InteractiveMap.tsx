@@ -349,6 +349,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             if (place) setSelectedPlace(place);
           }
         });
+        // Retira as versões Leaflet no mesmo turno em que os marcadores
+        // MapLibre entram no DOM, sem uma janela com botões duplicados.
+        fuelLayerGroupRef.current?.clearLayers();
+        tollLayerGroupRef.current?.clearLayers();
         setVectorMarkersReady(true);
       } catch {
         removeMarkers?.();
