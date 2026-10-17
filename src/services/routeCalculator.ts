@@ -53,9 +53,9 @@ export interface RoutePlanningInput {
 export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: TripPlan): RouteOptionCalculated[] {
   if (!presetTrip) throw new Error('Calcule um percurso rodoviário real antes de comparar custos.');
   const vehiclesCount = input.vehicleGroupType === 'multi_vehicle' ? Math.max(1, input.groupVehiclesCount) : 1;
-  const consumption = input.vehicle.consumption.userConfigured || input.vehicle.consumption.referenceAverage || 15;
-  const fuelLiters = Number((presetTrip.distanceKm / consumption * vehiclesCount).toFixed(2));
-  const fuelCost = Number((presetTrip.distanceKm / consumption * vehiclesCount * input.fuelPricePerLiter).toFixed(2));
+  const consumption = input.vehicle.consumption.userConfigured || input.vehicle.consumption.referenceAverage;
+  const fuelLiters = consumption > 0 ? Number((presetTrip.distanceKm / consumption * vehiclesCount).toFixed(2)) : 0;
+  const fuelCost = consumption > 0 ? Number((presetTrip.distanceKm / consumption * vehiclesCount * input.fuelPricePerLiter).toFixed(2)) : 0;
   const originalVehiclesCount = presetTrip.vehicleGroupType === 'multi_vehicle' ? Math.max(1,presetTrip.groupVehiclesCount) : 1;
   const tollsCost = Number((presetTrip.knownTollsCost / originalVehiclesCount * vehiclesCount).toFixed(2));
   const totalFoodCost = input.peopleCount * input.foodCostPerPerson;
@@ -66,13 +66,13 @@ export function getPlanningAlternatives(input: RoutePlanningInput, presetTrip?: 
     modality: presetTrip.modality,
     title: presetTrip.title,
     badge: presetTrip.isCircular ? 'Ida e volta' : 'Só ida',
-    description: 'Mantém a distância, o tempo e as paradas do passeio que você escolheu.',
+    description: consumption > 0 ? 'Mantém a distância, o tempo e as paradas do passeio que você escolheu.' : 'Consumo de combustível indisponível: custos parciais.',
     distanceKm: presetTrip.distanceKm,
     durationMinutes: presetTrip.durationMinutes,
     stopsCount: presetTrip.stops.length,
     fuelLiters, fuelCost, tollsCost, totalFoodCost, totalCost,
     costPerPerson: input.splitExpenses ? Number((totalCost / Math.max(1, input.peopleCount)).toFixed(2)) : totalCost,
-    scenicQualityStars: presetTrip.routingSource === 'OSRM' ? 0 : 4,
+    scenicQualityStars: 0, // Sem avaliação real de qualidade cênica, não atribuir estrelas fictícias.
     hasRainRisk: presetTrip.hasRainRisk,
     weatherSummary: presetTrip.weatherSource ? `Previsão real · ${presetTrip.weatherSource}` : 'Previsão indisponível; consulte novamente antes de sair.',
     routePath: presetTrip.routePath,
