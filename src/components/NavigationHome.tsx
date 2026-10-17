@@ -347,7 +347,6 @@ export function NavigationHome(props: NavigationHomeProps) {
       onPlanRoute={()=>showSheet('destination')}
       onOpenProfile={props.onOpenProfile}
       onLogin={props.onLogin}
-      onJoinCode={props.onJoinConvoy}
     />}
     {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget} vehicle={props.currentVehicle}
       gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates} onStartTrip={props.onStartTrip}
