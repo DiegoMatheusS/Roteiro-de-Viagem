@@ -2,6 +2,7 @@ import type { RouteToll } from '../types/tolls';
 import { TollModal } from './TollModal';
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import type { Map as MapLibreMap } from 'maplibre-gl';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
 import { Layers, Mountain, Eye, Sparkles, X } from 'lucide-react';
 import { useFuelStations } from '../hooks/useFuelStations';
@@ -16,6 +17,7 @@ import { mapContributionIcon } from './mapContributionIcon';
 import { mapPlaceIcon } from './mapPlaceIcon';
 import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
+import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLibreRouteLayers';
 
 export type MapStyleType = 'light' | 'satellite' | 'topo';
 export interface MapVisiblePlace {
@@ -94,7 +96,7 @@ const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribut
 // Vibrant modality colors
 const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; border: string }> = {
   panoramica: { primary: '#059669', glow: '#34d399', border: '#ffffff' }, // Emerald green
-  turistica: { primary: '#7c3aed', glow: '#a78bfa', border: '#ffffff' }, // Vibrant violet
+  turistica: { primary: '#0284c7', glow: '#7dd3fc', border: '#ffffff' }, // Azul passeio
   gastronomica: { primary: '#ea580c', glow: '#fb923c', border: '#ffffff' }, // Warm orange
   rapida: { primary: '#2563eb', glow: '#60a5fa', border: '#ffffff' }, // Royal blue
   economica: { primary: '#16a34a', glow: '#4ade80', border: '#ffffff' }, // Vibrant green
@@ -137,6 +139,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const currentTileLayerRef = useRef<L.Layer | null>(null);
+  const vectorMapRef = useRef<MapLibreMap | null>(null);
+  const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -393,6 +397,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
+    vectorMapRef.current = null;
+    setVectorRoutesReady(false);
     if (currentTileLayerRef.current) {
       map.removeLayer(currentTileLayerRef.current);
       currentTileLayerRef.current = null;
@@ -447,6 +453,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             map.removeLayer(vector);
             if (currentTileLayerRef.current === vector) currentTileLayerRef.current = null;
             if (attributionAdded) { map.attributionControl?.removeAttribution(vectorAttribution); attributionAdded = false; }
+            vectorMapRef.current = null;
+            setVectorRoutesReady(false);
             showRaster();
           };
           gl.once('load', () => {
@@ -454,6 +462,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             vectorLoaded = true;
             if (vectorTimer) clearTimeout(vectorTimer);
             applyRoleVectorPalette(gl);
+            vectorMapRef.current = gl;
+            setVectorRoutesReady(true);
             setTileError(false);
           });
           // Falha inicial de estilo/WebGL ou de rede: o mapa raster continua funcional.
@@ -477,11 +487,34 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }, 120);
     return () => {
       disposed = true;
+      const activeVector = vectorMapRef.current;
+      if (activeVector) { try { clearRoleVectorRoutes(activeVector); } catch { /* style já removido */ } }
+      vectorMapRef.current = null;
       if (vectorTimer) clearTimeout(vectorTimer);
       clearTimeout(resizeTimer);
       if (attributionAdded) map.attributionControl?.removeAttribution(vectorAttribution);
     };
   }, [currentStyle, roadStyle, navigationMode, tileRetryCount]);
+
+
+  // Trajetos do OSRM são desenhados diretamente no MapLibre após carregar o
+  // estilo vetorial. Atualizamos dados do GPS sem recriar a base nem mudar zoom.
+  useEffect(() => {
+    const gl = vectorMapRef.current;
+    if (!vectorRoutesReady || !gl) return;
+    try {
+      updateRoleVectorRoutes(gl, {
+        routePath, alternatives:routeAlternatives, selectedRouteId,
+        modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
+        userLocation:userLiveCoords,
+        travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
+      });
+    } catch {
+      // Um estilo que muda enquanto chega nova posição não pode interromper a navegação.
+      setVectorRoutesReady(false);
+    }
+  }, [vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
+      routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -563,8 +596,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!navigationMode && routeAlternatives.length > 1) {
       for (const option of routeAlternatives) {
         if (option.id === selectedRouteId || option.routePath.length < 2) continue;
-        L.polyline(option.routePath, {color:'#ffffff',weight:9,opacity:.86,lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
-        const alternative = L.polyline(option.routePath, {color:'#64748b',weight:5,opacity:.78,lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false}).addTo(group);
+        if (!vectorRoutesReady) {
+          L.polyline(option.routePath, {color:'#ffffff',weight:9,opacity:.86,lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
+        }
+        // Área de toque Leaflet ainda funciona sobre a linha vetorial MapLibre.
+        const alternative = L.polyline(option.routePath, {color:'#64748b',weight:vectorRoutesReady ? 18 : 5,
+          opacity:vectorRoutesReady ? 0.003 : .78,lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false}).addTo(group);
         alternative.on('click',()=>onSelectRoute?.(option.id));
         alternative.bindTooltip('Selecionar rota alternativa', {sticky:true,direction:'top'});
         option.routePath.forEach(point=>bounds.push(point));
@@ -575,6 +612,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // A posição vem do GPS, sem colorir como concluído quando estiver fora da rota.
     const modalityStyle = MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica;
     if (routePath && routePath.length > 1) {
+      if (!vectorRoutesReady) {
       L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
       if (navigationMode || blueRoute) {
@@ -592,6 +630,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           lineCap: 'round', lineJoin: 'round' }).addTo(group);
         L.polyline(routePath, { color: modalityStyle.primary, weight: 5, opacity: 1,
           lineCap: 'round', lineJoin: 'round' }).addTo(group);
+      }
       }
       routePath.forEach((point, index) => {
         bounds.push(point);
