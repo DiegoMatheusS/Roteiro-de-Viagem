@@ -172,15 +172,20 @@ export default function App() {
     if(running?.id === id){const updated={...running,...patch};storageService.setActiveTrip(updated);setActiveTrip(updated);}
   },accountReady && !!conditionsVehicle && !!conditionsTrip,activeTrip ? tracking.position : null);
 
-  const handleCreateConvoy = async (trip: TripPlan) => {
-    if (!auth.user) { auth.promptLogin(); return; }
-    if (!currentVehicle) { setAppError('Escolha ou cadastre seu veículo antes de criar o Comboio.'); return; }
+  const handleCreateConvoy = async (trip: TripPlan, customTitle?: string): Promise<boolean> => {
+    if (!auth.user) { auth.promptLogin(); return false; }
+    if (!currentVehicle) { setAppError('Escolha ou cadastre seu veículo antes de criar o Comboio.'); return false; }
     try {
-      const convoy = await convoyService.createConvoy({ title: `Comboio: ${trip.title}`, trip,
-        organizerUser: { id: profile.id, name: profile.name, vehicleType: currentVehicle?.type || 'motorcycle', vehicleNickname: currentVehicle?.nickname },
+      const title = (customTitle?.trim() || `Comboio: ${trip.title}`).slice(0,100);
+      const convoy = await convoyService.createConvoy({ title, trip,
+        organizerUser: { id: profile.id, name: profile.name, vehicleType: currentVehicle.type, vehicleNickname: currentVehicle.nickname },
         meetingPoints: [{ id: crypto.randomUUID(), title: 'Ponto de encontro inicial', category: 'minha_escolha', coords: trip.originCoords, order: 1, confirmedArrivedParticipantIds: [] }] });
       setActiveConvoyId(convoy.id);
-    } catch (error) { setAppError((error as Error).message); }
+      return true;
+    } catch (error) {
+      setAppError((error as Error).message);
+      return false;
+    }
   };
   const joinConvoy = async () => {
     if (!auth.user) { setShowJoin(false); auth.promptLogin(); return; }
@@ -434,6 +439,10 @@ export default function App() {
                 onOpenAllSuggestions={() => setActiveTab('passeios')}
                 onOpenProfile={() => setActiveTab('ajustes')}
                 onAdvancedPlanning={() => setAdvancedHome(true)}
+                signedIn={Boolean(auth.user)}
+                onLogin={auth.promptLogin}
+                onCreateConvoy={(trip,title) => handleCreateConvoy(trip,title)}
+                onJoinConvoy={() => {setJoinError('');setShowJoin(true);}}
                 onViewTripDetails={(trip) => {
                   setPlanningOrigin(trip.originName);
                   setPlanningOriginCoords(trip.originCoords);

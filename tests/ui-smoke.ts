@@ -57,6 +57,17 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
+  // No Início, Criar Comboio deve abrir popup sem enviar o usuário a outra tela.
+  await page.getByRole('button', {name:'Criar Comboio'}).click();
+  const convoyCreate = page.getByRole('dialog',{name:'Criar Comboio'});
+  await convoyCreate.getByText('Antes, escolha o percurso do comboio.').waitFor();
+  await convoyCreate.getByRole('button',{name:'Entrar para criar'}).waitFor();
+  await convoyCreate.getByRole('button',{name:/Já tenho um código/}).click();
+  const joinFromHome = page.getByRole('dialog',{name:'Entrar no comboio'});
+  await joinFromHome.getByLabel('Código do comboio').waitFor();
+  await joinFromHome.getByRole('button',{name:'Fechar entrada no comboio'}).click();
+  await page.getByRole('button', {name:'Criar Comboio'}).click();
+  await page.getByRole('dialog',{name:'Criar Comboio'}).getByRole('button',{name:'Fechar criação de comboio'}).click();
   const homePanel = page.getByTestId('home-main-sheet');
   const initialHomeBounds = await homePanel.boundingBox();
   assert.ok(initialHomeBounds && initialHomeBounds.y > 0.56 * 844,

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route } from 'lucide-react';
+import { ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route, Users } from 'lucide-react';
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
@@ -20,6 +20,7 @@ import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
+import { CreateConvoyModal } from './CreateConvoyModal';
 
 interface NavigationHomeProps {
   currentVehicle: Vehicle | null;
@@ -31,6 +32,10 @@ interface NavigationHomeProps {
   onOpenProfile: () => void;
   onAdvancedPlanning: () => void;
   onViewTripDetails: (trip: TripPlan) => void;
+  signedIn: boolean;
+  onLogin: () => void;
+  onCreateConvoy: (trip: TripPlan, title: string) => Promise<boolean>;
+  onJoinConvoy: () => void;
 }
 type CircuitMode = 'km' | 'hours';
 const touristKinds: readonly string[] = TOURIST_PLACE_KINDS;
@@ -44,6 +49,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
   const [preview, setPreview] = useState<TripPlan|null>(null);
+  const [showCreateConvoy, setShowCreateConvoy] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [searchPlace,setSearchPlace] = useState<LocationSelection>({name:''});
   const [searchBusy,setSearchBusy] = useState(false);
@@ -77,13 +83,14 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   useEffect(()=>{
     const close=(event:Event)=>{
+      if(showCreateConvoy){(event as CustomEvent).preventDefault();setShowCreateConvoy(false);return;}
       if(sheet || preview){(event as CustomEvent).preventDefault();closeSheet();return;}
       if(mapTarget){(event as CustomEvent).preventDefault();setMapTarget(null);setDisplayRoute(null);setCollapsed(false);return;}
       if(!collapsed){(event as CustomEvent).preventDefault();setCollapsed(true);}
     };
     window.addEventListener('rdv:close-overlay',close);
     return()=>window.removeEventListener('rdv:close-overlay',close);
-  },[sheet,preview,mapTarget,collapsed]);
+  },[sheet,preview,mapTarget,collapsed,showCreateConvoy]);
   const [centerRequest,setCenterRequest] = useState(0);
   const centeredOnce=React.useRef(false);
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
@@ -294,6 +301,11 @@ export function NavigationHome(props: NavigationHomeProps) {
               </span>
             </button>
           </div>
+          <button type="button" onClick={()=>setShowCreateConvoy(true)}
+            className="w-full text-left bg-white border border-blue-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
+            <span className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-50 text-blue-700"><Users size={21} strokeWidth={1.9}/></span>
+            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Criar Comboio</strong><small className="text-[11px] text-slate-500">Organize um rolê e convide seus amigos</small></span><ChevronRight size={17} className="text-slate-400"/>
+          </button>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
             <span className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-blue-700"><Route size={21} strokeWidth={1.9}/></span>
             <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rolê com origem e destino</strong><small className="text-[11px] text-slate-500">Escolha de onde sair e aonde chegar</small></span><ChevronRight size={17} className="text-slate-400"/>
@@ -320,6 +332,15 @@ export function NavigationHome(props: NavigationHomeProps) {
         <button type="button" onClick={props.onAdvancedPlanning} className="w-full py-2 text-blue-700 underline text-xs font-semibold">Mais opções de planejamento</button>
       </div>}
     </div>
+    {showCreateConvoy && <CreateConvoyModal
+      trips={props.trips} vehicle={props.currentVehicle} signedIn={props.signedIn}
+      onClose={()=>setShowCreateConvoy(false)}
+      onCreate={props.onCreateConvoy}
+      onPlanRoute={()=>showSheet('destination')}
+      onOpenProfile={props.onOpenProfile}
+      onLogin={props.onLogin}
+      onJoinCode={props.onJoinConvoy}
+    />}
     {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget} vehicle={props.currentVehicle}
       gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates} onStartTrip={props.onStartTrip}
       selectedRouteId={displayRoute?.selectedId}
