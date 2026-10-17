@@ -229,3 +229,12 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - **Criar** abre o formulário de seleção da viagem e nome do grupo já existente; **Entrar** abre diretamente a entrada por código de convite. Não há botões separados ocupando espaço na página inicial.
 - Ambos os pop-ups mantêm o mapa em segundo plano. Botão fechar, toque no fundo, tecla Escape e Voltar do Android descartam o pop-up de seleção.
 - Criação utiliza a mesma API autenticada, sem inventar trajetos, e o compartilhamento de GPS segue desativado por padrão. Backend e painel administrativo permanecem intactos.
+
+## Navegação mais fluida e leve (PR #51)
+
+- Gestos de zoom e transições de blocos de mapa agora são animados, com zoom de meio nível para movimentos mais progressivos. A paleta clara e os ícones anteriores são mantidos.
+- A atualização GPS não desmonta mais o conjunto completo de trajetos, paradas, pontos de encontro e demais marcadores do fallback Leaflet. O marcador ao vivo é movido com `setLatLng` e o progresso restante/percorrido tem camada independente; no MapLibre, o marcador nativo continua usando `setLngLat`.
+- A navegação acompanha o GPS de forma suave (pan curto), mas **ao arrastar o mapa o acompanhamento é suspenso** para não tomar o controle do gesto. O botão GPS retoma e recentraliza. Ao sair da navegação, o estado de suspensão é limpo.
+- Usuários com preferência de movimento reduzido recebem centralização sem animação; o zoom por gesto e a navegação não deixam de funcionar.
+- Sem animação de rotação por bússola nesta fase: o Leaflet ainda é responsável pelos gestos. A remoção integral do adaptador e a rotação controlada pelo rumo precisam de uma etapa posterior e de testes físicos.
+- Efeitos da câmera e da pinça precisam ser confirmados em aparelho Android real; os testes automatizados cobrem as regressões de código, UI, build e emulador, não medem FPS de dispositivos diferentes.
