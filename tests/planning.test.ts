@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateObservedConsumption } from '../src/services/fuelConsumption';
-import { generateTouristCircuitByKmOrHours, getPlanningAlternatives, buildPlannedTrip } from '../src/services/routeCalculator';
+import { getPlanningAlternatives, buildPlannedTrip } from '../src/services/routeCalculator';
+import { createRoadDraft } from '../src/services/touristCircuit';
 import { storageService } from '../src/services/storageService';
 import { convoyService } from '../src/services/convoyService';
 import { createGpsTrackingState, recordGpsPosition } from '../src/services/gpsTracking';
@@ -33,7 +34,15 @@ test('partial consumption updates the vehicle used for planning', () => {
 });
 for (const mode of ['km', 'hours'] as const) for (const tripType of ['round_trip', 'one_way'] as const) {
   test(`${mode}/${tripType} preserves circuit, time, origin, stops and identity through save/start`, () => {
-    const trip = generateTouristCircuitByKmOrHours({ mode, targetValue: mode === 'km' ? 100 : 2.5, tripType, vehicle, originCoords: [-21, -47], originName: 'Origem do teste' });
+    const circular = tripType === 'round_trip';
+    const initial = createRoadDraft({originName:'Origem do teste',originCoords:[-21,-47],
+      destinationName:circular?'Origem do teste':'Destino do teste',destinationCoords:circular?[-21,-47]:[-21.1,-47.1],
+      vehicle,circular,limits:{mode,target:mode==='km'?100:2.5}});
+    // Uma fixture de percurso já calculado; o teste NÃO usa gerador fictício de produção.
+    const trip = { ...initial, distanceKm:100, durationMinutes:150,
+      routingSource:'OSRM' as const, tollsStatus:'unknown' as const,
+      routePath:[[-21,-47],[-21.04,-47.06],circular?[-21,-47]:[-21.1,-47.1]] as [number,number][],
+      stops:[] };
     const input = { originName: trip.originName, originCoords: trip.originCoords, destinationName: trip.destinationName, destinationCoords: trip.destinationCoords, vehicle, peopleCount: 2, vehicleGroupType: 'single_vehicle' as const, groupVehiclesCount: 1, splitExpenses: true, foodCostPerPerson: 20, fuelPricePerLiter: 6, returnModality: trip.returnModality };
     const options = getPlanningAlternatives(input, trip);
     const saved = buildPlannedTrip(input, options[0], trip);

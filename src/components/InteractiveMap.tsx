@@ -13,6 +13,8 @@ import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
+import { mapPlaceIcon } from './mapPlaceIcon';
+import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
 
 export type MapStyleType = 'light' | 'satellite' | 'topo';
@@ -273,7 +275,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if(!group)return;group.clearLayers();
     if(!tollVehicleType)return;
     for(const toll of navigationMode ? [] : (Array.isArray(tolls) ? tolls : [])) {
-      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
+      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
       marker.on('click',() => openToll(toll.id));
@@ -293,7 +295,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!group) return;
     group.clearLayers();
     for (const station of navigationMode ? [] : (Array.isArray(fuel.stations) ? fuel.stations : [])) {
-      const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
+      const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', priceLabel: fuelPriceLabel(station), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
@@ -306,8 +308,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         L.marker([place.lat, place.lng], { icon, title: place.name, keyboard: false, zIndexOffset: 1700 }).addTo(group);
         continue;
       }
-      const emoji = PLACE_KINDS.find(kind => kind.id === place.kind)?.icon || '📍';
-      const icon = L.divIcon({ className: 'managed-place-marker', html: `<div style="background:#2563eb;border:2px solid white;border-radius:11px;padding:5px;font-size:18px;box-shadow:0 2px 8px #0003">${emoji}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = mapPlaceIcon(place.kind);
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
       marker.bindTooltip(tooltip); marker.on('click', () => setSelectedPlace(place));
