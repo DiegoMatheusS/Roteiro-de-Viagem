@@ -214,3 +214,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Ao tocar ou clicar no marcador, o aplicativo mantém o diálogo **“Ainda continua lá?”**, as confirmações e as regras atuais de moderação. Notas e textos enviados pela comunidade não são inseridos como HTML.
 - Caso a base vetorial esteja indisponível, o Leaflet renderiza os mesmos alertas usando a mesma seleção de dados confiáveis. A troca entre renderizadores remove os marcadores anteriores antes de permitir novas interações, evitando duplicações.
 - Nesta fase o Leaflet ainda controla os gestos e parte dos overlays da navegação, SOS e comboio. Não foi ativado trânsito em tempo real ou um sistema de multas/limites presumidos.
+
+## Pinos de navegação no MapLibre (PR #48)
+
+- Origem, destino e localização do GPS agora usam marcadores MapLibre nativos na camada vetorial. Os ícones são leves e têm textos acessíveis e balões de informação.
+- Atualizações sucessivas do GPS apenas movimentam o marcador existente (`setLngLat`), preservando zoom e câmera, sem recriar o mapa.
+- Em dispositivos sem WebGL ou quando há falha de tiles, Leaflet continua mostrando os mesmos pontos; as versões antigas dos pinos são removidas assim que os novos são instalados.
+- Coordenadas inválidas não são desenhadas. Durante a navegação, não exibimos marcador estático de origem que possa confundir a posição atual.
+- Ainda restam marcadores de paradas, comboios, pontos de encontro e amostras de previsão meteorológica no Leaflet. A remoção da dependência será feita em fase posterior após testes de gestos/câmera.
