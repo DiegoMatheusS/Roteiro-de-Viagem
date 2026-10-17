@@ -4,7 +4,7 @@ on:
     branches: [feat/role-maplibre-vector-base-20261017]
     paths: [.github/workflows/maplibre-lock-temp.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
   lockfile:
     runs-on: ubuntu-latest
@@ -21,3 +21,10 @@ jobs:
             package.json
             package-lock.json
           retention-days: 3
+      - name: Commit lockfile in feature branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(role): lock MapLibre dependencies for deterministic builds"
+          git push origin HEAD:feat/role-maplibre-vector-base-20261017
