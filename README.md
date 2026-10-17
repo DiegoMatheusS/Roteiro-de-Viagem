@@ -232,7 +232,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 
 ## Navegação mais fluida e leve (PR #51)
 
-- Gestos de zoom e transições de blocos de mapa agora são animados, com zoom de meio nível para movimentos mais progressivos. A paleta clara e os ícones anteriores são mantidos.
+- Zoom por gesto e transições de blocos de mapa são animados **nas telas de navegação e no mapa principal**, com incrementos de meio nível. No mapa do comboio e nas prévias, o zoom Leaflet permanece imediato para que atualizações de participantes não alterem a posição visual de outros marcadores.
 - A atualização GPS não desmonta mais o conjunto completo de trajetos, paradas, pontos de encontro e demais marcadores do fallback Leaflet. O marcador ao vivo é movido com `setLatLng` e o progresso restante/percorrido tem camada independente; no MapLibre, o marcador nativo continua usando `setLngLat`.
 - A navegação acompanha o GPS de forma suave (pan curto), mas **ao arrastar o mapa o acompanhamento é suspenso** para não tomar o controle do gesto. O botão GPS retoma e recentraliza. Ao sair da navegação, o estado de suspensão é limpo.
 - Usuários com preferência de movimento reduzido recebem centralização sem animação; o zoom por gesto e a navegação não deixam de funcionar.
