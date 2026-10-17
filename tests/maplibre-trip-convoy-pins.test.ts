@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {selectTripStops,selectMeetingPins,selectSharingParticipants,lngLat} from '../src/services/mapLibreTripPins';
+import {selectTripStops,selectMeetingPins,selectSharingParticipants,lngLat} from '../src/services/vectorTripPinData';
 import type {RouteStop,MeetingPoint,ConvoyParticipant} from '../src/types';
 
 const place:RouteStop={id:'osm:node:1',name:'Mirante confirmado',category:'mirante',
