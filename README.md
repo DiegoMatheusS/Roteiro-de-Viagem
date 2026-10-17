@@ -222,3 +222,10 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Em dispositivos sem WebGL ou quando há falha de tiles, Leaflet continua mostrando os mesmos pontos; as versões antigas dos pinos são removidas assim que os novos são instalados.
 - Coordenadas inválidas não são desenhadas. Durante a navegação, não exibimos marcador estático de origem que possa confundir a posição atual.
 - Ainda restam marcadores de paradas, comboios, pontos de encontro e amostras de previsão meteorológica no Leaflet. A remoção da dependência será feita em fase posterior após testes de gestos/câmera.
+
+## Acesso ao comboio pelo Início (PR #50)
+
+- Abaixo dos cartões KM e Horas há um único botão **Comboio**. O toque abre um pop-up minimalista com **Criar comboio** e **Entrar no comboio**.
+- **Criar** abre o formulário de seleção da viagem e nome do grupo já existente; **Entrar** abre diretamente a entrada por código de convite. Não há botões separados ocupando espaço na página inicial.
+- Ambos os pop-ups mantêm o mapa em segundo plano. Botão fechar, toque no fundo, tecla Escape e Voltar do Android descartam o pop-up de seleção.
+- Criação utiliza a mesma API autenticada, sem inventar trajetos, e o compartilhamento de GPS segue desativado por padrão. Backend e painel administrativo permanecem intactos.
