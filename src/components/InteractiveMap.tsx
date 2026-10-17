@@ -23,6 +23,14 @@ import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
+// Stable defaults prevent a GPS-driven parent render from recreating all map layers.
+const EMPTY_ROUTE: [number,number][] = [];
+const EMPTY_ALTERNATIVES: {id:string;routePath:[number,number][]}[] = [];
+const EMPTY_STOPS: RouteStop[] = [];
+const EMPTY_WEATHER: WeatherPoint[] = [];
+const EMPTY_TOLLS: RouteToll[] = [];
+const EMPTY_CONVOY: ConvoyParticipant[] = [];
+const EMPTY_MEETINGS: MeetingPoint[] = [];
 export type MapStyleType = 'light' | 'satellite' | 'topo';
 export interface MapVisiblePlace {
   id: string;
@@ -112,20 +120,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   destinationCoords,
   originLabel = 'Origem',
   destinationLabel = 'Destino',
-  routePath = [],
-  routeAlternatives = [],
+  routePath = EMPTY_ROUTE,
+  routeAlternatives = EMPTY_ALTERNATIVES,
   selectedRouteId,
   onSelectRoute,
   routeModality = 'panoramica',
-  stops = [],
+  stops = EMPTY_STOPS,
   showRainLayer = false,
-  weatherPoints = [],
-  tolls = [],
+  weatherPoints = EMPTY_WEATHER,
+  tolls = EMPTY_TOLLS,
   tollVehicleType,
   userLiveCoords,
   focusedCoords,
-  convoyParticipants = [],
-  meetingPoints = [],
+  convoyParticipants = EMPTY_CONVOY,
+  meetingPoints = EMPTY_MEETINGS,
   onSelectCoordinates,
   showFuelStations = true,
   navigationMode = false,
@@ -159,6 +167,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
   const navigationPinGroupRef = useRef<L.LayerGroup | null>(null);
+  const livePinGroupRef = useRef<L.LayerGroup | null>(null);
+  const liveFallbackRef = useRef<L.Marker | null>(null);
+  const progressGroupRef = useRef<L.LayerGroup | null>(null);
+  const followSuspendedRef = useRef(false);
+  const selectRouteRef = useRef(onSelectRoute);
+  selectRouteRef.current = onSelectRoute;
   const fittedGeometryRef=useRef<string|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
   const lastCenterRequestRef=useRef(0);
@@ -218,8 +232,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       zoom: originCoords ? 11 : 4,
       minZoom: 1,
       zoomControl: false,
-      zoomAnimation: false,
-      fadeAnimation: false,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      zoomSnap: 0.5,
+      zoomDelta: 0.5,
       attributionControl: true
     });
 
@@ -234,6 +250,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     tollLayerGroupRef.current = L.layerGroup().addTo(map);
     roadAlertGroupRef.current = L.layerGroup().addTo(map);
     navigationPinGroupRef.current = L.layerGroup().addTo(map);
+    livePinGroupRef.current = L.layerGroup().addTo(map);
+    progressGroupRef.current = L.layerGroup().addTo(map);
+    // Only a user's drag suspends following; programmatic GPS panning does not.
+    const pauseFollowing = () => { followSuspendedRef.current = true; };
+    map.on('dragstart',pauseFollowing);
 
     mapInstanceRef.current = map;
     setHasMapReady(true);
@@ -251,6 +272,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return () => {
       clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      map.off('dragstart',pauseFollowing);
       map.stop();
       map.remove();
       mapInstanceRef.current = null;
@@ -283,7 +305,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (centerOnUserRequest <= lastCenterRequestRef.current) return;
     lastCenterRequestRef.current=centerOnUserRequest;
     if (!userLiveCoords || !mapInstanceRef.current) return;
-    mapInstanceRef.current.setView(userLiveCoords, 15, {animate:false});
+    followSuspendedRef.current = false;
+    const map = mapInstanceRef.current;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) map.setView(userLiveCoords, 15, {animate:false});
+    else map.flyTo(userLiveCoords, 15, {duration:0.55, easeLinearity:0.3});
     // A posição atual é deliberadamente lida apenas quando o usuário pede centralização.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centerOnUserRequest]);
@@ -642,7 +668,52 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [focusedCoords]);
 
-  // Update markers, polyline and layers when props change
+  // GPS position is independent of static trip markers. Only the dynamic marker
+  // moves; route stops and convoy meeting pins are NOT recreated per fix.
+  useEffect(() => {
+    const map=mapInstanceRef.current;
+    const group=livePinGroupRef.current;
+    if (!map || !group) return;
+    if (!userLiveCoords || vectorNavigationReady ||
+        !Number.isFinite(userLiveCoords[0]) || !Number.isFinite(userLiveCoords[1]) ||
+        Math.abs(userLiveCoords[0])>90 || Math.abs(userLiveCoords[1])>180) {
+      group.clearLayers();
+      liveFallbackRef.current=null;
+      return;
+    }
+    const existing=liveFallbackRef.current;
+    if (existing && group.hasLayer(existing)) {
+      existing.setLatLng(userLiveCoords);
+      return;
+    }
+    group.clearLayers();
+    const icon=L.divIcon({
+      className:'user-live-marker',
+      html:`<div style="width:32px;height:32px;display:grid;place-items:center;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 0 0 7px #2563eb25,0 3px 12px #0f172a66;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
+      iconSize:[32,32],iconAnchor:[16,16]
+    });
+    liveFallbackRef.current=L.marker(userLiveCoords,{icon,zIndexOffset:1000})
+      .addTo(group).bindPopup('<b>Sua Posição Atual (GPS)</b>');
+  },[userLiveCoords,vectorNavigationReady]);
+
+  // Lightweight progress overlays for raster/legacy mode. Vector mode already
+  // updates its GeoJSON source independently, with the exact same GPS split.
+  useEffect(() => {
+    const group=progressGroupRef.current;
+    if (!group) return;
+    group.clearLayers();
+    if (vectorRoutesReady || !(navigationMode || blueRoute) || routePath.length<2) return;
+    const progress=splitRouteAtPosition(routePath,userLiveCoords,travelledDistanceKm,totalRouteKm);
+    if (progress.remaining.length>1) {
+      L.polyline(progress.remaining,{color:'#67c7ff',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+    }
+    if (progress.travelled.length>1) {
+      L.polyline(progress.travelled,{color:'#17479b',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+    }
+  },[vectorRoutesReady,routePath,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
+
+  // Update static markers, alternatives and road shape only when those inputs change
   useEffect(() => {
     const map = mapInstanceRef.current;
     const group = layersGroupRef.current;
@@ -724,7 +795,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         // Área de toque Leaflet ainda funciona sobre a linha vetorial MapLibre.
         const alternative = L.polyline(option.routePath, {color:'#64748b',weight:vectorRoutesReady ? 18 : 5,
           opacity:vectorRoutesReady ? 0.003 : .78,lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false}).addTo(group);
-        alternative.on('click',()=>onSelectRoute?.(option.id));
+        alternative.on('click',()=>selectRouteRef.current?.(option.id));
         alternative.bindTooltip('Selecionar rota alternativa', {sticky:true,direction:'top'});
         option.routePath.forEach(point=>bounds.push(point));
       }
@@ -737,17 +808,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if (!vectorRoutesReady) {
       L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
-      if (navigationMode || blueRoute) {
-        const progress = splitRouteAtPosition(routePath, userLiveCoords, travelledDistanceKm, totalRouteKm);
-        if (progress.remaining.length > 1) {
-          L.polyline(progress.remaining, { color: '#67c7ff', weight: 7, opacity: 1,
-            lineCap: 'round', lineJoin: 'round' }).addTo(group);
-        }
-        if (progress.travelled.length > 1) {
-          L.polyline(progress.travelled, { color: '#17479b', weight: 7, opacity: 1,
-            lineCap: 'round', lineJoin: 'round' }).addTo(group);
-        }
-      } else {
+      if (!(navigationMode || blueRoute)) {
         L.polyline(routePath, { color: modalityStyle.glow, weight: 7, opacity: 0.6,
           lineCap: 'round', lineJoin: 'round' }).addTo(group);
         L.polyline(routePath, { color: modalityStyle.primary, weight: 5, opacity: 1,
@@ -821,19 +882,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       });
     }
 
-    // 5. Live GPS User Marker
-    if (userLiveCoords && !vectorNavigationReady) {
-      const liveIcon = L.divIcon({
-        className: 'user-live-marker',
-        html: `<div style="width:32px;height:32px;display:grid;place-items:center;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 0 0 7px #2563eb25,0 3px 12px #0f172a66;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      });
-      L.marker(userLiveCoords, { icon: liveIcon, zIndexOffset: 1000 })
-        .addTo(navigationGroup)
-        .bindPopup('<b>Sua Posição Atual (GPS)</b>');
-    }
+    // 5. Live GPS marker lives in a separate incremental layer above.
 
     // 6. Meeting Points (Pontos de Encontro do Comboio)
     if (meetingPoints && meetingPoints.length > 0) {
@@ -970,17 +1019,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     routePath,
     routeAlternatives,
     selectedRouteId,
-    onSelectRoute,
     routeModality,
     stops,
     navigationMode,
-    travelledDistanceKm,
-    totalRouteKm,
     blueRoute,
     roadStyle,
     showRainLayer,
     weatherPoints,
-    userLiveCoords,
     convoyParticipants,
     meetingPoints,
     vectorNavigationReady
@@ -992,8 +1037,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const last = lastFollowRef.current;
     const changed = !last || Math.abs(last[0] - userLiveCoords[0]) + Math.abs(last[1] - userLiveCoords[1]) > 0.00004;
     if (!changed) return;
-    if (!last) map.setView(userLiveCoords, 16, { animate: false });
-    else if (followUser) map.panTo(userLiveCoords, { animate: true, duration: 0.5 });
+    if (!last && !followSuspendedRef.current) {
+      // GPS first fix: keep initial reposition snappy, no cross-country flyover.
+      map.setView(userLiveCoords, 16, { animate: false });
+    } else if (followUser && !followSuspendedRef.current) {
+      const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (reducedMotion) map.panTo(userLiveCoords,{animate:false});
+      else map.panTo(userLiveCoords,{animate:true,duration:0.45,easeLinearity:0.3});
+    }
     lastFollowRef.current = userLiveCoords;
   }, [navigationMode, userLiveCoords, followUser]);
 
