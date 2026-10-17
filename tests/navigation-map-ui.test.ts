@@ -7,7 +7,7 @@ const source = (path:string) => readFileSync(new URL('../'+path, import.meta.url
 test('rotas alternativas são desenhadas juntas e cada linha pode ser selecionada',()=>{
   const map=source('src/components/InteractiveMap.tsx');
   assert.match(map,/routeAlternatives\.length > 1/);
-  assert.match(map,/alternative\.on\('click',\(\)=>onSelectRoute\?\.\(option\.id\)\)/);
+  assert.match(map,/alternative\.on\('click',\(\)=>selectRouteRef.current\?\.\(option\.id\)\)/);
   assert.match(map,/option\.id === selectedRouteId/);
   assert.match(map,/color:'#64748b'/);
   const explorer=source('src/components/DestinationExplorer.tsx');
