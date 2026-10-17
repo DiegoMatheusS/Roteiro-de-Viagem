@@ -1,4 +1,4 @@
-import { supported, setWorkerUrl, type Map as GlMap } from 'maplibre-gl';
+import { setWorkerUrl, type Map as GlMap } from 'maplibre-gl';
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -9,7 +9,14 @@ setWorkerUrl(workerUrl);
 export const ROLE_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 
 export function canRenderVectorMap(): boolean {
-  try { return supported(); } catch { return false; }
+  try {
+    if (typeof document === 'undefined') return false;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('webgl2');
+    if (!context) return false;
+    context.getExtension('WEBGL_lose_context')?.loseContext();
+    return true;
+  } catch { return false; }
 }
 
 export function createRoleVectorLayer() {
@@ -17,7 +24,6 @@ export function createRoleVectorLayer() {
     style: ROLE_VECTOR_STYLE,
     interactive: false, // Gestos e marcadores permanecem sincronizados pelo Leaflet.
     attributionControl: false,
-    padding: 0.12,
     maxZoom: 19
   });
 }
