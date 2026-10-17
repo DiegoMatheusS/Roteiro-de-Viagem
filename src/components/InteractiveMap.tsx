@@ -66,10 +66,10 @@ interface InteractiveMapProps {
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-// O CARTO passou a renderizar “API KEY REQUIRED” sem chave. Mapa padrão: OSM oficial sem token.
+// Mapa claro padrão: MapLibre/OpenFreeMap vetorial com fallback raster OSM sem chave. Satélite e relevo preservados.
 const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
   light: {
-    name: 'Claro (OpenStreetMap)',
+    name: 'Claro (MapLibre)',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores',
     maxZoom: 19,
@@ -136,7 +136,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const currentTileLayerRef = useRef<L.TileLayer | null>(null);
+  const currentTileLayerRef = useRef<L.Layer | null>(null);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -199,6 +199,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const map = L.map(mapContainerRef.current, {
       center: originCoords || [-14.2, -51.9],
       zoom: originCoords ? 11 : 4,
+      minZoom: 1,
       zoomControl: false,
       zoomAnimation: false,
       fadeAnimation: false,
@@ -387,41 +388,97 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [roadAlerts]);
 
-  // Switch map tiles when user changes style
+  // Mapa vetorial MapLibre (base) mantendo temporariamente marcadores e gestos Leaflet.
+  // Caso WebGL ou OpenFreeMap não carregue, cai para os tiles OSM sem deixar o mapa vazio.
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
-
     if (currentTileLayerRef.current) {
       map.removeLayer(currentTileLayerRef.current);
+      currentTileLayerRef.current = null;
     }
 
     const tileConfig = TILE_PROVIDERS[roadStyle || navigationMode ? 'light' : currentStyle];
+    const showVector = (roadStyle || navigationMode ? 'light' : currentStyle) === 'light';
     setTileError(false);
-    let consecutiveErrors = 0;
-    const newTileLayer = L.tileLayer(tileConfig.url, {
-      maxZoom: tileConfig.maxZoom,
-      attribution: tileConfig.attribution,
-      subdomains: tileConfig.url.includes('{s}') ? 'abc' : ''
-    });
-    newTileLayer.on('tileerror', () => {
-      consecutiveErrors += 1;
-      if (consecutiveErrors >= 3) setTileError(true);
-    });
-    newTileLayer.on('tileload', () => {
-      consecutiveErrors = 0;
-      setTileError(false);
-    });
-    newTileLayer.addTo(map);
+    let disposed = false;
+    let vectorLoaded = false;
+    let vectorTimer: ReturnType<typeof setTimeout> | null = null;
+    let attributionAdded = false;
+    const vectorAttribution = '&copy; <a href="https://openfreemap.org/">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-    // Ensure tile layer sits at the very bottom
-    newTileLayer.bringToBack();
-    currentTileLayerRef.current = newTileLayer;
+    const showRaster = () => {
+      if (disposed) return;
+      let consecutiveErrors = 0;
+      const raster = L.tileLayer(tileConfig.url, {
+        maxZoom: tileConfig.maxZoom,
+        attribution: tileConfig.attribution,
+        subdomains: tileConfig.url.includes('{s}') ? 'abc' : ''
+      });
+      raster.on('tileerror', () => {
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3) setTileError(true);
+      });
+      raster.on('tileload', () => {
+        consecutiveErrors = 0;
+        setTileError(false);
+      });
+      raster.addTo(map);
+      raster.bringToBack();
+      currentTileLayerRef.current = raster;
+    };
 
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current === map) map.invalidateSize();
-    }, 100);
-    return () => clearTimeout(timer);
+    if (showVector) {
+      void import('../services/mapLibreBridge').then(({ canRenderVectorMap, createRoleVectorLayer, applyRoleVectorPalette }) => {
+        if (disposed) return;
+        if (!canRenderVectorMap()) { showRaster(); return; }
+        try {
+          const vector = createRoleVectorLayer();
+          vector.addTo(map);
+          currentTileLayerRef.current = vector;
+          const gl = vector.getMaplibreMap();
+          map.attributionControl?.addAttribution(vectorAttribution);
+          attributionAdded = true;
+          const fallback = () => {
+            if (disposed || vectorLoaded) return;
+            if (vectorTimer) clearTimeout(vectorTimer);
+            map.removeLayer(vector);
+            if (currentTileLayerRef.current === vector) currentTileLayerRef.current = null;
+            if (attributionAdded) { map.attributionControl?.removeAttribution(vectorAttribution); attributionAdded = false; }
+            showRaster();
+          };
+          gl.once('load', () => {
+            if (disposed) return;
+            vectorLoaded = true;
+            if (vectorTimer) clearTimeout(vectorTimer);
+            applyRoleVectorPalette(gl);
+            setTileError(false);
+          });
+          // Falha inicial de estilo/WebGL ou de rede: o mapa raster continua funcional.
+          gl.on('error', () => { if (!vectorLoaded) fallback(); });
+          vectorTimer = setTimeout(fallback, 12000);
+        } catch {
+          if (currentTileLayerRef.current) {
+            try { map.removeLayer(currentTileLayerRef.current); } catch { /* camada incompleta */ }
+            currentTileLayerRef.current = null;
+          }
+          if (attributionAdded) { map.attributionControl?.removeAttribution(vectorAttribution); attributionAdded = false; }
+          showRaster();
+        }
+      }).catch(() => { if (!disposed) showRaster(); });
+    } else {
+      showRaster();
+    }
+
+    const resizeTimer = setTimeout(() => {
+      if (!disposed && mapInstanceRef.current === map) map.invalidateSize();
+    }, 120);
+    return () => {
+      disposed = true;
+      if (vectorTimer) clearTimeout(vectorTimer);
+      clearTimeout(resizeTimer);
+      if (attributionAdded) map.attributionControl?.removeAttribution(vectorAttribution);
+    };
   }, [currentStyle, roadStyle, navigationMode, tileRetryCount]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
