@@ -21,6 +21,7 @@ import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLi
 import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
+import type { TripPinsController } from '../services/mapLibreTripPins';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 // Stable defaults prevent a GPS-driven parent render from recreating all map layers.
@@ -156,6 +157,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
   const [vectorAlertsReady, setVectorAlertsReady] = useState(false);
   const [vectorNavigationReady, setVectorNavigationReady] = useState(false);
+  const [vectorTripPinsReady, setVectorTripPinsReady] = useState(false);
+  const tripPinsControllerRef = useRef<TripPinsController|null>(null);
+  const tripPinsDataRef = useRef({stops,meetingPoints,convoyParticipants});
+  tripPinsDataRef.current={stops,meetingPoints,convoyParticipants};
   const vectorNavigationController = useRef<NavigationPinController|null>(null);
   const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
     live:userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle});
@@ -170,6 +175,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const livePinGroupRef = useRef<L.LayerGroup | null>(null);
   const liveFallbackRef = useRef<L.Marker | null>(null);
   const progressGroupRef = useRef<L.LayerGroup | null>(null);
+  const stopPinGroupRef = useRef<L.LayerGroup|null>(null);
+  const meetingPinGroupRef = useRef<L.LayerGroup|null>(null);
+  const convoyPinGroupRef = useRef<L.LayerGroup|null>(null);
+  const convoyFallbackMarkersRef = useRef<Map<string,{marker:L.Marker;signature:string}>>(new Map());
   const followSuspendedRef = useRef(false);
   const selectRouteRef = useRef(onSelectRoute);
   selectRouteRef.current = onSelectRoute;
@@ -255,6 +264,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     navigationPinGroupRef.current = L.layerGroup().addTo(map);
     livePinGroupRef.current = L.layerGroup().addTo(map);
     progressGroupRef.current = L.layerGroup().addTo(map);
+    stopPinGroupRef.current = L.layerGroup().addTo(map);
+    meetingPinGroupRef.current = L.layerGroup().addTo(map);
+    convoyPinGroupRef.current = L.layerGroup().addTo(map);
     // Only a user's drag suspends following; programmatic GPS panning does not.
     const pauseFollowing = () => { followSuspendedRef.current = true; };
     map.on('dragstart',pauseFollowing);
@@ -716,17 +728,114 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   },[vectorRoutesReady,routePath,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
 
+
+  // Stable MapLibre marker collections: do not replace other drivers' DOM
+  // when only a single participant's GPS changes.
+  useEffect(() => {
+    const gl=vectorMapRef.current;
+    if(!vectorRoutesReady || !gl){
+      setVectorTripPinsReady(false);
+      return;
+    }
+    let disposed=false;
+    void import('../services/mapLibreTripPins').then(({createRoleTripPins})=>{
+      if(disposed || vectorMapRef.current!==gl)return;
+      try{
+        const controller=createRoleTripPins(gl,{openFuel:(id,section)=>openStation(id,section)});
+        const data=tripPinsDataRef.current;
+        controller.updateStops(data.stops);
+        controller.updateMeetings(data.meetingPoints);
+        controller.updateParticipants(data.convoyParticipants);
+        tripPinsControllerRef.current=controller;
+        stopPinGroupRef.current?.clearLayers();
+        meetingPinGroupRef.current?.clearLayers();
+        convoyPinGroupRef.current?.clearLayers();
+        convoyFallbackMarkersRef.current.clear();
+        setVectorTripPinsReady(true);
+      }catch{
+        tripPinsControllerRef.current?.destroy();
+        tripPinsControllerRef.current=null;
+        setVectorTripPinsReady(false);
+      }
+    }).catch(()=>{if(!disposed)setVectorTripPinsReady(false);});
+    return ()=>{
+      disposed=true;
+      tripPinsControllerRef.current?.destroy();
+      tripPinsControllerRef.current=null;
+    };
+  },[vectorRoutesReady]);
+
+  useEffect(()=>{
+    const controller=tripPinsControllerRef.current;
+    if(!controller)return;
+    try{
+      controller.updateStops(stops);
+      controller.updateMeetings(meetingPoints);
+      controller.updateParticipants(convoyParticipants);
+    }catch{
+      controller.destroy();
+      tripPinsControllerRef.current=null;
+      setVectorTripPinsReady(false);
+    }
+  },[stops,meetingPoints,convoyParticipants]);
+
+  // Legacy/raster participants are also incremental. A single GPS fix must
+  // not recreate another participant's icon or recompute the route bounds.
+  useEffect(()=>{
+    const group=convoyPinGroupRef.current;
+    if(!group)return;
+    const existing=convoyFallbackMarkersRef.current;
+    if(vectorTripPinsReady){
+      group.clearLayers();existing.clear();return;
+    }
+    const now=Date.now();
+    const current=new Set<string>();
+    for(const person of convoyParticipants){
+      if(!person.isSharingLocation || !person.coords ||
+        !Number.isFinite(person.coords[0]) || !Number.isFinite(person.coords[1]) ||
+        Math.abs(person.coords[0])>90 || Math.abs(person.coords[1])>180 ||
+        !person.lastLocationTimestamp)continue;
+      const age=now-Date.parse(person.lastLocationTimestamp);
+      if(!Number.isFinite(age) || age>180000 || age < -60000)continue;
+      if(current.has(person.id))continue;
+      current.add(person.id);
+      const signature=JSON.stringify([person.name,person.vehicleType,person.isOrganizer,person.isStale]);
+      const previous=existing.get(person.id);
+      if(previous && previous.signature===signature){
+        previous.marker.setLatLng(person.coords);
+        continue;
+      }
+      if(previous){group.removeLayer(previous.marker);existing.delete(person.id);}
+      const isMoto=person.vehicleType==='motorcycle';
+      const shade=person.isStale?'#64748b':person.isOrganizer?'#dc2626':'#2563eb';
+      const icon=L.divIcon({
+        className:'convoy-participant-marker',
+        html:`<div style="background:${shade};color:white;padding:3px 8px;border-radius:9999px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 10px #0004;border:2px solid white;white-space:nowrap;"><span>${isMoto?'🏍️':'🚗'}</span><span>${escapeHtml(person.name.split(' ')[0])}</span>${person.isStale?'<span style="font-size:8px;opacity:.85">Sinal antigo</span>':''}</div>`,
+        iconSize:[90,26],iconAnchor:[45,13]
+      });
+      const marker=L.marker(person.coords,{icon,title:person.name,zIndexOffset:950}).addTo(group);
+      existing.set(person.id,{marker,signature});
+    }
+    for(const [id,record] of existing){
+      if(!current.has(id)){group.removeLayer(record.marker);existing.delete(id);}
+    }
+  },[convoyParticipants,vectorTripPinsReady]);
+
   // Update static markers, alternatives and road shape only when those inputs change
   useEffect(() => {
     const map = mapInstanceRef.current;
     const group = layersGroupRef.current;
     const rainGroup = rainLayerGroupRef.current;
     const navigationGroup = navigationPinGroupRef.current;
-    if (!map || !group || !rainGroup || !navigationGroup) return;
+    const stopGroup = stopPinGroupRef.current;
+    const meetingGroup = meetingPinGroupRef.current;
+    if (!map || !group || !rainGroup || !navigationGroup || !stopGroup || !meetingGroup) return;
 
     group.clearLayers();
     rainGroup.clearLayers();
     navigationGroup.clearLayers();
+    stopGroup.clearLayers();
+    meetingGroup.clearLayers();
 
     const bounds: L.LatLngExpression[] = [];
 
@@ -844,6 +953,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (stop.category === 'museu') { emoji = '🏛️'; color = '#4f46e5'; }
         if (stop.category === 'monumento') { emoji = '🗿'; color = '#0891b2'; }
 
+        if (!vectorTripPinsReady) {
         const fuelReference = stop.category === 'posto' ? stop.sourceUrl?.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/) : null;
         const stopIcon = fuelReference ? mapContributionIcon({ className: 'custom-stop-marker', name: stop.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`), onComments: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`, 'comments') }) : L.divIcon({
           className: 'custom-stop-marker',
@@ -870,7 +980,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           iconAnchor: [47, 13]
         });
 
-        const m = L.marker([stop.lat, stop.lng], { icon: stopIcon, keyboard: !fuelReference }).addTo(group);
+        const m = L.marker([stop.lat, stop.lng], { icon: stopIcon, keyboard: !fuelReference }).addTo(stopGroup);
         if (fuelReference) {
           m.on('click', () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`));
         }
@@ -881,6 +991,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <div style="font-size: 10px; color: #059669; font-weight: 700;">Parada recomendada: ${stop.recommendedMinutes} min</div>
           </div>
         `);
+        }
         bounds.push([stop.lat, stop.lng]);
       });
     }
@@ -900,6 +1011,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           bgMarkerColor = '#2563eb';
         }
 
+        if (!vectorTripPinsReady) {
         const arrivedCount = mp.confirmedArrivedParticipantIds.length;
         const mpIcon = L.divIcon({
           className: 'meeting-point-marker',
@@ -934,7 +1046,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           mp.cep ? `CEP ${mp.cep}` : ''
         ].filter(Boolean).join(' · ');
 
-        const m = L.marker([mp.coords[0], mp.coords[1]], { icon: mpIcon, zIndexOffset: 800 }).addTo(group);
+        const m = L.marker([mp.coords[0], mp.coords[1]], { icon: mpIcon, zIndexOffset: 800 }).addTo(meetingGroup);
         m.bindPopup(`
           <div style="font-family: system-ui; max-width: 240px;">
             <div style="font-weight: bold; font-size: 13px; color: ${bgMarkerColor}; margin-bottom: 2px;">
@@ -947,50 +1059,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </div>
           </div>
         `);
+        }
         bounds.push(mp.coords);
       });
     }
 
-    // 7. Convoy Participants
-    if (convoyParticipants && convoyParticipants.length > 0) {
-      convoyParticipants
-        .filter(p => p.isSharingLocation && p.coords && p.lastLocationTimestamp && Date.now()-new Date(p.lastLocationTimestamp).getTime()<=180000)
-        .forEach(p => {
-          const isMoto = p.vehicleType === 'motorcycle';
-          const vehicleEmoji = isMoto ? '🏍️' : '🚗';
-          const isStale = p.isStale;
-          const bgBadgeColor = isStale ? '#64748b' : (p.isOrganizer ? '#dc2626' : '#2563eb');
-
-          const participantIcon = L.divIcon({
-            className: 'convoy-participant-marker',
-            html: `
-              <div style="
-                background-color: ${bgBadgeColor};
-                color: white;
-                padding: 3px 8px;
-                border-radius: 9999px;
-                font-size: 10px;
-                font-weight: 700;
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-                border: 2px solid white;
-                white-space: nowrap;
-              ">
-                <span>${vehicleEmoji}</span>
-                <span>${escapeHtml(p.name.split(' ')[0])}</span>
-                ${isStale ? '<span style="font-size: 8px; opacity: 0.85;">⚠️ Sinal antigo</span>' : ''}
-              </div>
-            `,
-            iconSize: [90, 26],
-            iconAnchor: [45, 13]
-          });
-
-          const m = L.marker([p.coords![0], p.coords![1]], { icon: participantIcon, title:p.name, zIndexOffset: 950 }).addTo(group);
-          bounds.push([p.coords![0], p.coords![1]]);
-        });
-    }
+    // 7. Convoy participants are moved incrementally in dedicated layers.
 
     // Actual provider forecast samples, without an invented radar polygon.
     if (showRainLayer) for (const point of weatherPoints || []) {
@@ -1031,7 +1105,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     weatherPoints,
     convoyParticipants,
     meetingPoints,
-    vectorNavigationReady
+    vectorNavigationReady,
+    vectorTripPinsReady
   ]);
 
   useEffect(() => {
