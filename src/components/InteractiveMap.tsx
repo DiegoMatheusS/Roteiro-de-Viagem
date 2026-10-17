@@ -232,10 +232,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       zoom: originCoords ? 11 : 4,
       minZoom: 1,
       zoomControl: false,
-      zoomAnimation: true,
-      fadeAnimation: true,
-      zoomSnap: 0.5,
-      zoomDelta: 0.5,
+      // The convoy/detail map must retain immediate Leaflet zoom so a delayed
+      // animated layer transform cannot move other participants after GPS fixes.
+      // Full-screen road navigation keeps softer pinch increments and animation.
+      zoomAnimation: roadStyle || navigationMode,
+      fadeAnimation: roadStyle || navigationMode,
+      zoomSnap: roadStyle || navigationMode ? 0.5 : 1,
+      zoomDelta: roadStyle || navigationMode ? 0.5 : 1,
       attributionControl: true
     });
 
