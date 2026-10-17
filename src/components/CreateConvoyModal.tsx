@@ -22,7 +22,7 @@ function isUsableRoadTrip(trip: TripPlan): boolean {
 }
 
 export function CreateConvoyModal({
-  trips, vehicle, signedIn, onClose, onCreate, onPlanRoute, onLogin, onOpenProfile, onJoinCode
+  trips, vehicle, signedIn, onClose, onCreate, onPlanRoute, onLogin, onOpenProfile
 }: CreateConvoyModalProps) {
   const available = useMemo(() =>
     trips.filter(isUsableRoadTrip)
