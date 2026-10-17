@@ -35,7 +35,7 @@ test('the creation modal handles planned trips, custom names and login requireme
   assert.match(popup,/onCreate\(selected, normalized\)/);
   assert.match(popup,/Planejar uma rota/);
   assert.match(popup,/Entrar para criar/);
-  assert.match(popup,/Já tenho um código/);
+  assert.doesNotMatch(popup,/Já tenho um código/);
   assert.match(popup,/onMouseDown=\{event =>/);
   assert.match(popup,/event\.key === 'Escape'/);
   assert.match(popup,/sharing|compartilhamento da localização começa desligado/i);
