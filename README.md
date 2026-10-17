@@ -207,3 +207,10 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O mapa impede duplicação de pedágio quando a praça consta simultaneamente da rota e do cadastro geográfico. Marcadores sem latitude/longitude válidas são ignorados.
 - Botões de preços e comentários, identificação por categoria, ações de toque e rótulos para acessibilidade permanecem. O mapa não exige login para pesquisar rotas; contribuir com preços continua sujeito à autenticação.
 - O controle de gestos e os alertas colaborativos ainda são responsabilidade do Leaflet nesta fase, evitando mudança simultânea de todos os recursos. A migração completa para um único renderizador pode ser feita com testes próprios.
+
+## Alertas comunitários vetoriais (PR #47)
+
+- O mapa claro já exibe **alertas aprovados e não vencidos** como marcadores MapLibre acessíveis por teclado, com ícones SVG e visual compacto (sem emojis do dispositivo).
+- Ao tocar ou clicar no marcador, o aplicativo mantém o diálogo **“Ainda continua lá?”**, as confirmações e as regras atuais de moderação. Notas e textos enviados pela comunidade não são inseridos como HTML.
+- Caso a base vetorial esteja indisponível, o Leaflet renderiza os mesmos alertas usando a mesma seleção de dados confiáveis. A troca entre renderizadores remove os marcadores anteriores antes de permitir novas interações, evitando duplicações.
+- Nesta fase o Leaflet ainda controla os gestos e parte dos overlays da navegação, SOS e comboio. Não foi ativado trânsito em tempo real ou um sistema de multas/limites presumidos.

@@ -19,7 +19,9 @@ import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLibreRouteLayers';
 import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
+import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
 
+const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 export type MapStyleType = 'light' | 'satellite' | 'topo';
 export interface MapVisiblePlace {
   id: string;
@@ -131,7 +133,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   blueRoute = false,
   roadStyle = false,
   followUser = true,
-  roadAlerts = [],
+  roadAlerts = EMPTY_ROAD_ALERTS,
   onRoadAlertUpdated,
   onVisiblePlacesChange,
   centerOnUserRequest = 0,
@@ -143,6 +145,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const vectorMapRef = useRef<MapLibreMap | null>(null);
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
+  const [vectorAlertsReady, setVectorAlertsReady] = useState(false);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -408,30 +411,59 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations, tollVehicleType, viewportRevision, hasMapReady]);
 
-  // Somente eventos aprovados, com expiração válida, são apresentados no mapa.
+  const openRoadAlert = (alert: RoadAlert) => {
+    setSelectedRoadAlert(alert);
+    setAlertCheckMessage('');
+    setAlertCheckError('');
+    setAlertCheckDone(false);
+  };
+
+  // Alerts approved by the server and still within their validity window.
+  // Leaflet remains the fallback for raster, WebGL-disabled, and slow devices.
   useEffect(() => {
     const group = roadAlertGroupRef.current;
     if (!group) return;
     group.clearLayers();
-    const now = Date.now();
-    for (const alert of (Array.isArray(roadAlerts) ? roadAlerts : [])) {
-      if (Date.parse(alert.expiresAt) <= now) continue;
-      const kind = ROAD_ALERT_TYPES.find(value => value.id === alert.kind);
-      if (!kind) continue;
+    if (vectorAlertsReady) return;
+    for (const alert of selectVisibleRoadAlerts(roadAlerts)) {
       const icon = L.divIcon({
         className: 'road-alert-marker',
-        html: `<div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#fff7ed;border:2px solid #c2410c;border-radius:50%;font-size:18px;box-shadow:0 2px 9px #0003">${kind.icon}</div>`,
-        iconSize: [34, 34], iconAnchor: [17, 17]
+        html: createRoadAlertIconElement(alert.kind),
+        iconSize: [38, 38], iconAnchor: [19, 19]
       });
-      const marker = L.marker([alert.lat, alert.lng], { icon, keyboard: true, zIndexOffset: 2100 }).addTo(group);
-      marker.on('click', () => {
-        setSelectedRoadAlert(alert);
-        setAlertCheckMessage('');
-        setAlertCheckError('');
-        setAlertCheckDone(false);
-      });
+      const marker = L.marker([alert.lat, alert.lng], { icon, keyboard:true, zIndexOffset: 2100 }).addTo(group);
+      marker.on('click', () => openRoadAlert(alert));
     }
-  }, [roadAlerts]);
+  }, [roadAlerts, vectorAlertsReady]);
+
+  // Only replace alert markers once MapLibre has installed every marker.
+  // During style changes and failures, Leaflet immediately takes back ownership.
+  useEffect(() => {
+    const gl = vectorMapRef.current;
+    if (!vectorRoutesReady || !gl) {
+      setVectorAlertsReady(false);
+      return;
+    }
+    const alerts = selectVisibleRoadAlerts(roadAlerts);
+    let disposed = false;
+    let removeMarkers: (()=>void)|null = null;
+    void import('../services/mapLibreRoadAlertMarkers').then(({ addRoleMaplibreRoadAlerts }) => {
+      if (disposed || vectorMapRef.current !== gl) return;
+      try {
+        removeMarkers = addRoleMaplibreRoadAlerts(gl,alerts,openRoadAlert);
+        // Clear the Leaflet pane synchronously to avoid duplicate tappable pins.
+        roadAlertGroupRef.current?.clearLayers();
+        setVectorAlertsReady(true);
+      } catch {
+        removeMarkers?.();
+        setVectorAlertsReady(false);
+      }
+    }).catch(() => { if (!disposed) setVectorAlertsReady(false); });
+    return () => {
+      disposed = true;
+      removeMarkers?.();
+    };
+  }, [vectorRoutesReady, roadAlerts]);
 
   // Mapa vetorial MapLibre (base) mantendo temporariamente marcadores e gestos Leaflet.
   // Caso WebGL ou OpenFreeMap não carregue, cai para os tiles OSM sem deixar o mapa vazio.
