@@ -27,10 +27,11 @@ const place:Place = {
 const managedToll:Place = {...place,id:'osm:way:2',name:'Praça real',kind:'toll'};
 
 test('pins MapLibre só incluem entidades reais e não duplicam praça com tarifa',()=>{
- const entries=selectRoleVectorMarkers({stations:[station],places:[place,managedToll],
+ const entries=selectRoleVectorMarkers({stations:[station],places:[place,managedToll,{...place,id:station.id,kind:'fuel'}],
    tolls:[toll],tollVehicleType:'car',navigationMode:false});
  assert.deepEqual(entries.map(entry=>entry.kind),['fuel','toll','place']);
  assert.equal(entries.filter(entry=>entry.id===toll.id).length,1);
+ assert.equal(entries.filter(entry=>entry.id===station.id).length,1);
  assert.match(entries.find(entry=>entry.kind==='fuel')?.priceLabel||'',/5,89/);
  assert.match(entries.find(entry=>entry.kind==='toll')?.priceLabel||'',/12,50/);
  assert.deepEqual(toMarkerLngLat([-23.55,-46.63]),[-46.63,-23.55]);
