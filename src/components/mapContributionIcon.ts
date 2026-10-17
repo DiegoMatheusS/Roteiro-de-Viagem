@@ -3,9 +3,10 @@ import L from 'leaflet';
 export function mapContributionIcon(options: {
   className: string; name: string; emoji: string; color: string;
   onPrices: () => void; onComments: () => void;
+  priceLabel?: string | null;
 }) {
   const root = document.createElement('div');
-  root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;font:700 10px system-ui;min-width:130px';
+  root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;font:600 11px Inter,system-ui,sans-serif;min-width:130px';
   const button = (label: string, action: () => void) => {
     const element=document.createElement('button');element.type='button';element.setAttribute('aria-label',label);element.title=label;
     element.style.cssText='display:grid;place-items:center;border:1px solid #bfdbfe;background:white;color:#1d4ed8;border-radius:9px;min-height:28px;padding:4px 7px;font:inherit;cursor:pointer';
@@ -24,7 +25,17 @@ export function mapContributionIcon(options: {
   const price=button('Sugerir preço',options.onPrices);price.textContent='Sugerir preço';
   const comments=button(`Comentários de ${options.name}`,options.onComments);
   comments.innerHTML='<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></svg>';
-  actions.append(price,comments);root.append(card,actions);
+  actions.append(price,comments);
+  root.append(card);
+  if (options.priceLabel) {
+    const amount = document.createElement('span');
+    amount.className = 'rdv-map-price-label';
+    amount.textContent = options.priceLabel;
+    amount.title = options.priceLabel + ' · preço informado por usuários e aprovado';
+    amount.style.cssText = 'display:block;max-width:155px;padding:2px 7px;border-radius:8px;background:#fff;color:#065f46;font:600 11px Inter,system-ui,sans-serif;box-shadow:0 1px 6px #0f172a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    root.append(amount);
+  }
+  root.append(actions);
   L.DomEvent.disableClickPropagation(root);
-  return L.divIcon({ className: options.className, html: root, iconSize: [155, 78], iconAnchor: [77, 22] });
+  return L.divIcon({ className: options.className, html: root, iconSize: [155, options.priceLabel ? 102 : 78], iconAnchor: [77, 22] });
 }
