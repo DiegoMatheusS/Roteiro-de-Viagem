@@ -186,8 +186,16 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 ## Mapa vetorial (PR #44)
 
 - O estilo claro agora carrega MapLibre GL JS + OpenFreeMap Positron (sem chave), com ruas neutras, água azul, vegetação verde e construções claras. A base vetorial é carregada sob demanda.
-- Nesta fase de migração, **Leaflet continua responsável por gestos, rotas, preços, postos e alertas**, por meio do adaptador oficial `@maplibre/maplibre-gl-leaflet`. A migração integral dos overlays e navegação por câmera (incluindo rotação) será uma etapa separada.
+- Nesta etapa, **MapLibre já desenha as linhas de rotas calculadas, alternativas e trechos percorridos por GPS**. Leaflet continua cuidando de gestos, áreas de toque das alternativas, marcadores de postos/preços e alertas por meio do adaptador `@maplibre/maplibre-gl-leaflet`. A migração desses overlays e da câmera (incluindo rotação) será posterior.
 - Se WebGL não estiver disponível, o estilo falhar ao carregar ou houver erro de rede, o app volta automaticamente para a camada raster OpenStreetMap, sem perder a rota em andamento.
 - Satélite Esri e relevo OpenTopoMap permanecem como alternativas. A tela Android precisa de suporte a WebGL 2 para a camada vetorial MapLibre GL JS 6.
 - Tiles e estilo são serviços de terceiros fornecidos conforme sua disponibilidade; respeite atribuição, termos e licenças de OpenFreeMap/OpenStreetMap. Consulte [OpenFreeMap](https://openfreemap.org/) e [MapLibre](https://maplibre.org/).
 - O estilo vetorial não fornece dados de trânsito ou limites legais de velocidade: a aplicação mantém a indicação neutra quando não houver fonte válida.
+
+## Atualização de rotas vetoriais (PR #45)
+
+- Todas as linhas usam os percursos efetivos retornados pelo OSRM; nenhuma geometria artificial é criada.
+- O trecho a percorrer é azul-claro e o percorrido é azul-escuro **somente quando a posição GPS corresponde ao trajeto**. Fora do percurso, não se declara uma parte da viagem como concluída.
+- Rotas alternativas permanecem clicáveis e podem ser selecionadas sem recriar o mapa ou mudar o zoom.
+- O fallback raster usa as mesmas geometrias e interações implementadas no Leaflet.
+- O app continua sem API de tráfego em tempo real; não exibir esse dado como disponível.
