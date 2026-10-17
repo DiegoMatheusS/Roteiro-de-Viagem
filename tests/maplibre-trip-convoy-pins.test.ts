@@ -30,7 +30,7 @@ test('MapLibre pins update each member coordinates without replacing unrelated p
   const m=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
   assert.match(s,/record\.marker\.setLngLat\(lngLat\(coords\(item\)\)\)/);
   assert.match(s,/element\.title=person\.name/);
-  assert.match(s,/className='custom-stop-marker'/);
+  assert.match(s,/className:'custom-stop-marker'/);
   assert.match(s,/meeting-point-marker/);
   assert.match(s,/convoy-participant-marker/);
   assert.match(s,/setDOMContent\(details\)/);
