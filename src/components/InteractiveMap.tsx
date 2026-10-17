@@ -20,6 +20,7 @@ import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLibreRouteLayers';
 import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
+import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 export type MapStyleType = 'light' | 'satellite' | 'topo';
@@ -146,11 +147,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
   const [vectorAlertsReady, setVectorAlertsReady] = useState(false);
+  const [vectorNavigationReady, setVectorNavigationReady] = useState(false);
+  const vectorNavigationController = useRef<NavigationPinController|null>(null);
+  const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
+    live:userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle});
+  navigationPinInputs.current={origin:originCoords,destination:destinationCoords,
+    live:userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle};
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
+  const navigationPinGroupRef = useRef<L.LayerGroup | null>(null);
   const fittedGeometryRef=useRef<string|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
   const lastCenterRequestRef=useRef(0);
@@ -225,6 +233,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     fuelLayerGroupRef.current = L.layerGroup().addTo(map);
     tollLayerGroupRef.current = L.layerGroup().addTo(map);
     roadAlertGroupRef.current = L.layerGroup().addTo(map);
+    navigationPinGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
     setHasMapReady(true);
@@ -589,6 +598,40 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   }, [vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
       routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
 
+  // Base vetorial pronta: pins de GPS, origem e destino saem da camada Leaflet.
+  // O controlador MapLibre mantém os elementos vivos entre atualizações do GPS.
+  useEffect(() => {
+    if (!vectorRoutesReady || !vectorMapRef.current) {
+      setVectorNavigationReady(false);
+      return;
+    }
+    const gl=vectorMapRef.current;
+    let disposed=false;
+    void import('../services/mapLibreNavigationPins').then(({createRoleNavigationPins})=>{
+      if (disposed || vectorMapRef.current!==gl) return;
+      try {
+        const controller=createRoleNavigationPins(gl);
+        controller.update(navigationPinInputs.current);
+        vectorNavigationController.current=controller;
+        navigationPinGroupRef.current?.clearLayers();
+        setVectorNavigationReady(true);
+      } catch {
+        vectorNavigationController.current?.destroy();
+        vectorNavigationController.current=null;
+        setVectorNavigationReady(false);
+      }
+    }).catch(()=>{if (!disposed) setVectorNavigationReady(false);});
+    return ()=>{
+      disposed=true;
+      vectorNavigationController.current?.destroy();
+      vectorNavigationController.current=null;
+    };
+  },[vectorRoutesReady]);
+
+  useEffect(() => {
+    vectorNavigationController.current?.update(navigationPinInputs.current);
+  },[originCoords,destinationCoords,userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle]);
+
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
     if (focusedCoords && mapInstanceRef.current) {
@@ -604,10 +647,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const map = mapInstanceRef.current;
     const group = layersGroupRef.current;
     const rainGroup = rainLayerGroupRef.current;
-    if (!map || !group || !rainGroup) return;
+    const navigationGroup = navigationPinGroupRef.current;
+    if (!map || !group || !rainGroup || !navigationGroup) return;
 
     group.clearLayers();
     rainGroup.clearLayers();
+    navigationGroup.clearLayers();
 
     const bounds: L.LatLngExpression[] = [];
 
@@ -642,25 +687,29 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 1. Origin Marker
     if (originCoords && !navigationMode) {
+      if (!vectorNavigationReady) {
       const originIcon = roadStyle ? L.divIcon({
         className:'map-origin-dot',
         html:'<span style="display:block;width:16px;height:16px;background:#16a34a;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
         iconSize:[16,16],iconAnchor:[8,8]
       }) : createHtmlIcon('#059669', originLabel, '🟢');
-      const originMarker = L.marker(originCoords, { icon: originIcon }).addTo(group);
+      const originMarker = L.marker(originCoords, { icon: originIcon }).addTo(navigationGroup);
       originMarker.bindPopup(`<b>Partida:</b> ${escapeHtml(originLabel)}`);
+      }
       bounds.push(originCoords);
     }
 
     // 2. Destination Marker
     if (destinationCoords) {
+      if (!vectorNavigationReady) {
       const destIcon = roadStyle ? L.divIcon({
         className:'map-destination-dot',
         html:'<span style="display:block;width:17px;height:17px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
         iconSize:[17,17],iconAnchor:[9,9]
       }) : createHtmlIcon('#2563eb', destinationLabel, '🏁');
-      const destMarker = L.marker(destinationCoords, { icon: destIcon }).addTo(group);
+      const destMarker = L.marker(destinationCoords, { icon: destIcon }).addTo(navigationGroup);
       destMarker.bindPopup(`<b>Chegada:</b> ${escapeHtml(destinationLabel)}`);
+      }
       bounds.push(destinationCoords);
     }
 
@@ -773,7 +822,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     // 5. Live GPS User Marker
-    if (userLiveCoords) {
+    if (userLiveCoords && !vectorNavigationReady) {
       const liveIcon = L.divIcon({
         className: 'user-live-marker',
         html: `<div style="width:32px;height:32px;display:grid;place-items:center;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 0 0 7px #2563eb25,0 3px 12px #0f172a66;">
@@ -782,7 +831,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         iconAnchor: [16, 16]
       });
       L.marker(userLiveCoords, { icon: liveIcon, zIndexOffset: 1000 })
-        .addTo(group)
+        .addTo(navigationGroup)
         .bindPopup('<b>Sua Posição Atual (GPS)</b>');
     }
 
@@ -933,7 +982,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     weatherPoints,
     userLiveCoords,
     convoyParticipants,
-    meetingPoints
+    meetingPoints,
+    vectorNavigationReady
   ]);
 
   useEffect(() => {
