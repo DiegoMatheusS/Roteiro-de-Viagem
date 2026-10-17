@@ -742,10 +742,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if(disposed || vectorMapRef.current!==gl)return;
       try{
         const controller=createRoleTripPins(gl,{openFuel:(id,section)=>openStation(id,section)});
-        const data=tripPinsDataRef.current;
-        controller.updateStops(data.stops);
-        controller.updateMeetings(data.meetingPoints);
-        controller.updateParticipants(data.convoyParticipants);
+        try {
+          const data=tripPinsDataRef.current;
+          controller.updateStops(data.stops);
+          controller.updateMeetings(data.meetingPoints);
+          controller.updateParticipants(data.convoyParticipants);
+        } catch (error) {
+          controller.destroy();
+          throw error;
+        }
         tripPinsControllerRef.current=controller;
         stopPinGroupRef.current?.clearLayers();
         meetingPinGroupRef.current?.clearLayers();
