@@ -1108,7 +1108,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     roadStyle,
     showRainLayer,
     weatherPoints,
-    convoyParticipants,
     meetingPoints,
     vectorNavigationReady,
     vectorTripPinsReady
