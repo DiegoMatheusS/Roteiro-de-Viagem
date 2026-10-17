@@ -165,7 +165,7 @@ Os testes usam provedores controlados; disponibilidade e cobertura externa depen
 
 ## Provedores e identidade Google
 
-**Mapas e roteamento:** continuar usando OpenStreetMap (dados), Leaflet (interface) e OSRM (trajetos, km e duração). O Google Maps não é utilizado. Os estilos visuais e os marcadores são próprios. As instâncias públicas de OSRM, Photon e Overpass servem apenas para testes e uso limitado; antes de comercializar, configurar provedores hospedados/licenciados com limites adequados.
+**Mapas e roteamento:** OpenStreetMap (dados), MapLibre GL JS (base vetorial Positron do OpenFreeMap) com Leaflet temporariamente preservado para os marcadores/gestos e como fallback raster; OSRM (trajetos, km e duração). O Google Maps não é utilizado. Os estilos visuais e os marcadores são próprios. As instâncias públicas de OSRM, Photon e Overpass servem apenas para testes e uso limitado; antes de comercializar, configurar provedores hospedados/licenciados com limites adequados.
 
 **Login Google para o site:** criar uma credencial OAuth 2.0 do tipo Aplicativo Web no Google Cloud e cadastrar a origem pública HTTPS do Cloudflare Pages em `Origens JavaScript autorizadas`. Colocar **somente o Client ID** na variável `GOOGLE_CLIENT_ID` do backend Railway. O botão usa Google Identity Services e o backend verifica a assinatura RS256, o emissor e o público do ID Token com as chaves oficiais do Google. Nunca usar uma chave de Google Maps nem colocar um Client Secret no frontend. O cadastro com e-mail e senha continua disponível, com confirmação da senha.
 
@@ -182,3 +182,12 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Os geradores locais antigos de rotas, tempo, clima, pedágios e avaliações simuladas, bem como listas comunitárias fictícias sem usuários reais, foram retirados. A geração pública continua usando rotas rodoviárias verificadas.
 - **MapLibre:** a migração do renderizador Leaflet depende de um estilo vetorial e de provedor de tiles adequado para produção. Não usar estilos demonstrativos sem licenciamento nem quebrar os controles de GPS, alertas ou de rotas.
 - **Trânsito em tempo real:** ainda indisponível no OSRM. Não apresentar a duração como previsão com tráfego.
+
+## Mapa vetorial (PR #44)
+
+- O estilo claro agora carrega MapLibre GL JS + OpenFreeMap Positron (sem chave), com ruas neutras, água azul, vegetação verde e construções claras. A base vetorial é carregada sob demanda.
+- Nesta fase de migração, **Leaflet continua responsável por gestos, rotas, preços, postos e alertas**, por meio do adaptador oficial `@maplibre/maplibre-gl-leaflet`. A migração integral dos overlays e navegação por câmera (incluindo rotação) será uma etapa separada.
+- Se WebGL não estiver disponível, o estilo falhar ao carregar ou houver erro de rede, o app volta automaticamente para a camada raster OpenStreetMap, sem perder a rota em andamento.
+- Satélite Esri e relevo OpenTopoMap permanecem como alternativas. A tela Android precisa de suporte a WebGL 2 para a camada vetorial MapLibre GL JS 6.
+- Tiles e estilo são serviços de terceiros fornecidos conforme sua disponibilidade; respeite atribuição, termos e licenças de OpenFreeMap/OpenStreetMap. Consulte [OpenFreeMap](https://openfreemap.org/) e [MapLibre](https://maplibre.org/).
+- O estilo vetorial não fornece dados de trânsito ou limites legais de velocidade: a aplicação mantém a indicação neutra quando não houver fonte válida.
