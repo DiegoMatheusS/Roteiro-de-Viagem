@@ -199,3 +199,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Rotas alternativas permanecem clicáveis e podem ser selecionadas sem recriar o mapa ou mudar o zoom.
 - O fallback raster usa as mesmas geometrias e interações implementadas no Leaflet.
 - O app continua sem API de tráfego em tempo real; não exibir esse dado como disponível.
+
+## Marcadores no MapLibre (PR #46)
+
+- A camada vetorial agora também usa marcadores DOM do **MapLibre** para postos, pedágios e atrações verificadas no backend. Com o mapa raster, o Leaflet mantém os mesmos locais e ações.
+- Valores de combustível aparecem no marcador apenas se a API tiver preço aprovado e não contestado nem vencido; as tarifas unitárias de pedágio precisam estar verificadas. Nada de preços fictícios.
+- O mapa impede duplicação de pedágio quando a praça consta simultaneamente da rota e do cadastro geográfico. Marcadores sem latitude/longitude válidas são ignorados.
+- Botões de preços e comentários, identificação por categoria, ações de toque e rótulos para acessibilidade permanecem. O mapa não exige login para pesquisar rotas; contribuir com preços continua sujeito à autenticação.
+- O controle de gestos e os alertas colaborativos ainda são responsabilidade do Leaflet nesta fase, evitando mudança simultânea de todos os recursos. A migração completa para um único renderizador pode ser feita com testes próprios.

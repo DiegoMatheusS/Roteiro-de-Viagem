@@ -18,6 +18,7 @@ import { mapPlaceIcon } from './mapPlaceIcon';
 import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLibreRouteLayers';
+import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 
 export type MapStyleType = 'light' | 'satellite' | 'topo';
 export interface MapVisiblePlace {
@@ -141,6 +142,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const currentTileLayerRef = useRef<L.Layer | null>(null);
   const vectorMapRef = useRef<MapLibreMap | null>(null);
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
+  const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -278,14 +280,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   useEffect(() => {
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
-    if(!tollVehicleType)return;
+    if (vectorMarkersReady || !tollVehicleType) return;
     for(const toll of navigationMode ? [] : (Array.isArray(tolls) ? tolls : [])) {
       const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
       const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
       marker.on('click',() => openToll(toll.id));
     }
-  },[tolls,tollVehicleType,navigationMode]);
+  },[tolls,tollVehicleType,navigationMode,vectorMarkersReady]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -299,6 +301,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const group = fuelLayerGroupRef.current;
     if (!group) return;
     group.clearLayers();
+    if (vectorMarkersReady) return;
     for (const station of navigationMode ? [] : (Array.isArray(fuel.stations) ? fuel.stations : [])) {
       const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', priceLabel: fuelPriceLabel(station), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
@@ -322,7 +325,45 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
       });
     }
-  }, [fuel.stations, places, tolls, navigationMode]);
+  }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady]);
+
+  // MapLibre cuida dos marcadores de locais assim que está pronto. Leaflet é
+  // mantido como fallback até a instalação completa, inclusive em WebGL lento.
+  useEffect(() => {
+    setVectorMarkersReady(false);
+    const gl=vectorMapRef.current;
+    if (!vectorRoutesReady || !gl) return;
+    const descriptors=selectRoleVectorMarkers({
+      stations:fuel.stations, places, tolls, navigationMode, tollVehicleType
+    });
+    let disposed=false;
+    let removeMarkers: (()=>void)|null=null;
+    void import('../services/mapLibrePlaceMarkers').then(({addRoleMaplibreMarkers})=>{
+      if (disposed || vectorMapRef.current !== gl) return;
+      try {
+        removeMarkers=addRoleMaplibreMarkers(gl,descriptors,{
+          onStation:(id,section)=>openStation(id,section),
+          onToll:(id,section,place)=>openToll(id,section,place),
+          onPlace:(id)=>{
+            const place=places.find(item=>item.id===id);
+            if (place) setSelectedPlace(place);
+          }
+        });
+        // Retira as versões Leaflet no mesmo turno em que os marcadores
+        // MapLibre entram no DOM, sem uma janela com botões duplicados.
+        fuelLayerGroupRef.current?.clearLayers();
+        tollLayerGroupRef.current?.clearLayers();
+        setVectorMarkersReady(true);
+      } catch {
+        removeMarkers?.();
+        setVectorMarkersReady(false);
+      }
+    }).catch(()=>{ if (!disposed) setVectorMarkersReady(false); });
+    return ()=>{
+      disposed=true;
+      removeMarkers?.();
+    };
+  }, [vectorRoutesReady, fuel.stations, places, tolls, tollVehicleType, navigationMode]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.
