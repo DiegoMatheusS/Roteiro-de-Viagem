@@ -1,0 +1,23 @@
+name: Preparar dependencias MapLibre (temporario)
+on:
+  push:
+    branches: [feat/role-maplibre-vector-base-20261017]
+    paths: [.github/workflows/maplibre-lock-temp.yml]
+permissions:
+  contents: read
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --package-lock-only --save-exact maplibre-gl@6.3.0 @maplibre/maplibre-gl-leaflet@0.1.4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: maplibre-package-lock
+          path: |
+            package.json
+            package-lock.json
+          retention-days: 3
