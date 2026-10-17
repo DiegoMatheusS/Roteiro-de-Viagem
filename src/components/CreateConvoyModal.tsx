@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, CarFront, KeyRound, MapPin, Users, X } from 'lucide-react';
+import { ArrowRight, CarFront, MapPin, Users, X } from 'lucide-react';
 import type { TripPlan, Vehicle } from '../types';
 
 interface CreateConvoyModalProps {
@@ -11,7 +11,6 @@ interface CreateConvoyModalProps {
   onPlanRoute: () => void;
   onLogin: () => void;
   onOpenProfile: () => void;
-  onJoinCode: () => void;
 }
 
 function isUsableRoadTrip(trip: TripPlan): boolean {
@@ -123,10 +122,6 @@ export function CreateConvoyModal({
           </button>}
         </form>
 
-        <button type="button" onClick={() => leave(onJoinCode)} disabled={busy}
-          className="w-full mt-3 min-h-12 text-blue-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
-          <KeyRound size={17}/> Já tenho um código · Entrar no comboio
-        </button>
       </section>
     </div>
   );
