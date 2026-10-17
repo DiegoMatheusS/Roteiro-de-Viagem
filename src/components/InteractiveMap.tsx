@@ -403,12 +403,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     setTileError(false);
     let disposed = false;
     let vectorLoaded = false;
+    let rasterShown = false;
     let vectorTimer: ReturnType<typeof setTimeout> | null = null;
     let attributionAdded = false;
     const vectorAttribution = '&copy; <a href="https://openfreemap.org/">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
     const showRaster = () => {
-      if (disposed) return;
+      if (disposed || rasterShown) return;
+      rasterShown = true;
       let consecutiveErrors = 0;
       const raster = L.tileLayer(tileConfig.url, {
         maxZoom: tileConfig.maxZoom,
