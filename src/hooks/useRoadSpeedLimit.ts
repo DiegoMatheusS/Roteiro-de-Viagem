@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DeviceLocation } from '../services/locationService';
 import { distanceMeters, resolveRoadSpeedLimit, type RoadWay } from '../services/roadSpeedLimit';
+import { getCachedRoadLimit, rememberRoadLimit } from '../services/roadSpeedLimitCache';
 
 // Overpass/OSM disponibiliza limites explícitos cadastrados; falhas e dados ausentes
 // ficam neutros. Não é fonte oficial nem substitui a sinalização da via.
@@ -27,6 +28,12 @@ export function useRoadSpeedLimit(position: DeviceLocation | null): number | nul
       setReading(null);
       return;
     }
+    const cachedLimit = getCachedRoadLimit([lat, lon], accuracy);
+    if (cachedLimit !== undefined) {
+      setReading(previous => previous?.limit === cachedLimit && distanceMeters(previous.coords, [lat,lon]) < 5
+        ? previous : { coords:[lat,lon], limit:cachedLimit });
+      return;
+    }
     if (currentRequest.current) return;
     const previous = lastRequest.current;
     const now = Date.now();
@@ -49,11 +56,12 @@ export function useRoadSpeedLimit(position: DeviceLocation | null): number | nul
       if (!data || typeof data !== 'object' || !('elements' in data) ||
           !Array.isArray(data.elements)) throw new Error('Resposta inválida do Overpass');
       const recent = positionRef.current;
-      if (!recent || Date.now() - recent.timestamp > 15000) return;
+      if (!recent || Date.now() - recent.timestamp > 15000 || distanceMeters(recent.coords,coords) > 35) return;
       const limit = resolveRoadSpeedLimit(data.elements as RoadWay[], coords, accuracy);
+      rememberRoadLimit(coords,limit);
       setReading({ coords, limit });
     }).catch(() => {
-      if (!controller.signal.aborted) setReading({ coords, limit: null });
+      if (!controller.signal.aborted) { rememberRoadLimit(coords,null); setReading({ coords, limit: null }); }
     }).finally(() => {
       window.clearTimeout(timeout);
       if (currentRequest.current === controller) currentRequest.current = null;
