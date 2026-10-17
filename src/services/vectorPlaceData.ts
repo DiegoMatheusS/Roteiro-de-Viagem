@@ -31,8 +31,8 @@ export function selectRoleVectorMarkers(options: {
   const entries: RoleVectorMarker[] = [];
   const ids = new Set<string>();
   const add = (entry: RoleVectorMarker) => {
-    if (validMarkerPosition(entry.coords) && !ids.has(entry.kind + ':' + entry.id)) {
-      ids.add(entry.kind + ':' + entry.id);
+    if (validMarkerPosition(entry.coords) && !ids.has(entry.id)) {
+      ids.add(entry.id);
       entries.push(entry);
     }
   };
