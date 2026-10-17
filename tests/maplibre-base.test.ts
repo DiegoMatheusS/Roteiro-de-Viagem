@@ -15,6 +15,8 @@ test('mapa claro usa MapLibre e mantém fallback de tiles OSM',()=>{
   assert.match(map, /setTimeout\(fallback, 12000\)/);
   assert.match(bridge, /@maplibre\/maplibre-gl-leaflet/);
   assert.match(bridge, /setWorkerUrl\(workerUrl\)/);
+  assert.match(bridge, /if \(!layer\._map\) return/);
+  assert.match(bridge, /layer\.getMaplibreMap\(\)\?\.resize\(\)/);
   assert.match(bridge, /tiles\.openfreemap\.org\/styles\/positron/);
   assert.doesNotMatch(bridge, /mapbox.*(token|apikey)|CARTO/ig);
 });
