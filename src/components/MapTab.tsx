@@ -132,6 +132,8 @@ export function MapTab(props: MapTabProps) {
       selectedRouteId={exploreRoute?.selectedId}
       onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
       userLiveCoords={location.status === "ready" ? location.position?.coords : undefined}
+       userHeadingDegrees={location.status === "ready" ? location.position?.headingDegrees : null}
+       userSpeedMetersPerSecond={location.status === "ready" ? location.position?.speedMetersPerSecond : null}
       centerOnUserRequest={centerRequest} focusedCoords={focusedCoords}
       onVisiblePlacesChange={updateVisible} stops={showStops ? trip?.stops || [] : []} weatherPoints={trip?.weatherPoints || []} roadAlerts={roadAlerts.alerts} onRoadAlertUpdated={()=>{void roadAlerts.reload();}} tolls={trip?.tolls || []} tollVehicleType={props.routeVehicleType} showRainLayer={showRain} showFuelStations={showFuel} className="w-full h-full" />
     {!mapTarget && <div className="absolute top-20 left-3 right-16 z-30 max-w-sm bg-white rounded-2xl shadow-xl border p-3 space-y-3">
