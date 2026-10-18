@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { DeviceLocation } from '../services/locationService';
 import { useRoadSpeedLimit } from '../hooks/useRoadSpeedLimit';
 import { classifySpeed, type SpeedState } from '../services/roadSpeedLimit';
@@ -6,6 +6,7 @@ import { classifySpeed, type SpeedState } from '../services/roadSpeedLimit';
 type Props = {
   position: DeviceLocation | null;
   className?: string;
+  style?: CSSProperties;
 };
 
 const variants: Record<SpeedState, string> = {
@@ -15,7 +16,7 @@ const variants: Record<SpeedState, string> = {
   excess: 'rdv-speedometer--excess'
 };
 
-export function Speedometer({ position, className = '' }: Props) {
+export function Speedometer({ position, className = '', style }: Props) {
   const speed = position?.speedMetersPerSecond != null &&
     Number.isFinite(position.speedMetersPerSecond) &&
     Date.now() - position.timestamp <= 15000
@@ -47,6 +48,7 @@ export function Speedometer({ position, className = '' }: Props) {
   return (
     <div role="status" aria-label={`Velocímetro. ${label}`}
       title={limit === null ? 'Limite da via indisponível' : 'Limite cadastrado no OpenStreetMap: ' + limit + ' km/h. Confira a sinalização.'}
+      style={style}
       className={['rdv-speedometer', variants[state], className].join(' ')}>
       <strong className="rdv-speedometer__number">{displayed}</strong>
       <span className="rdv-speedometer__unit">km/h</span>

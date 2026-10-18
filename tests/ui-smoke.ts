@@ -79,6 +79,44 @@ try {
   const initialHomeBounds = await homePanel.boundingBox();
   assert.ok(initialHomeBounds && initialHomeBounds.y > 0.56 * 844,
     'O painel Início deve começar mais baixo, deixando a maior parte do mapa visível');
+  // Regression: dragging the Home grip must grow the sheet from the BOTTOM;
+  // translating the entire sheet up exposed a second map strip below it.
+  const homeGrip=page.locator('[data-panel-grip]');
+  const homeGripBox=await homeGrip.boundingBox();
+  assert.ok(homeGripBox);
+  await page.mouse.move(homeGripBox!.x+homeGripBox!.width/2,homeGripBox!.y+homeGripBox!.height/2);
+  await page.mouse.down();
+  await page.mouse.move(homeGripBox!.x+homeGripBox!.width/2,homeGripBox!.y-145,{steps:9});
+  const draggedBox=await homePanel.boundingBox();
+  const screenBottom=await page.locator('.rdv-navigation-screen').evaluate(el=>el.getBoundingClientRect().bottom);
+  assert.ok(draggedBox && Math.abs(draggedBox.y+draggedBox.height-screenBottom)<2,
+    'Durante o gesto o painel deve permanecer ancorado na borda inferior, sem mostrar o mapa embaixo');
+  assert.ok(draggedBox.height>initialHomeBounds!.height+110,
+    'Puxar para cima deve aumentar a altura do painel, não mover todo o elemento');
+  await page.mouse.up();
+  await page.waitForFunction(()=>{
+    const panel=document.querySelector('[data-testid="home-main-sheet"]')?.getBoundingClientRect();
+    const screen=document.querySelector('.rdv-navigation-screen')?.getBoundingClientRect();
+    return !!panel&&!!screen&&Math.abs(panel.bottom-screen.bottom)<2&&panel.height>=window.innerHeight*0.8;
+  });
+  const scrollHome=page.locator('[data-panel-scroll]');
+  assert.ok(await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight),
+    'O conteúdo completo do menu deve continuar rolável dentro da folha expandida');
+  await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+  assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções');
+  await scrollHome.evaluate(el=>{el.scrollTop=0;});
+  // Pulling down returns to the normal position, still without a map gap.
+  const expandedGripBox=await homeGrip.boundingBox();
+  assert.ok(expandedGripBox);
+  await page.mouse.move(expandedGripBox!.x+expandedGripBox!.width/2,expandedGripBox!.y+expandedGripBox!.height/2);
+  await page.mouse.down();
+  await page.mouse.move(expandedGripBox!.x+expandedGripBox!.width/2,expandedGripBox!.y+140,{steps:8});
+  await page.mouse.up();
+  await page.waitForFunction(()=>{
+    const panel=document.querySelector('[data-testid="home-main-sheet"]')?.getBoundingClientRect();
+    const screen=document.querySelector('.rdv-navigation-screen')?.getBoundingClientRect();
+    return !!panel&&!!screen&&Math.abs(panel.bottom-screen.bottom)<2&&panel.height<=window.innerHeight*0.65;
+  });
 
   // O navegador bloqueia o GPS por site; não é possível reabrir o prompt automaticamente.
   const blockedContext = await browser.newContext({viewport:{width:390,height:844}});
