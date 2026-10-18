@@ -595,11 +595,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         html:createRoadAlertIconElement(alert.kind),
         iconSize:[38,38],iconAnchor:[19,19]
       });
-      const next={alert,marker:null as unknown as L.Marker};
-      next.marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,zIndexOffset:2100}).addTo(group);
-      next.marker.on('click',()=>openRoadAlertRef.current(next.alert));
+      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,zIndexOffset:2100}).addTo(group);
+      marker.on('click',()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert));
       if(record)group.removeLayer(record.marker);
-      existing.set(alert.id,next);
+      existing.set(alert.id,{alert,marker});
     }
   },[roadAlerts,vectorAlertsReady]);
 
