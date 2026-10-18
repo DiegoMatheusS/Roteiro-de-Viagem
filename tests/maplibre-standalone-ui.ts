@@ -306,6 +306,61 @@ try{
   await page.getByRole('button',{name:'Simular fora da rota',exact:true}).click();
   await guidance.getByText('Siga o trajeto indicado',{exact:true}).waitFor();
   assert.equal(await guidance.getByText(/Em .* metros/).count(),0);
+  // Refreshing a different area must not momentarily show stations or places
+  // from the previous GPS location while the next provider request is pending.
+  const discoveryPage=await browser.newPage();
+  const discoveryErrors:string[]=[];
+  discoveryPage.on('pageerror',error=>discoveryErrors.push(error.message));
+  let releaseWait:()=>void=()=>{};
+  const bothPending=new Promise<void>(resolve=>{releaseWait=resolve;});
+  const pendingReleases:Array<()=>void>=[];
+  let waitingCount=0;
+  const blockNewArea=async()=>{
+    await new Promise<void>(resolve=>{
+      pendingReleases.push(resolve);
+      if(++waitingCount===2)releaseWait();
+    });
+  };
+  await discoveryPage.route('**/api/stations/search',async route=>{
+    const body=route.request().postDataJSON();
+    const otherArea=body.points[0][0]===-23.6;
+    if(otherArea)await blockNewArea();
+    await route.fulfill({json:{
+      stations:[{id:otherArea?'station-new':'station-old'}],mapUnavailable:false
+    }});
+  });
+  await discoveryPage.route('**/api/places/search',async route=>{
+    const body=route.request().postDataJSON();
+    const otherArea=body.points[0][0]===-23.6;
+    if(otherArea)await blockNewArea();
+    await route.fulfill({json:{places:[{id:otherArea?'place-new':'place-old'}]}});
+  });
+  await discoveryPage.goto('http://127.0.0.1:3000/tests/fixtures/discovery-hooks.html');
+  await discoveryPage.waitForFunction(()=>{
+    return document.querySelector('[data-testid="stations"]')?.textContent==='station-old' &&
+      document.querySelector('[data-testid="places"]')?.textContent==='place-old';
+  });
+  await discoveryPage.getByRole('button',{name:'Trocar região'}).click();
+  await bothPending;
+  assert.equal(await discoveryPage.getByTestId('stations').textContent(),'',
+    'changing region immediately hides previous fuel stations');
+  assert.equal(await discoveryPage.getByTestId('places').textContent(),'',
+    'changing region immediately hides previous tourist and local places');
+  for(const release of pendingReleases)release();
+  await discoveryPage.waitForFunction(()=>{
+    return document.querySelector('[data-testid="stations"]')?.textContent==='station-new' &&
+      document.querySelector('[data-testid="places"]')?.textContent==='place-new';
+  });
+  await discoveryPage.getByRole('button',{name:'Desativar busca'}).click();
+  assert.equal(await discoveryPage.getByTestId('stations').textContent(),'');
+  assert.equal(await discoveryPage.getByTestId('places').textContent(),'');
+  await discoveryPage.getByRole('button',{name:'Ativar busca',exact:true}).click();
+  await discoveryPage.waitForFunction(()=>{
+    return document.querySelector('[data-testid="stations"]')?.textContent==='station-new' &&
+      document.querySelector('[data-testid="places"]')?.textContent==='place-new';
+  });
+  assert.deepEqual(discoveryErrors,[]);
+  await discoveryPage.close();
   assert.deepEqual(errors,[]);
   console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}
