@@ -7,6 +7,7 @@ import type { VerifiedRouteChoice } from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { getCurrentDeviceLocation } from '../services/locationService';
+import { recentExplorationOrigin } from '../services/explorationOrigin';
 import type { Vehicle, TripPlan, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
 import { visiblePlacesSignature } from '../services/mapVisiblePlaces';
@@ -119,9 +120,8 @@ export function MapTab(props: MapTabProps) {
   const getExplorationOrigin = async (): Promise<[number,number]> => {
     // O rastreador da tela Mapa já tem uma posição recente. Reutilizá-la evita
     // uma segunda solicitação de GPS e o timeout que bloqueava o cálculo.
-    const tracked=location.status==='ready' ? location.position : null;
-    if(tracked && Date.now()-tracked.timestamp>=-5000 &&
-      Date.now()-tracked.timestamp<30000 && tracked.accuracyMeters<=100)return tracked.coords;
+    const tracked=recentExplorationOrigin(location.status==='ready' ? location.position : null);
+    if(tracked)return tracked;
     const gps=await getCurrentDeviceLocation();
     if(gps.accuracyMeters>150)throw new Error('GPS impreciso. Tente novamente em um lugar aberto.');
     return gps.coords;

@@ -44,3 +44,41 @@ export function tollBudgetPatch(trip: TripPlan, result: TollResult): Partial<Tri
   return { tolls:result.tolls,knownTollsCost,tollsStatus:result.status,tollsUpdatedAt:result.updatedAt,tollsMapUnavailable:result.mapUnavailable,totalEstimatedCost,
     costPerPerson:trip.splitExpenses ? Number((totalEstimatedCost/Math.max(1,trip.peopleCount)).toFixed(2)) : totalEstimatedCost };
 }
+
+
+/** Preserve the last *dated, verified* forecast/tariffs if a provider fails.
+ * Never replace unknown data with a fake no-rain or zero-toll result.
+ * A new successful response still replaces the previous observations.
+ */
+export function resolveConditionsRefresh(
+  trip: TripPlan,
+  weather: PromiseSettledResult<WeatherResult>,
+  tolls: PromiseSettledResult<TollResult>
+): { patch: Partial<TripPlan>; weatherError: string; tollError: string } {
+  const patch: Partial<TripPlan> = {};
+  let weatherError = '', tollError = '';
+  if (weather.status === 'fulfilled') {
+    patch.weatherPoints = weather.value.weatherPoints;
+    patch.hasRainRisk = weather.value.hasRainRisk;
+    patch.weatherSource = weather.value.source;
+    patch.weatherUpdatedAt = weather.value.updatedAt;
+  } else {
+    weatherError = trip.weatherUpdatedAt
+      ? 'Não foi possível atualizar. A última previsão pode estar desatualizada.'
+      : 'Previsão indisponível; o risco de chuva é desconhecido.';
+  }
+  if (tolls.status === 'fulfilled') {
+    Object.assign(patch, tollBudgetPatch(trip, tolls.value));
+    if (tolls.value.mapUnavailable) {
+      tollError = 'Mapa de pedágios indisponível. A cobertura e os preços podem estar incompletos.';
+    }
+  } else {
+    // Do not silently turn a previously verified fare into a free toll.
+    // The latest known total/date remain visible, but are explicitly flagged.
+    patch.tollsMapUnavailable = true;
+    tollError = trip.tollsUpdatedAt
+      ? 'Não foi possível atualizar pedágios. Tarifas anteriores podem estar desatualizadas.'
+      : 'Tarifas de pedágio indisponíveis. O custo é desconhecido.';
+  }
+  return { patch, weatherError, tollError };
+}
