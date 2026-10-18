@@ -392,3 +392,12 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - As decorações do percurso são reinstaladas após mudar a base, e os participantes continuam sendo atualizados por ID sem refazer os demais ícones.
 - Falha ao carregar a base selecionada retorna ao mapa híbrido com o mesmo estilo escolhido. Esse fallback continua oferecendo o aviso e a opção de tentar novamente.
 - O teste de interface cobre as três bases com tiles locais de teste, pop-up de encontro aberto, atualização isolada de participante e fallback conservando o estilo.
+
+
+## Continuidade da câmera no mapa de reserva
+
+- Se um mapa MapLibre já carregado perder o contexto ou uma base falhar, o fallback recebe o centro e o zoom atuais, incluindo zoom fracionário. Mantém a base escolhida dentro do limite de zoom do provedor.
+- Arrastar ou ampliar durante a navegação continua pausando o acompanhamento GPS após a troca. Novos dados movem o marcador; o botão de GPS retoma o acompanhamento.
+- Comandos de centralização/foco já executados e o enquadramento da mesma rota não são repetidos. Uma nova rota ou um novo comando explícito continua funcionando.
+- Falha antes do primeiro carregamento mantém a inicialização normal do fallback. O renderizador híbrido continua orientado ao norte.
+- A validação de interface cobre perda de contexto após zoom manual, preservação da câmera, GPS sem recentralização, retomada explícita, nova rota e falha de Satélite.

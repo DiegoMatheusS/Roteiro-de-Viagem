@@ -22,6 +22,10 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
     exploring=next;onMode(next?'exploring':'following');
   };
   return {
+    snapshot(){
+      return {mode:(exploring?'exploring':'following') as CameraMode,
+        centerRequest,position:last?[...last] as CameraPoint:null};
+    },
     explore(){
       if(!navigating)return;
       camera.stop();mode(true);

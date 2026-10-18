@@ -1,3 +1,4 @@
+import {captureMapFallbackViewport,type MapFallbackViewport} from '../services/mapFallbackViewport';
 import React,{useEffect,useRef,useState} from 'react';
 import {Compass,Layers} from 'lucide-react';
 import {updateMapCourse} from '../services/gpsHeading';
@@ -40,7 +41,7 @@ const reducedMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?
 /** Public maps: native MapLibre owns the canvas, camera and gestures.
  * No Leaflet map or bridge is created in this renderer. Existing pin controllers
  * keep the same actions, data validation and incremental updates. */
-export default function StandaloneNavigationMap(props:InteractiveMapProps & {onUnavailable:(style?:MapStyleType)=>void}){
+export default function StandaloneNavigationMap(props:InteractiveMapProps & {onUnavailable:(style?:MapStyleType,viewport?:MapFallbackViewport)=>void}){
   const container=useRef<HTMLDivElement>(null);
   const latest=useRef(props);latest.current=props;
   const [ready,setReady]=useState(false);
@@ -71,11 +72,12 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     if(!canRenderVectorMap()){latest.current.onUnavailable(styleRef.current);return;}
     let disposed=false,loaded=false,failed=false;
     let map:GlMap;
+    let captureFallback:(()=>MapFallbackViewport|undefined)|undefined;
     let activeStyle=styleRef.current,changingStyle=false,tileErrors=0;
     let styleTimeout:ReturnType<typeof setTimeout>|null=null;
     const fail=()=>{
       if(disposed||failed)return;
-      failed=true;latest.current.onUnavailable(styleRef.current);
+      failed=true;latest.current.onUnavailable(styleRef.current,captureFallback?.());
     };
     try{
       const origin=latest.current.originCoords;
@@ -97,6 +99,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let fitInputs:unknown[]=[];
     let waitingForIdle=false;
     let lastFocus:InteractiveMapProps['focusedCoords'];
+    captureFallback=()=>loaded?captureMapFallbackViewport(map,{...camera.snapshot(),
+      fittedRoute:fitted,focusedCoords:lastFocus},TILE_PROVIDERS[styleRef.current].maxZoom):undefined;
     let drawn:RoleVectorMarker[]=[];
     let visibleKey='';
     const navigation=createRoleNavigationPins(map);
