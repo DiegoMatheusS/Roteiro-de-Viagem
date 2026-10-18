@@ -342,3 +342,9 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Gestos interrompem a animação de câmera em andamento durante a navegação; gestos repetidos não repetem a notificação do modo de exploração.
 - Campos de texto, áreas editáveis, marcadores e pop-ups preservam suas próprias interações de teclado.
 - A interrupção usa o controlador único, disponível nos adaptadores Leaflet e MapLibre standalone. A câmera de produção continua no Leaflet.
+
+## Seleção de alternativas próximas no mapa
+
+- Ao tocar perto de duas rotas alternativas, a seleção usa a distância em pixels até os segmentos desenhados, em vez de escolher a primeira feição retornada pelo renderizador.
+- Mantém a tolerância de toque de 12 px e os IDs das alternativas verificadas, sem alterar o zoom ou a câmera. Em trechos exatamente sobrepostos, mantém a ordem do renderizador.
+- Geometrias quebradas ou pontos inválidos não criam linhas selecionáveis artificiais. O fallback Leaflet permanece disponível.
