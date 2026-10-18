@@ -46,6 +46,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const [ready,setReady]=useState(false);
   const [baseStyle,setBaseStyle]=useState<MapStyleType>(props.initialStyle||'light');
   const [styleMenu,setStyleMenu]=useState(false);
+  const showBaseSelector=!props.navigationMode&&!props.roadStyle;
   const effectiveStyle:MapStyleType=props.navigationMode||props.roadStyle?'light':baseStyle;
   const styleRef=useRef(effectiveStyle);styleRef.current=effectiveStyle;
   const [courseMode,setCourseMode]=useState(false);
@@ -153,8 +154,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             fitted=key;
             if(points.length>1)cameraPort.fitRoute(points,{topLeft:[36,70],
               bottomRight:[36,p.roadStyle&&(p.routeAlternatives?.length||0)>0?
-                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):
-                !p.navigationMode&&!p.roadStyle?Math.min(132,Math.round(map.getContainer().clientHeight*.4)):64],maxZoom:13});
+                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):64],maxZoom:13});
             else cameraPort.focus(points[0],12);
           }
         }
@@ -288,18 +288,18 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     id:toll.id,name:toll.place.name,coords:[toll.place.lat,toll.place.lng] as [number,number],
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
   return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle}>
-    <div ref={container} className="w-full h-full"/>
+    <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
       className="absolute bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-blue-700 shadow-xl">
       <Compass size={20}/><span>{courseMode?'Direção':'Norte'}</span>
     </button>}
-    {!props.navigationMode&&!props.roadStyle&&<div className="pointer-events-none absolute bottom-5 left-4 z-30">
+    {showBaseSelector&&<div className="pointer-events-none relative z-30 flex h-16 items-center border-t border-slate-200 bg-white px-4">
       <button type="button" title="Alterar visual do mapa" onClick={()=>setStyleMenu(value=>!value)}
         className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xl">
         <span>{TILE_PROVIDERS[baseStyle].icon}</span><span>{TILE_PROVIDERS[baseStyle].name}</span><Layers size={16}/>
       </button>
-      {styleMenu&&<div className="pointer-events-auto absolute bottom-14 left-0 w-52 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+      {styleMenu&&<div className="pointer-events-auto absolute bottom-16 left-4 w-52 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
         <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Camadas do Mapa</span>
         {(Object.keys(TILE_PROVIDERS) as MapStyleType[]).map(style=><button key={style} type="button"
           aria-pressed={baseStyle===style} onClick={()=>{setBaseStyle(style);setStyleMenu(false);}}

@@ -1,7 +1,7 @@
 /** Playwright serializes this function into the page. Keep its body independent
  * of Node imports and compiler helpers (including inferred function names). */
 export function mapScreenPoint(root:HTMLElement,target:[number,number]):{x:number;y:number}{
-  const box=root.getBoundingClientRect();
+  const box=(root.querySelector('.maplibregl-canvas')||root).getBoundingClientRect();
   const [lat,lon]=JSON.parse(root.dataset.mapCenter!);
   const size=512*2**Number(root.dataset.mapZoom);
   const centerX=(lon+180)/360*size;

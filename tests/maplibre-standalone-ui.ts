@@ -109,6 +109,10 @@ try{
   const rider=page.locator('.convoy-participant-marker[title="Participante"]');
   await organizer.waitFor();await rider.waitFor();
   const organizerElement=await organizer.elementHandle();assert.ok(organizerElement);
+  const canvasBox=await page.locator('.maplibregl-canvas').boundingBox();
+  const selectorBox=await page.getByTitle('Alterar visual do mapa').boundingBox();
+  assert.ok(canvasBox && selectorBox);
+  assert.ok(selectorBox.y>=canvasBox.y+canvasBox.height,'closed base controls must not cover marker canvas');
   const detailCenter=await map.getAttribute('data-map-center');
   const detailZoom=await map.getAttribute('data-map-zoom');
   await page.locator('.meeting-point-marker').click();
