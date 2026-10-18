@@ -73,7 +73,7 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
 }
 interface StandaloneMapLibreCamera {
   getZoom():number;
-  stop():unknown;
+  stop(allowGestures?:boolean):unknown;
   jumpTo(options:{center:[number,number];zoom?:number}):unknown;
   easeTo(options:{center:[number,number];zoom?:number;duration:number}):unknown;
   fitBounds(bounds:[[number,number],[number,number]],options:{
@@ -85,7 +85,8 @@ export function createStandaloneMapLibreCameraPort(map:StandaloneMapLibreCamera)
   const lngLat=([lat,lon]:CameraPoint):[number,number]=>[lon,lat];
   return {
     zoom:()=>map.getZoom(),
-    stop:()=>{map.stop();},
+    // Preserve the native gesture that just took ownership of the camera.
+    stop:()=>{map.stop(true);},
     firstGpsFix(point){
       map.jumpTo({center:lngLat(point),zoom:16});
     },
@@ -96,9 +97,15 @@ export function createStandaloneMapLibreCameraPort(map:StandaloneMapLibreCamera)
     fitRoute(points,padding){
       const valid=points.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180);
       if(!valid.length)return;
-      const lats=valid.map(([lat])=>lat),lons=valid.map(([,lon])=>lon);
+      // Long OSRM geometries can exceed the JavaScript argument limit when
+      // spread into Math.min/Math.max. Scan without allocating parallel arrays.
+      let minLat=Infinity,minLon=Infinity,maxLat=-Infinity,maxLon=-Infinity;
+      for(const [lat,lon] of valid){
+        minLat=Math.min(minLat,lat);maxLat=Math.max(maxLat,lat);
+        minLon=Math.min(minLon,lon);maxLon=Math.max(maxLon,lon);
+      }
       map.fitBounds(
-        [[Math.min(...lons),Math.min(...lats)],[Math.max(...lons),Math.max(...lats)]],
+        [[minLon,minLat],[maxLon,maxLat]],
         {padding:{top:padding.topLeft[1],left:padding.topLeft[0],
           bottom:padding.bottomRight[1],right:padding.bottomRight[0]},
           maxZoom:padding.maxZoom,duration:0}

@@ -17,7 +17,7 @@ test('mapa claro usa MapLibre e mantém fallback de tiles OSM',()=>{
   assert.match(bridge, /setWorkerUrl\(workerUrl\)/);
   assert.match(bridge, /if \(!layer\._map\) return/);
   assert.match(bridge, /layer\.getMaplibreMap\(\)\?\.resize\(\)/);
-  assert.match(bridge, /tiles\.openfreemap\.org\/styles\/positron/);
+  assert.match(source('src/services/mapVectorStyle.ts'), /tiles\.openfreemap\.org\/styles\/positron/);
   assert.doesNotMatch(bridge, /mapbox.*(token|apikey)|CARTO/ig);
 });
 test('camadas de navegação/alertas preservadas e sem tela branca quando MapLibre falha',()=>{

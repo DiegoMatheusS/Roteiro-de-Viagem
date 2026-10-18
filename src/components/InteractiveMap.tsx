@@ -53,7 +53,7 @@ export interface MapVisiblePlace {
   coords: [number, number];
 }
 
-interface InteractiveMapProps {
+export interface InteractiveMapProps {
   originCoords?: [number, number];
   destinationCoords?: [number, number];
   originLabel?: string;
@@ -132,7 +132,7 @@ const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; bo
   equilibrada: { primary: '#0d9488', glow: '#2dd4bf', border: '#ffffff' } // Teal
 };
 
-export const InteractiveMap: React.FC<InteractiveMapProps> = ({
+const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
   originCoords,
   destinationCoords,
   originLabel = 'Origem',
@@ -1512,3 +1512,24 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   );
 };
 
+
+
+const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').catch(()=>({
+  default:function NativeLoadFailure({onUnavailable}:{onUnavailable:()=>void}){
+    useEffect(()=>{onUnavailable();},[onUnavailable]);return <></>;
+  }
+})));
+/** Migrate the active navigation first. Other screens retain the proven hybrid
+ * implementation, which also serves as fallback when native WebGL cannot load. */
+export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
+  const [fallback,setFallback]=useState(false);
+  const latestProps=useRef(props);latestProps.current=props;
+  const onUnavailable=React.useCallback(()=>{
+    latestProps.current.onCameraModeChange?.('following');
+    setFallback(true);
+  },[]);
+  if(!props.navigationMode || fallback)return <HybridInteractiveMap {...props}/>;
+  return <React.Suspense fallback={<div className={props.className || 'w-full h-full'} role="status" aria-label="Carregando mapa"/>}>
+    <NativeNavigationMap {...props} onUnavailable={onUnavailable}/>
+  </React.Suspense>;
+};
