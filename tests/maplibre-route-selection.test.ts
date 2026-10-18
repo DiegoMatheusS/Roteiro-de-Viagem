@@ -71,7 +71,7 @@ test('click-to-select uses MapLibre route IDs when vector ready and Leaflet when
   assert.match(map,/alternativeRouteIdsRef\.current\.size/);
   assert.match(map,/if\(id\)\{selectRouteRef\.current\(id\);return;\}/);
   assert.match(map,/onSelectCoordinates\?\.\(\[event\.latlng\.lat,event\.latlng\.lng\]\)/);
-  assert.match(map,/if \(!vectorRoutesReady\) \{/);
+  assert.match(map,/if \(!vectorRoutesReady \|\| !vectorRoutePaintReady\) \{/);
   assert.match(map,/alternative\.on\('click',\(\)=>selectRouteRef\.current\?\.\(option\.id\)\)/);
   assert.doesNotMatch(map,/opacity:vectorRoutesReady \? 0\.003/);
   assert.doesNotMatch(map,/weight:vectorRoutesReady \? 18/);
