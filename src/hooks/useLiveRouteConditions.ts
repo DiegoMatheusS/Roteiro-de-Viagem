@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TripPlan, VehicleType } from '../types';
 import type { DeviceLocation } from '../services/locationService';
-import { requestWeather,requestTolls,tollBudgetPatch } from '../services/routeConditions';
+import { requestWeather,requestTolls,resolveConditionsRefresh } from '../services/routeConditions';
 export function useLiveRouteConditions(trip: TripPlan | null, vehicleType: VehicleType, onPatch: (id: string, patch: Partial<TripPlan>) => void, enabled: boolean, location?: DeviceLocation | null) {
   const latest=useRef({trip,onPatch,location}); latest.current={trip,onPatch,location};
   const [attempt,setAttempt]=useState(0);
@@ -16,11 +16,9 @@ export function useLiveRouteConditions(trip: TripPlan | null, vehicleType: Vehic
       setState({busy:true,weatherError:'',tollError:''});
       const [weather,tolls]=await Promise.allSettled([requestWeather(current,signal,latest.current.location),requestTolls(current,vehicleType,signal)]);
       if(disposed || signal.aborted || latest.current.trip?.id !== current.id) return;
-      const patch: Partial<TripPlan> = weather.status === 'fulfilled' ? {weatherPoints:weather.value.weatherPoints,hasRainRisk:weather.value.hasRainRisk,weatherSource:weather.value.source,weatherUpdatedAt:weather.value.updatedAt} : {weatherPoints:[],hasRainRisk:false,weatherSource:undefined,weatherUpdatedAt:undefined};
-      if(tolls.status === 'fulfilled') Object.assign(patch,tollBudgetPatch(latest.current.trip!,tolls.value));
-      else Object.assign(patch,tollBudgetPatch(latest.current.trip!,{tolls:[],knownCost:0,status:'unknown',mapUnavailable:true,updatedAt:new Date().toISOString(),warning:'Tarifas indisponíveis.'}));
-      latest.current.onPatch(current.id,patch);
-      setState({busy:false,weatherError:weather.status === 'rejected' ? weather.reason.message : '',tollError:tolls.status === 'rejected' ? tolls.reason.message : tolls.value.mapUnavailable ? 'Mapa de pedágios indisponível: exibindo as tarifas já verificadas no servidor.' : ''});
+      const resolved=resolveConditionsRefresh(latest.current.trip!,weather,tolls);
+      latest.current.onPatch(current.id,resolved.patch);
+      setState({busy:false,weatherError:resolved.weatherError,tollError:resolved.tollError});
     };
     void refresh();
     const timer=window.setInterval(() => { if(!document.hidden) void refresh(); },15*60000);
