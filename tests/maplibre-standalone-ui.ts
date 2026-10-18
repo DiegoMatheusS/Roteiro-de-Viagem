@@ -134,10 +134,17 @@ try{
   assert.equal(await page.locator('.maplibregl-popup').count(),1,'Enter opens exactly once');
   await meeting.press('Space');
   assert.equal(await page.locator('.maplibregl-popup').count(),0,'Space closes exactly once');
-  const fixedBefore=await organizer.getAttribute('style'),riderBefore=await rider.getAttribute('style');
+  const fixedBefore=await organizer.boundingBox(),riderBefore=await rider.boundingBox();
+  assert.ok(fixedBefore && riderBefore);
   await page.getByRole('button',{name:'Mover participante',exact:true}).click();
-  await page.waitForFunction(previous=>document.querySelector('.convoy-participant-marker[title="Participante"]')?.getAttribute('style')!==previous,riderBefore);
-  assert.equal(await organizer.getAttribute('style'),fixedBefore,'one GPS update must not move other participants');
+  await page.waitForFunction(previous=>{
+    const rect=document.querySelector('.convoy-participant-marker[title="Participante"]')?.getBoundingClientRect();
+    return rect && Math.hypot(rect.x-previous.x,rect.y-previous.y)>2;
+  },riderBefore);
+  const fixedAfter=await organizer.boundingBox();assert.ok(fixedAfter);
+  assert.ok(Math.hypot(fixedAfter.x-fixedBefore.x,fixedAfter.y-fixedBefore.y)<=1,
+    'one GPS update must not move other participants (allow pixel rounding)');
+  assert.equal(await organizerElement.evaluate(element=>element.isConnected),true);
   assert.equal(await map.getAttribute('data-map-center'),detailCenter);
   assert.equal(await map.getAttribute('data-map-zoom'),detailZoom);
   // A raster provider failure retains that chosen style in the hybrid fallback.
