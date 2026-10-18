@@ -159,8 +159,8 @@ export function NavigationHome(props: NavigationHomeProps) {
     setError('');setBusy(true);
     try {
       const coords = await gpsCoordinates();
-      const interests = preference === 'curvas' ? ['mirante','parque'] :
-        preference === 'cidades' ? ['museu','cidade_historica'] : [];
+      const interests = preference === 'curvas' ? ['panoramico','natureza'] :
+        preference === 'cidades' ? ['museus','historico'] : [];
       // A navegação turística é pública: nenhum login ou veículo salvo é exigido.
       // Sem veículo, a rota é real e navegável; consumo não é estimado.
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
