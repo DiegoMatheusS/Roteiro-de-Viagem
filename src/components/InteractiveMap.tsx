@@ -29,6 +29,7 @@ import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
 import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
+import {changedStaticLayers,type StaticLayerInputs} from '../services/mapStaticLayerInvalidation';
 import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
@@ -214,6 +215,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     ? new Set(routeAlternatives.filter(option=>option.id!==selectedRouteId).map(option=>option.id))
     : new Set();
   const fittedGeometryRef=useRef<string|null>(null);
+  const previousStaticLayerInputsRef=useRef<StaticLayerInputs|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
   const lastCenterRequestRef=useRef(0);
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
@@ -1020,11 +1022,22 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const meetingGroup = meetingPinGroupRef.current;
     if (!map || !group || !rainGroup || !navigationGroup || !stopGroup || !meetingGroup) return;
 
+    // Route switching only invalidates the route line group. Scenic stops,
+    // meeting point popups, weather and navigation pins have independent inputs.
+    const layerInputs:StaticLayerInputs={
+      navigation:[originCoords,destinationCoords,originLabel,destinationLabel,
+        navigationMode,roadStyle,vectorNavigationReady],
+      stops:[stops,vectorTripPinsReady],
+      meetings:[meetingPoints,vectorTripPinsReady],
+      weather:[weatherPoints,showRainLayer,vectorWeatherReady]
+    };
+    const layerChanges=changedStaticLayers(previousStaticLayerInputsRef.current,layerInputs);
+    previousStaticLayerInputsRef.current=layerInputs;
     group.clearLayers();
-    rainGroup.clearLayers();
-    navigationGroup.clearLayers();
-    stopGroup.clearLayers();
-    meetingGroup.clearLayers();
+    if(layerChanges.weather)rainGroup.clearLayers();
+    if(layerChanges.navigation)navigationGroup.clearLayers();
+    if(layerChanges.stops)stopGroup.clearLayers();
+    if(layerChanges.meetings)meetingGroup.clearLayers();
 
     const bounds: L.LatLngExpression[] = [];
 
@@ -1059,7 +1072,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 1. Origin Marker
     if (originCoords && !navigationMode) {
-      if (!vectorNavigationReady) {
+      if (!vectorNavigationReady && layerChanges.navigation) {
       const originIcon = roadStyle ? L.divIcon({
         className:'map-origin-dot',
         html:'<span style="display:block;width:16px;height:16px;background:#16a34a;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
@@ -1073,7 +1086,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 2. Destination Marker
     if (destinationCoords) {
-      if (!vectorNavigationReady) {
+      if (!vectorNavigationReady && layerChanges.navigation) {
       const destIcon = roadStyle ? L.divIcon({
         className:'map-destination-dot',
         html:'<span style="display:block;width:17px;height:17px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
@@ -1140,7 +1153,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (stop.category === 'museu') { emoji = '🏛️'; color = '#4f46e5'; }
         if (stop.category === 'monumento') { emoji = '🗿'; color = '#0891b2'; }
 
-        if (!vectorTripPinsReady) {
+        if (!vectorTripPinsReady && layerChanges.stops) {
         const fuelReference = stop.category === 'posto' ? stop.sourceUrl?.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/) : null;
         const stopIcon = fuelReference ? mapContributionIcon({ className: 'custom-stop-marker', name: stop.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`), onComments: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`, 'comments') }) : L.divIcon({
           className: 'custom-stop-marker',
@@ -1198,7 +1211,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           bgMarkerColor = '#2563eb';
         }
 
-        if (!vectorTripPinsReady) {
+        if (!vectorTripPinsReady && layerChanges.meetings) {
         const arrivedCount = mp.confirmedArrivedParticipantIds.length;
         const mpIcon = L.divIcon({
           className: 'meeting-point-marker',
@@ -1254,7 +1267,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // 7. Convoy participants are moved incrementally in dedicated layers.
 
     // Pontos reais de previsão Open-Meteo; nenhum polígono de radar inventado.
-    if(showRainLayer && !vectorWeatherReady)for(const point of visibleWeatherSamples(weatherPoints)){
+    if(showRainLayer && !vectorWeatherReady && layerChanges.weather)for(const point of visibleWeatherSamples(weatherPoints)){
       const direction=Number.isFinite(point.windDirectionDegrees) && point.windDirectionDegrees!>=0 &&
         point.windDirectionDegrees!<360 ? ` · direção ${Math.round(point.windDirectionDegrees!)}°` : '';
       L.circleMarker(point.coords!,{
@@ -1298,7 +1311,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     meetingPoints,
     vectorWeatherReady,
     vectorNavigationReady,
-    vectorTripPinsReady
+    vectorTripPinsReady,
+    vectorRoutesReady
   ]);
 
   useEffect(() => {
