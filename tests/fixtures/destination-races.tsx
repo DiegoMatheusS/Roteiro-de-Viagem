@@ -19,7 +19,7 @@ function Fixture(){
     </div>
     {target?.coords&&<DestinationExplorer
       key={destinationExploreKey(target)} target={target}
-      vehicle={null} gpsAvailable={true} getOrigin={async()=>[0,0]}
+      vehicle={null} gpsAvailable={true} getOrigin={async():Promise<[number,number]>=>[0,0]}
       onMapRoute={(_origin,options)=>setLatest(options[0].id)}
       onStartTrip={()=>setLatest('STARTED')}
       onClose={()=>{setTarget(null);setLatest('');}}
