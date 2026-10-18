@@ -425,15 +425,6 @@ export default function App() {
               <NavigationHome
                 currentVehicle={currentVehicle}
                 trips={trips}
-                onLaunchTouristCircuit={(trip) => {
-                  setPlanningOrigin(trip.originName);
-                  setPlanningOriginCoords(trip.originCoords);
-                  setPlanningDestination(trip.destinationName);
-                  setPlanningDestinationCoords(trip.destinationCoords);
-                  setPlanningTrip(trip);
-                  setIsNavigationOpen(false);
-                  setIsPlanningOpen(true);
-                }}
                 onStartTrip={handleStartTrip}
                 onOpenAllTrips={() => setActiveTab('salvos')}
                 onOpenAllSuggestions={() => setActiveTab('passeios')}
