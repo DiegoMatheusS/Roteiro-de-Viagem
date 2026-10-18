@@ -450,7 +450,9 @@ export default function App() {
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onLaunchTouristCircuit={(circuitTrip) => {
                   const quickTrip = circuitTrip.planningLimits?.mode === 'km' || circuitTrip.planningLimits?.mode === 'hours';
-                  if (quickTrip && !circuitTrip.departureAt) {
+                  // Advanced planning keeps its editor when the user has a configured vehicle.
+                  // Guests instead enter navigation directly, without being sent to the vehicle-only editor.
+                  if (quickTrip && !currentVehicle && !circuitTrip.departureAt) {
                     handleStartTrip(circuitTrip);
                     return;
                   }
