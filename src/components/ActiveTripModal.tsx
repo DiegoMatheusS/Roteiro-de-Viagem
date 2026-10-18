@@ -1,5 +1,6 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { CameraMode } from '../services/mapCameraController';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap } from './InteractiveMap';
@@ -57,6 +58,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [centerRequest,setCenterRequest] = useState(0);
+  const [cameraMode,setCameraMode]=useState<CameraMode>('following');
+  useEffect(()=>{if(!isOpen)setCameraMode('following');},[isOpen,trip.id]);
   const [manualCompletion, setManualCompletion] = useState(false);
   const [manualDistance, setManualDistance] = useState('');
   const [unlockedCelebration, setUnlockedCelebration] = useState<Achievement[] | null>(null);
@@ -170,6 +173,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           destinationCoords={trip.destinationCoords}
           routePath={trip.routePath}
           navigationMode
+          onCameraModeChange={setCameraMode}
           travelledDistanceKm={distanceTraveledKm}
           totalRouteKm={trip.distanceKm}
           stops={trip.stops}
@@ -186,9 +190,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         />
 
         <div className="absolute bottom-24 right-4 z-30 flex flex-col items-center gap-3">
-          <button type="button" aria-label="Centralizar mapa na minha localização" onClick={()=>setCenterRequest(v=>v+1)}
-            disabled={!isGpsActive} className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-xl flex items-center justify-center disabled:opacity-60">
+          <button type="button" aria-label="Centralizar mapa na minha localização"
+            title={cameraMode==='exploring'?'Seguir GPS novamente':'Centralizar GPS'}
+            onClick={()=>setCenterRequest(v=>v+1)} disabled={!isGpsActive}
+            className={`${cameraMode==='exploring'?'px-3':'w-12'} min-h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 transition-[width,padding] duration-200`}>
             <LocateFixed size={24} strokeWidth={2.2}/>
+            {cameraMode==='exploring'&&<span className="text-[13px] font-semibold whitespace-nowrap">Seguir GPS</span>}
           </button>
           <RoadAlertReporter location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
             onSubmitted={() => { void roadAlerts.reload(); }} />
