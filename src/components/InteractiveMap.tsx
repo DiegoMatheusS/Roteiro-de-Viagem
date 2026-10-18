@@ -29,6 +29,7 @@ import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
 import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
+import {changedStaticLayers,type StaticLayerInputs} from '../services/mapStaticLayerInvalidation';
 import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
@@ -169,6 +170,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const currentTileLayerRef = useRef<L.Layer | null>(null);
   const vectorMapRef = useRef<MapLibreMap | null>(null);
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
+  const [vectorRoutePaintReady,setVectorRoutePaintReady]=useState(false);
   const [vectorMilestonesReady,setVectorMilestonesReady]=useState(false);
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
   const vectorPlaceControllerRef=useRef<RoleMarkerController|null>(null);
@@ -214,6 +216,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     ? new Set(routeAlternatives.filter(option=>option.id!==selectedRouteId).map(option=>option.id))
     : new Set();
   const fittedGeometryRef=useRef<string|null>(null);
+  const previousStaticLayerInputsRef=useRef<StaticLayerInputs|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
   const lastCenterRequestRef=useRef(0);
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
@@ -710,27 +713,55 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   // Trajetos do OSRM são desenhados diretamente no MapLibre após carregar o
   // estilo vetorial. Atualizamos dados do GPS sem recriar a base nem mudar zoom.
   useEffect(() => {
-    const gl = vectorMapRef.current;
-    if (!vectorRoutesReady || !gl) {
+    const gl=vectorMapRef.current;
+    if(!vectorRoutesReady || !gl){
+      setVectorRoutePaintReady(false);
       mapContainerRef.current?.removeAttribute('data-role-vector-routes');
       return;
     }
-    try {
-      const featureCount=updateRoleVectorRoutes(gl, {
-        routePath, alternatives:routeAlternatives, selectedRouteId,
-        modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
-        userLocation:userLiveCoords,
-        travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
-      });
-      if(featureCount>0)mapContainerRef.current?.setAttribute('data-role-vector-routes',String(featureCount));
-      else mapContainerRef.current?.removeAttribute('data-role-vector-routes');
-    } catch {
-      mapContainerRef.current?.removeAttribute('data-role-vector-routes');
-      // Um estilo que muda enquanto chega nova posição não pode interromper a navegação.
-      setVectorRoutesReady(false);
+    let disposed=false;
+    const updateWhenStyleReady=()=>{
+      if(disposed || !gl.isStyleLoaded())return;
+      // The map's initial "load" event can precede a fully initialized style.
+      // Until this succeeds, the raster Leaflet lines remain as an overlay.
+      try{
+        const featureCount=updateRoleVectorRoutes(gl,{
+          routePath,alternatives:routeAlternatives,selectedRouteId,
+          modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
+          userLocation:userLiveCoords,
+          travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
+        });
+        if(featureCount>0){
+          mapContainerRef.current?.setAttribute('data-role-vector-routes',String(featureCount));
+          setVectorRoutePaintReady(true);
+        }else{
+          mapContainerRef.current?.removeAttribute('data-role-vector-routes');
+          setVectorRoutePaintReady(false);
+        }
+        gl.off('styledata',updateWhenStyleReady);
+        gl.off('idle',updateWhenStyleReady);
+      }catch{
+        mapContainerRef.current?.removeAttribute('data-role-vector-routes');
+        setVectorRoutePaintReady(false);
+        // A style update must never leave the route invisible or break the GPS.
+        gl.off('styledata',updateWhenStyleReady);
+        gl.off('idle',updateWhenStyleReady);
+        setVectorRoutesReady(false);
+      }
+    };
+    if(gl.isStyleLoaded())updateWhenStyleReady();
+    else{
+      setVectorRoutePaintReady(false);
+      gl.on('styledata',updateWhenStyleReady);
+      gl.on('idle',updateWhenStyleReady);
     }
-  }, [vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
-      routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
+    return ()=>{
+      disposed=true;
+      gl.off('styledata',updateWhenStyleReady);
+      gl.off('idle',updateWhenStyleReady);
+    };
+  },[vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
+    routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
 
   // Milestone dots are decoration only. Keep them in one native circle layer,
   // separate from GPS progress updates (which can arrive every second).
@@ -1020,11 +1051,22 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const meetingGroup = meetingPinGroupRef.current;
     if (!map || !group || !rainGroup || !navigationGroup || !stopGroup || !meetingGroup) return;
 
+    // Route switching only invalidates the route line group. Scenic stops,
+    // meeting point popups, weather and navigation pins have independent inputs.
+    const layerInputs:StaticLayerInputs={
+      navigation:[originCoords,destinationCoords,originLabel,destinationLabel,
+        navigationMode,roadStyle,vectorNavigationReady],
+      stops:[stops,vectorTripPinsReady],
+      meetings:[meetingPoints,vectorTripPinsReady],
+      weather:[weatherPoints,showRainLayer,vectorWeatherReady]
+    };
+    const layerChanges=changedStaticLayers(previousStaticLayerInputsRef.current,layerInputs);
+    previousStaticLayerInputsRef.current=layerInputs;
     group.clearLayers();
-    rainGroup.clearLayers();
-    navigationGroup.clearLayers();
-    stopGroup.clearLayers();
-    meetingGroup.clearLayers();
+    if(layerChanges.weather)rainGroup.clearLayers();
+    if(layerChanges.navigation)navigationGroup.clearLayers();
+    if(layerChanges.stops)stopGroup.clearLayers();
+    if(layerChanges.meetings)meetingGroup.clearLayers();
 
     const bounds: L.LatLngExpression[] = [];
 
@@ -1059,7 +1101,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 1. Origin Marker
     if (originCoords && !navigationMode) {
-      if (!vectorNavigationReady) {
+      if (!vectorNavigationReady && layerChanges.navigation) {
       const originIcon = roadStyle ? L.divIcon({
         className:'map-origin-dot',
         html:'<span style="display:block;width:16px;height:16px;background:#16a34a;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
@@ -1073,7 +1115,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 2. Destination Marker
     if (destinationCoords) {
-      if (!vectorNavigationReady) {
+      if (!vectorNavigationReady && layerChanges.navigation) {
       const destIcon = roadStyle ? L.divIcon({
         className:'map-destination-dot',
         html:'<span style="display:block;width:17px;height:17px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
@@ -1090,7 +1132,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!navigationMode && routeAlternatives.length > 1) {
       for (const option of routeAlternatives) {
         if (option.id === selectedRouteId || option.routePath.length < 2) continue;
-        if (!vectorRoutesReady) {
+        if (!vectorRoutesReady || !vectorRoutePaintReady) {
           // In raster fallback Leaflet draws and selects the same OSRM path.
           // When MapLibre is ready, the click handler above queries its own
           // rendered features; there are no overlapping invisible Leaflet lines.
@@ -1111,7 +1153,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // A posição vem do GPS, sem colorir como concluído quando estiver fora da rota.
     const modalityStyle = MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica;
     if (routePath && routePath.length > 1) {
-      if (!vectorRoutesReady) {
+      if (!vectorRoutesReady || !vectorRoutePaintReady) {
       L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
       if (!(navigationMode || blueRoute)) {
@@ -1140,7 +1182,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (stop.category === 'museu') { emoji = '🏛️'; color = '#4f46e5'; }
         if (stop.category === 'monumento') { emoji = '🗿'; color = '#0891b2'; }
 
-        if (!vectorTripPinsReady) {
+        if (!vectorTripPinsReady && layerChanges.stops) {
         const fuelReference = stop.category === 'posto' ? stop.sourceUrl?.match(/openstreetmap\.org\/(node|way|relation)\/(\d+)/) : null;
         const stopIcon = fuelReference ? mapContributionIcon({ className: 'custom-stop-marker', name: stop.name, emoji: '⛽', color: '#047857', onPrices: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`), onComments: () => openStation(`osm:${fuelReference[1]}:${fuelReference[2]}`, 'comments') }) : L.divIcon({
           className: 'custom-stop-marker',
@@ -1198,7 +1240,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           bgMarkerColor = '#2563eb';
         }
 
-        if (!vectorTripPinsReady) {
+        if (!vectorTripPinsReady && layerChanges.meetings) {
         const arrivedCount = mp.confirmedArrivedParticipantIds.length;
         const mpIcon = L.divIcon({
           className: 'meeting-point-marker',
@@ -1254,7 +1296,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // 7. Convoy participants are moved incrementally in dedicated layers.
 
     // Pontos reais de previsão Open-Meteo; nenhum polígono de radar inventado.
-    if(showRainLayer && !vectorWeatherReady)for(const point of visibleWeatherSamples(weatherPoints)){
+    if(showRainLayer && !vectorWeatherReady && layerChanges.weather)for(const point of visibleWeatherSamples(weatherPoints)){
       const direction=Number.isFinite(point.windDirectionDegrees) && point.windDirectionDegrees!>=0 &&
         point.windDirectionDegrees!<360 ? ` · direção ${Math.round(point.windDirectionDegrees!)}°` : '';
       L.circleMarker(point.coords!,{
@@ -1298,7 +1340,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     meetingPoints,
     vectorWeatherReady,
     vectorNavigationReady,
-    vectorTripPinsReady
+    vectorTripPinsReady,
+    vectorRoutePaintReady
   ]);
 
   useEffect(() => {

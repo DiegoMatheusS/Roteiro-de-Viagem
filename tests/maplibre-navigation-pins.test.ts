@@ -34,7 +34,7 @@ test('navigation pins update without remounting on every GPS reading',()=>{
 test('Leaflet fallback and MapLibre switch do not create duplicate GPS endpoints',()=>{
   const text=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
   assert.match(text,/navigationPinGroupRef\.current\?\.clearLayers\(\)/);
-  assert.match(text,/if \(!vectorNavigationReady\) \{/);
+  assert.match(text,/if \(!vectorNavigationReady && layerChanges\.navigation\) \{/);
   assert.match(text,/if \(!userLiveCoords \|\| vectorNavigationReady/);
   assert.match(text,/vectorNavigationController\.current\?\.update\(navigationPinInputs\.current\)/);
   assert.match(text,/setVectorNavigationReady\(false\)/);

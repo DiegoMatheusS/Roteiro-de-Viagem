@@ -152,14 +152,23 @@ try {
   await destinationMap.getByText('Rotas disponíveis').waitFor();
   assert.equal((await choicesRequest).status(),200,'Enter deve calcular rotas automaticamente');
   await destinationMap.getByText('Rota mais rápida').waitFor();
-  assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,'A rota escolhida deve aparecer no próprio mapa');
+  await page.waitForFunction(()=>{
+    const raster=document.querySelectorAll('.leaflet-overlay-pane path').length>0;
+    const vector=[...document.querySelectorAll('[data-role-vector-routes]')]
+      .some(node=>Number(node.getAttribute('data-role-vector-routes'))>0);
+    return raster||vector;
+  },undefined,{timeout:10000});
   const routeButtons = destinationMap.locator('button[aria-pressed]');
   if (await routeButtons.count() > 1) {
     await routeButtons.nth(1).click();
     assert.equal(await routeButtons.nth(1).getAttribute('aria-pressed'),'true',
       'Selecionar uma alternativa atualiza a rota ativa no painel');
-    assert.ok(await page.locator('.leaflet-overlay-pane path[stroke="#64748b"]').count() > 0,
-      'Outras rotas continuam visíveis em cinza no mapa');
+    // Raster draws gray Leaflet SVG alternatives; vector MapLibre has already
+    // registered the verified alternative source and the card remains selectable.
+    const hasGrayRaster=await page.locator('.leaflet-overlay-pane path[stroke="#64748b"]').count()>0;
+    const vectorCount=await page.locator('[data-role-vector-routes]').first().getAttribute('data-role-vector-routes').catch(()=>null);
+    assert.ok(hasGrayRaster||Number(vectorCount)>1,
+      'Outras rotas continuam disponíveis no mapa no renderizador ativo');
   }
   // Regressão: antes o botão somente carregava opções sem abrir a navegação.
   await destinationMap.getByRole('button',{name:'Iniciar rota selecionada'}).click();
@@ -185,7 +194,10 @@ try {
   assert.equal((await roadRequest).status(), 200);
   const tripPreview = page.getByRole('dialog', { name: 'Visualizar viagem' });
   await tripPreview.getByRole('heading', { name: 'Parada Alfa de teste' }).waitFor();
-  assert.ok(await tripPreview.locator('.leaflet-overlay-pane path').count() > 0, 'A prévia precisa desenhar a rota real');
+  await tripPreview.locator('.leaflet-overlay-pane path, [data-role-vector-routes]').first().waitFor();
+  const previewRaster=await tripPreview.locator('.leaflet-overlay-pane path').count()>0;
+  const previewVectors=await tripPreview.locator('[data-role-vector-routes]').first().getAttribute('data-role-vector-routes').catch(()=>null);
+  assert.ok(previewRaster||Number(previewVectors)>0,'A prévia precisa carregar a rota real');
   assert.ok((await tripPreview.innerText()).includes('km'), 'A prévia deve mostrar distância real');
   await tripPreview.getByRole('button', { name: 'Fechar janela' }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
