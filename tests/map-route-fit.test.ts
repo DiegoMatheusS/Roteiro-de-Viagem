@@ -47,7 +47,7 @@ test('MapLibre and Leaflet keep existing automatic initial fit and do not reset 
   assert.match(map,/const geometryKey=mapRouteFitKey\(\{/);
   assert.match(map,/routePath,alternatives:routeAlternatives/);
   assert.match(map,/shouldFitMapRoute\(fittedGeometryRef\.current,geometryKey,bounds\.length>0\)/);
-  assert.match(map,/map\.fitBounds\(bounds as L\.LatLngBoundsExpression/);
-  assert.match(map,/paddingBottomRight: \[36, sheetOverlay \? /);
+  assert.match(map,/createHybridCameraPort\(map\)\.fitRoute\(bounds as \[number,number\]\[\],\{/);
+  assert.match(map,/bottomRight:\[36,sheetOverlay\?/);
   assert.doesNotMatch(map,/stops\.map\(s=>\[s\.lat,s\.lng\]\),meetingPoints\.map\(p=>p\.coords\)/);
 });

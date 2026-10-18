@@ -325,3 +325,13 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O enquadramento automático permanece ao abrir um percurso novo, mudar origem/destino ou receber um conjunto realmente diferente de rotas. A ordem dos cards não redefine a câmera.
 - Paradas turísticas, participantes, pontos de encontro e previsões atualizadas não forçam `fitBounds` nem anulam a exploração manual.
 - A câmera segue pertencendo ao Leaflet no mapa híbrido, com MapLibre sincronizado, evitando giros de uma base separados de marcadores e linhas. Não altera GPS, backend, moderação ou painel administrativo.
+
+## Controlador único para enquadramento e GPS — PR #63
+
+- A primeira posição GPS, o enquadramento de uma rota nova e o foco em um único destino agora passam pela mesma interface de câmera utilizada para recentralização e acompanhamento.
+- **Na versão em produção, o Leaflet continua como único dono da câmera**, com o MapLibre seguindo sua viewport. A mudança não ativa rotação nem câmera nativa independente: evita comandos paralelos que poderiam desalinhar rotas, ícones e áreas clicáveis.
+- O adaptador MapLibre standalone recebe a função equivalente de `fitBounds`, incluindo conversão de coordenadas latitude/longitude para longitude/latitude e os recuos reservados ao painel inferior, para a futura migração do mapa.
+- A câmera não muda o visual atual: zoom 16 na primeira posição GPS, enquadramento sem animação de trajetos novos e respeito ao zoom manual quando o usuário alterna entre rotas.
+- Testes automatizados verificam o mesmo comportamento nos dois adaptadores, sem alterar o backend, o painel administrativo, os preços ou o fluxo do comboio.
+
+- O foco explícito em locais (“Ver no Mapa”, incluindo pontos de encontro) também usa o controlador único: mantém a transição de 1,2 s e pula a animação quando o dispositivo prefere movimento reduzido. O enquadramento inicial de uma rota continua imediato.
