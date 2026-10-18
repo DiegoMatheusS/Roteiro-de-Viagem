@@ -348,3 +348,9 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Ao tocar perto de duas rotas alternativas, a seleção usa a distância em pixels até os segmentos desenhados, em vez de escolher a primeira feição retornada pelo renderizador.
 - Mantém a tolerância de toque de 12 px e os IDs das alternativas verificadas, sem alterar o zoom ou a câmera. Em trechos exatamente sobrepostos, mantém a ordem do renderizador.
 - Geometrias quebradas ou pontos inválidos não criam linhas selecionáveis artificiais. O fallback Leaflet permanece disponível.
+
+## Interrupção de gestos no celular
+
+- A contagem de dedos é atualizada mesmo quando o toque termina fora do mapa.
+- Perda de captura, troca de aplicativo e ocultação da página limpam toques pendentes, evitando que o próximo toque simples seja confundido com pinça e pause o acompanhamento GPS.
+- A pinça real continua pausando o acompanhamento. Os listeners são removidos ao sair da tela, sem capturar toques nem bloquear gestos nativos.
