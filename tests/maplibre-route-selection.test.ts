@@ -30,17 +30,14 @@ test('touch queries MapLibre visible alternative line only; preserves correct GP
   const stub={
     isStyleLoaded:()=>true,
     getLayer:(id:string)=>id==='role-alternative-line'?{id}:undefined,
-    project:(point:unknown)=>{
-      assert.deepEqual(point,[-46.62,-23.58]);
-      return {x:125,y:265};
-    },
+    project:()=>({x:125,y:265}),
     queryRenderedFeatures:(box:unknown,config:unknown)=>{
       queries++;bounds=box;
       assert.deepEqual(config,{layers:['role-alternative-line']});
       return [
         {properties:{role:'active',routeId:'fast'}},
         {properties:{role:'alternative',routeId:'untrusted'}},
-        {properties:{role:'alternative',routeId:'scenic'}}
+        {properties:{role:'alternative',routeId:'scenic'},geometry:{type:'LineString',coordinates:[[-46.62,-23.58],[-46.61,-23.57]]}}
       ];
     }
   };
@@ -75,4 +72,34 @@ test('click-to-select uses MapLibre route IDs when vector ready and Leaflet when
   assert.match(map,/alternative\.on\('click',\(\)=>selectRouteRef\.current\?\.\(option\.id\)\)/);
   assert.doesNotMatch(map,/opacity:vectorRoutesReady \? 0\.003/);
   assert.doesNotMatch(map,/weight:vectorRoutesReady \? 18/);
+});
+
+
+test('nearest screen segment wins over renderer order and retains verified route IDs',()=>{
+  type Gl=Parameters<typeof queryRoleVectorAlternative>[0];
+  const line=(id:string,y:number)=>({properties:{role:'alternative',routeId:id},
+    geometry:{type:'LineString',coordinates:[[-20,y],[20,y]]}});
+  let features:unknown[]=[line('far',10),line('near',2),line('foreign',0)];
+  const stub={isStyleLoaded:()=>true,getLayer:()=>({}),
+    project:([x,y]:[number,number])=>({x,y}),queryRenderedFeatures:()=>features};
+  const query=(radius=12)=>queryRoleVectorAlternative(stub as unknown as Gl,[0,0],new Set(['far','near']),radius);
+  assert.equal(query(),'near');
+  features.reverse();
+  assert.equal(query(),'near');
+  assert.equal(query(NaN),'near');
+  features=[line('near',13)];
+  assert.equal(query(),null);
+  features=[{properties:{role:'alternative',routeId:'near'},geometry:{type:'MultiLineString',
+    coordinates:[[[-20,15],[20,15]],[[-20,1],[20,1]]]}}];
+  assert.equal(query(),'near');
+  // A line crossing the square query box but outside the circular tap radius must not win.
+  features=[{properties:{role:'alternative',routeId:'near'},geometry:{type:'LineString',
+    coordinates:[[10,10],[12,12]]}}];
+  assert.equal(query(),null);
+  // Malformed gaps must never be joined into a fictitious selectable line.
+  features=[{properties:{role:'alternative',routeId:'near'},geometry:{type:'LineString',
+    coordinates:[[-20,0],[NaN,0],[20,0]]}}];
+  assert.equal(query(),null);
+  features=[line('far',2),line('near',2)];
+  assert.equal(query(),'far');
 });

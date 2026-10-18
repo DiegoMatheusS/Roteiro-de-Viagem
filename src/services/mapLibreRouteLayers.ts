@@ -88,18 +88,44 @@ export function queryRoleVectorAlternative(
     validIds.size===0) return null;
   const projected=gl.project([coordinates[1],coordinates[0]]);
   if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y))return null;
-  const tolerance=Math.max(4,Math.min(24,tolerancePx));
+  const tolerance=Number.isFinite(tolerancePx)?Math.max(4,Math.min(24,tolerancePx)):12;
   const results=gl.queryRenderedFeatures(
     [[projected.x-tolerance,projected.y-tolerance],
       [projected.x+tolerance,projected.y+tolerance]],
     {layers:['role-alternative-line']}
   );
+  let selected:string|null=null;
+  let nearest=tolerance*tolerance;
   for (const item of results) {
     const id=item.properties?.routeId;
-    if (item.properties?.role==='alternative' && typeof id==='string' && validIds.has(id))
-      return id;
+    if(item.properties?.role!=='alternative' || typeof id!=='string' || !validIds.has(id))continue;
+    const geometry=item.geometry;
+    const lines=geometry?.type==='LineString'?[geometry.coordinates]
+      :geometry?.type==='MultiLineString'?geometry.coordinates:[];
+    for(const line of lines){
+      let previous:{x:number;y:number}|null=null;
+      for(const coordinate of line){
+        if(coordinate.length<2 || !Number.isFinite(coordinate[0]) || !Number.isFinite(coordinate[1])){
+          previous=null;continue;
+        }
+        const point=gl.project([coordinate[0],coordinate[1]]);
+        if(!Number.isFinite(point.x)||!Number.isFinite(point.y)){previous=null;continue;}
+        if(previous){
+          const dx=point.x-previous.x,dy=point.y-previous.y;
+          const length=dx*dx+dy*dy;
+          const t=length?Math.max(0,Math.min(1,
+            ((projected.x-previous.x)*dx+(projected.y-previous.y)*dy)/length)):0;
+          const distance=(projected.x-previous.x-t*dx)**2+(projected.y-previous.y-t*dy)**2;
+          // Keep renderer order only for an exact tie (e.g. shared road segments).
+          if(distance<nearest || (selected===null && distance===nearest)){
+            nearest=distance;selected=id;
+          }
+        }
+        previous=point;
+      }
+    }
   }
-  return null;
+  return selected;
 }
 
 /** MapLibre owns all verified line rendering and precise route hit-testing.
