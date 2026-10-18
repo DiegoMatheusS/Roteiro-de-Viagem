@@ -293,3 +293,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Os pontos decorativos só aparecem na visualização de roteiros, sem poluir a navegação ativa. Não são botões nem áreas de toque, evitando disputa com gestos e com a seleção de rotas.
 - O fallback raster continua usando os mesmos pontos reais, sem criar um marcador DOM a cada 3 vértices em viagens longas. A camada vetorial é removida corretamente ao trocar de estilo.
 - Esta etapa **não habilita rotação/inclinação do mapa**: a câmera do mapa híbrido continua controlada pelo Leaflet até a migração conjunta de gestos e overlays.
+
+## Marcadores de estabelecimentos sem piscadas — PR #59
+
+- Na base vetorial MapLibre, marcadores de postos, pedágios e estabelecimentos deixam de ser **recriados em conjunto** a cada atualização de dados. Um controlador incremental identifica cada local pelo ID e categoria.
+- A atualização isolada de coordenadas usa `Marker.setLngLat`; mudanças de preço aprovado, nome e dados visuais substituem somente o marcador correspondente. Os demais permanecem em tela, com o mesmo foco, estado de toque e sem comandar a câmera.
+- O controlador é instalado uma vez por ciclo do mapa vetorial. Se o WebGL não estiver disponível, a versão Leaflet mantém os ícones, a visualização de preços e os comentários. Após instalar os pins MapLibre, as versões Leaflet são retiradas sem sobreposição.
+- Botões **Sugerir preço**, comentários e acessibilidade continuam usando ações existentes. Valores são exibidos apenas com as regras atuais de preços aprovados; nenhum preço é inventado.
+- Esta atualização melhora a fluidez dos marcadores durante a navegação e busca. **Não altera o backend, o painel administrativo, o contrato GPS ou o controle híbrido da câmera**. Rotação nativa do mapa continua condicionada à migração conjunta dos gestos e dos overlays.

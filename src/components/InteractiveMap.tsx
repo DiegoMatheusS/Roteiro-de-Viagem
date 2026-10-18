@@ -29,6 +29,7 @@ import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
 import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
+import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 // Stable defaults prevent a GPS-driven parent render from recreating all map layers.
@@ -170,6 +171,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
   const [vectorMilestonesReady,setVectorMilestonesReady]=useState(false);
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
+  const vectorPlaceControllerRef=useRef<RoleMarkerController|null>(null);
   const [vectorAlertsReady, setVectorAlertsReady] = useState(false);
   const [vectorNavigationReady, setVectorNavigationReady] = useState(false);
   const [vectorTripPinsReady, setVectorTripPinsReady] = useState(false);
@@ -234,6 +236,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [selectedTollId,setSelectedTollId]=useState<string|null>(null);
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  // Keep the current data/actions available to async MapLibre initialization.
+  // Changing one confirmed fuel price must not rebuild every other pin.
+  const vectorPlaceInputsRef=useRef({stations:fuel.stations,places,tolls,navigationMode,tollVehicleType});
+  vectorPlaceInputsRef.current={stations:fuel.stations,places,tolls,navigationMode,tollVehicleType};
+  const vectorPlaceActionsRef=useRef<RoleMarkerActions>({
+    onStation:(id,section)=>openStation(id,section),
+    onToll:(id,section,place)=>openToll(id,section,place),
+    onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);}
+  });
+  vectorPlaceActionsRef.current={
+    onStation:(id,section)=>openStation(id,section),
+    onToll:(id,section,place)=>openToll(id,section,place),
+    onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);}
+  };
+
 
   const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
@@ -437,43 +454,53 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady]);
 
-  // MapLibre cuida dos marcadores de locais assim que está pronto. Leaflet é
-  // mantido como fallback até a instalação completa, inclusive em WebGL lento.
-  useEffect(() => {
-    setVectorMarkersReady(false);
+  // Install MapLibre pins once per vector map lifecycle, not after every
+  // station price refresh. The Leaflet fallback remains available until ready.
+  useEffect(()=>{
     const gl=vectorMapRef.current;
-    if (!vectorRoutesReady || !gl) return;
-    const descriptors=selectRoleVectorMarkers({
-      stations:fuel.stations, places, tolls, navigationMode, tollVehicleType
-    });
+    if(!vectorRoutesReady || !gl){
+      setVectorMarkersReady(false);
+      return;
+    }
     let disposed=false;
-    let removeMarkers: (()=>void)|null=null;
-    void import('../services/mapLibrePlaceMarkers').then(({addRoleMaplibreMarkers})=>{
-      if (disposed || vectorMapRef.current !== gl) return;
-      try {
-        removeMarkers=addRoleMaplibreMarkers(gl,descriptors,{
-          onStation:(id,section)=>openStation(id,section),
-          onToll:(id,section,place)=>openToll(id,section,place),
-          onPlace:(id)=>{
-            const place=places.find(item=>item.id===id);
-            if (place) setSelectedPlace(place);
-          }
+    void import('../services/mapLibrePlaceMarkers').then(({createRoleMaplibreMarkerController})=>{
+      if(disposed || vectorMapRef.current!==gl)return;
+      let controller:RoleMarkerController|null=null;
+      try{
+        controller=createRoleMaplibreMarkerController(gl,{
+          onStation:(id,section)=>vectorPlaceActionsRef.current.onStation(id,section),
+          onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
+          onPlace:id=>vectorPlaceActionsRef.current.onPlace(id)
         });
-        // Retira as versões Leaflet no mesmo turno em que os marcadores
-        // MapLibre entram no DOM, sem uma janela com botões duplicados.
+        controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
+        vectorPlaceControllerRef.current=controller;
         fuelLayerGroupRef.current?.clearLayers();
         tollLayerGroupRef.current?.clearLayers();
         setVectorMarkersReady(true);
-      } catch {
-        removeMarkers?.();
+      }catch{
+        controller?.destroy();
+        vectorPlaceControllerRef.current=null;
         setVectorMarkersReady(false);
       }
-    }).catch(()=>{ if (!disposed) setVectorMarkersReady(false); });
+    }).catch(()=>{if(!disposed)setVectorMarkersReady(false);});
     return ()=>{
       disposed=true;
-      removeMarkers?.();
+      vectorPlaceControllerRef.current?.destroy();
+      vectorPlaceControllerRef.current=null;
     };
-  }, [vectorRoutesReady, fuel.stations, places, tolls, tollVehicleType, navigationMode]);
+  },[vectorRoutesReady]);
+
+  // Incremental updates: other markers, their click handlers and camera persist.
+  useEffect(()=>{
+    const controller=vectorPlaceControllerRef.current;
+    if(!controller)return;
+    try{controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));}
+    catch{
+      controller.destroy();
+      vectorPlaceControllerRef.current=null;
+      setVectorMarkersReady(false);
+    }
+  },[fuel.stations,places,tolls,navigationMode,tollVehicleType]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.

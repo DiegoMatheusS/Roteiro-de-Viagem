@@ -9,6 +9,18 @@ export type RoleVectorMarker =
   | { kind:'toll'; id:string; coords:[number,number]; name:string; priceLabel:string|null; place:Place|null }
   | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind'] };
 
+/** Stable identity and visual metadata used by the incremental vector renderer.
+ * Moving a place should only call Marker.setLngLat, never recreate its buttons.
+ */
+export function rolePlaceMarkerKey(entry: RoleVectorMarker): string {
+  return `${entry.kind}:${entry.id}`;
+}
+export function rolePlaceMarkerSignature(entry: RoleVectorMarker): string {
+  const {coords: _coords,...visualMetadata}=entry;
+  void _coords;
+  return JSON.stringify(visualMetadata);
+}
+
 export function validMarkerPosition(position: [number, number]): boolean {
   return position.length === 2 && Number.isFinite(position[0]) && Number.isFinite(position[1])
     && Math.abs(position[0]) <= 90 && Math.abs(position[1]) <= 180;

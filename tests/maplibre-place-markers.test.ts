@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { selectRoleVectorMarkers, toMarkerLngLat } from '../src/services/vectorPlaceData';
+import { selectRoleVectorMarkers, toMarkerLngLat,rolePlaceMarkerKey,rolePlaceMarkerSignature } from '../src/services/vectorPlaceData';
 import type { FuelStation, FuelPrice } from '../src/types/fuel';
 import type { Place } from '../src/types/admin';
 import type { RouteToll } from '../src/types/tolls';
@@ -61,6 +61,35 @@ test('componentes MapLibre mantêm botão de preços, acessibilidade e fallback 
  assert.match(gl,/marker\.remove\(\)/);
  assert.match(map,/if \(vectorMarkersReady\) return;/);
  assert.match(map,/setVectorMarkersReady\(false\)/);
- assert.match(map,/removeMarkers\?\.\(\)/);
+ assert.match(map,/vectorPlaceControllerRef\.current\?\.destroy\(\)/);
  assert.match(map,/L\.marker\(\[station\.lat, station\.lng\]/);
+});
+
+test('incremental keys preserve marker identity across coordinate refreshes',()=>{
+ const base={kind:'fuel' as const,id:station.id,coords:[station.lat,station.lng] as [number,number],
+   name:station.name,priceLabel:'R$ 5,89'};
+ const moved={...base,coords:[-23.56,-46.64] as [number,number]};
+ const repriced={...base,priceLabel:'R$ 5,99'};
+ assert.equal(rolePlaceMarkerKey(base),rolePlaceMarkerKey(moved));
+ assert.equal(rolePlaceMarkerSignature(base),rolePlaceMarkerSignature(moved));
+ assert.notEqual(rolePlaceMarkerSignature(base),rolePlaceMarkerSignature(repriced));
+ assert.notEqual(rolePlaceMarkerKey(base),rolePlaceMarkerKey({...base,kind:'place',category:place.kind} as never));
+});
+test('a fuel/toll update does not recreate all native MapLibre markers',()=>{
+ const path=(name:string)=>readFileSync(new URL('../'+name,import.meta.url),'utf8');
+ const controller=path('src/services/mapLibrePlaceMarkers.ts');
+ const map=path('src/components/InteractiveMap.tsx');
+ assert.match(controller,/createRoleMaplibreMarkerController\(/);
+ assert.match(controller,/existing\?\.visualSignature===signature/);
+ assert.match(controller,/existing\.marker\.setLngLat\(toMarkerLngLat\(entry\.coords\)\)/);
+ assert.match(controller,/existing\?\.marker\.remove\(\)/);
+ assert.match(controller,/const marker=buildMarker\(entry\)/);
+ assert.match(controller,/if\(destroyed\)return/);
+ assert.match(map,/controller\.update\(selectRoleVectorMarkers\(vectorPlaceInputsRef\.current\)\)/);
+ assert.match(map,/vectorPlaceActionsRef\.current\.onStation/);
+ assert.match(map,/vectorPlaceControllerRef\.current=controller/);
+ const install=map.slice(map.indexOf('// Install MapLibre pins once'),map.indexOf('// Incremental updates:'));
+ assert.match(install,/\},\[vectorRoutesReady\]\)/);
+ assert.doesNotMatch(install,/\[vectorRoutesReady,\s*fuel\.stations/);
+ assert.match(map,/if \(vectorMarkersReady\) return;/);
 });

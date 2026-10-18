@@ -2,7 +2,7 @@ import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
 import L from 'leaflet';
 import { mapContributionIcon } from '../components/mapContributionIcon';
 import { mapPlaceIcon } from '../components/mapPlaceIcon';
-import { toMarkerLngLat, type RoleVectorMarker } from './vectorPlaceData';
+import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSignature,type RoleVectorMarker } from './vectorPlaceData';
 import type { Place } from '../types/admin';
 
 export interface RoleMarkerActions {
@@ -26,13 +26,22 @@ function iconElement(icon: L.DivIcon, className: string): HTMLDivElement {
   return root;
 }
 
-export function addRoleMaplibreMarkers(
+export interface RoleMarkerController {
+  update(descriptors: readonly RoleVectorMarker[]):void;
+  destroy():void;
+}
+interface TrackedRoleMarker {
+  marker:Marker;
+  visualSignature:string;
+  coords: [number,number];
+}
+export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
-  descriptors: RoleVectorMarker[],
   actions: RoleMarkerActions
-): () => void {
-  const markers: Marker[]=[];
-  for(const entry of descriptors) {
+):RoleMarkerController {
+  const markers=new Map<string,TrackedRoleMarker>();
+  let destroyed=false;
+  const buildMarker=(entry:RoleVectorMarker):Marker=>{
     let root: HTMLDivElement;
     let anchor: 'top'|'center'='top';
     let offset: [number,number]=[0,-22];
@@ -71,7 +80,55 @@ export function addRoleMaplibreMarkers(
     const marker=new Marker({element:root,anchor,offset})
       .setLngLat(toMarkerLngLat(entry.coords))
       .addTo(gl);
-    markers.push(marker);
-  }
-  return () => { for (const marker of markers) marker.remove(); };
+    return marker;
+  };
+  return {
+    update(descriptors){
+      if(destroyed)return;
+      const wanted=new Map<string,RoleVectorMarker>();
+      for(const entry of descriptors){
+        if(!entry.id || !validMarkerPosition(entry.coords))continue;
+        const key=rolePlaceMarkerKey(entry);
+        if(!wanted.has(key))wanted.set(key,entry);
+      }
+      // First remove stale IDs, then update only changed individual markers.
+      for(const [key,record] of markers){
+        if(!wanted.has(key)){record.marker.remove();markers.delete(key);}
+      }
+      for(const [key,entry] of wanted){
+        const signature=rolePlaceMarkerSignature(entry);
+        const existing=markers.get(key);
+        if(existing?.visualSignature===signature){
+          if(existing.coords[0]!==entry.coords[0] || existing.coords[1]!==entry.coords[1]){
+            existing.marker.setLngLat(toMarkerLngLat(entry.coords));
+            existing.coords=[...entry.coords];
+          }
+          continue;
+        }
+        // Replace only the marker whose label, price or details changed.
+        // Build before removing an existing element to avoid a blank frame.
+        const marker=buildMarker(entry);
+        existing?.marker.remove();
+        markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords]});
+      }
+    },
+    destroy(){
+      if(destroyed)return;
+      destroyed=true;
+      for(const record of markers.values())record.marker.remove();
+      markers.clear();
+    }
+  };
+}
+
+/** Backward-compatible one-shot entry point for callers outside the map. */
+export function addRoleMaplibreMarkers(
+  gl: MapLibreMap,
+  descriptors: RoleVectorMarker[],
+  actions: RoleMarkerActions
+): () => void {
+  const controller=createRoleMaplibreMarkerController(gl,actions);
+  try{controller.update(descriptors);}
+  catch(error){controller.destroy();throw error;}
+  return ()=>controller.destroy();
 }
