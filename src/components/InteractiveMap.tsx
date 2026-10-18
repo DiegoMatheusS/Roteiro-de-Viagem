@@ -26,6 +26,7 @@ import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers'
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
+import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
@@ -1351,10 +1352,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       );
     }
 
-    // GPS refreshes move markers without undoing the user's zoom and map position.
-    const geometryKey=JSON.stringify([originCoords,destinationCoords,routeAlternatives.length ? routeAlternatives.map(r=>[r.id,r.routePath]) : routePath,stops.map(s=>[s.lat,s.lng]),meetingPoints.map(p=>p.coords)]);
-    if(fittedGeometryRef.current===geometryKey)return;
-    if(bounds.length)fittedGeometryRef.current=geometryKey;
+    // Fit a NEW journey, never a different selection within the same set
+    // of OSRM alternatives. The user controls zoom while comparing options.
+    // Meeting/stops/weather updates also must not recenter the viewport.
+    const geometryKey=mapRouteFitKey({
+      origin:originCoords,destination:destinationCoords,
+      routePath,alternatives:routeAlternatives
+    });
+    if(!shouldFitMapRoute(fittedGeometryRef.current,geometryKey,bounds.length>0))return;
+    fittedGeometryRef.current=geometryKey;
     if (bounds.length > 1) {
       const sheetOverlay = roadStyle && routeAlternatives.length > 0;
       map.fitBounds(bounds as L.LatLngBoundsExpression, {
