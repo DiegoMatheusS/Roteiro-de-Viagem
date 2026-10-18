@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {mapRouteFitKey,shouldFitMapRoute} from '../src/services/mapRouteFit';
+import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../src/services/mapRouteFit';
 
 const first:[[number,number],[number,number],[number,number]]=[
   [-23.55,-46.63],[-23.56,-46.64],[-23.58,-46.65]
@@ -50,4 +50,17 @@ test('MapLibre and Leaflet keep existing automatic initial fit and do not reset 
   assert.match(map,/createHybridCameraPort\(map\)\.fitRoute\(bounds as \[number,number\]\[\],\{/);
   assert.match(map,/bottomRight:\[36,sheetOverlay\?/);
   assert.doesNotMatch(map,/stops\.map\(s=>\[s\.lat,s\.lng\]\),meetingPoints\.map\(p=>p\.coords\)/);
+});
+
+
+test('recalculating a route during navigation never steals camera control',()=>{
+  assert.equal(shouldAutoFitRouteCamera(true,true,false),false,'valid GPS already owns the camera');
+  assert.equal(shouldAutoFitRouteCamera(true,true,true),false,'manual camera exploration has priority');
+  assert.equal(shouldAutoFitRouteCamera(true,false,true),false,'no GPS must not reset manual exploration');
+  assert.equal(shouldAutoFitRouteCamera(true,false,false),true,'initial route fits before the first GPS fix');
+  assert.equal(shouldAutoFitRouteCamera(false,true,true),true,'planning a new itinerary still fits all routes');
+  const native=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+  const fallback=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
+  assert.match(native,/shouldAutoFitRouteCamera\(!!p\.navigationMode,/);
+  assert.match(fallback,/shouldAutoFitRouteCamera\(navigationMode,/);
 });
