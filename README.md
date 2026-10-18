@@ -261,3 +261,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - As operações de reposicionamento e acompanhamento agora passam por uma única interface de câmera (`mapCameraController.ts`). O **Leaflet continua sendo o dono da câmera no mapa híbrido**, garantindo que base MapLibre, pontos, rotas, alertas e áreas de toque se movam juntos.
 - Um adaptador de câmera MapLibre para modo **standalone futuro** está definido e testado, mas **não é ativado na ponte híbrida**. Gestos nativos de rotação, inclinação e orientação do mapa pelo rumo continuam pendentes de uma migração conjunta de câmera e interações.
 - Não muda permissões de GPS, não faz alterações no backend e não altera o painel administrativo. 
+
+## Gestos de zoom sem disputa com GPS (PR #55)
+
+- Na navegação ativa, **pinça com dois dedos, zoom pelo mouse/trackpad, duplo toque, gesto do Safari e teclas de zoom** suspendem o acompanhamento automático do GPS, assim como arrastar o mapa já fazia.
+- O mapa não bloqueia os eventos de toque: os listeners são passivos e apenas mudam o modo de câmera para **Explorando**. O botão **Seguir GPS** permanece disponível para recentralizar e voltar ao acompanhamento mantendo o zoom útil escolhido.
+- O tratamento fica restrito ao elemento real do mapa (não aos controles flutuantes) e ignora interações em marcadores e pop-ups, sem efeitos em comboios e navegação por código.
+- Os listeners de zoom são removidos quando o mapa é desmontado. Testes unitários exercitam eventos de pinça, rolagem, teclado e remoção, além de validar que o controlador híbrido continua único.
+- **Ainda não habilita gestos MapLibre independentes, rotação automática do mapa ou inclinação 3D**. O Leaflet continua controlando a câmera para que linhas, alertas e hit areas não se desalinhem. O trabalho para removê-lo será feito com migração conjunta e testes físicos de Android.

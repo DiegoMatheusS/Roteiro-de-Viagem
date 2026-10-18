@@ -23,6 +23,7 @@ import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
+import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
@@ -288,6 +289,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       cameraModeChangeRef.current?.('exploring');
     };
     map.on('dragstart',pauseFollowing);
+    map.on('boxzoomstart',pauseFollowing);
+    // Pinch, trackpad, double-tap and keyboard zoom count as user exploration,
+    // just like dragging: GPS follow must not recenter while zooming.
+    // They are detected on the map canvas, not on floating navigation controls.
+    const unbindManualZoom=bindManualMapZoom(map.getContainer(),pauseFollowing);
 
     mapInstanceRef.current = map;
     setHasMapReady(true);
@@ -306,6 +312,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       map.off('dragstart',pauseFollowing);
+      map.off('boxzoomstart',pauseFollowing);
+      unbindManualZoom();
       map.stop();
       map.remove();
       mapInstanceRef.current = null;
