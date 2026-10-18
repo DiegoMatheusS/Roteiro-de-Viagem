@@ -1363,14 +1363,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     fittedGeometryRef.current=geometryKey;
     if (bounds.length > 1) {
       const sheetOverlay = roadStyle && routeAlternatives.length > 0;
-      map.fitBounds(bounds as L.LatLngBoundsExpression, {
-        paddingTopLeft: [36, 70],
-        paddingBottomRight: [36, sheetOverlay ? Math.min(360, Math.round(map.getSize().y * .46)) : 64],
-        maxZoom: 13,
-        animate: false
+      // The hybrid Leaflet camera remains the sole viewport owner.
+      // The standalone MapLibre adapter accepts identical route padding.
+      createHybridCameraPort(map).fitRoute(bounds as [number,number][],{
+        topLeft:[36,70],
+        bottomRight:[36,sheetOverlay?Math.min(360,Math.round(map.getSize().y*.46)):64],
+        maxZoom:13
       });
-    } else if (bounds.length === 1) {
-      map.setView(bounds[0], 12);
+    } else if(bounds.length===1){
+      createHybridCameraPort(map).focus(bounds[0] as [number,number],12);
     }
   }, [
     originCoords,
@@ -1409,7 +1410,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!changed) return;
     if (!last && !followSuspendedRef.current) {
       // GPS first fix: keep initial reposition snappy, no cross-country flyover.
-      map.setView(userLiveCoords, 16, { animate: false });
+      createHybridCameraPort(map).firstGpsFix(userLiveCoords);
     } else if (followUser && !followSuspendedRef.current) {
       const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
       createHybridCameraPort(map).follow(userLiveCoords,reducedMotion);
