@@ -1,10 +1,13 @@
 import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
+import { arrowHeadingStyle } from './gpsHeading';
 
 export type RolePosition = [number,number]; // latitude, longitude
 export interface NavigationPins {
   origin?: RolePosition;
   destination?: RolePosition;
   live?: RolePosition;
+  headingDegrees?: number | null;
+  speedMetersPerSecond?: number | null;
   originLabel: string;
   destinationLabel: string;
   navigationMode: boolean;
@@ -84,6 +87,7 @@ export interface NavigationPinController {
 export function createRoleNavigationPins(map:MapLibreMap):NavigationPinController {
   const current = new Map<Kind,{marker:Marker;element:HTMLButtonElement;label:string;roadStyle:boolean}>();
   let destroyed=false;
+  let lastHeading:number|null=null;
   const drop=(kind:Kind)=>{
     const pin=current.get(kind);
     if(!pin)return;
@@ -113,6 +117,12 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
         const coords=kind==='origin'?input.origin:kind==='destination'?input.destination:input.live;
         if(!coords)continue;
         upsert(kind,coords,kind==='origin'?input.originLabel:kind==='destination'?input.destinationLabel:'GPS',input.roadStyle);
+      }
+      const live=current.get('live');
+      if(live){
+        const svg=live.element.querySelector('svg');
+        lastHeading=arrowHeadingStyle(svg,lastHeading,input.headingDegrees,input.speedMetersPerSecond,
+          window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false);
       }
     },
     destroy(){
