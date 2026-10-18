@@ -253,3 +253,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Direções inválidas, ausentes ou com velocidade conhecida inferior a 1,4 m/s não fazem a seta girar. A última direção válida é mantida para reduzir oscilações em paradas. A interpolação angular escolhe o caminho mais curto ao cruzar 0°/360°.
 - A animação da seta respeita `prefers-reduced-motion`; não há novas permissões nem telemetria de GPS. O código não calcula rumo a partir de posições incertas nem inventa valores.
 - **Nesta fase a câmera continua apontada para o norte:** a base MapLibre ainda usa gestos e viewport controlados pelo Leaflet. Girar apenas a câmera MapLibre causaria dessincronização das rotas e pinos. Rotação do mapa e gestos MapLibre independentes exigem uma próxima etapa que substitua o adaptador por um controlador único e seja testada em aparelhos reais.
+
+## Controle de câmera da navegação — PR #54
+
+- Durante uma viagem ativa, **arrastar o mapa suspende o acompanhamento automático**. O botão GPS passa a mostrar **Seguir GPS**, deixando explícito como voltar a acompanhar o veículo.
+- Ao tocar em Seguir GPS, a câmera se recentraliza e volta a acompanhar as próximas posições. O zoom escolhido pela pessoa é preservado quando já está em escala útil de navegação, evitando saltos para um zoom fixo. Usuários que preferem movimento reduzido não recebem animação forçada.
+- As operações de reposicionamento e acompanhamento agora passam por uma única interface de câmera (`mapCameraController.ts`). O **Leaflet continua sendo o dono da câmera no mapa híbrido**, garantindo que base MapLibre, pontos, rotas, alertas e áreas de toque se movam juntos.
+- Um adaptador de câmera MapLibre para modo **standalone futuro** está definido e testado, mas **não é ativado na ponte híbrida**. Gestos nativos de rotação, inclinação e orientação do mapa pelo rumo continuam pendentes de uma migração conjunta de câmera e interações.
+- Não muda permissões de GPS, não faz alterações no backend e não altera o painel administrativo. 
