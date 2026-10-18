@@ -105,8 +105,8 @@ export function queryRoleVectorAlternative(
 /** MapLibre owns all verified line rendering and precise route hit-testing.
  * Leaflet only forwards map gestures/clicks and provides full raster fallback.
  */
-export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOptions): void {
-  if (!gl.isStyleLoaded()) return;
+export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOptions): number {
+  if (!gl.isStyleLoaded()) return 0;
   const data = buildRoleRouteCollection(options);
   const existing = gl.getSource(SOURCE) as GeoJSONSource | undefined;
   if (existing) {
@@ -137,6 +137,8 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
   }
   addLine(layers[5], 'remaining', '#67c7ff', 7, 1);
   addLine(layers[6], 'travelled', '#17479b', 7, 1);
+  // Report features successfully supplied to the vector source for UI diagnostics.
+  return data.features.length;
 }
 
 export function clearRoleVectorRoutes(gl: MapLibreMap): void {
