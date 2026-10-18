@@ -57,6 +57,66 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
+  // KM/H are one-tap navigation for guests: no login, garage, or planner step.
+  const guestContext=await browser.newContext({
+    viewport:{width:390,height:844},permissions:['geolocation'],
+    geolocation:{latitude:-23.551,longitude:-46.629,accuracy:3}
+  });
+  const guestPage=await guestContext.newPage();
+  const guestErrors:string[]=[];
+  const modes:string[]=[];
+  guestPage.on('pageerror',error=>guestErrors.push(error.message));
+  await guestPage.route('https://**',route=>route.abort());
+  await guestPage.route('**/api/routes/tourist',async route=>{
+    const body=route.request().postDataJSON() as {
+      mode:string;target:number;tripType:string;
+      originCoords:[number,number];interests:string[];
+    };
+    modes.push(body.mode);
+    assert.ok(['km','hours'].includes(body.mode));
+    assert.ok(body.target>0);
+    assert.equal(body.tripType,'round_trip');
+    assert.deepEqual(body.interests,[], 'default route should not invent sightseeing preferences');
+    const origin=body.originCoords;
+    const via:[number,number]=[origin[0]+0.01,origin[1]+0.01];
+    await route.fulfill({json:{
+      title:'Passeio rápido para visitante',destinationName:'Seu ponto de partida',
+      destinationCoords:origin,isCircular:true,distanceKm:40,durationMinutes:70,
+      routePath:[origin,via,origin],routeSteps:[
+        {coords:via,distanceFromStartKm:1,type:'turn',modifier:'right',name:'Via verificada'}
+      ],waypoints:[origin,via,origin],stops:[],warnings:[],
+      routingSource:'OSRM',tollsStatus:'unknown'
+    }});
+  });
+  await guestPage.goto('http://127.0.0.1:3000');
+  await guestPage.getByRole('heading',{name:'Dar um rolê por aí?'}).waitFor();
+  for(const choice of [
+    {name:/Por distância/,label:'Quantidade de quilômetros',amount:'40',mode:'km'},
+    {name:/Por tempo/,label:'Quantidade de horas',amount:'1',mode:'hours'}
+  ]) {
+    await guestPage.getByRole('button',{name:choice.name}).click();
+    const modal=guestPage.getByRole('dialog',{name:'Criar um rolê'});
+    await modal.getByLabel(choice.label).fill(choice.amount);
+    assert.equal(await modal.getByText('Sem login ou veículo cadastrado.',{exact:false}).count(),1);
+    const request=guestPage.waitForRequest(req=>
+      new URL(req.url()).pathname==='/api/routes/tourist' && req.method()==='POST');
+    await modal.getByRole('button',{name:'Gerar e iniciar rolê'}).click();
+    const sent=await request;
+    assert.equal((sent.postDataJSON() as {mode:string}).mode,choice.mode);
+    await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
+    assert.equal(await guestPage.getByRole('dialog',{name:'Conta do viajante'}).count(),0);
+    const guestSaved=await guestPage.evaluate(()=>{
+      const raw=localStorage.getItem('rdv_private_v2_guest_trips')||'[]';
+      return JSON.parse(raw) as Array<{vehicleId:string;estimatedFuelLiters:number}>;
+    });
+    assert.ok(guestSaved.some(t=>t.vehicleId==='role-guest-navigation'&&t.estimatedFuelLiters===0));
+    await guestPage.getByRole('button',{name:'Encerrar viagem',exact:true}).click();
+    await guestPage.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
+    await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
+  }
+  assert.deepEqual(modes,['km','hours']);
+  assert.deepEqual(guestErrors,[]);
+  await guestContext.close();
   // Um único botão Comboio abre a escolha Criar/Entrar sem sair do Início.
   const comboioHome = page.getByRole('button',{name:'Comboio',exact:true});
   await comboioHome.click();

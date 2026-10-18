@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Vehicle, TripPlan } from '../types';
 import { PRESET_DESTINATIONS } from '../data/sampleRoutes';
 import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
+import { GUEST_NAVIGATION_VEHICLE } from '../services/guestNavigationVehicle';
 import { canTypeTouristTarget, getTouristTargetError, getTouristTargetWarning, parseTouristTarget } from '../services/touristTargetInput';
 import { LocationSearch } from './LocationSearch';
 import { ManualStopsEditor } from './ManualStopsEditor';
@@ -170,7 +171,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   };
 
   const handleTouristGeneration = async (mode: 'km' | 'hours', target: number) => {
-    if (!currentVehicle || isGenerating || isGettingGps) return;
+    if (isGenerating || isGettingGps) return;
     setIsGenerating(true); setIsGettingGps(true); setLocationError(null);
     try {
       const position = await getCurrentDeviceLocation();
@@ -178,7 +179,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       setGpsOrigin(name); setIsGettingGps(false);
       const verified = await generateVerifiedTouristCircuit({
         mode, target, tripType, originName: name, originCoords: position.coords,
-        interests: touristInterests, vehicle: currentVehicle
+        interests: touristInterests, vehicle: currentVehicle || GUEST_NAVIGATION_VEHICLE
       });
       launchTrip(verified);
     } catch (error) {
@@ -275,7 +276,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             ? <button type="button" className="font-bold underline" onClick={() => void TravelNative.openDeviceSettings({ section: 'app' }).catch(error => setLocationError((error as Error).message))}>Abrir permissões de localização</button>
             : <p>Para usar o GPS, autorize a localização nas permissões deste site. Se estiver bloqueada, clique no ícone ao lado do endereço do site, permita o acesso e tente novamente. Você também pode selecionar a origem manualmente no modo Com destino.</p>)}
         </div>}
-        {!currentVehicle && <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">Cadastre sua moto ou carro em <strong>Ajustes → Minha Garagem</strong> para calcular combustível e gerar viagens. Nenhum veículo é adicionado automaticamente.</div>}
+        {!currentVehicle && <div role="status" className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">Passeios por KM ou horas funcionam sem conta e sem veículo cadastrado. O cálculo personalizado de combustível só fica disponível após cadastrar um veículo.</div>}
         {isGenerating && <p role="status" className="text-xs text-emerald-700 font-semibold">{isGettingGps ? 'Obtendo sua localização pelo GPS...' : 'Buscando atrações reais e verificando estradas. Aguarde...'}</p>}
         {/* ACTIVE CONVOY QUICK BANNER */}
         {activeConvoyId && (
@@ -543,7 +544,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão de Gerar Roteiro por Km */}
               <button
                 type="submit"
-                disabled={!currentVehicle || isGenerating || isGettingGps}
+                disabled={isGenerating || isGettingGps}
                 className="w-full py-3.5 px-4 rounded-2xl disabled:opacity-50 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4" />
@@ -792,7 +793,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               {/* Botão de Gerar Roteiro por Horas */}
               <button
                 type="submit"
-                disabled={!currentVehicle || isGenerating || isGettingGps}
+                disabled={isGenerating || isGettingGps}
                 className="w-full py-3.5 px-4 rounded-2xl disabled:opacity-50 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4" />

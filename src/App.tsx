@@ -309,16 +309,14 @@ export default function App() {
 
   // Launch circular tour ("Passear e Voltar")
   const handleLaunchCircularTour = async (params: { distanceKm?: number; durationHours?: number; budget?: number; returnHour?: string; isSurprise?: boolean }) => {
-    if (!currentVehicle) { setAppError('Cadastre um veículo em Ajustes → Minha Garagem.'); return; }
     if (params.budget) { setAppError('Para gerar por orçamento, informe primeiro um preço de combustível no planejamento. Use Por Km ou Por Horas no Início.'); return; }
     try {
       const position = await getCurrentDeviceLocation();
       const hoursUntilReturn = params.returnHour ? (new Date(new Date().toDateString() + ' ' + params.returnHour).getTime() - Date.now()) / 3600000 : undefined;
       if (hoursUntilReturn !== undefined && hoursUntilReturn <= 0) throw new Error('Escolha um horário de retorno futuro.');
       const trip = await generateVerifiedTouristCircuit({ mode: params.durationHours || hoursUntilReturn ? 'hours' : 'km', target: params.durationHours || hoursUntilReturn || params.distanceKm || 100,
-        tripType: 'round_trip', interests: ['mirante', 'parque', 'museu'], originCoords: position.coords, originName: 'Sua localização atual', vehicle: currentVehicle });
-      setPlanningOrigin(trip.originName); setPlanningOriginCoords(trip.originCoords); setPlanningDestination(trip.destinationName); setPlanningDestinationCoords(trip.destinationCoords);
-      setPlanningTrip(trip); setIsNavigationOpen(false); setIsPlanningOpen(true);
+        tripType: 'round_trip', interests: ['panoramico', 'natureza', 'museus'], originCoords: position.coords, originName: 'Sua localização atual', vehicle: currentVehicle || GUEST_NAVIGATION_VEHICLE });
+      handleStartTrip(trip);
     } catch (error) { setAppError((error as Error).message); }
   };
 
@@ -425,15 +423,6 @@ export default function App() {
               <NavigationHome
                 currentVehicle={currentVehicle}
                 trips={trips}
-                onLaunchTouristCircuit={(trip) => {
-                  setPlanningOrigin(trip.originName);
-                  setPlanningOriginCoords(trip.originCoords);
-                  setPlanningDestination(trip.destinationName);
-                  setPlanningDestinationCoords(trip.destinationCoords);
-                  setPlanningTrip(trip);
-                  setIsNavigationOpen(false);
-                  setIsPlanningOpen(true);
-                }}
                 onStartTrip={handleStartTrip}
                 onOpenAllTrips={() => setActiveTab('salvos')}
                 onOpenAllSuggestions={() => setActiveTab('passeios')}
@@ -460,6 +449,18 @@ export default function App() {
                 onSelectVehicle={handleSelectVehicle}
                 onOpenRoutePlanner={handleOpenRoutePlanner}
                 onLaunchTouristCircuit={(circuitTrip) => {
+                  const quickTrip = circuitTrip.planningLimits?.mode === 'km' || circuitTrip.planningLimits?.mode === 'hours';
+                  // Advanced planning keeps its editor when the user has a configured vehicle.
+                  // Guests instead enter navigation directly, without being sent to the vehicle-only editor.
+                  if (quickTrip && !currentVehicle && !circuitTrip.departureAt) {
+                    handleStartTrip(circuitTrip);
+                    return;
+                  }
+                  // Scheduled guest trips may be stored locally without a garage.
+                  if (quickTrip && !currentVehicle) {
+                    handleSaveTrip(circuitTrip);
+                    return;
+                  }
                   setPlanningOrigin(circuitTrip.originName);
                   setPlanningOriginCoords(circuitTrip.originCoords);
                   setPlanningDestination(circuitTrip.destinationName);
