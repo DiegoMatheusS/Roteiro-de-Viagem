@@ -23,7 +23,8 @@ test('hybrid controller uses only Leaflet camera commands and supports reduced m
     getZoom:()=>17,
     setView:(...args:[unknown,...unknown[]])=>calls.push({name:'setView',args}),
     flyTo:(...args:[unknown,...unknown[]])=>calls.push({name:'flyTo',args}),
-    panTo:(...args:[unknown,...unknown[]])=>calls.push({name:'panTo',args})
+    panTo:(...args:[unknown,...unknown[]])=>calls.push({name:'panTo',args}),
+    fitBounds:(...args:[unknown,...unknown[]])=>calls.push({name:'fitBounds',args})
   };
   const controller=createHybridCameraPort(surface);
   controller.recenter([-23.5,-46.6],true,false);
@@ -41,7 +42,8 @@ test('standalone MapLibre adapter uses correct longitude/latitude only when expl
   const controller=createStandaloneMapLibreCameraPort({
     getZoom:()=>16,
     jumpTo:(options)=>calls.push({name:'jumpTo',options}),
-    easeTo:(options)=>calls.push({name:'easeTo',options})
+    easeTo:(options)=>calls.push({name:'easeTo',options}),
+    fitBounds:(bounds,options)=>calls.push({name:'fitBounds',options:{bounds,...options}})
   });
   controller.recenter([-23.5,-46.6],true,false);
   controller.follow([-23.55,-46.63],true);
@@ -64,4 +66,49 @@ test('hybrid map only issues camera moves through the Leaflet port; drag shows v
   assert.match(screen,/>Seguir GPS<\/span>/);
   assert.match(screen,/aria-label="Centralizar mapa na minha localização"/);
   assert.doesNotMatch(map,/vectorMapRef\.current\.(?:easeTo|jumpTo|setBearing)/);
+});
+
+test('all initial positioning and bounds fits go through one hybrid Leaflet camera',()=>{
+  const calls:Array<{name:string;args:unknown[]}>=[];
+  const surface={
+    getZoom:()=>12,
+    setView:(...args:[unknown,...unknown[]])=>calls.push({name:'setView',args}),
+    flyTo:(...args:[unknown,...unknown[]])=>calls.push({name:'flyTo',args}),
+    panTo:(...args:[unknown,...unknown[]])=>calls.push({name:'panTo',args}),
+    fitBounds:(...args:[unknown,...unknown[]])=>calls.push({name:'fitBounds',args})
+  };
+  const camera=createHybridCameraPort(surface);
+  camera.firstGpsFix([-23.55,-46.63]);
+  camera.focus([-23.6,-46.64],12);
+  camera.fitRoute([[-23.55,-46.63],[-23.6,-46.64]],
+    {topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
+  assert.deepEqual(calls.map(c=>c.name),['setView','setView','fitBounds']);
+  assert.deepEqual(calls[0].args, [[-23.55,-46.63],16,{animate:false}]);
+  assert.deepEqual(calls[1].args, [[-23.6,-46.64],12,{animate:false}]);
+  assert.deepEqual(calls[2].args, [
+    [[-23.55,-46.63],[-23.6,-46.64]],
+    {paddingTopLeft:[36,70],paddingBottomRight:[36,260],maxZoom:13,animate:false}
+  ]);
+});
+test('standalone MapLibre camera fits accurate lng/lat bounds and preserves sheet padding',()=>{
+  const calls:Array<{name:string;args:unknown[]}>=[];
+  const surface={
+    getZoom:()=>12,
+    jumpTo:(options:unknown)=>calls.push({name:'jumpTo',args:[options]}),
+    easeTo:(options:unknown)=>calls.push({name:'easeTo',args:[options]}),
+    fitBounds:(bounds:unknown,options:unknown)=>calls.push({name:'fitBounds',args:[bounds,options]})
+  };
+  const camera=createStandaloneMapLibreCameraPort(surface);
+  camera.firstGpsFix([-23.55,-46.63]);
+  camera.focus([-23.6,-46.64],12);
+  camera.fitRoute([[-23.55,-46.63],[-23.6,-46.64]],
+    {topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
+  assert.deepEqual(calls.map(c=>c.name),['jumpTo','jumpTo','fitBounds']);
+  assert.deepEqual(calls[0].args[0],{center:[-46.63,-23.55],zoom:16});
+  assert.deepEqual(calls[2].args,[
+    [[-46.64,-23.6],[-46.63,-23.55]],
+    {padding:{top:70,left:36,bottom:260,right:36},maxZoom:13,duration:0}
+  ]);
+  camera.fitRoute([], {topLeft:[0,0],bottomRight:[0,0],maxZoom:13});
+  assert.equal(calls.length,3);
 });
