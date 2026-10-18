@@ -67,7 +67,7 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
 
   app.post('/api/road-alerts/route', (req, res) => {
     limit(`road-alert-read:${clientIp(req)}`, 30, 60000);
-    const path = validate(() => validateCoordinates(req.body?.routePath));
+    const path = validate(() => validateCoordinates(req.body?.routePath, 2500));
     if (path.length < 2 || path.length > 2500) throw new ApiError('Informe uma rota válida de 2 a 2500 coordenadas.');
     const latitudes = path.map(p => p[0]), longitudes = path.map(p => p[1]);
     // Filtra por caixa delimitadora antes da checagem exata por distância da geometria.

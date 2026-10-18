@@ -13,6 +13,7 @@ import { discoverStations, roadRoute, validateCoordinates, type MapFetch } from 
 import { stationDetails } from './prices';
 import { sanitizePhoto } from './photos';
 import { registerAdminRoutes } from './admin';
+import { createRateLimiter } from './rateLimit';
 import { registerItineraryRoutes } from './itinerary';
 import { registerTouristRoutes } from './tourist';
 import { registerSharingRoutes } from './sharing';
@@ -46,16 +47,12 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   app.disable('x-powered-by');
   if (process.env.TRUST_PROXY_HOPS === '1') app.set('trust proxy', 1);
   app.use(express.json({ limit: '1.5mb' }));
-  const attempts = new Map<string, { count: number; reset: number }>();
-  const limit = (key: string, max: number, windowMs: number) => {
-    if (attempts.size > 10000) for (const [id, entry] of attempts) if (entry.reset < Date.now()) attempts.delete(id);
-    const current = attempts.get(key);
-    if (!current || current.reset <= Date.now()) { attempts.set(key, { count: 1, reset: Date.now() + windowMs }); return; }
-    if (++current.count > max) throw new ApiError('Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429);
-  };
+  const limit = createRateLimiter();
   app.use('/api', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'");
     res.setHeader('Referrer-Policy', 'same-origin');
     try {
       // Testes E2E executam vários navegadores no mesmo IP; produção mantém 180/minuto.

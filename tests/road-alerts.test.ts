@@ -53,6 +53,12 @@ test('road hazards require signed-in sender and admin approval; public route rev
     assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},admin.cookie)).status,200);
     const visible=await call('POST','/road-alerts/route',{routePath:route});
     assert.equal(visible.data.alerts.length,1);
+    const longPath=Array.from({length:1000},(_,i)=>[-23.5,-46.6+(i%5)*0.005] as [number,number]);
+    const longResult=await call('POST','/road-alerts/route',{routePath:longPath});
+    assert.equal(longResult.status,200,'long real routes should load alerts, not fail at 25 points');
+    assert.equal(longResult.data.alerts.length,1);
+    assert.equal((await call('POST','/road-alerts/route',{routePath:Array.from({length:2501},()=>route[0])})).status,400);
+    assert.equal((await call('POST','/road-alerts/route',{routePath:[[0,0],[NaN,0]]})).status,400);
     assert.equal(visible.data.alerts[0].note,event.note);
     assert.equal('submittedBy' in visible.data.alerts[0],false);
     assert.equal('status' in visible.data.alerts[0],false);

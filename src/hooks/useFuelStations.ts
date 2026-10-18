@@ -19,7 +19,7 @@ export function useFuelStations(points: [number, number][], enabled = true) {
     if (!enabled || !points.length) { setStations([]); setError(null); setLoading(false); return; }
     const cached = cache.get(key);
     if (attempt === 0 && cached && cached.until > Date.now()) {
-      setStations(cached.stations); setError(null); setLoading(false);
+      setStations(cached.stations); setError(cached.error); setLoading(false);
       return;
     }
     const controller = new AbortController();
@@ -30,8 +30,11 @@ export function useFuelStations(points: [number, number][], enabled = true) {
     }).then(result => {
       if (controller.signal.aborted) return;
       const found=Array.isArray(result.stations)?result.stations:[];
-      setStations(found);
-      cache.set(key,{stations:found,error:null,until:Date.now()+OK_TTL});
+      setStations(result.mapUnavailable && !found.length && cached?.stations.length ? cached.stations : found);
+      const reason=result.mapUnavailable?'Consulta de postos temporariamente indisponível. Exibindo somente dados já conhecidos.':null;
+      setError(reason);
+      cache.set(key,{stations:result.mapUnavailable && !found.length && cached?.stations.length ? cached.stations : found,
+        error:reason,until:Date.now()+(result.mapUnavailable?FAILURE_BACKOFF:OK_TTL)});
       if(cache.size>40)cache.delete(cache.keys().next().value!);
     }).catch(failure => {
       if (controller.signal.aborted) return;
