@@ -399,7 +399,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       onSelectCoordinates?.([event.latlng.lat,event.latlng.lng]);
     };
     map.on('click',handleClick);
-    return ()=>map.off('click',handleClick);
+    return ()=>{map.off('click',handleClick);};
   },[onSelectCoordinates,vectorRoutesReady]);
 
   useEffect(() => {
