@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import sharp from 'sharp';
 import {chromium} from 'playwright';
 import {createServer} from 'vite';
 import {mapScreenPoint} from './helpers/map-screen-point';
@@ -97,7 +98,63 @@ try{
     return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(el.dataset.mapZoom)===15;
   });
   await page.waitForFunction(()=>document.querySelector('[data-testid="visible"]')?.textContent==='');
+  // Detail/convoy maps retain native markers and camera across base changes.
+  const tile=await sharp({create:{width:256,height:256,channels:4,background:'#dce8d8'}}).png().toBuffer();
+  await page.route('https://server.arcgisonline.com/**',route=>route.fulfill({contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:tile}));
+  await page.route('https://*.tile.opentopomap.org/**',route=>route.fulfill({contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:tile}));
+  await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-detail.html');
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+  assert.equal(await page.locator('.leaflet-container').count(),0);
+  const organizer=page.locator('.convoy-participant-marker[title="Organizador"]');
+  const rider=page.locator('.convoy-participant-marker[title="Participante"]');
+  await organizer.waitFor();await rider.waitFor();
+  const organizerElement=await organizer.elementHandle();assert.ok(organizerElement);
+  const detailCenter=await map.getAttribute('data-map-center');
+  const detailZoom=await map.getAttribute('data-map-zoom');
+  await page.locator('.meeting-point-marker').click();
+  await page.locator('.maplibregl-popup').waitFor();
+  for(const [style,label] of [['satellite','Satélite Real'],['topo','Relevo / Serras'],['light','Claro (MapLibre)']] as const){
+    await page.getByTitle('Alterar visual do mapa').click();
+    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\$&'))}).click();
+    await page.waitForFunction(expected=>{
+      const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
+      return root?.dataset.mapStyleReady===expected && root.dataset.mapIdle==='true';
+    },style);
+    assert.equal(await map.getAttribute('data-map-center'),detailCenter);
+    assert.equal(await map.getAttribute('data-map-zoom'),detailZoom);
+    assert.equal(await organizerElement.evaluate(element=>element.isConnected),true,'style changes preserve existing participants');
+    assert.equal(await page.locator('.meeting-point-marker').count(),1);
+    assert.equal(await page.locator('.maplibregl-popup').count(),1,'meeting popup stays open');
+    assert.ok(Number(await page.locator('[data-role-vector-routes]').getAttribute('data-role-vector-routes'))>0);
+  }
+  await page.locator('.maplibregl-popup-close-button').click();
+  const meeting=page.locator('.meeting-point-marker');
+  await meeting.focus();
+  await meeting.press('Enter');
+  assert.equal(await page.locator('.maplibregl-popup').count(),1,'Enter opens exactly once');
+  await meeting.press('Space');
+  assert.equal(await page.locator('.maplibregl-popup').count(),0,'Space closes exactly once');
+  const fixedBefore=await organizer.boundingBox(),riderBefore=await rider.boundingBox();
+  assert.ok(fixedBefore && riderBefore);
+  await page.getByRole('button',{name:'Mover participante',exact:true}).click();
+  await page.waitForFunction(previous=>{
+    const rect=document.querySelector('.convoy-participant-marker[title="Participante"]')?.getBoundingClientRect();
+    return rect && Math.hypot(rect.x-previous.x,rect.y-previous.y)>2;
+  },riderBefore);
+  const fixedAfter=await organizer.boundingBox();assert.ok(fixedAfter);
+  assert.ok(Math.hypot(fixedAfter.x-fixedBefore.x,fixedAfter.y-fixedBefore.y)<=1,
+    'one GPS update must not move other participants (allow pixel rounding)');
+  assert.equal(await organizerElement.evaluate(element=>element.isConnected),true);
+  assert.equal(await map.getAttribute('data-map-center'),detailCenter);
+  assert.equal(await map.getAttribute('data-map-zoom'),detailZoom);
+  // A raster provider failure retains that chosen style in the hybrid fallback.
+  await page.unroute('https://server.arcgisonline.com/**');
+  await page.route('https://server.arcgisonline.com/**',route=>route.abort());
+  await page.getByTitle('Alterar visual do mapa').click();
+  await page.getByRole('button',{name:/Satélite Real/}).click();
+  await page.locator('.leaflet-container').waitFor({timeout:20000});
+  assert.ok((await page.getByTitle('Alterar visual do mapa').textContent())?.includes('Satélite Real'));
   assert.deepEqual(errors,[]);
-  console.log('PASS: native navigation, course, home route selection, visible places, GPS isolation and fallback.');
+  console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}
 finally{await browser?.close();await vite.close();}

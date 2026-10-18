@@ -1,3 +1,4 @@
+import { bindMarkerPopup } from './mapMarkerPopup';
 import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import { arrowHeadingStyle } from './gpsHeading';
 
@@ -106,6 +107,7 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
       .setText(kind==='live'?'Sua Posição Atual (GPS)':kind==='origin'?`Partida: ${label}`:`Chegada: ${label}`);
     const marker=new Marker({element,anchor:'center',rotationAlignment:kind==='live'?'map':'viewport'})
       .setLngLat(toNavigationLngLat(position)).setPopup(popup).addTo(map);
+    bindMarkerPopup(marker);
     current.set(kind,{marker,element,label,roadStyle});
   };
   return {

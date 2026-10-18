@@ -1,3 +1,4 @@
+import { bindMarkerPopup } from './mapMarkerPopup';
 import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import type { RouteStop, MeetingPoint, ConvoyParticipant } from '../types';
 import { mapContributionIcon } from '../components/mapContributionIcon';
@@ -93,7 +94,7 @@ export function createRoleTripPins(map:MapLibreMap,actions:TripPinsActions):Trip
       const html=icon.options.html;
       if(html instanceof HTMLElement)root.append(html); // no untrusted HTML interpretation
       root.addEventListener('click',event=>{event.stopPropagation();if(!(event.target as HTMLElement).closest('button'))actions.openFuel(fuelId,'prices');});
-      root.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();actions.openFuel(fuelId,'prices');}});
+      root.addEventListener('keydown',event=>{if(event.target===root && (event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopPropagation();if(!event.repeat)actions.openFuel(fuelId,'prices');}});
       for(const type of ['mousedown','pointerdown','touchstart'] as const)root.addEventListener(type,event=>event.stopPropagation(),{passive:true});
       element=root;
     }else{
@@ -103,9 +104,9 @@ export function createRoleTripPins(map:MapLibreMap,actions:TripPinsActions):Trip
     }
     const details=popup([stop.name,stop.description||'Parada no roteiro',
       `Parada recomendada: ${stop.recommendedMinutes} min`]);
-    return new Marker({element,anchor:'center'})
-      .setLngLat([stop.lng,stop.lat])
-      .setPopup(new Popup({offset:18}).setDOMContent(details)).addTo(map);
+    const marker=new Marker({element,anchor:'center'}).setLngLat([stop.lng,stop.lat]);
+    if(!fuelId)bindMarkerPopup(marker.setPopup(new Popup({offset:18}).setDOMContent(details)));
+    return marker.addTo(map);
   };
   const makeMeeting=(meeting:MeetingPoint):Marker=>{
     const arrived=meeting.confirmedArrivedParticipantIds?.length||0;
@@ -118,9 +119,9 @@ export function createRoleTripPins(map:MapLibreMap,actions:TripPinsActions):Trip
     const details=popup([`Ponto de encontro: ${label}`,...(address?[address]:[]),
       meeting.description||'Ponto de parada e reagrupamento do comboio.',
       arrived?`${arrived} participante(s) confirmaram chegada`:'Nenhum participante chegou ainda']);
-    return new Marker({element,anchor:'center'})
+    return bindMarkerPopup(new Marker({element,anchor:'center'})
       .setLngLat(lngLat(meeting.coords))
-      .setPopup(new Popup({offset:18}).setDOMContent(details)).addTo(map);
+      .setPopup(new Popup({offset:18}).setDOMContent(details))).addTo(map);
   };
   const makeParticipant=(person:ConvoyParticipant):Marker=>{
     const color=person.isStale?'#64748b':person.isOrganizer?'#dc2626':'#2563eb';

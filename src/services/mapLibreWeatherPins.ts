@@ -1,3 +1,4 @@
+import { bindMarkerPopup } from './mapMarkerPopup';
 import {Marker,Popup,type Map as MapLibreMap} from 'maplibre-gl';
 import type {WeatherPoint} from '../types';
 import {visibleWeatherSamples,weatherPointKey,weatherDisplayLines} from './vectorWeatherData';
@@ -54,7 +55,7 @@ export function createRoleWeatherPins(gl:MapLibreMap):WeatherPinController {
       .setLngLat([point.coords![1],point.coords![0]])
       .setPopup(new Popup({offset:20,closeButton:true}).setDOMContent(popupContent(point)))
       .addTo(gl);
-    return marker;
+    return bindMarkerPopup(marker);
   };
   return {
     update(samples,show){

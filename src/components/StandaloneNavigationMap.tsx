@@ -1,17 +1,19 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {Compass} from 'lucide-react';
+import {Compass,Layers} from 'lucide-react';
 import {updateMapCourse} from '../services/gpsHeading';
 import {Map as GlMap,setWorkerUrl,type MapMouseEvent} from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type {InteractiveMapProps} from './InteractiveMap';
-import {canRenderVectorMap,ROLE_VECTOR_STYLE,applyRoleVectorPalette} from '../services/mapVectorStyle';
+import {canRenderVectorMap,applyRoleVectorPalette} from '../services/mapVectorStyle';
 import {createStandaloneMapLibreCameraPort} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
 import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
 import {updateRoleVectorRoutes,queryRoleVectorAlternative} from '../services/mapLibreRouteLayers';
+import {updateRoleVectorMilestones} from '../services/mapLibreRouteMilestones';
+import {TILE_PROVIDERS,standaloneBaseStyle,type MapStyleType} from '../services/mapStyles';
 import {createRoleNavigationPins} from '../services/mapLibreNavigationPins';
 import {createRoleTripPins} from '../services/mapLibreTripPins';
 import {createRoleWeatherPins} from '../services/mapLibreWeatherPins';
@@ -35,13 +37,17 @@ const EMPTY_POINTS:[number,number][]=[];
 const COLORS={panoramica:'#059669',turistica:'#0284c7',gastronomica:'#ea580c',rapida:'#2563eb',economica:'#16a34a',equilibrada:'#0d9488'};
 const reducedMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false;
 
-/** Full-screen public maps: native MapLibre owns the canvas, camera and gestures.
+/** Public maps: native MapLibre owns the canvas, camera and gestures.
  * No Leaflet map or bridge is created in this renderer. Existing pin controllers
  * keep the same actions, data validation and incremental updates. */
-export default function StandaloneNavigationMap(props:InteractiveMapProps & {onUnavailable:()=>void}){
+export default function StandaloneNavigationMap(props:InteractiveMapProps & {onUnavailable:(style?:MapStyleType)=>void}){
   const container=useRef<HTMLDivElement>(null);
   const latest=useRef(props);latest.current=props;
   const [ready,setReady]=useState(false);
+  const [baseStyle,setBaseStyle]=useState<MapStyleType>(props.initialStyle||'light');
+  const [styleMenu,setStyleMenu]=useState(false);
+  const effectiveStyle:MapStyleType=props.navigationMode||props.roadStyle?'light':baseStyle;
+  const styleRef=useRef(effectiveStyle);styleRef.current=effectiveStyle;
   const [courseMode,setCourseMode]=useState(false);
   const courseModeRef=useRef(courseMode);courseModeRef.current=courseMode;
   const [station,setStation]=useState<{id:string;section:'prices'|'comments'}|null>(null);
@@ -57,22 +63,24 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
   const places=useNearbyPlaces(discovery,(props.showFuelStations??true)&&discovery.length>0);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
-  const runtime=useRef<{render:()=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
+  const runtime=useRef<{render:()=>void;setBaseStyle:(style:MapStyleType)=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
 
   useEffect(()=>{
     if(!container.current)return;
-    if(!canRenderVectorMap()){latest.current.onUnavailable();return;}
+    if(!canRenderVectorMap()){latest.current.onUnavailable(styleRef.current);return;}
     let disposed=false,loaded=false,failed=false;
     let map:GlMap;
+    let activeStyle=styleRef.current,changingStyle=false,tileErrors=0;
+    let styleTimeout:ReturnType<typeof setTimeout>|null=null;
     const fail=()=>{
       if(disposed||failed)return;
-      failed=true;latest.current.onUnavailable();
+      failed=true;latest.current.onUnavailable(styleRef.current);
     };
     try{
       const origin=latest.current.originCoords;
-      map=new GlMap({container:container.current,style:ROLE_VECTOR_STYLE,
+      map=new GlMap({container:container.current,style:standaloneBaseStyle(activeStyle),
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
-        minZoom:1,maxZoom:19,bearing:0,pitch:0,
+        minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,pitch:0,
         // Course rotation is controlled by the camera; free rotation/tilt stay disabled.
         dragRotate:false,pitchWithRotate:false,touchPitch:false,
         attributionControl:{compact:true}});
@@ -119,6 +127,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           totalRouteKm:p.totalRouteKm||0,navigationMode:p.navigationMode??false,blueRoute:p.blueRoute??false});
         if(featureCount>0)container.current?.setAttribute('data-role-vector-routes',String(featureCount));
         else container.current?.removeAttribute('data-role-vector-routes');
+        updateRoleVectorMilestones(map,p.routePath||[],COLORS[p.routeModality||'panoramica'],
+          !p.navigationMode&&!p.roadStyle&&!p.blueRoute);
         navigation.update({origin:p.originCoords,destination:p.destinationCoords,live:p.userLiveCoords,
           headingDegrees:p.userHeadingDegrees,speedMetersPerSecond:p.userSpeedMetersPerSecond,
           originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
@@ -143,7 +153,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             fitted=key;
             if(points.length>1)cameraPort.fitRoute(points,{topLeft:[36,70],
               bottomRight:[36,p.roadStyle&&(p.routeAlternatives?.length||0)>0?
-                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):64],maxZoom:13});
+                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):
+                !p.navigationMode&&!p.roadStyle?Math.min(132,Math.round(map.getContainer().clientHeight*.4)):64],maxZoom:13});
             else cameraPort.focus(points[0],12);
           }
         }
@@ -167,7 +178,19 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
     const retry=()=>{waitingForIdle=false;render();};
-    runtime.current={render,camera};
+    const setBase=(style:MapStyleType)=>{
+      if(disposed||failed||style===activeStyle)return;
+      activeStyle=style;changingStyle=true;tileErrors=0;
+      const root=container.current?.parentElement;
+      if(root){root.dataset.mapIdle='false';root.dataset.mapStyleReady='';}
+      if(styleTimeout)clearTimeout(styleTimeout);
+      styleTimeout=setTimeout(fail,12000);
+      try{
+        map.setMaxZoom(TILE_PROVIDERS[style].maxZoom);
+        map.setStyle(standaloneBaseStyle(style),{diff:false});
+      }catch{fail();}
+    };
+    runtime.current={render,camera,setBaseStyle:setBase};
     const publishViewport=()=>{
       const root=container.current?.parentElement;
       if(!root||disposed)return;
@@ -185,8 +208,16 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     const publishIdle=()=>{
       const root=container.current?.parentElement;
-      if(root&&!disposed)root.dataset.mapIdle='true';
+      if(root&&!disposed){
+        root.dataset.mapIdle='true';tileErrors=0;
+        if(styleTimeout){clearTimeout(styleTimeout);styleTimeout=null;}
+      }
     };
+    const markBusy=()=>{
+      const root=container.current?.parentElement;
+      if(root&&!disposed)root.dataset.mapIdle='false';
+    };
+    map.on('movestart',markBusy);
     map.on('idle',publishIdle);
     map.on('moveend',publishViewport);
     const userGesture=(event:{originalEvent?:unknown})=>{if(event.originalEvent)camera.explore();};
@@ -210,28 +241,37 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       p.onSelectCoordinates?.([event.lngLat.lat,event.lngLat.lng]);
     };
     map.on('click',select);
-    const onError=()=>{if(!loaded)fail();};
+    const onError=()=>{if(!loaded||changingStyle||++tileErrors>=3)fail();};
     map.on('error',onError);
     map.on('webglcontextlost',fail);
+    const styleLoaded=()=>{
+      if(disposed||failed)return;
+      changingStyle=false;tileErrors=0;
+      const root=container.current?.parentElement;
+      if(root)root.dataset.mapStyleReady=activeStyle;
+      if(activeStyle==='light')applyRoleVectorPalette(map);
+      render();
+    };
+    map.on('style.load',styleLoaded);
     const load=()=>{
       if(disposed||failed)return;
       loaded=true;clearTimeout(timeout);
-      applyRoleVectorPalette(map);
       setReady(true);render();
       publishViewport();
     };
     map.once('load',load);
     return ()=>{
-      disposed=true;clearTimeout(timeout);runtime.current=null;
+      disposed=true;clearTimeout(timeout);if(styleTimeout)clearTimeout(styleTimeout);runtime.current=null;
       unbindGestures();unbindResume();resize.disconnect();
       map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);
-      map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);
+      map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
       navigation.destroy();trip.destroy();weather.destroy();alerts.destroy();markers.destroy();
       map.stop();map.remove();
     };
   },[]);
 
   useEffect(()=>{runtime.current?.render();},[props,fuel.stations,places,ready,courseMode]);
+  useEffect(()=>{runtime.current?.setBaseStyle(effectiveStyle);},[effectiveStyle,ready]);
 
   const check=async(present:boolean)=>{
     if(!alert||checking)return;
@@ -247,13 +287,27 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const selectedToll=props.tolls?.find(entry=>entry.id===toll?.id) || (toll?.place?{
     id:toll.id,name:toll.place.name,coords:[toll.place.lat,toll.place.lng] as [number,number],
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
-  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready}>
+  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle}>
     <div ref={container} className="w-full h-full"/>
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
       className="absolute bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-blue-700 shadow-xl">
       <Compass size={20}/><span>{courseMode?'Direção':'Norte'}</span>
     </button>}
+    {!props.navigationMode&&!props.roadStyle&&<div className="absolute bottom-5 left-4 z-30">
+      <button type="button" title="Alterar visual do mapa" onClick={()=>setStyleMenu(value=>!value)}
+        className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xl">
+        <span>{TILE_PROVIDERS[baseStyle].icon}</span><span>{TILE_PROVIDERS[baseStyle].name}</span><Layers size={16}/>
+      </button>
+      {styleMenu&&<div className="absolute bottom-14 left-0 w-52 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+        <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Camadas do Mapa</span>
+        {(Object.keys(TILE_PROVIDERS) as MapStyleType[]).map(style=><button key={style} type="button"
+          aria-pressed={baseStyle===style} onClick={()=>{setBaseStyle(style);setStyleMenu(false);}}
+          className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold ${baseStyle===style?'bg-emerald-50 text-emerald-800':'text-slate-700'}`}>
+          <span>{TILE_PROVIDERS[style].icon}</span><span>{TILE_PROVIDERS[style].name}</span>
+        </button>)}
+      </div>}
+    </div>}
     {station&&<FuelStationModal key={`${station.id}:${station.section}`} stationId={station.id} initialSection={station.section} onClose={()=>setStation(null)}/>}
     {place&&<PlaceModal place={place} onClose={()=>setPlace(null)}/>}
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}
