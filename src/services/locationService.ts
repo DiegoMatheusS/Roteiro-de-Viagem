@@ -4,6 +4,7 @@ export interface DeviceLocation {
   coords: [number, number];
   accuracyMeters: number;
   speedMetersPerSecond: number | null;
+  headingDegrees?: number | null;
   timestamp: number;
 }
 
@@ -14,7 +15,7 @@ export function locationErrorMessage(error?: Pick<GeolocationPositionError, 'cod
 }
 
 export function readDeviceLocation(position: GeolocationPosition): DeviceLocation {
-  const { latitude, longitude, accuracy, speed } = position.coords;
+  const { latitude, longitude, accuracy, speed, heading } = position.coords;
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || !Number.isFinite(accuracy) || accuracy < 0 || !Number.isFinite(position.timestamp)) {
     throw new Error('O GPS retornou uma posição inválida. Tente novamente.');
   }
@@ -22,6 +23,7 @@ export function readDeviceLocation(position: GeolocationPosition): DeviceLocatio
     coords: [latitude, longitude],
     accuracyMeters: accuracy,
     speedMetersPerSecond: speed !== null && Number.isFinite(speed) && speed >= 0 ? speed : null,
+    headingDegrees: heading !== null && Number.isFinite(heading) && heading >= 0 && heading < 360 ? heading : null,
     timestamp: position.timestamp
   };
 }
