@@ -24,7 +24,7 @@ test('camadas de navegação/alertas preservadas e sem tela branca quando MapLib
   const map=source('src/components/InteractiveMap.tsx');
   assert.match(map, /selectRouteRef\.current\?\.\(option\.id\)/);
   assert.match(map, /splitRouteAtPosition/);
-  assert.match(map, /L\\.marker\\(\\[alert\\.lat,alert\\.lng\\]/);
+  assert.match(map, /L\.marker\(\[alert\.lat,alert\.lng\]/);
   assert.match(map, /L\.tileLayer\(tileConfig\.url/);
   assert.match(map, /map\.removeLayer\(vector\)/);
   assert.match(map, /currentTileLayerRef\.current = raster/);
