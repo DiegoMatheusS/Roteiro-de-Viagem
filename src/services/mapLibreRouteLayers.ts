@@ -6,7 +6,7 @@ type Role = 'alternative' | 'active' | 'remaining' | 'travelled';
 
 export interface RoleRouteFeature {
   type: 'Feature';
-  properties: { role: Role; color: string };
+  properties: { role: Role; color: string; routeId?: string };
   geometry: { type: 'LineString'; coordinates: Coordinates[] }; // GeoJSON: longitude, latitude
 }
 export interface RoleRouteCollection {
@@ -37,10 +37,10 @@ function verified(points: Coordinates[]): boolean {
     && Math.abs(point[0]) <= 90 && Math.abs(point[1]) <= 180);
 }
 
-function feature(points: Coordinates[], role: Role, color: string): RoleRouteFeature {
+function feature(points: Coordinates[], role: Role, color: string, routeId?: string): RoleRouteFeature {
   return {
     type: 'Feature',
-    properties: { role, color },
+    properties: { role, color, ...(routeId ? { routeId } : {}) },
     geometry: {
       type: 'LineString',
       coordinates: points.map(([lat,lon]): Coordinates => [lon,lat])
@@ -53,8 +53,8 @@ export function buildRoleRouteCollection(options: RoleRouteOptions): RoleRouteCo
   const features: RoleRouteFeature[] = [];
   if (!options.navigationMode && options.alternatives.length > 1) {
     for (const option of options.alternatives) {
-      if (option.id !== options.selectedRouteId && verified(option.routePath))
-        features.push(feature(option.routePath, 'alternative', '#64748b'));
+      if (option.id && option.id !== options.selectedRouteId && verified(option.routePath))
+        features.push(feature(option.routePath, 'alternative', '#64748b', option.id));
     }
   }
   if (!verified(options.routePath)) return { type:'FeatureCollection', features };
@@ -71,9 +71,39 @@ export function buildRoleRouteCollection(options: RoleRouteOptions): RoleRouteCo
   return { type: 'FeatureCollection', features };
 }
 
-/**
- * MapLibre owns line rendering. Leaflet keeps only transparent hit areas for
- * alternative-route selection, and DOM markers remain in the Leaflet panes.
+/** Find a user-selected verified alternative in MapLibre's own rendered lines.
+ * Leaflet still owns the viewport and forwards click coordinates; no second
+ * interactive canvas and no invisible Leaflet route hit areas are needed.
+ */
+export function queryRoleVectorAlternative(
+  gl: Pick<MapLibreMap,'isStyleLoaded'|'getLayer'|'project'|'queryRenderedFeatures'>,
+  coordinates: Coordinates,
+  validIds: ReadonlySet<string>,
+  tolerancePx=12
+): string | null {
+  if (!gl.isStyleLoaded() || !gl.getLayer('role-alternative-line') ||
+    !Array.isArray(coordinates) || coordinates.length!==2 ||
+    !Number.isFinite(coordinates[0]) || !Number.isFinite(coordinates[1]) ||
+    Math.abs(coordinates[0])>90 || Math.abs(coordinates[1])>180 ||
+    validIds.size===0) return null;
+  const projected=gl.project([coordinates[1],coordinates[0]]);
+  if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y))return null;
+  const tolerance=Math.max(4,Math.min(24,tolerancePx));
+  const results=gl.queryRenderedFeatures(
+    [[projected.x-tolerance,projected.y-tolerance],
+      [projected.x+tolerance,projected.y+tolerance]],
+    {layers:['role-alternative-line']}
+  );
+  for (const item of results) {
+    const id=item.properties?.routeId;
+    if (item.properties?.role==='alternative' && typeof id==='string' && validIds.has(id))
+      return id;
+  }
+  return null;
+}
+
+/** MapLibre owns all verified line rendering and precise route hit-testing.
+ * Leaflet only forwards map gestures/clicks and provides full raster fallback.
  */
 export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOptions): void {
   if (!gl.isStyleLoaded()) return;
