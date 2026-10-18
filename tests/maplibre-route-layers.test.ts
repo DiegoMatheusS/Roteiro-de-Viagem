@@ -43,6 +43,6 @@ test('MapLibre draws route layers and Leaflet keeps tap areas and fallback',asyn
   assert.equal(map.includes('opacity:vectorRoutesReady ? 0.003'),false);
   assert.ok(map.includes('queryRoleVectorAlternative(gl,'));
   assert.match(map,/alternative\.on\('click',\(\)=>selectRouteRef.current\?\.\(option\.id\)\)/);
-  assert.match(map,/if \(!vectorRoutesReady\) \{/);
+  assert.match(map,/if \(!vectorRoutesReady \|\| !vectorRoutePaintReady\) \{/);
   assert.match(map,/showRaster\(\)/);
 });
