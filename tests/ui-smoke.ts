@@ -500,11 +500,25 @@ try {
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
   await page.mouse.down();
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y-110,{steps:6});
+  const draggingBounds=await mapPanel.boundingBox();
+  const mapViewportBottom=await page.locator('.rdv-flat-map').first().evaluate(el=>el.getBoundingClientRect().bottom);
+  assert.ok(draggingBounds && Math.abs(draggingBounds.y+draggingBounds.height-mapViewportBottom)<2,
+    'Enquanto o usuário arrasta, o painel do Mapa não pode se soltar do rodapé');
+  assert.ok(draggingBounds.height>initialMapBounds!.height+70,
+    'O painel do Mapa precisa acompanhar o dedo crescendo para cima');
   await page.mouse.up();
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).waitFor();
+  await page.waitForFunction(()=>{
+    const sheet=document.querySelector('[data-testid="map-explore-sheet"]')?.getBoundingClientRect();
+    const viewport=document.querySelector('.rdv-flat-map')?.getBoundingClientRect();
+    return !!sheet&&!!viewport&&Math.abs(sheet.bottom-viewport.bottom)<2 &&
+      sheet.height>=window.innerHeight*0.6 && sheet.y-viewport.top>=220;
+  });
   const expandedMapBounds = await mapPanel.boundingBox();
-  assert.ok(expandedMapBounds && expandedMapBounds.y > 0.55 * 844,
-    'Ao expandir o menu do Mapa, o painel deve continuar mais abaixo da metade da tela');
+  assert.ok(expandedMapBounds && expandedMapBounds.y < 0.45 * 844,
+    'O painel Mapa deve exibir mais conteúdo sem esconder toda a área de navegação');
+  assert.equal(await page.locator('[data-map-panel-scroll]').evaluate(el=>getComputedStyle(el).overflowY),'auto',
+    'A lista interna do Mapa continua rolável após expandir');
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).click();
   await expandMapPanel.click();
   const exploration = page.getByRole('region', { name: 'Explorar destinos e estabelecimentos' });

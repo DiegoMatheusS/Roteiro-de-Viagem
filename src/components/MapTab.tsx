@@ -12,6 +12,7 @@ import { recentExplorationOrigin } from '../services/explorationOrigin';
 import type { Vehicle, TripPlan, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
 import { visiblePlacesSignature } from '../services/mapVisiblePlaces';
+import { mapSheetHeight } from '../services/mapSheetSizing';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { RoadAlertReporter } from './RoadAlertReporter';
@@ -49,6 +50,7 @@ export function MapTab(props: MapTabProps) {
   const centeredAutomatically = useRef(false);
   const touchStart = useRef<number|null>(null);
   const swipeConsumed = useRef(false);
+  const [dragOffset,setDragOffset] = useState(0);
   const touristKinds = TOURIST_PLACE_KINDS as readonly string[];
   const suggestions = useMemo(() => visiblePlaces.filter(p => touristKinds.includes(p.kind)).slice(0,5),[visiblePlaces]);
   const establishments = useMemo(() => visiblePlaces.filter(p => !p.id.startsWith('stop:')).slice(0,15),[visiblePlaces]);
@@ -113,8 +115,11 @@ export function MapTab(props: MapTabProps) {
     if(touchStart.current===null)return;
     const delta=event.clientY-touchStart.current;
     touchStart.current=null;
+    setDragOffset(0);
     if(Math.abs(delta)>32) {
       swipeConsumed.current=true;
+      // Only swallow the synthetic click following this swipe, not a future tap.
+      window.setTimeout(()=>{swipeConsumed.current=false;},0);
       setSheetExpanded(delta<0);
     }
   };
@@ -167,7 +172,7 @@ export function MapTab(props: MapTabProps) {
     </div>
     {/* GPS em cima e triângulo de ocorrência embaixo, junto à lateral direita. */}
     <div aria-label="Controles de localização e ocorrência"
-      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[118px]' : 'bottom-[140px]'}`}>
+      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : 'bottom-[140px]'}`}>
       <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
         className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
         <LocateFixed size={24} strokeWidth={2.2}/>
@@ -179,7 +184,7 @@ export function MapTab(props: MapTabProps) {
         onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
     <Speedometer position={location.status === 'ready' ? location.position : null}
-      className={`absolute left-3 z-40 transition-[bottom] duration-300 ${sheetExpanded?'bottom-[calc(max(37dvh,300px)+16px)]':'bottom-[140px]'}`} />
+      className={`absolute left-3 z-40 transition-[top,bottom] duration-300 ${sheetExpanded?'top-[clamp(110px,16dvh,160px)]':'bottom-[140px]'}`} />
     {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
       <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>
       {!locationAccess.requesting && <button type="button" onClick={()=>void locationAccess.request()} className="font-bold underline">Tentar GPS</button>}
@@ -189,25 +194,32 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      className={`absolute bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${sheetExpanded ? 'h-[37dvh] min-h-[300px] max-h-[65dvh]' : searchError ? 'h-[170px]' : 'h-[116px]'}`}>
+      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError),dragOffset),
+        transitionDuration:dragOffset?'0ms':undefined}}
+      className="absolute bottom-0 inset-x-0 z-30 overflow-hidden bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet">
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
         aria-expanded={sheetExpanded}
         className="w-full h-8 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
         style={{touchAction:'none'}}
         onPointerDown={event => {
+          if(!event.isPrimary)return;
           touchStart.current=event.clientY;
           swipeConsumed.current=false;
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
+        onPointerMove={event=>{
+          if(touchStart.current!==null)setDragOffset(Math.max(-260,Math.min(180,event.clientY-touchStart.current)));
+        }}
         onPointerUp={handleGrabEnd}
-        onPointerCancel={()=>{touchStart.current=null;}}
+        onPointerCancel={()=>{touchStart.current=null;setDragOffset(0);}}
+        onLostPointerCapture={()=>{if(touchStart.current!==null){touchStart.current=null;setDragOffset(0);}}}
         onClick={()=>{
           if(swipeConsumed.current){swipeConsumed.current=false;return;}
           toggleSheet();
         }}>
         <span className="w-11 h-1.5 rounded-full bg-slate-300" aria-hidden="true" />
       </button>
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div data-map-panel-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         <div className="max-w-xl mx-auto space-y-5">
           <form role="search" aria-label="Busca rápida de destinos no mapa"
             onSubmit={event=>void submitQuickSearch(event)}
