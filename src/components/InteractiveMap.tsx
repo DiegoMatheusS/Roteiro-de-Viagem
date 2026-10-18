@@ -1519,8 +1519,8 @@ const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').cat
     useEffect(()=>{onUnavailable();},[onUnavailable]);return <></>;
   }
 })));
-/** Migrate the active navigation first. Other screens retain the proven hybrid
- * implementation, which also serves as fallback when native WebGL cannot load. */
+/** Full-screen public maps use native MapLibre. Detail/convoy maps retain the
+ * hybrid renderer, also available as fallback when native WebGL cannot load. */
 export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
   const [fallback,setFallback]=useState(false);
   const latestProps=useRef(props);latestProps.current=props;
@@ -1528,7 +1528,7 @@ export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
     latestProps.current.onCameraModeChange?.('following');
     setFallback(true);
   },[]);
-  if(!props.navigationMode || fallback)return <HybridInteractiveMap {...props}/>;
+  if((!props.navigationMode && !props.roadStyle) || fallback)return <HybridInteractiveMap {...props}/>;
   return <React.Suspense fallback={<div className={props.className || 'w-full h-full'} role="status" aria-label="Carregando mapa"/>}>
     <NativeNavigationMap {...props} onUnavailable={onUnavailable}/>
   </React.Suspense>;

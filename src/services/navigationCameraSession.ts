@@ -28,14 +28,15 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
     },
     update(input:NavigationCameraInput){
       navigating=input.navigationMode;
-      if(!navigating){last=null;lastBearing=undefined;mode(false);return;}
+      if(!navigating){last=null;lastBearing=undefined;mode(false);}
       const point=input.position;
       if(!point || !point.every(Number.isFinite) || Math.abs(point[0])>90 || Math.abs(point[1])>180)return;
       if(input.centerRequest>centerRequest){
         centerRequest=input.centerRequest;mode(false);
-        camera.recenter(point,true,input.reducedMotion);
+        camera.recenter(point,navigating,input.reducedMotion);
         last=[...point];lastBearing=input.bearing;return;
       }
+      if(!navigating)return;
       const changed=!last || Math.abs(last[0]-point[0])+Math.abs(last[1]-point[1])>0.00004 || input.bearing!==lastBearing;
       if(!changed)return;
       if(!exploring){
