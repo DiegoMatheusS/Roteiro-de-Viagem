@@ -180,3 +180,27 @@ test('repeated user gestures cancel camera motion without duplicate exploration 
   assert.match(pause,/followSuspendedRef.current=true/);
   assert.match(pause,/cameraModeChangeRef.current\?\.\('exploring'\)/);
 });
+
+
+test('standalone camera fits very long road geometries without spreading arguments',()=>{
+  let bounds:unknown;
+  const camera=createStandaloneMapLibreCameraPort({
+    getZoom:()=>12,stop:()=>{},jumpTo:()=>{},easeTo:()=>{},
+    fitBounds:(value)=>{bounds=value;}
+  });
+  const points:Array<[number,number]>=Array.from({length:150000},(_,index)=>
+    [-23-index/1000000,-46+index/1000000]);
+  camera.fitRoute(points,{topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
+  assert.deepEqual(bounds,[[-46,points.at(-1)![0]],[points.at(-1)![1],-23]]);
+});
+
+
+test('pausing standalone camera animation preserves the native gesture in progress',()=>{
+  const calls:Array<boolean|undefined>=[];
+  const camera=createStandaloneMapLibreCameraPort({
+    getZoom:()=>16,stop:(allowGestures)=>{calls.push(allowGestures);},
+    jumpTo:()=>{},easeTo:()=>{},fitBounds:()=>{}
+  });
+  camera.stop();
+  assert.deepEqual(calls,[true]);
+});
