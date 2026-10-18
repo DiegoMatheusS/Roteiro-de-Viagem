@@ -269,3 +269,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O tratamento fica restrito ao elemento real do mapa (não aos controles flutuantes) e ignora interações em marcadores e pop-ups, sem efeitos em comboios e navegação por código.
 - Os listeners de zoom são removidos quando o mapa é desmontado. Testes unitários exercitam eventos de pinça, rolagem, teclado e remoção, além de validar que o controlador híbrido continua único.
 - **Ainda não habilita gestos MapLibre independentes, rotação automática do mapa ou inclinação 3D**. O Leaflet continua controlando a câmera para que linhas, alertas e hit areas não se desalinhem. O trabalho para removê-lo será feito com migração conjunta e testes físicos de Android.
+
+## Camada de previsão meteorológica MapLibre — PR #56
+
+- As amostras reais da previsão de chuva e vento são desenhadas com marcadores nativos MapLibre na base vetorial, contendo temperatura, probabilidade de chuva, vento, horário e eventuais avisos.
+- Cada ponto possui botão acessível e balão com fonte explícita **Open-Meteo — previsão, não radar ao vivo**. Informações de terceiros são exibidas como texto, sem HTML arbitrário. Coordenadas e valores inválidos não geram marcadores.
+- Os marcadores de previsão só aparecem quando o usuário ativa **Mostrar previsão de chuva**. Atualizações alteram somente os marcadores relevantes, sem modificar o zoom e os demais pontos do mapa.
+- A camada Leaflet permanece disponível em modo raster e se desliga quando os marcadores MapLibre são instalados; em fallback, usa as mesmas amostras válidas e evita horário `Invalid Date`.
+- Esta PR reduz mais uma dependência visual de Leaflet, mas os gestos e a câmera ainda pertencem à ponte Leaflet–MapLibre. A substituição segura do adaptador ainda exige migração dos hitboxes de rotas alternativas e da interação do mapa.
