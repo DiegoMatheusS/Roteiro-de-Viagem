@@ -21,8 +21,7 @@ export function createRoleMaplibreRoadAlertController(
 ): RoadAlertPinController {
   const markers = new Map<string,TrackedRoadAlert>();
   let destroyed=false;
-  const makeMarker=(record:TrackedRoadAlert):Marker=>{
-    const alert=record.alert;
+  const makeMarker=(alert:RoadAlert):Marker=>{
     const label=ROAD_ALERT_TYPES.find(type=>type.id===alert.kind)?.label||'Ocorrência';
     const button=document.createElement('button');
     button.type='button';
@@ -38,7 +37,7 @@ export function createRoleMaplibreRoadAlertController(
       event.stopPropagation();
       // Use the latest approved report: note/expiry may change without
       // re-creating the marker or losing focus.
-      onSelect(record.alert);
+      onSelect(markers.get(alert.id)?.alert??alert);
     });
     return new Marker({element:button,anchor:'center'})
       .setLngLat([alert.lng,alert.lat]).addTo(map);
@@ -60,12 +59,11 @@ export function createRoleMaplibreRoadAlertController(
           record!.marker.setLngLat([alert.lng,alert.lat]);
           record!.alert=alert;
         }else{
-          const replacement:TrackedRoadAlert={alert,marker:null as unknown as Marker};
           // Build first. If WebGL or the DOM fails, leave the old marker
           // intact until the caller can switch back to raster.
-          replacement.marker=makeMarker(replacement);
+          const marker=makeMarker(alert);
           record?.marker.remove();
-          markers.set(alert.id,replacement);
+          markers.set(alert.id,{alert,marker});
         }
       }
     },
