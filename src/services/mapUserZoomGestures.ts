@@ -1,4 +1,4 @@
-/** Detect explicit user map-zoom intents without confusing them with GPS camera moves.
+/** Detect explicit user map navigation intents without confusing them with GPS camera moves.
  * Zoom stays owned by Leaflet while the vector MapLibre layer uses its viewport.
  */
 export type MapZoomGesture =
@@ -15,18 +15,18 @@ export function isManualMapZoom(gesture:MapZoomGesture):boolean {
     case 'pointerdown': return gesture.activeTouchPointers>=2;
     case 'dblclick':
     case 'gesturestart': return true;
-    case 'keydown': return ['+','=','-','_'].includes(gesture.key);
+    case 'keydown': return ['+','=','-','_','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(gesture.key);
   }
 }
 
 function isMarkerOrPopup(event:Event):boolean {
   const target=event.target;
   return typeof Element!=='undefined' && target instanceof Element &&
-    Boolean(target.closest('.leaflet-marker-icon,.maplibregl-marker,.leaflet-popup,.leaflet-control'));
+    Boolean(target.closest('.leaflet-marker-icon,.maplibregl-marker,.leaflet-popup,.maplibregl-popup,.leaflet-control'));
 }
 
 /** Listeners are passive: never block scroll, pinch or map controls.
- * The sole side effect is disabling GPS camera following until recentered.
+ * Notifies the camera controller to pause GPS following until recentered.
  */
 export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>void {
   const pointerIds=new Set<number>();
@@ -38,7 +38,8 @@ export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>
   const doubleClick=(event:MouseEvent)=>notify(event,{type:'dblclick'});
   const gesture=(event:Event)=>notify(event,{type:'gesturestart'});
   const key=(event:KeyboardEvent)=>{
-    if(typeof HTMLElement!=='undefined' && event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName))return;
+    if(typeof HTMLElement!=='undefined' && event.target instanceof HTMLElement &&
+      (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable))return;
     notify(event,{type:'keydown',key:event.key});
   };
   const pointerDown=(event:PointerEvent)=>{

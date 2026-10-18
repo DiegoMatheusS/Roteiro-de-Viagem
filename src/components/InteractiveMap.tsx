@@ -325,7 +325,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     convoyPinGroupRef.current = L.layerGroup().addTo(map);
     // Only a user's drag suspends following; programmatic GPS panning does not.
     const pauseFollowing = () => {
-      if(!navigationModeRef.current || followSuspendedRef.current)return;
+      if(!navigationModeRef.current)return;
+      // Cancel an in-flight GPS/recenter animation before handing control to the user.
+      createHybridCameraPort(map).stop();
+      if(followSuspendedRef.current)return;
       followSuspendedRef.current=true;
       cameraModeChangeRef.current?.('exploring');
     };

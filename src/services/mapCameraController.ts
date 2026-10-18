@@ -23,6 +23,7 @@ export interface CameraFitPadding {
 }
 export interface CameraPort {
   zoom():number;
+  stop():void;
   firstGpsFix(point:CameraPoint):void;
   focus(point:CameraPoint,zoom:number,reducedMotion?:boolean):void;
   fitRoute(points:readonly CameraPoint[],padding:CameraFitPadding):void;
@@ -31,6 +32,7 @@ export interface CameraPort {
 }
 interface LeafletCamera {
   getZoom():number;
+  stop():unknown;
   setView(point:CameraPoint,zoom:number,options:{animate:boolean}):unknown;
   flyTo(point:CameraPoint,zoom:number,options:{duration:number;easeLinearity:number}):unknown;
   panTo(point:CameraPoint,options:{animate:boolean;duration?:number;easeLinearity?:number}):unknown;
@@ -42,6 +44,7 @@ interface LeafletCamera {
 export function createHybridCameraPort(map:LeafletCamera):CameraPort {
   return {
     zoom:()=>map.getZoom(),
+    stop:()=>{map.stop();},
     firstGpsFix(point){
       // The first live location must not animate from a distant map center.
       map.setView(point,16,{animate:false});
@@ -70,6 +73,7 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
 }
 interface StandaloneMapLibreCamera {
   getZoom():number;
+  stop():unknown;
   jumpTo(options:{center:[number,number];zoom?:number}):unknown;
   easeTo(options:{center:[number,number];zoom?:number;duration:number}):unknown;
   fitBounds(bounds:[[number,number],[number,number]],options:{
@@ -81,6 +85,7 @@ export function createStandaloneMapLibreCameraPort(map:StandaloneMapLibreCamera)
   const lngLat=([lat,lon]:CameraPoint):[number,number]=>[lon,lat];
   return {
     zoom:()=>map.getZoom(),
+    stop:()=>{map.stop();},
     firstGpsFix(point){
       map.jumpTo({center:lngLat(point),zoom:16});
     },

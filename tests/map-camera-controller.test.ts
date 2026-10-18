@@ -20,6 +20,7 @@ test('recenter respects chosen navigation zoom and establishes useful zoom from 
 test('hybrid controller uses only Leaflet camera commands and supports reduced motion',()=>{
   const calls:Array<{name:string;args:unknown[]}>=[];
   const surface={
+    stop:()=>{},
     getZoom:()=>17,
     setView:(...args:[unknown,...unknown[]])=>calls.push({name:'setView',args}),
     flyTo:(...args:[unknown,...unknown[]])=>calls.push({name:'flyTo',args}),
@@ -40,6 +41,7 @@ test('hybrid controller uses only Leaflet camera commands and supports reduced m
 test('standalone MapLibre adapter uses correct longitude/latitude only when explicitly selected',()=>{
   const calls:Array<{name:string;options:unknown}>=[];
   const controller=createStandaloneMapLibreCameraPort({
+    stop:()=>{},
     getZoom:()=>16,
     jumpTo:(options)=>calls.push({name:'jumpTo',options}),
     easeTo:(options)=>calls.push({name:'easeTo',options}),
@@ -73,6 +75,7 @@ test('hybrid map only issues camera moves through the Leaflet port; drag shows v
 test('all initial positioning and bounds fits go through one hybrid Leaflet camera',()=>{
   const calls:Array<{name:string;args:unknown[]}>=[];
   const surface={
+    stop:()=>{},
     getZoom:()=>12,
     setView:(...args:[unknown,...unknown[]])=>calls.push({name:'setView',args}),
     flyTo:(...args:[unknown,...unknown[]])=>calls.push({name:'flyTo',args}),
@@ -95,6 +98,7 @@ test('all initial positioning and bounds fits go through one hybrid Leaflet came
 test('standalone MapLibre camera fits accurate lng/lat bounds and preserves sheet padding',()=>{
   const calls:Array<{name:string;args:unknown[]}>=[];
   const surface={
+    stop:()=>{},
     getZoom:()=>12,
     jumpTo:(options:unknown)=>calls.push({name:'jumpTo',args:[options]}),
     easeTo:(options:unknown)=>calls.push({name:'easeTo',args:[options]}),
@@ -119,6 +123,7 @@ test('standalone MapLibre camera fits accurate lng/lat bounds and preserves shee
 test('explicit place focus preserves animation and honors reduced motion on both renderers',()=>{
   const calls:unknown[][]=[];
   const camera=createHybridCameraPort({
+    stop:()=>{},
     getZoom:()=>12,
     setView:(...args)=>calls.push(['setView',...args]),
     flyTo:(...args)=>calls.push(['flyTo',...args]),
@@ -132,6 +137,7 @@ test('explicit place focus preserves animation and honors reduced motion on both
   ]);
   const standaloneCalls:unknown[][]=[];
   const standalone=createStandaloneMapLibreCameraPort({
+    stop:()=>{},
     getZoom:()=>12,
     jumpTo:(options)=>standaloneCalls.push(['jumpTo',options]),
     easeTo:(options)=>standaloneCalls.push(['easeTo',options]),
@@ -143,4 +149,34 @@ test('explicit place focus preserves animation and honors reduced motion on both
     ['easeTo',{center:[-46.63,-23.55],zoom:15,duration:1200}],
     ['jumpTo',{center:[-46.63,-23.55],zoom:15}]
   ]);
+});
+
+
+test('both camera owners cancel a running movement before further commands',()=>{
+  for(const standalone of [false,true]){
+    let moving=false;
+    const surface={
+      getZoom:()=>16,
+      stop:()=>{moving=false;},
+      setView:()=>{},panTo:()=>{},fitBounds:()=>{},jumpTo:()=>{},
+      flyTo:()=>{moving=true;},easeTo:()=>{moving=true;}
+    };
+    const camera=standalone?createStandaloneMapLibreCameraPort(surface):createHybridCameraPort(surface);
+    camera.recenter([-23.55,-46.63],true,false);
+    assert.equal(moving,true);
+    camera.stop();
+    assert.equal(moving,false);
+    camera.focus([-23.6,-46.7],15,false);
+    assert.equal(moving,true);
+    camera.stop();
+    assert.equal(moving,false);
+  }
+});
+
+test('repeated user gestures cancel camera motion without duplicate exploration notifications',()=>{
+  const source=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
+  const pause=source.slice(source.indexOf('    const pauseFollowing = () => {'),source.indexOf("    map.on('dragstart',pauseFollowing)"));
+  assert.ok(pause.indexOf('createHybridCameraPort(map).stop()')<pause.indexOf('if(followSuspendedRef.current)return'));
+  assert.match(pause,/followSuspendedRef.current=true/);
+  assert.match(pause,/cameraModeChangeRef.current\?\.\('exploring'\)/);
 });
