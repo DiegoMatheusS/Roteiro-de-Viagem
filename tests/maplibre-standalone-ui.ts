@@ -354,7 +354,7 @@ try{
   await discoveryPage.getByRole('button',{name:'Desativar busca'}).click();
   assert.equal(await discoveryPage.getByTestId('stations').textContent(),'');
   assert.equal(await discoveryPage.getByTestId('places').textContent(),'');
-  await discoveryPage.getByRole('button',{name:'Ativar busca'}).click();
+  await discoveryPage.getByRole('button',{name:'Ativar busca',exact:true}).click();
   await discoveryPage.waitForFunction(()=>{
     return document.querySelector('[data-testid="stations"]')?.textContent==='station-new' &&
       document.querySelector('[data-testid="places"]')?.textContent==='place-new';
