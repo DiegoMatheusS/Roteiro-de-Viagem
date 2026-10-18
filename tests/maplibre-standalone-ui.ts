@@ -72,6 +72,15 @@ try{
   assert.ok(Math.abs(Math.abs(Number(await map.getAttribute('data-map-bearing')))-180)<0.00001,'follow resumes with the latest reliable GPS course');
   await page.getByRole('button',{name:'Manter o mapa apontado para o norte',exact:true}).click();
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
+  // A recalculated route must not zoom out or move the live GPS camera.
+  const routeCenter=await map.getAttribute('data-map-center');
+  const routeZoom=await map.getAttribute('data-map-zoom');
+  await page.getByRole('button',{name:'Novo percurso',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('[data-testid="route-target"]')?.textContent==='-23.7,-46.4');
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+  assert.equal(await map.getAttribute('data-map-center'),routeCenter,'new navigation route keeps live GPS center');
+  assert.equal(await map.getAttribute('data-map-zoom'),routeZoom,'new navigation route keeps driver zoom');
+  assert.equal(await page.locator('[data-testid="mode"]').textContent(),'following');
   fs.mkdirSync('test-results',{recursive:true});
   await page.screenshot({path:'test-results/maplibre-standalone-navigation.png'});
   // A context loss after manual zoom preserves the camera and the consumed
@@ -108,8 +117,13 @@ try{
     return Math.abs(lat+23.56)<0.00001 && Math.abs(lon+46.62)<0.00001;
   });
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'following');
+  // Even in raster fallback, a refreshed itinerary cannot steal a resumed GPS view.
+  const fallbackRouteCenter=await fallback.getAttribute('data-map-center');
+  const fallbackRouteZoom=await fallback.getAttribute('data-map-zoom');
   await page.getByRole('button',{name:'Novo percurso',exact:true}).click();
-  await page.waitForFunction(previous=>Number(document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapZoom)<previous,lossZoom);
+  await page.waitForFunction(()=>document.querySelector('[data-testid="route-target"]')?.textContent==='-23.8,-46.5');
+  assert.equal(await fallback.getAttribute('data-map-center'),fallbackRouteCenter);
+  assert.equal(await fallback.getAttribute('data-map-zoom'),fallbackRouteZoom);
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();
   assert.equal(await page.locator('.maplibregl-canvas').count(),0);
   // A missing vector style must restore the existing hybrid/raster renderer.
