@@ -676,15 +676,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   // estilo vetorial. Atualizamos dados do GPS sem recriar a base nem mudar zoom.
   useEffect(() => {
     const gl = vectorMapRef.current;
-    if (!vectorRoutesReady || !gl) return;
+    if (!vectorRoutesReady || !gl) {
+      mapContainerRef.current?.removeAttribute('data-role-vector-routes');
+      return;
+    }
     try {
-      updateRoleVectorRoutes(gl, {
+      const featureCount=updateRoleVectorRoutes(gl, {
         routePath, alternatives:routeAlternatives, selectedRouteId,
         modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
         userLocation:userLiveCoords,
         travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
       });
+      if(featureCount>0)mapContainerRef.current?.setAttribute('data-role-vector-routes',String(featureCount));
+      else mapContainerRef.current?.removeAttribute('data-role-vector-routes');
     } catch {
+      mapContainerRef.current?.removeAttribute('data-role-vector-routes');
       // Um estilo que muda enquanto chega nova posição não pode interromper a navegação.
       setVectorRoutesReady(false);
     }
