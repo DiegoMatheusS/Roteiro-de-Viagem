@@ -42,7 +42,8 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
       <Menu size={22} strokeWidth={2.1} />
     </button>
     {/* Mantido montado para animar tanto a subida como a descida; oculto da navegação por teclado quando fechado. */}
-    <div className={`fixed inset-0 z-[82] bg-slate-950/45 flex flex-col justify-end transition-[opacity,visibility] duration-300 ease-out ${open ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
+    <div className={`fixed inset-0 z-[82] bg-slate-950/45 flex flex-col justify-end transition-opacity duration-300 ease-out ${open ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
+      style={{transitionProperty:'opacity, visibility'}}
       role="presentation" aria-hidden={!open} inert={!open}
       onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
       <nav id="role-menu" role="dialog" aria-modal={open} aria-label="Menu do Rolê"
