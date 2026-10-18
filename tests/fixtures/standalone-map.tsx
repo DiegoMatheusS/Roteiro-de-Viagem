@@ -16,7 +16,8 @@ function Fixture(){
     <button onClick={()=>setCoords(current=>[current[0]-.005,current[1]+.005])}>Mover GPS</button>
     <button onClick={()=>setHeading(180)}>Mudar direção GPS</button>
     <button onClick={()=>setRequest(value=>value+1)}>Seguir GPS</button>
-    <button onClick={()=>setPath([[-23.55,-46.63],[-23.7,-46.4]])}>Novo percurso</button>
+    <output data-testid="route-target">{path.at(-1)?.join(',')}</output>
+    <button onClick={()=>setPath(current=>[[-23.55,-46.63],current.at(-1)?.[0]===-23.7?[-23.8,-46.5]:[-23.7,-46.4]])}>Novo percurso</button>
     <button onClick={()=>setShow(false)}>Remover mapa</button>
   </>;
 }
