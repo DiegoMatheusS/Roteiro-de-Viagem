@@ -17,7 +17,7 @@ import { mapContributionIcon } from './mapContributionIcon';
 import { mapPlaceIcon } from './mapPlaceIcon';
 import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
-import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLibreRouteLayers';
+import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative } from '../services/mapLibreRouteLayers';
 import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
@@ -203,6 +203,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   navigationModeRef.current=navigationMode;
   const selectRouteRef = useRef(onSelectRoute);
   selectRouteRef.current = onSelectRoute;
+  const alternativeRouteIdsRef=useRef<ReadonlySet<string>>(new Set());
+  alternativeRouteIdsRef.current = !navigationMode && routeAlternatives.length>1
+    ? new Set(routeAlternatives.filter(option=>option.id!==selectedRouteId).map(option=>option.id))
+    : new Set();
   const fittedGeometryRef=useRef<string|null>(null);
   const lastFollowRef=useRef<[number, number] | null>(null);
   const lastCenterRequestRef=useRef(0);
@@ -378,12 +382,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   },[tolls,tollVehicleType,navigationMode,vectorMarkersReady]);
 
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !onSelectCoordinates) return;
-    const handleClick = (event: L.LeafletMouseEvent) => onSelectCoordinates([event.latlng.lat, event.latlng.lng]);
-    map.on('click', handleClick);
-    return () => { map.off('click', handleClick); };
-  }, [onSelectCoordinates]);
+    const map=mapInstanceRef.current;
+    if(!map)return;
+    const handleClick=(event:L.LeafletMouseEvent)=>{
+      // The MapLibre layer is non-interactive while Leaflet owns gestures, but
+      // rendered vector alternatives are still selectable by hit-testing them.
+      // Selecting a route must not also trigger "choose map coordinates".
+      const gl=vectorMapRef.current;
+      if(vectorRoutesReady && gl && selectRouteRef.current && alternativeRouteIdsRef.current.size){
+        try{
+          const id=queryRoleVectorAlternative(gl,
+            [event.latlng.lat,event.latlng.lng],alternativeRouteIdsRef.current);
+          if(id){selectRouteRef.current(id);return;}
+        }catch{ /* A style reload must not prevent an ordinary map click. */ }
+      }
+      onSelectCoordinates?.([event.latlng.lat,event.latlng.lng]);
+    };
+    map.on('click',handleClick);
+    return ()=>map.off('click',handleClick);
+  },[onSelectCoordinates,vectorRoutesReady]);
 
   useEffect(() => {
     const group = fuelLayerGroupRef.current;
@@ -998,11 +1015,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         if (!vectorRoutesReady) {
           L.polyline(option.routePath, {color:'#ffffff',weight:9,opacity:.86,lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
         }
-        // Área de toque Leaflet ainda funciona sobre a linha vetorial MapLibre.
-        const alternative = L.polyline(option.routePath, {color:'#64748b',weight:vectorRoutesReady ? 18 : 5,
-          opacity:vectorRoutesReady ? 0.003 : .78,lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false}).addTo(group);
-        alternative.on('click',()=>selectRouteRef.current?.(option.id));
-        alternative.bindTooltip('Selecionar rota alternativa', {sticky:true,direction:'top'});
+          // In raster fallback Leaflet draws and selects the same OSRM path.
+          // When MapLibre is ready, the click handler above queries its own
+          // rendered features; there are no overlapping invisible Leaflet lines.
+          const alternative=L.polyline(option.routePath,{
+            color:'#64748b',weight:5,opacity:.78,
+            lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false
+          }).addTo(group);
+          alternative.on('click',()=>selectRouteRef.current?.(option.id));
+          alternative.bindTooltip('Selecionar rota alternativa',{sticky:true,direction:'top'});
         option.routePath.forEach(point=>bounds.push(point));
       }
     }
