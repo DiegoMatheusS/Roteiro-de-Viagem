@@ -65,6 +65,8 @@ test('hybrid map only issues camera moves through the Leaflet port; drag shows v
   assert.match(screen,/cameraMode==='exploring'&&<span/);
   assert.match(screen,/>Seguir GPS<\/span>/);
   assert.match(screen,/aria-label="Centralizar mapa na minha localização"/);
+  assert.match(map,/createHybridCameraPort\(mapInstanceRef\.current\)\.focus\(focusedCoords,15,reducedMotion\)/);
+  assert.doesNotMatch(map,/(?:map|mapInstanceRef\.current)\.(?:flyTo|panTo|setView|fitBounds)\(/);
   assert.doesNotMatch(map,/vectorMapRef\.current\.(?:easeTo|jumpTo|setBearing)/);
 });
 
@@ -111,4 +113,34 @@ test('standalone MapLibre camera fits accurate lng/lat bounds and preserves shee
   ]);
   camera.fitRoute([], {topLeft:[0,0],bottomRight:[0,0],maxZoom:13});
   assert.equal(calls.length,3);
+});
+
+
+test('explicit place focus preserves animation and honors reduced motion on both renderers',()=>{
+  const calls:unknown[][]=[];
+  const camera=createHybridCameraPort({
+    getZoom:()=>12,
+    setView:(...args)=>calls.push(['setView',...args]),
+    flyTo:(...args)=>calls.push(['flyTo',...args]),
+    panTo:()=>{},fitBounds:()=>{}
+  });
+  camera.focus([-23.55,-46.63],15,false);
+  camera.focus([-23.55,-46.63],15,true);
+  assert.deepEqual(calls,[
+    ['flyTo',[-23.55,-46.63],15,{duration:1.2,easeLinearity:0.25}],
+    ['setView',[-23.55,-46.63],15,{animate:false}]
+  ]);
+  const standaloneCalls:unknown[][]=[];
+  const standalone=createStandaloneMapLibreCameraPort({
+    getZoom:()=>12,
+    jumpTo:(options)=>standaloneCalls.push(['jumpTo',options]),
+    easeTo:(options)=>standaloneCalls.push(['easeTo',options]),
+    fitBounds:()=>{}
+  });
+  standalone.focus([-23.55,-46.63],15,false);
+  standalone.focus([-23.55,-46.63],15,true);
+  assert.deepEqual(standaloneCalls,[
+    ['easeTo',{center:[-46.63,-23.55],zoom:15,duration:1200}],
+    ['jumpTo',{center:[-46.63,-23.55],zoom:15}]
+  ]);
 });

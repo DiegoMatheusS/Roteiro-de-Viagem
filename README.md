@@ -333,3 +333,5 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O adaptador MapLibre standalone recebe a função equivalente de `fitBounds`, incluindo conversão de coordenadas latitude/longitude para longitude/latitude e os recuos reservados ao painel inferior, para a futura migração do mapa.
 - A câmera não muda o visual atual: zoom 16 na primeira posição GPS, enquadramento sem animação de trajetos novos e respeito ao zoom manual quando o usuário alterna entre rotas.
 - Testes automatizados verificam o mesmo comportamento nos dois adaptadores, sem alterar o backend, o painel administrativo, os preços ou o fluxo do comboio.
+
+- O foco explícito em locais (“Ver no Mapa”, incluindo pontos de encontro) também usa o controlador único: mantém a transição de 1,2 s e pula a animação quando o dispositivo prefere movimento reduzido. O enquadramento inicial de uma rota continua imediato.

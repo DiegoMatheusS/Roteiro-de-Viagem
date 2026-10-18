@@ -882,10 +882,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
     if (focusedCoords && mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo(focusedCoords, 15, {
-        duration: 1.2,
-        easeLinearity: 0.25
-      });
+      const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+      createHybridCameraPort(mapInstanceRef.current).focus(focusedCoords,15,reducedMotion);
     }
   }, [focusedCoords]);
 
