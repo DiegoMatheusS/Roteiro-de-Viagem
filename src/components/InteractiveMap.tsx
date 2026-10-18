@@ -22,7 +22,7 @@ import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative } from '../services/mapLibreRouteLayers';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
-import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
+import { selectRoleVectorMarkers,validMarkerPosition } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement,roadAlertMarkerChange } from '../services/mapRoadAlerts';
 import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
@@ -387,8 +387,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // O GPS atualiza várias vezes por minuto; centralizar apenas sob comando evita
     // a animação de descida do mapa a cada atualização ou troca de alternativa.
     if (centerOnUserRequest <= lastCenterRequestRef.current) return;
+    if (!userLiveCoords || !validMarkerPosition(userLiveCoords) || !mapInstanceRef.current) return;
+    // Consume only after a valid fix and map exist; a permission request can
+    // resolve before the first location arrives. Later fixes must not replay it.
     lastCenterRequestRef.current=centerOnUserRequest;
-    if (!userLiveCoords || !mapInstanceRef.current) return;
     if(followSuspendedRef.current){
       followSuspendedRef.current=false;
       if(navigationModeRef.current)cameraModeChangeRef.current?.('following');
@@ -397,9 +399,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     // Hybrid map: Leaflet is the only camera owner. MapLibre follows its viewport.
     createHybridCameraPort(map).recenter(userLiveCoords,navigationModeRef.current,reducedMotion);
-    // A posição atual é deliberadamente lida apenas quando o usuário pede centralização.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerOnUserRequest]);
+    // GPS/readiness changes retry a pending command, never a consumed one.
+  }, [centerOnUserRequest,userLiveCoords?.[0],userLiveCoords?.[1],hasMapReady]);
 
 
   useEffect(() => {
