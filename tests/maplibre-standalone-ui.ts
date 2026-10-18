@@ -413,6 +413,52 @@ try{
     'finishing a trip hides old reports immediately');
   assert.deepEqual(alertErrors,[]);
   await alertPage.close();
+
+  // Same-named destinations may be different places. Stale OSRM responses
+  // must not update the new destination, even when the previous fetch ends late.
+  const destinationPage=await browser.newPage();
+  const destinationErrors:string[]=[];
+  destinationPage.on('pageerror',error=>destinationErrors.push(error.message));
+  const releases:Record<string,()=>void>={};
+  const started:Record<string,()=>void>={};
+  const waiting=Object.fromEntries(['a','b','c'].map(id=>[id,new Promise<void>(resolve=>{started[id]=resolve;})])) as Record<string,Promise<void>>;
+  const gates=Object.fromEntries(['a','b','c'].map(id=>[id,new Promise<void>(resolve=>{releases[id]=resolve;})])) as Record<string,Promise<void>>;
+  await destinationPage.route('**/api/routes/alternatives',async route=>{
+    const {destinationCoords}=route.request().postDataJSON() as {destinationCoords:[number,number]};
+    const id=destinationCoords[1]===0.01?'a':destinationCoords[1]===0.02?'b':'c';
+    started[id]();
+    await gates[id];
+    try{
+      await route.fulfill({json:{options:[{
+        id:'choice-'+id,kind:'fast',distanceKm:2,durationMinutes:8,
+        routePath:[[0,0],destinationCoords],routeSteps:[],
+        trafficStatus:'unavailable',tollStatus:'unchecked'
+      }],trafficDataAvailable:false}});
+    }catch{
+      // Canceled fetches cannot update a now-closed destination.
+    }
+  });
+  await destinationPage.goto('http://127.0.0.1:3000/tests/fixtures/destination-races.html');
+  await waiting.a;
+  await destinationPage.getByRole('button',{name:'Trocar para destino B',exact:true}).click();
+  await waiting.b;
+  assert.equal(await destinationPage.getByTestId('destination-route').textContent(),'',
+    'different coordinates sharing a name must discard previous pending route');
+  releases.b();
+  await destinationPage.waitForFunction(()=>document.querySelector('[data-testid="destination-route"]')?.textContent==='choice-b');
+  releases.a();
+  await destinationPage.waitForTimeout(150);
+  assert.equal(await destinationPage.getByTestId('destination-route').textContent(),'choice-b',
+    'an old destination response must not overwrite the selected new destination');
+  await destinationPage.getByRole('button',{name:'Trocar para destino C',exact:true}).click();
+  await waiting.c;
+  await destinationPage.getByRole('button',{name:'Sair da visualização do destino'}).click();
+  releases.c();
+  await destinationPage.waitForTimeout(150);
+  assert.equal(await destinationPage.getByTestId('destination-route').textContent(),'',
+    'closing the destination must cancel pending route calculations');
+  assert.deepEqual(destinationErrors,[]);
+  await destinationPage.close();
   assert.deepEqual(errors,[]);
   console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}
