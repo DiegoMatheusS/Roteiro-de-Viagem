@@ -30,10 +30,10 @@ test('static layers are not rebuilt on position fixes or travelled-distance chan
 test('user dragging pauses camera following but GPS recenter resumes it',()=>{
   assert.match(source,/map\.on\('dragstart',pauseFollowing\)/);
   assert.match(source,/map\.off\('dragstart',pauseFollowing\)/);
-  assert.match(source,/followSuspendedRef\.current = true/);
-  assert.match(source,/followSuspendedRef\.current = false/);
+  assert.match(source,/followSuspendedRef\.current=true/);
+  assert.match(source,/followSuspendedRef\.current=false/);
   assert.match(source,/else if \(followUser && !followSuspendedRef\.current\)/);
-  assert.match(source,/map\.panTo\(userLiveCoords,\{animate:true,duration:0\.45,easeLinearity:0\.3\}\)/);
+  assert.match(source,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
   assert.match(source,/window\.matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)/);
 });
 test('smooth pinch zoom is enabled while fallback and native markers remain',()=>{
