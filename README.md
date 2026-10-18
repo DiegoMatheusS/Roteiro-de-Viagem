@@ -365,7 +365,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 
 - O mapa da viagem em andamento passa a criar uma instância MapLibre independente, com câmera, arrasto, pinça e teclado nativos. Não cria mapa Leaflet nem usa a ponte híbrida nessa tela.
 - Reutiliza os controladores incrementais de GPS, destino, paradas, comboio, previsão e alertas, incluindo seus pop-ups e ações. Gestos pausam o acompanhamento; “Seguir GPS” recentraliza preservando o zoom útil.
-- Início e Mapa também usam o renderizador independente; detalhes e comboio continuam no mapa híbrido. Falha de WebGL, carregamento inicial do estilo ou perda de contexto fazem as telas independentes retornar ao renderizador existente.
+- Todos os mapas públicos usam o renderizador independente, incluindo detalhes e comboio. Falha de WebGL, carregamento inicial do estilo ou perda de contexto fazem as telas independentes retornar ao renderizador híbrido.
 - Giro manual e inclinação permanecem desativados. A orientação por GPS é opcional pelo botão “Norte / Direção” e ainda precisa de validação em aparelho físico.
 - O teste de interface independente usa WebGL por software e estilo local de teste, cobrindo câmera única, gesto real, atualização do GPS sem roubar a câmera, retomada e fallback. O cenário de teste não depende dos servidores de tiles.
 
@@ -379,8 +379,16 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 
 ## MapLibre independente no Início e na aba Mapa
 
-- As telas de mapa em tela cheia (Início, Mapa e navegação ativa) usam MapLibre independente. Detalhes de viagens e comboio continuam no mapa híbrido; este também permanece como fallback.
+- Início, Mapa, navegação ativa, detalhes e comboio usam MapLibre independente. O mapa híbrido permanece como fallback.
 - Em Início e Mapa, as alternativas são selecionadas pelas linhas vetoriais, com a distância ao toque validada pelo mesmo seletor usado anteriormente. Trocar alternativa mantém o enquadramento e não aciona a seleção de um novo endereço.
 - A lista de locais usa somente os descritores dos marcadores instalados e as paradas válidas dentro do viewport. É atualizada ao mover/zoomar, sem duplicações, limitada aos 25 locais mais próximos.
 - Explorar sem rota continua buscando estabelecimentos na região central do mapa. Fixes de GPS atualizam o pino; apenas o pedido de centralização move a câmera fora da navegação.
 - “Norte / Direção” continua exclusivo da navegação ativa. Os controles e painéis flutuantes existentes são mantidos.
+
+## Detalhes e comboio no MapLibre independente
+
+- Detalhes da viagem e comboio também usam MapLibre independente, concluindo a migração dos mapas públicos. O Leaflet é mantido como fallback e para os helpers de ícones existentes.
+- Claro continua vetorial; Satélite e Relevo usam os mesmos provedores raster já disponíveis, agora como bases do MapLibre. A troca mantém os marcadores/pontos de encontro e o enquadramento, respeitando o limite de zoom do provedor.
+- As decorações do percurso são reinstaladas após mudar a base, e os participantes continuam sendo atualizados por ID sem refazer os demais ícones.
+- Falha ao carregar a base selecionada retorna ao mapa híbrido com o mesmo estilo escolhido. Esse fallback continua oferecendo o aviso e a opção de tentar novamente.
+- O teste de interface cobre as três bases com tiles locais de teste, pop-up de encontro aberto, atualização isolada de participante e fallback conservando o estilo.

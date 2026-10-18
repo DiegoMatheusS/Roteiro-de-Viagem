@@ -45,8 +45,8 @@ try{
  await owner.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===2);
  // O mapa nao exibe mais +/-. Testa o zoom por gesto (duplo clique) sem mudar a preferencia do usuario.
  assert.equal(await owner.locator('.leaflet-control-zoom-in, .leaflet-control-zoom-out').count(),0);
- await owner.locator('.leaflet-container').last().dblclick({position:{x:110,y:150}});
- await owner.waitForFunction(()=>!document.querySelector('.leaflet-zoom-anim'));
+ await owner.locator('[data-map-engine="maplibre-standalone"], .leaflet-container').last().dblclick({position:{x:110,y:150}});
+ await owner.waitForFunction(()=>{const maps=document.querySelectorAll<HTMLElement>('[data-map-engine="maplibre-standalone"], .leaflet-container');const map=maps.item(maps.length-1);return map?.dataset.mapEngine==='maplibre-standalone'?map.dataset.mapIdle==='true':!document.querySelector('.leaflet-zoom-anim');});
  const fixedMarkerBefore=await owner.locator('.convoy-participant-marker[title="Organizador"]').getAttribute('style');
  const before=await owner.locator('.convoy-participant-marker[title="Motociclista"]').getAttribute('style');
  await rider.getByRole('button',{name:'Voltar ao menu e manter comboio ativo',exact:true}).click();await rider.getByRole('button',{name:'Abrir menu'}).click();await rider.getByRole('button',{name:'Perfil',exact:true}).click();await rider.getByRole('button',{name:'Abrir comboio',exact:true}).waitFor();

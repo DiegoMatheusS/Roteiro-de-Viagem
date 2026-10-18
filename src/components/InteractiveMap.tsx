@@ -1,4 +1,5 @@
 import type { RouteToll } from '../types/tolls';
+import {TILE_PROVIDERS,type MapStyleType} from '../services/mapStyles';
 import { TollModal } from './TollModal';
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
@@ -44,7 +45,7 @@ const EMPTY_WEATHER: WeatherPoint[] = [];
 const EMPTY_TOLLS: RouteToll[] = [];
 const EMPTY_CONVOY: ConvoyParticipant[] = [];
 const EMPTY_MEETINGS: MeetingPoint[] = [];
-export type MapStyleType = 'light' | 'satellite' | 'topo';
+export type {MapStyleType} from '../services/mapStyles';
 export interface MapVisiblePlace {
   id: string;
   name: string;
@@ -54,6 +55,7 @@ export interface MapVisiblePlace {
 }
 
 export interface InteractiveMapProps {
+  initialStyle?:MapStyleType;
   originCoords?: [number, number];
   destinationCoords?: [number, number];
   originLabel?: string;
@@ -98,30 +100,6 @@ export interface InteractiveMapProps {
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 // Mapa claro padrão: MapLibre/OpenFreeMap vetorial com fallback raster OSM sem chave. Satélite e relevo preservados.
-const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
-  light: {
-    name: 'Claro (MapLibre)',
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores',
-    maxZoom: 19,
-    icon: '🗺️'
-  },
-  satellite: {
-    name: 'Satélite Real',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© Esri, Maxar, Earthstar Geographics',
-    maxZoom: 18,
-    icon: '🛰️'
-  },
-  topo: {
-    name: 'Relevo / Serras',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenTopoMap, © OpenStreetMap colaboradores',
-    maxZoom: 17,
-    icon: '⛰️'
-  }
-};
-
 // Vibrant modality colors
 const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; border: string }> = {
   panoramica: { primary: '#059669', glow: '#34d399', border: '#ffffff' }, // Emerald green
@@ -133,6 +111,7 @@ const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; bo
 };
 
 const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
+  initialStyle='light',
   originCoords,
   destinationCoords,
   originLabel = 'Origem',
@@ -262,7 +241,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
   };
 
 
-  const [currentStyle, setCurrentStyle] = useState<MapStyleType>('light');
+  const [currentStyle, setCurrentStyle] = useState<MapStyleType>(initialStyle);
   const [showStyleMenu, setShowStyleMenu] = useState(false);
   const [tileError, setTileError] = useState(false);
   const [tileRetryCount, setTileRetryCount] = useState(0);
@@ -1515,20 +1494,22 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
 
 
 const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').catch(()=>({
-  default:function NativeLoadFailure({onUnavailable}:{onUnavailable:()=>void}){
+  default:function NativeLoadFailure({onUnavailable}:{onUnavailable:(style?:MapStyleType)=>void}){
     useEffect(()=>{onUnavailable();},[onUnavailable]);return <></>;
   }
 })));
-/** Full-screen public maps use native MapLibre. Detail/convoy maps retain the
- * hybrid renderer, also available as fallback when native WebGL cannot load. */
+/** All public maps use native MapLibre; the hybrid renderer remains available
+ * as fallback when WebGL or the selected base cannot load. */
 export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
   const [fallback,setFallback]=useState(false);
+  const [fallbackStyle,setFallbackStyle]=useState<MapStyleType>();
   const latestProps=useRef(props);latestProps.current=props;
-  const onUnavailable=React.useCallback(()=>{
+  const onUnavailable=React.useCallback((style?:MapStyleType)=>{
+    setFallbackStyle(style);
     latestProps.current.onCameraModeChange?.('following');
     setFallback(true);
   },[]);
-  if((!props.navigationMode && !props.roadStyle) || fallback)return <HybridInteractiveMap {...props}/>;
+  if(fallback)return <HybridInteractiveMap {...props} initialStyle={fallbackStyle??props.initialStyle}/>;
   return <React.Suspense fallback={<div className={props.className || 'w-full h-full'} role="status" aria-label="Carregando mapa"/>}>
     <NativeNavigationMap {...props} onUnavailable={onUnavailable}/>
   </React.Suspense>;
