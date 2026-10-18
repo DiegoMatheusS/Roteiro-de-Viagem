@@ -285,3 +285,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O mapa ainda usa **Leaflet como controlador da câmera e dos gestos**. O clique Leaflet apenas encaminha a posição ao mapa vetorial; não são ativados dois controladores de câmera simultâneos.
 - No fallback raster, as alternativas continuam visíveis e selecionáveis pelas mesmas polylines Leaflet. Um toque sobre uma linha vetorial que seleciona rota não dispara também a ação de definir coordenadas do mapa.
 - Esta etapa não inventa rotas, não muda a geometria de origem, não faz merge automático e não altera backend nem admin.
+
+## Melhor desempenho nas rotas longas — PR #58
+
+- Os pequenos marcadores decorativos do percurso (pontos intermediários) passam a usar **uma camada de círculos do MapLibre**, em vez de vários elementos Leaflet quando há WebGL disponível. Isso mantém zoom, rotas alternativas e acompanhamento GPS desacoplados da atualização dessas decorações.
+- Tanto no MapLibre quanto no fallback Leaflet, a quantidade de pontos decorativos é limitada a **160 por trajeto**, escolhidos exclusivamente dentre as coordenadas reais devolvidas pelo roteador OSRM. Nenhum trecho de estrada ou localização é inventado, e a geometria da rota não é simplificada: a mudança afeta só as decorações visuais.
+- Os pontos decorativos só aparecem na visualização de roteiros, sem poluir a navegação ativa. Não são botões nem áreas de toque, evitando disputa com gestos e com a seleção de rotas.
+- O fallback raster continua usando os mesmos pontos reais, sem criar um marcador DOM a cada 3 vértices em viagens longas. A camada vetorial é removida corretamente ao trocar de estilo.
+- Esta etapa **não habilita rotação/inclinação do mapa**: a câmera do mapa híbrido continua controlada pelo Leaflet até a migração conjunta de gestos e overlays.

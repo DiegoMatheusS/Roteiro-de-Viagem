@@ -18,6 +18,8 @@ import { mapPlaceIcon } from './mapPlaceIcon';
 import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative } from '../services/mapLibreRouteLayers';
+import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
+import {selectRouteMilestones} from '../services/routeMilestones';
 import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
@@ -166,6 +168,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const currentTileLayerRef = useRef<L.Layer | null>(null);
   const vectorMapRef = useRef<MapLibreMap | null>(null);
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
+  const [vectorMilestonesReady,setVectorMilestonesReady]=useState(false);
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
   const [vectorAlertsReady, setVectorAlertsReady] = useState(false);
   const [vectorNavigationReady, setVectorNavigationReady] = useState(false);
@@ -192,6 +195,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const liveFallbackRef = useRef<L.Marker | null>(null);
   const liveFallbackHeadingRef = useRef<number|null>(null);
   const progressGroupRef = useRef<L.LayerGroup | null>(null);
+  const milestoneGroupRef=useRef<L.LayerGroup|null>(null);
   const stopPinGroupRef = useRef<L.LayerGroup|null>(null);
   const meetingPinGroupRef = useRef<L.LayerGroup|null>(null);
   const convoyPinGroupRef = useRef<L.LayerGroup|null>(null);
@@ -289,6 +293,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     navigationPinGroupRef.current = L.layerGroup().addTo(map);
     livePinGroupRef.current = L.layerGroup().addTo(map);
     progressGroupRef.current = L.layerGroup().addTo(map);
+    milestoneGroupRef.current=L.layerGroup().addTo(map);
     stopPinGroupRef.current = L.layerGroup().addTo(map);
     meetingPinGroupRef.current = L.layerGroup().addTo(map);
     convoyPinGroupRef.current = L.layerGroup().addTo(map);
@@ -663,7 +668,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return () => {
       disposed = true;
       const activeVector = vectorMapRef.current;
-      if (activeVector) { try { clearRoleVectorRoutes(activeVector); } catch { /* style já removido */ } }
+      if (activeVector) {
+        try{clearRoleVectorMilestones(activeVector);}catch{/* style já removido */}
+        try{clearRoleVectorRoutes(activeVector);}catch{/* style já removido */}
+      }
       vectorMapRef.current = null;
       if (vectorTimer) clearTimeout(vectorTimer);
       clearTimeout(resizeTimer);
@@ -696,6 +704,43 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
       routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
+
+  // Milestone dots are decoration only. Keep them in one native circle layer,
+  // separate from GPS progress updates (which can arrive every second).
+  useEffect(()=>{
+    const gl=vectorMapRef.current;
+    if(!vectorRoutesReady || !gl){
+      setVectorMilestonesReady(false);
+      return;
+    }
+    try{
+      updateRoleVectorMilestones(gl,routePath,
+        (MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
+        !navigationMode && !roadStyle && !blueRoute);
+      milestoneGroupRef.current?.clearLayers();
+      setVectorMilestonesReady(true);
+    }catch{
+      setVectorMilestonesReady(false);
+    }
+  },[vectorRoutesReady,routePath,routeModality,navigationMode,roadStyle,blueRoute]);
+
+  // Raster/older devices still see the same sampled OSRM route dots.
+  // Never generate thousands of Leaflet DOM markers on a long journey.
+  useEffect(()=>{
+    const group=milestoneGroupRef.current;
+    if(!group)return;
+    group.clearLayers();
+    if(vectorMilestonesReady || navigationMode || roadStyle || blueRoute)return;
+    const color=(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary;
+    for(const point of selectRouteMilestones(routePath)){
+      const icon=L.divIcon({
+        className:'route-milestone-marker',
+        html:`<div style="width:10px;height:10px;background:#fff;border:2.5px solid ${color};border-radius:50%"></div>`,
+        iconSize:[10,10],iconAnchor:[5,5]
+      });
+      L.marker(point,{icon,interactive:false,keyboard:false}).addTo(group);
+    }
+  },[routePath,routeModality,navigationMode,roadStyle,blueRoute,vectorMilestonesReady]);
 
   // Base vetorial pronta: pins de GPS, origem e destino saem da camada Leaflet.
   // O controlador MapLibre mantém os elementos vivos entre atualizações do GPS.
@@ -1051,14 +1096,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       }
       routePath.forEach((point, index) => {
         bounds.push(point);
-        if (!navigationMode && !roadStyle && !blueRoute && index > 0 && index < routePath.length - 1 && index % 3 === 0) {
-          const milestoneIcon = L.divIcon({
-            className: 'route-milestone-marker',
-            html: `<div style="width:10px;height:10px;background:#fff;border:2.5px solid ${modalityStyle.primary};border-radius:50%"></div>`,
-            iconSize: [10, 10], iconAnchor: [5, 5]
-          });
-          L.marker(point, { icon: milestoneIcon }).addTo(group);
-        }
+        // The milestone overlay is maintained independently above.
       });
     }
 
