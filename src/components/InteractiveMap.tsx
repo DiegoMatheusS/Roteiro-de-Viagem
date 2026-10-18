@@ -1,4 +1,5 @@
 import {sameMapFocus,type MapFallbackViewport} from '../services/mapFallbackViewport';
+import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
 import type { RouteToll } from '../types/tolls';
 import {TILE_PROVIDERS,type MapStyleType} from '../services/mapStyles';
 import { TollModal } from './TollModal';
@@ -550,7 +551,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const center = map.getCenter();
     const ordered = [...unique.values()]
       .sort((a,b) => map.distance(a.coords,center)-map.distance(b.coords,center)).slice(0,25);
-    const signature = JSON.stringify(ordered.map(p=>p.id));
+    const signature = visiblePlacesSignature(ordered);
     if (signature !== visibleKeyRef.current) {
       visibleKeyRef.current = signature;
       publish(ordered);
