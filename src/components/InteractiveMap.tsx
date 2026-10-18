@@ -1,3 +1,4 @@
+import {sameMapFocus,type MapFallbackViewport} from '../services/mapFallbackViewport';
 import type { RouteToll } from '../types/tolls';
 import {TILE_PROVIDERS,type MapStyleType} from '../services/mapStyles';
 import { TollModal } from './TollModal';
@@ -110,7 +111,8 @@ const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; bo
   equilibrada: { primary: '#0d9488', glow: '#2dd4bf', border: '#ffffff' } // Teal
 };
 
-const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
+const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapFallbackViewport}> = ({
+  resumeViewport,
   initialStyle='light',
   originCoords,
   destinationCoords,
@@ -190,7 +192,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
   const meetingPinGroupRef = useRef<L.LayerGroup|null>(null);
   const convoyPinGroupRef = useRef<L.LayerGroup|null>(null);
   const convoyFallbackMarkersRef = useRef<Map<string,{marker:L.Marker;signature:string}>>(new Map());
-  const followSuspendedRef = useRef(false);
+  const followSuspendedRef = useRef(resumeViewport?.mode==='exploring');
+  const initialFocusRef=useRef(true);
   const cameraModeChangeRef = useRef(onCameraModeChange);
   cameraModeChangeRef.current=onCameraModeChange;
   const navigationModeRef=useRef(navigationMode);
@@ -201,10 +204,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
   alternativeRouteIdsRef.current = !navigationMode && routeAlternatives.length>1
     ? new Set(routeAlternatives.filter(option=>option.id!==selectedRouteId).map(option=>option.id))
     : new Set();
-  const fittedGeometryRef=useRef<string|null>(null);
+  const fittedGeometryRef=useRef<string|null>(resumeViewport?.fittedRoute??null);
   const previousStaticLayerInputsRef=useRef<StaticLayerInputs|null>(null);
-  const lastFollowRef=useRef<[number, number] | null>(null);
-  const lastCenterRequestRef=useRef(0);
+  const lastFollowRef=useRef<[number, number] | null>(resumeViewport?.position??null);
+  const lastCenterRequestRef=useRef(resumeViewport?.centerRequest??0);
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
   const [viewportRevision, setViewportRevision] = useState(0);
   const visibleCallbackRef = useRef(onVisiblePlacesChange);
@@ -272,8 +275,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
     if (mapInstanceRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
-      center: originCoords || [-14.2, -51.9],
-      zoom: originCoords ? 11 : 4,
+      center: resumeViewport?.center || originCoords || [-14.2, -51.9],
+      zoom: resumeViewport?.zoom ?? (originCoords ? 11 : 4),
       minZoom: 1,
       zoomControl: false,
       // The convoy/detail map must retain immediate Leaflet zoom so a delayed
@@ -281,7 +284,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
       // Full-screen road navigation keeps softer pinch increments and animation.
       zoomAnimation: roadStyle || navigationMode,
       fadeAnimation: roadStyle || navigationMode,
-      zoomSnap: roadStyle || navigationMode ? 0.5 : 1,
+      zoomSnap: resumeViewport ? 0 : roadStyle || navigationMode ? 0.5 : 1,
       zoomDelta: roadStyle || navigationMode ? 0.5 : 1,
       attributionControl: true
     });
@@ -359,6 +362,12 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map) return;
     const handleMovement = () => {
+      const root=mapContainerRef.current?.parentElement;
+      if(root){
+        const center=map.getCenter();
+        root.dataset.mapCenter=JSON.stringify([center.lat,center.lng]);
+        root.dataset.mapZoom=String(map.getZoom());
+      }
       setViewportRevision(value => value + 1);
       if (routePath.length || originCoords) return;
       if (map.getZoom() < 10) { setViewportCenter(null); return; }
@@ -874,6 +883,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
+    const initial=initialFocusRef.current;initialFocusRef.current=false;
+    if(initial && resumeViewport && sameMapFocus(focusedCoords,resumeViewport.focusedCoords))return;
     if (focusedCoords && mapInstanceRef.current) {
       const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
       createHybridCameraPort(mapInstanceRef.current).focus(focusedCoords,15,reducedMotion);
@@ -1410,7 +1421,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
   }, [navigationMode, userLiveCoords, followUser]);
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div className={`relative overflow-hidden ${className}`} data-map-engine="leaflet-fallback">
       {/* MAP CANVAS */}
       {tileError && <div role="alert" className="absolute left-3 right-3 top-[75px] z-[65] mx-auto max-w-[310px] rounded-xl border border-amber-200 bg-white/95 p-3 text-center text-xs text-slate-800 shadow-xl">
         O mapa não conseguiu carregar os blocos de imagem. Verifique sua conexão.
@@ -1494,7 +1505,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps> = ({
 
 
 const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').catch(()=>({
-  default:function NativeLoadFailure({onUnavailable}:{onUnavailable:(style?:MapStyleType)=>void}){
+  default:function NativeLoadFailure({onUnavailable}:{onUnavailable:(style?:MapStyleType,viewport?:MapFallbackViewport)=>void}){
     useEffect(()=>{onUnavailable();},[onUnavailable]);return <></>;
   }
 })));
@@ -1503,13 +1514,15 @@ const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').cat
 export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
   const [fallback,setFallback]=useState(false);
   const [fallbackStyle,setFallbackStyle]=useState<MapStyleType>();
+  const [fallbackViewport,setFallbackViewport]=useState<MapFallbackViewport>();
   const latestProps=useRef(props);latestProps.current=props;
-  const onUnavailable=React.useCallback((style?:MapStyleType)=>{
+  const onUnavailable=React.useCallback((style?:MapStyleType,viewport?:MapFallbackViewport)=>{
     setFallbackStyle(style);
-    latestProps.current.onCameraModeChange?.('following');
+    setFallbackViewport(viewport);
+    latestProps.current.onCameraModeChange?.(viewport?.mode??'following');
     setFallback(true);
   },[]);
-  if(fallback)return <HybridInteractiveMap {...props} initialStyle={fallbackStyle??props.initialStyle}/>;
+  if(fallback)return <HybridInteractiveMap {...props} initialStyle={fallbackStyle??props.initialStyle} resumeViewport={fallbackViewport}/>;
   return <React.Suspense fallback={<div className={props.className || 'w-full h-full'} role="status" aria-label="Carregando mapa"/>}>
     <NativeNavigationMap {...props} onUnavailable={onUnavailable}/>
   </React.Suspense>;

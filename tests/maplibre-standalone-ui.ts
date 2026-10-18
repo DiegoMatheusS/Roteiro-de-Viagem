@@ -59,6 +59,42 @@ try{
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
   fs.mkdirSync('test-results',{recursive:true});
   await page.screenshot({path:'test-results/maplibre-standalone-navigation.png'});
+  // A context loss after manual zoom preserves the camera and the consumed
+  // recenter request. Later GPS readings cannot silently resume following.
+  await page.mouse.move(box.x+70,box.y+150);
+  await page.mouse.wheel(0,-120);
+  await page.waitForFunction(()=>{
+    const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
+    return root?.dataset.mapIdle==='true' && Number(root.dataset.mapZoom)>16;
+  });
+  assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring');
+  const lossCenter=JSON.parse((await map.getAttribute('data-map-center'))!);
+  const lossZoom=Number(await map.getAttribute('data-map-zoom'));
+  await page.locator('.maplibregl-canvas').evaluate(canvas=>
+    canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
+  const fallback=page.locator('[data-map-engine="leaflet-fallback"]');
+  await fallback.waitFor();
+  await page.waitForFunction(()=>!!document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapCenter);
+  const restoredCenter=JSON.parse((await fallback.getAttribute('data-map-center'))!);
+  assert.ok(Math.abs(restoredCenter[0]-lossCenter[0])<0.00001 && Math.abs(restoredCenter[1]-lossCenter[1])<0.00001);
+  assert.equal(Number(await fallback.getAttribute('data-map-zoom')),lossZoom,'fractional zoom survives fallback');
+  assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring');
+  const fallbackPin=page.locator('.user-live-marker').first();await fallbackPin.waitFor();
+  const pinBefore=await fallbackPin.getAttribute('style');
+  await page.getByRole('button',{name:'Mover GPS',exact:true}).click();
+  await page.waitForFunction(previous=>document.querySelector('.user-live-marker')?.getAttribute('style')!==previous,pinBefore);
+  assert.equal(await fallback.getAttribute('data-map-center'),JSON.stringify(restoredCenter));
+  assert.equal(Number(await fallback.getAttribute('data-map-zoom')),lossZoom);
+  await page.getByRole('button',{name:'Seguir GPS',exact:true}).click();
+  await page.waitForFunction(()=>{
+    const root=document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]');
+    if(!root?.dataset.mapCenter)return false;
+    const [lat,lon]=JSON.parse(root.dataset.mapCenter);
+    return Math.abs(lat+23.56)<0.00001 && Math.abs(lon+46.62)<0.00001;
+  });
+  assert.equal(await page.locator('[data-testid="mode"]').textContent(),'following');
+  await page.getByRole('button',{name:'Novo percurso',exact:true}).click();
+  await page.waitForFunction(previous=>Number(document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapZoom)<previous,lossZoom);
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();
   assert.equal(await page.locator('.maplibregl-canvas').count(),0);
   // A missing vector style must restore the existing hybrid/raster renderer.
@@ -158,6 +194,11 @@ try{
   await page.getByRole('button',{name:/Satélite Real/}).click();
   await page.locator('.leaflet-container').waitFor({timeout:20000});
   assert.ok((await page.getByTitle('Alterar visual do mapa').textContent())?.includes('Satélite Real'));
+  const rasterFallback=page.locator('[data-map-engine="leaflet-fallback"]');
+  const rasterCenter=JSON.parse((await rasterFallback.getAttribute('data-map-center'))!);
+  const oldDetailCenter=JSON.parse(detailCenter!);
+  assert.ok(Math.abs(rasterCenter[0]-oldDetailCenter[0])<0.0001 && Math.abs(rasterCenter[1]-oldDetailCenter[1])<0.0001);
+  assert.equal(await rasterFallback.getAttribute('data-map-zoom'),detailZoom);
   assert.deepEqual(errors,[]);
   console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}

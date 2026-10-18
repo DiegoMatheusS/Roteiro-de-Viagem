@@ -8,13 +8,15 @@ function Fixture(){
   const [heading,setHeading]=useState(90);
   const [mode,setMode]=useState('following');
   const [show,setShow]=useState(true);
+  const [path,setPath]=useState<[number,number][]>([[-23.55,-46.63],[-23.56,-46.62]]);
   return <><div style={{width:390,height:620}}>{show&&<InteractiveMap navigationMode
-    routePath={[[-23.55,-46.63],[-23.56,-46.62]]} destinationCoords={[-23.56,-46.62]}
+    routePath={path} destinationCoords={path[path.length-1]}
     userLiveCoords={coords} userHeadingDegrees={heading} userSpeedMetersPerSecond={10} showFuelStations={false} centerOnUserRequest={request}
     onCameraModeChange={setMode}/>}</div><output data-testid="mode">{mode}</output>
-    <button onClick={()=>setCoords([-23.555,-46.625])}>Mover GPS</button>
+    <button onClick={()=>setCoords(current=>[current[0]-.005,current[1]+.005])}>Mover GPS</button>
     <button onClick={()=>setHeading(180)}>Mudar direção GPS</button>
     <button onClick={()=>setRequest(value=>value+1)}>Seguir GPS</button>
+    <button onClick={()=>setPath([[-23.55,-46.63],[-23.7,-46.4]])}>Novo percurso</button>
     <button onClick={()=>setShow(false)}>Remover mapa</button>
   </>;
 }

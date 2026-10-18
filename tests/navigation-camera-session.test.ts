@@ -61,3 +61,16 @@ test('home map recenters only on request and never follows GPS automatically',()
   assert.deepEqual(s.calls,['recenter']);
   assert.deepEqual(s.modes,[]);
 });
+
+test('fallback snapshot records only commands and GPS fixes actually consumed',()=>{
+  const s=setup();
+  s.session.update({...input,position:undefined,centerRequest:2});
+  assert.deepEqual(s.session.snapshot(),{mode:'following',centerRequest:0,position:null});
+  s.session.update({...input,centerRequest:2});s.session.explore();
+  const snapshot=s.session.snapshot();
+  assert.deepEqual(snapshot,{mode:'exploring',centerRequest:2,position:input.position});
+  snapshot.position![0]=0;
+  assert.deepEqual(s.session.snapshot().position,input.position);
+  s.session.update({...input,centerRequest:3});
+  assert.equal(s.session.snapshot().mode,'following');
+});

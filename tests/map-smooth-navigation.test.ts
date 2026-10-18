@@ -39,7 +39,7 @@ test('user dragging pauses camera following but GPS recenter resumes it',()=>{
 test('smooth pinch zoom is enabled while fallback and native markers remain',()=>{
   assert.match(source,/zoomAnimation: roadStyle \|\| navigationMode/);
   assert.match(source,/fadeAnimation: roadStyle \|\| navigationMode/);
-  assert.match(source,/zoomSnap: roadStyle \|\| navigationMode \? 0\.5 : 1/);
+  assert.match(source,/zoomSnap: resumeViewport \? 0 : roadStyle \|\| navigationMode \? 0\.5 : 1/);
   assert.match(source,/zoomDelta: roadStyle \|\| navigationMode \? 0\.5 : 1/);
   assert.match(source,/showRaster\(\)/);
   assert.match(source,/vectorNavigationController\.current\?\.update\(navigationPinInputs\.current\)/);
