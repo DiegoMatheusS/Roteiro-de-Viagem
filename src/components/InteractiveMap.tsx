@@ -170,6 +170,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const currentTileLayerRef = useRef<L.Layer | null>(null);
   const vectorMapRef = useRef<MapLibreMap | null>(null);
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
+  const [vectorRoutePaintReady,setVectorRoutePaintReady]=useState(false);
   const [vectorMilestonesReady,setVectorMilestonesReady]=useState(false);
   const [vectorMarkersReady, setVectorMarkersReady] = useState(false);
   const vectorPlaceControllerRef=useRef<RoleMarkerController|null>(null);
@@ -712,27 +713,55 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   // Trajetos do OSRM são desenhados diretamente no MapLibre após carregar o
   // estilo vetorial. Atualizamos dados do GPS sem recriar a base nem mudar zoom.
   useEffect(() => {
-    const gl = vectorMapRef.current;
-    if (!vectorRoutesReady || !gl) {
+    const gl=vectorMapRef.current;
+    if(!vectorRoutesReady || !gl){
+      setVectorRoutePaintReady(false);
       mapContainerRef.current?.removeAttribute('data-role-vector-routes');
       return;
     }
-    try {
-      const featureCount=updateRoleVectorRoutes(gl, {
-        routePath, alternatives:routeAlternatives, selectedRouteId,
-        modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
-        userLocation:userLiveCoords,
-        travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
-      });
-      if(featureCount>0)mapContainerRef.current?.setAttribute('data-role-vector-routes',String(featureCount));
-      else mapContainerRef.current?.removeAttribute('data-role-vector-routes');
-    } catch {
-      mapContainerRef.current?.removeAttribute('data-role-vector-routes');
-      // Um estilo que muda enquanto chega nova posição não pode interromper a navegação.
-      setVectorRoutesReady(false);
+    let disposed=false;
+    const updateWhenStyleReady=()=>{
+      if(disposed || !gl.isStyleLoaded())return;
+      // The map's initial "load" event can precede a fully initialized style.
+      // Until this succeeds, the raster Leaflet lines remain as an overlay.
+      try{
+        const featureCount=updateRoleVectorRoutes(gl,{
+          routePath,alternatives:routeAlternatives,selectedRouteId,
+          modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
+          userLocation:userLiveCoords,
+          travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
+        });
+        if(featureCount>0){
+          mapContainerRef.current?.setAttribute('data-role-vector-routes',String(featureCount));
+          setVectorRoutePaintReady(true);
+        }else{
+          mapContainerRef.current?.removeAttribute('data-role-vector-routes');
+          setVectorRoutePaintReady(false);
+        }
+        gl.off('styledata',updateWhenStyleReady);
+        gl.off('idle',updateWhenStyleReady);
+      }catch{
+        mapContainerRef.current?.removeAttribute('data-role-vector-routes');
+        setVectorRoutePaintReady(false);
+        // A style update must never leave the route invisible or break the GPS.
+        gl.off('styledata',updateWhenStyleReady);
+        gl.off('idle',updateWhenStyleReady);
+        setVectorRoutesReady(false);
+      }
+    };
+    if(gl.isStyleLoaded())updateWhenStyleReady();
+    else{
+      setVectorRoutePaintReady(false);
+      gl.on('styledata',updateWhenStyleReady);
+      gl.on('idle',updateWhenStyleReady);
     }
-  }, [vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
-      routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
+    return ()=>{
+      disposed=true;
+      gl.off('styledata',updateWhenStyleReady);
+      gl.off('idle',updateWhenStyleReady);
+    };
+  },[vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
+    routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
 
   // Milestone dots are decoration only. Keep them in one native circle layer,
   // separate from GPS progress updates (which can arrive every second).
@@ -1103,7 +1132,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (!navigationMode && routeAlternatives.length > 1) {
       for (const option of routeAlternatives) {
         if (option.id === selectedRouteId || option.routePath.length < 2) continue;
-        if (!vectorRoutesReady) {
+        if (!vectorRoutesReady || !vectorRoutePaintReady) {
           // In raster fallback Leaflet draws and selects the same OSRM path.
           // When MapLibre is ready, the click handler above queries its own
           // rendered features; there are no overlapping invisible Leaflet lines.
@@ -1124,7 +1153,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // A posição vem do GPS, sem colorir como concluído quando estiver fora da rota.
     const modalityStyle = MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica;
     if (routePath && routePath.length > 1) {
-      if (!vectorRoutesReady) {
+      if (!vectorRoutesReady || !vectorRoutePaintReady) {
       L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
       if (!(navigationMode || blueRoute)) {
@@ -1311,7 +1340,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     meetingPoints,
     vectorWeatherReady,
     vectorNavigationReady,
-    vectorTripPinsReady
+    vectorTripPinsReady,
+    vectorRoutePaintReady
   ]);
 
   useEffect(() => {
