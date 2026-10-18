@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {selectVisibleRoadAlerts} from '../src/services/mapRoadAlerts';
+import {selectVisibleRoadAlerts,roadAlertMarkerChange} from '../src/services/mapRoadAlerts';
 import type {RoadAlert} from '../src/types/roadAlerts';
 
 const now = Date.parse('2026-10-17T21:00:00Z');
@@ -29,18 +29,49 @@ test('renderer nativo preserva acesso por teclado e confirmação no mesmo modal
   const renderer=read('src/services/mapLibreRoadAlertMarkers.ts');
   const icons=read('src/services/mapRoadAlerts.ts');
   assert.match(ui,/selectVisibleRoadAlerts\(roadAlerts\)/);
-  assert.match(ui,/L\.marker\(\[alert\.lat, alert\.lng\]/);
-  assert.match(ui,/addRoleMaplibreRoadAlerts\(gl,alerts,openRoadAlert\)/);
+  assert.match(ui,/L\.marker\(\[alert\.lat,alert\.lng\]/);
+  assert.match(ui,/createRoleMaplibreRoadAlertController\(gl,/);
   assert.match(ui,/roadAlertGroupRef\.current\?\.clearLayers\(\)/);
   assert.match(ui,/setVectorAlertsReady\(false\)/);
   assert.match(ui,/setVectorAlertsReady\(true\)/);
   assert.match(ui,/setSelectedRoadAlert\(alert\)/);
   assert.match(ui,/Ainda continua lá\?/);
-  assert.match(renderer,/new Marker\(\{ element:button, anchor:'center' \}\)/);
+  assert.match(renderer,/new Marker\(\{element:button,anchor:'center'\}\)/);
   assert.match(renderer,/setLngLat\(\[alert\.lng,alert\.lat\]\)/);
   assert.match(renderer,/button\.setAttribute\('aria-label'/);
   assert.match(renderer,/button\.addEventListener\('click'/);
   assert.match(renderer,/marker\.remove\(\)/);
   assert.doesNotMatch(icons,/alert\.note\s*\+/);
   assert.doesNotMatch(icons,/sourceUrl\s*\+/);
+});
+
+test('ocorrência aprovada mantém o mesmo marcador quando só texto ou validade mudam',()=>{
+  assert.equal(roadAlertMarkerChange(null,good),'create');
+  assert.equal(roadAlertMarkerChange(good,{...good,note:'Nova confirmação',expiresAt:'2026-10-19T00:00:00Z'}),'keep');
+  assert.equal(roadAlertMarkerChange(good,{...good,lat:-23.54}),'move');
+  assert.equal(roadAlertMarkerChange(good,{...good,kind:'flooded_road'}),'replace');
+});
+test('validade, moderação e duplicidade determinam quais alertas desaparecem',()=>{
+  const unapproved={...good,status:'pending' as const};
+  const expired={...good,expiresAt:'2026-10-17T20:01:00Z'};
+  const list=selectVisibleRoadAlerts([good,{...good},unapproved,expired],now);
+  assert.deepEqual(list.map(x=>x.id),[good.id]);
+  assert.deepEqual(selectVisibleRoadAlerts([good],Date.parse(good.expiresAt)),[]);
+  assert.deepEqual(selectVisibleRoadAlerts([{...good,status:'rejected'}],now),[]);
+});
+test('MapLibre and Leaflet reuse unchanged alert pins and refresh selected report data',()=>{
+  const read=(path:string)=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
+  const ui=read('src/components/InteractiveMap.tsx');
+  const renderer=read('src/services/mapLibreRoadAlertMarkers.ts');
+  assert.match(ui,/roadAlertFallbackMarkersRef/);
+  assert.match(ui,/roadAlertMarkerChange\(record\?\.alert\|\|null,alert\)/);
+  assert.match(ui,/record!\.marker\.setLatLng\(\[alert\.lat,alert\.lng\]\)/);
+  assert.match(ui,/openRoadAlertRef\.current\(existing\.get\(alert\.id\)\?\.alert\?\?alert\)/);
+  assert.match(ui,/controller\.update\(roadAlertInputRef\.current\)/);
+  assert.match(ui,/controller\.update\(roadAlerts\)/);
+  assert.match(ui,/\},\[vectorRoutesReady\]\)/);
+  assert.match(renderer,/record\.marker\.setLngLat\(\[alert\.lng,alert\.lat\]\)/);
+  assert.match(renderer,/onSelect\(markers\.get\(alert\.id\)\?\.alert\?\?alert\)/);
+  assert.match(renderer,/if\(!wanted\.has\(id\)\)\{record\.marker\.remove\(\);markers\.delete\(id\);\}/);
+  assert.doesNotMatch(renderer,/\.setHTML\(|innerHTML/);
 });
