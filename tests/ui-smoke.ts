@@ -452,7 +452,7 @@ try {
     const sheet=document.querySelector('[data-testid="map-explore-sheet"]')?.getBoundingClientRect();
     const viewport=document.querySelector('.rdv-flat-map')?.getBoundingClientRect();
     return !!sheet&&!!viewport&&Math.abs(sheet.bottom-viewport.bottom)<2 &&
-      sheet.height>=window.innerHeight*0.6 && viewport.bottom-sheet.y>=220;
+      sheet.height>=window.innerHeight*0.6 && sheet.y-viewport.top>=220;
   });
   const expandedMapBounds = await mapPanel.boundingBox();
   assert.ok(expandedMapBounds && expandedMapBounds.y < 0.45 * 844,
