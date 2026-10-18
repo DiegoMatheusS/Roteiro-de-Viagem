@@ -68,7 +68,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   if (!isOpen) return null;
 
   const currentSpeed = tracking.speedKmH;
-  const nextTurn = nextNavigationGuidance(trip.routePath,trip.routeSteps,tracking.status === 'ready' ? tracking.position?.coords : undefined);
+  const nextTurn = nextNavigationGuidance(trip.routePath,trip.routeSteps,
+    tracking.status === 'ready' ? tracking.position?.coords : undefined,tracking.distanceKm,trip.distanceKm);
   const isGpsActive = tracking.status === 'ready';
   const distanceTraveledKm = tracking.distanceKm;
   const remainingKm = Math.max(0, trip.distanceKm - distanceTraveledKm);

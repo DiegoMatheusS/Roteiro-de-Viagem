@@ -268,6 +268,24 @@ try{
       return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001;
     });
   }
+  // Exercise the actual active-trip HUD, including the tracking distance wiring.
+  await page.route('**/api/**',route=>route.fulfill({json:{alerts:[],stations:[],places:[]}}));
+  await page.goto('http://127.0.0.1:3000/tests/fixtures/circular-guidance.html');
+  const guidance=page.getByRole('status',{name:'Próxima orientação de navegação',exact:true});
+  await guidance.getByText('Primeira curva',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Simular volta ao início',exact:true}).click();
+  await guidance.getByText('Chegando ao destino',{exact:true}).waitFor();
+  await guidance.getByText('Em 0 metros',{exact:true}).waitFor();
+  assert.equal(await guidance.getByText('Primeira curva',{exact:true}).count(),0);
+  await page.getByRole('button',{name:'Simular cruzamento na ida',exact:true}).click();
+  await guidance.getByText('Trecho de ida',{exact:true}).waitFor();
+  await guidance.getByText('Vire à direita',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Simular cruzamento na volta',exact:true}).click();
+  await guidance.getByText('Trecho de volta',{exact:true}).waitFor();
+  await guidance.getByText('Vire à esquerda',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Simular fora da rota',exact:true}).click();
+  await guidance.getByText('Siga o trajeto indicado',{exact:true}).waitFor();
+  assert.equal(await guidance.getByText(/Em .* metros/).count(),0);
   assert.deepEqual(errors,[]);
   console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}
