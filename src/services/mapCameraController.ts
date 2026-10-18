@@ -34,7 +34,7 @@ interface LeafletCamera {
   setView(point:CameraPoint,zoom:number,options:{animate:boolean}):unknown;
   flyTo(point:CameraPoint,zoom:number,options:{duration:number;easeLinearity:number}):unknown;
   panTo(point:CameraPoint,options:{animate:boolean;duration?:number;easeLinearity?:number}):unknown;
-  fitBounds(points:readonly CameraPoint[],options:{
+  fitBounds(points:CameraPoint[],options:{
     paddingTopLeft:[number,number];paddingBottomRight:[number,number];maxZoom:number;animate:boolean
   }):unknown;
 }
@@ -49,7 +49,7 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
     focus(point,zoom){map.setView(point,zoom,{animate:false});},
     fitRoute(points,padding){
       if(!points.length)return;
-      map.fitBounds(points,{
+      map.fitBounds([...points],{
         paddingTopLeft:padding.topLeft,paddingBottomRight:padding.bottomRight,
         maxZoom:padding.maxZoom,animate:false
       });
