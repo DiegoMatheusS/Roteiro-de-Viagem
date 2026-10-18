@@ -1311,8 +1311,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     meetingPoints,
     vectorWeatherReady,
     vectorNavigationReady,
-    vectorTripPinsReady,
-    vectorRoutesReady
+    vectorTripPinsReady
   ]);
 
   useEffect(() => {
