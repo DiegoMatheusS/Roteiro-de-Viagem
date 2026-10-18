@@ -366,5 +366,13 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O mapa da viagem em andamento passa a criar uma instância MapLibre independente, com câmera, arrasto, pinça e teclado nativos. Não cria mapa Leaflet nem usa a ponte híbrida nessa tela.
 - Reutiliza os controladores incrementais de GPS, destino, paradas, comboio, previsão e alertas, incluindo seus pop-ups e ações. Gestos pausam o acompanhamento; “Seguir GPS” recentraliza preservando o zoom útil.
 - As demais telas continuam no mapa híbrido. Falha de WebGL, carregamento inicial do estilo ou perda de contexto fazem a navegação retornar ao renderizador existente.
-- Rotação e inclinação permanecem desativadas nesta etapa; ativá-las depende da validação do novo renderizador, incluindo aparelho físico.
+- Giro manual e inclinação permanecem desativados. A orientação por GPS é opcional pelo botão “Norte / Direção” e ainda precisa de validação em aparelho físico.
 - O teste de interface independente usa WebGL por software e estilo local de teste, cobrindo câmera única, gesto real, atualização do GPS sem roubar a câmera, retomada e fallback. O cenário de teste não depende dos servidores de tiles.
+
+## Orientação opcional pela direção do veículo
+
+- Na navegação independente, o botão “Norte / Direção” alterna entre norte no topo e orientação pelo rumo válido do GPS. Norte é o padrão ao abrir a navegação; não é necessário abrir um navegador externo.
+- Posição e rumo são enviados juntos no mesmo movimento de câmera. Velocidade conhecida abaixo de 1,4 m/s e rumos inválidos mantêm a última direção confiável; a transição de 359° para 1° usa o caminho curto.
+- Explorar o mapa pausa tanto a recentralização quanto o giro automático. A seleção de orientação é aplicada ao retomar “Seguir GPS”. O zoom é preservado e movimento reduzido é respeitado.
+- A seta do GPS usa alinhamento com o mapa, para continuar indicando corretamente a direção quando a base gira. Os demais ícones continuam voltados para a tela.
+- O modo híbrido de fallback permanece voltado para o norte. A opção Direção ainda precisa de validação em aparelho físico; os testes de interface e Android no CI complementam essa validação.
