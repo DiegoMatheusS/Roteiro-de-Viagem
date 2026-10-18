@@ -361,6 +361,58 @@ try{
   });
   assert.deepEqual(discoveryErrors,[]);
   await discoveryPage.close();
+  // Route changes must never display alerts from a previous journey; a
+  // background/foreground transition must refresh without waiting two minutes.
+  const alertPage=await browser.newPage();
+  const alertErrors:string[]=[];
+  alertPage.on('pageerror',error=>alertErrors.push(error.message));
+  let releaseOld:()=>void=()=>{},releaseNew:()=>void=()=>{};
+  let startedOld:()=>void=()=>{},startedNew:()=>void=()=>{},oldDelivered:()=>void=()=>{};
+  const delayedOld=new Promise<void>(resolve=>{releaseOld=resolve;});
+  const delayedNew=new Promise<void>(resolve=>{releaseNew=resolve;});
+  const oldPending=new Promise<void>(resolve=>{startedOld=resolve;});
+  const newPending=new Promise<void>(resolve=>{startedNew=resolve;});
+  const oldFinished=new Promise<void>(resolve=>{oldDelivered=resolve;});
+  let firstCalls=0,secondCalls=0;
+  await alertPage.route('**/api/road-alerts/route',async route=>{
+    const path=(route.request().postDataJSON() as {routePath:[number,number][]}).routePath;
+    const first=path[0][0]===-23.5;
+    const number=first?++firstCalls:++secondCalls;
+    if(first && number===2){startedOld();await delayedOld;}
+    if(!first && number===1){startedNew();await delayedNew;}
+    const id=first?'hazard-first':number>=2?'hazard-second-refreshed':'hazard-second';
+    try{
+      await route.fulfill({json:{alerts:[{id,kind:'pothole',lat:path[0][0],
+        lng:path[0][1],note:'Trecho de teste',createdAt:new Date().toISOString(),
+        expiresAt:new Date(Date.now()+60000).toISOString()}]}});
+    }catch{
+      // Aborted in-flight requests cannot send their payload to a new route.
+    }finally{
+      if(first && number===2)oldDelivered();
+    }
+  });
+  await alertPage.goto('http://127.0.0.1:3000/tests/fixtures/road-alert-hook.html');
+  await alertPage.waitForFunction(()=>document.querySelector('[data-testid="road-alerts"]')?.textContent==='hazard-first');
+  await alertPage.getByRole('button',{name:'Atualizar alertas',exact:true}).click();
+  await oldPending;
+  await alertPage.getByRole('button',{name:'Trocar rota',exact:true}).click();
+  await newPending;
+  assert.equal(await alertPage.getByTestId('road-alerts').textContent(),'',
+    'new route never shows previous route hazards while loading');
+  releaseNew();
+  await alertPage.waitForFunction(()=>document.querySelector('[data-testid="road-alerts"]')?.textContent==='hazard-second');
+  releaseOld();
+  await oldFinished;
+  assert.equal(await alertPage.getByTestId('road-alerts').textContent(),'hazard-second',
+    'late response from old itinerary cannot replace current road alerts');
+  await alertPage.getByRole('button',{name:'Voltar ao primeiro plano',exact:true}).click();
+  await alertPage.waitForFunction(()=>document.querySelector('[data-testid="road-alerts"]')?.textContent==='hazard-second-refreshed');
+  assert.equal(secondCalls,2,'foreground resume immediately checks alerts again');
+  await alertPage.getByRole('button',{name:'Parar navegação',exact:true}).click();
+  assert.equal(await alertPage.getByTestId('road-alerts').textContent(),'',
+    'finishing a trip hides old reports immediately');
+  assert.deepEqual(alertErrors,[]);
+  await alertPage.close();
   assert.deepEqual(errors,[]);
   console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}
