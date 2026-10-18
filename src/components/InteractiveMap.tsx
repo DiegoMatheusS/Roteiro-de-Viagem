@@ -25,6 +25,8 @@ import { arrowHeadingStyle } from '../services/gpsHeading';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import type { TripPinsController } from '../services/mapLibreTripPins';
+import type { WeatherPinController } from '../services/mapLibreWeatherPins';
+import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 // Stable defaults prevent a GPS-driven parent render from recreating all map layers.
@@ -168,6 +170,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [vectorAlertsReady, setVectorAlertsReady] = useState(false);
   const [vectorNavigationReady, setVectorNavigationReady] = useState(false);
   const [vectorTripPinsReady, setVectorTripPinsReady] = useState(false);
+  const [vectorWeatherReady,setVectorWeatherReady] = useState(false);
+  const vectorWeatherControllerRef=useRef<WeatherPinController|null>(null);
+  const weatherInputsRef=useRef({weatherPoints,showRainLayer});
+  weatherInputsRef.current={weatherPoints,showRainLayer};
   const tripPinsControllerRef = useRef<TripPinsController|null>(null);
   const tripPinsDataRef = useRef({stops,meetingPoints,convoyParticipants});
   tripPinsDataRef.current={stops,meetingPoints,convoyParticipants};
@@ -712,6 +718,49 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [focusedCoords]);
 
+  // Weather observations use MapLibre-native pins when the vector base exists.
+  // The raster fallback stays available and keeps identical provider attribution.
+  useEffect(()=>{
+    const gl=vectorMapRef.current;
+    if(!vectorRoutesReady || !gl){
+      setVectorWeatherReady(false);
+      return;
+    }
+    let disposed=false;
+    void import('../services/mapLibreWeatherPins').then(({createRoleWeatherPins})=>{
+      if(disposed || vectorMapRef.current!==gl)return;
+      let controller:WeatherPinController|null=null;
+      try{
+        controller=createRoleWeatherPins(gl);
+        const initial=weatherInputsRef.current;
+        controller.update(initial.weatherPoints,initial.showRainLayer);
+        vectorWeatherControllerRef.current=controller;
+        rainLayerGroupRef.current?.clearLayers();
+        setVectorWeatherReady(true);
+      }catch{
+        controller?.destroy();
+        vectorWeatherControllerRef.current=null;
+        setVectorWeatherReady(false);
+      }
+    }).catch(()=>{if(!disposed)setVectorWeatherReady(false);});
+    return ()=>{
+      disposed=true;
+      vectorWeatherControllerRef.current?.destroy();
+      vectorWeatherControllerRef.current=null;
+    };
+  },[vectorRoutesReady]);
+
+  useEffect(()=>{
+    const controller=vectorWeatherControllerRef.current;
+    if(!controller)return;
+    try{controller.update(weatherPoints,showRainLayer);}
+    catch{
+      controller.destroy();
+      vectorWeatherControllerRef.current=null;
+      setVectorWeatherReady(false);
+    }
+  },[weatherPoints,showRainLayer]);
+
   // GPS position is independent of static trip markers. Only the dynamic marker
   // moves; route stops and convoy meeting pins are NOT recreated per fix.
   useEffect(() => {
@@ -1111,11 +1160,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     // 7. Convoy participants are moved incrementally in dedicated layers.
 
-    // Actual provider forecast samples, without an invented radar polygon.
-    if (showRainLayer) for (const point of weatherPoints || []) {
-      if (!point.coords) continue;
-      L.circleMarker(point.coords, { className: 'weather-forecast-marker', radius: 9, color: point.rainProb >= 50 ? '#0284c7' : '#475569', fillOpacity: 0.7 }).addTo(rainGroup)
-        .bindPopup(`<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h${Number.isFinite(point.windDirectionDegrees) ? ` · direção ${Math.round(point.windDirectionDegrees!)}°` : ''} · ${escapeHtml(new Date(point.forecastAt || point.passTime).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}${point.warning ? `<br>${escapeHtml(point.warning)}` : ''}<br>Fonte: Open-Meteo (não é radar ao vivo)`);
+    // Pontos reais de previsão Open-Meteo; nenhum polígono de radar inventado.
+    if(showRainLayer && !vectorWeatherReady)for(const point of visibleWeatherSamples(weatherPoints)){
+      const direction=Number.isFinite(point.windDirectionDegrees) && point.windDirectionDegrees!>=0 &&
+        point.windDirectionDegrees!<360 ? ` · direção ${Math.round(point.windDirectionDegrees!)}°` : '';
+      L.circleMarker(point.coords!,{
+        className:'weather-forecast-marker',radius:9,
+        color:point.rainProb>=50?'#0284c7':'#475569',fillOpacity:0.7
+      }).addTo(rainGroup).bindPopup(
+        `<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h${direction} · ${escapeHtml(weatherDisplayTime(point))}${point.warning?`<br>${escapeHtml(point.warning)}`:''}<br>Fonte: Open-Meteo (não é radar ao vivo)`
+      );
     }
 
     // GPS refreshes move markers without undoing the user's zoom and map position.
@@ -1149,6 +1203,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     showRainLayer,
     weatherPoints,
     meetingPoints,
+    vectorWeatherReady,
     vectorNavigationReady,
     vectorTripPinsReady
   ]);
