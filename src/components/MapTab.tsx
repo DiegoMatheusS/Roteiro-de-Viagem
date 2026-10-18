@@ -2,6 +2,7 @@ import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsSt
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
+import { destinationExploreKey } from '../services/destinationIdentity';
 import type { LocationSelection } from '../types/itinerary';
 import type { VerifiedRouteChoice } from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
@@ -258,7 +259,7 @@ export function MapTab(props: MapTabProps) {
         </div>
       </div>
     </section>
-    {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget}
+    {mapTarget?.coords && <DestinationExplorer key={destinationExploreKey(mapTarget)} target={mapTarget}
       vehicle={props.currentVehicle} gpsAvailable={location.status==='ready'} getOrigin={getExplorationOrigin}
       onStartTrip={trip=>props.onStartTrip?.(trip)}
       selectedRouteId={exploreRoute?.selectedId}
