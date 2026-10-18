@@ -301,3 +301,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O controlador é instalado uma vez por ciclo do mapa vetorial. Se o WebGL não estiver disponível, a versão Leaflet mantém os ícones, a visualização de preços e os comentários. Após instalar os pins MapLibre, as versões Leaflet são retiradas sem sobreposição.
 - Botões **Sugerir preço**, comentários e acessibilidade continuam usando ações existentes. Valores são exibidos apenas com as regras atuais de preços aprovados; nenhum preço é inventado.
 - Esta atualização melhora a fluidez dos marcadores durante a navegação e busca. **Não altera o backend, o painel administrativo, o contrato GPS ou o controle híbrido da câmera**. Rotação nativa do mapa continua condicionada à migração conjunta dos gestos e dos overlays.
+
+## Trocar de rota sem perder os marcadores — PR #60
+
+- Selecionar uma alternativa de percurso deixa de limpar/recriar todas as camadas de paradas turísticas, origem/destino, pontos de encontro e previsão do tempo no fallback Leaflet. As linhas do trajeto continuam atualizando normalmente.
+- As camadas estáticas mantêm assinaturas independentes baseadas em seus próprios dados; quando um local muda, só a camada correspondente é atualizada.
+- Na alternância entre MapLibre e Leaflet, os marcadores corretos aparecem sem duplicação. A geometria das rotas, suas cores e o zoom manual permanecem inalterados.
+- Evita fechar balões/pop-ups de paradas e pontos de encontro ao escolher outro roteiro, com o intuito de melhorar a percepção de fluidez.
+- Os testes cobrem troca de rota, atualização real de conteúdo, navegação e alternância vetor/raster. Backend e painel administrativo não são alterados.
