@@ -335,3 +335,10 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Testes automatizados verificam o mesmo comportamento nos dois adaptadores, sem alterar o backend, o painel administrativo, os preços ou o fluxo do comboio.
 
 - O foco explícito em locais (“Ver no Mapa”, incluindo pontos de encontro) também usa o controlador único: mantém a transição de 1,2 s e pula a animação quando o dispositivo prefere movimento reduzido. O enquadramento inicial de uma rota continua imediato.
+
+## Controle manual durante a navegação
+
+- Mover o mapa pelas setas do teclado pausa o acompanhamento do GPS, assim como arrastar ou ampliar. “Seguir GPS” retoma o acompanhamento.
+- Gestos interrompem a animação de câmera em andamento durante a navegação; gestos repetidos não repetem a notificação do modo de exploração.
+- Campos de texto, áreas editáveis, marcadores e pop-ups preservam suas próprias interações de teclado.
+- A interrupção usa o controlador único, disponível nos adaptadores Leaflet e MapLibre standalone. A câmera de produção continua no Leaflet.

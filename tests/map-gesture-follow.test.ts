@@ -15,7 +15,10 @@ test('only deliberate map zoom gestures suspend GPS follow',()=>{
   assert.equal(isManualMapZoom({type:'gesturestart'}),true);
   assert.equal(isManualMapZoom({type:'keydown',key:'='}),true);
   assert.equal(isManualMapZoom({type:'keydown',key:'-'}),true);
-  assert.equal(isManualMapZoom({type:'keydown',key:'ArrowUp'}),false);
+  for(const key of ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'])
+    assert.equal(isManualMapZoom({type:'keydown',key}),true);
+  assert.equal(isManualMapZoom({type:'keydown',key:'Tab'}),false);
+  assert.equal(isManualMapZoom({type:'keydown',key:'Enter'}),false);
 });
 test('gesture listeners are passive, respond to pinch and are removed when the map unmounts',()=>{
   const target=new EventTarget() as unknown as HTMLElement;
@@ -41,10 +44,12 @@ test('gesture listeners are passive, respond to pinch and are removed when the m
   assert.equal(n,4);
   send('keydown',{key:'+'});
   assert.equal(n,5);
+  send('keydown',{key:'ArrowLeft'});
+  assert.equal(n,6);
   cleanup();
   send('wheel',{deltaY:120});
   send('touchstart',{touches:[{},{}]});
-  assert.equal(n,5);
+  assert.equal(n,6);
 });
 test('Leaflet remains the single camera owner and existing follow button resumes after zoom exploration',()=>{
   const map=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
@@ -61,4 +66,43 @@ test('Leaflet remains the single camera owner and existing follow button resumes
   assert.match(screen,/>Seguir GPS<\/span>/);
   assert.match(bridge,/interactive: false/);
   assert.doesNotMatch(map,/vectorMapRef\.current\.(?:jumpTo|easeTo|setBearing)/);
+});
+
+
+test('typing and marker or popup interaction never suspend GPS following',()=>{
+  const oldElement=Object.getOwnPropertyDescriptor(globalThis,'Element');
+  const oldHTMLElement=Object.getOwnPropertyDescriptor(globalThis,'HTMLElement');
+  class TestElement extends EventTarget {
+    tagName='DIV';
+    isContentEditable=false;
+    overlay=false;
+    closest(selector:string){
+      assert.ok(selector.includes('.maplibregl-popup'));
+      return this.overlay?this:null;
+    }
+  }
+  Object.defineProperty(globalThis,'Element',{value:TestElement,configurable:true});
+  Object.defineProperty(globalThis,'HTMLElement',{value:TestElement,configurable:true});
+  try{
+    for(const kind of ['INPUT','TEXTAREA','SELECT','editable','overlay','map']){
+      const target=new TestElement();
+      target.tagName=['INPUT','TEXTAREA','SELECT'].includes(kind)?kind:'DIV';
+      target.isContentEditable=kind==='editable';
+      target.overlay=kind==='overlay';
+      let calls=0;
+      const cleanup=bindManualMapZoom(target as unknown as HTMLElement,()=>calls++);
+      for(const key of ['ArrowUp','ArrowLeft','+','-']){
+        const event=new Event('keydown');
+        Object.defineProperty(event,'key',{value:key});
+        target.dispatchEvent(event);
+      }
+      assert.equal(calls,kind==='map'?4:0,kind);
+      cleanup();
+    }
+  }finally{
+    if(oldElement)Object.defineProperty(globalThis,'Element',oldElement);
+    else Reflect.deleteProperty(globalThis,'Element');
+    if(oldHTMLElement)Object.defineProperty(globalThis,'HTMLElement',oldHTMLElement);
+    else Reflect.deleteProperty(globalThis,'HTMLElement');
+  }
 });
