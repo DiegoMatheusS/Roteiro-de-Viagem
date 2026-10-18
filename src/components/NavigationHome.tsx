@@ -11,6 +11,7 @@ import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { getTouristTargetError, getTouristTargetWarning, parseTouristTarget } from '../services/touristTargetInput';
 import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
+import { GUEST_NAVIGATION_VEHICLE } from '../services/guestNavigationVehicle';
 import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
@@ -28,7 +29,6 @@ import { ConvoyActionModal } from './ConvoyActionModal';
 interface NavigationHomeProps {
   currentVehicle: Vehicle | null;
   trips: TripPlan[];
-  onLaunchTouristCircuit: (trip: TripPlan) => void;
   onStartTrip: (trip: TripPlan) => void;
   onOpenAllTrips: () => void;
   onOpenAllSuggestions: () => void;
@@ -149,7 +149,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     return position.coords;
   };
   const submitCircuit = async () => {
-    if (busy || (sheet !== 'km' && sheet !== 'hours') || !requireVehicle()) return;
+    if (busy || (sheet !== 'km' && sheet !== 'hours')) return;
     const mode = sheet as CircuitMode;
     const value = mode === 'km' ? km : hours;
     const issue = getTouristTargetError(mode,value);
@@ -161,11 +161,17 @@ export function NavigationHome(props: NavigationHomeProps) {
       const coords = await gpsCoordinates();
       const interests = preference === 'curvas' ? ['mirante','parque'] :
         preference === 'cidades' ? ['museu','cidade_historica'] : [];
+      // A navegação turística é pública: nenhum login ou veículo salvo é exigido.
+      // Sem veículo, a rota é real e navegável; consumo não é estimado.
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
         originName:'Sua localização atual',originCoords:coords,
-        interests,vehicle:props.currentVehicle! });
+        interests,vehicle:props.currentVehicle || GUEST_NAVIGATION_VEHICLE });
+      if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
+        throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
+      }
       setSheet(null);
-      props.onLaunchTouristCircuit(trip);
+      // Fluxo rápido: gerar e começar a navegar sem passar pelo editor de roteiro.
+      props.onStartTrip(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const submitDestination = async () => {
@@ -408,8 +414,8 @@ export function NavigationHome(props: NavigationHomeProps) {
           <div className="grid grid-cols-3 gap-2 text-[11px]">{([['tranquila','Rota tranquila'],['curvas','Mais curvas'],['cidades','Cidades turísticas']] as const).map(([id,label])=><button type="button" key={id} onClick={()=>setPreference(id)} className={`border rounded-xl p-2 ${preference===id?'bg-emerald-50 border-emerald-500 text-emerald-800 font-bold':''}`}>{label}</button>)}</div>
           <p className="p-3 rounded-xl text-xs text-slate-600 bg-slate-50">Eu monto o trajeto usando sua localização e estradas reais.</p>
           {warning && <p className="text-rose-700 text-xs">{warning}</p>}{validation && <p className="text-rose-700 text-xs">{validation}</p>}{error && <p role="alert" className="text-rose-700 text-xs">{error}</p>}
-          {!props.currentVehicle && <button onClick={()=>{closeSheet();props.onOpenProfile();}} className="text-blue-700 underline font-bold text-xs">Cadastrar meu veículo no Perfil</button>}
-          <button type="button" disabled={Boolean(validation)||busy} onClick={()=>void submitCircuit()} className={`rounded-xl text-white py-4 w-full font-bold ${sheet==='km'?'bg-blue-600':'bg-emerald-600'} disabled:opacity-50`}>{busy?'Gerando percurso...':'Gerar rota'}</button>
+          {!props.currentVehicle && <p className="text-xs text-slate-600">Sem login ou veículo cadastrado. O trajeto e o GPS funcionam normalmente; a estimativa de combustível fica indisponível.</p>}
+          <button type="button" disabled={Boolean(validation)||busy} onClick={()=>void submitCircuit()} className={`rounded-xl text-white py-4 w-full font-bold ${sheet==='km'?'bg-blue-600':'bg-emerald-600'} disabled:opacity-50`}>{busy?'Preparando seu rolê...':'Gerar e iniciar rolê'}</button>
         </div>}
       </section>
     </div>}
