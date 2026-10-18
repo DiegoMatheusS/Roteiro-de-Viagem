@@ -20,6 +20,7 @@ import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
+import { destinationExploreKey } from '../services/destinationIdentity';
 import { CreateConvoyModal } from './CreateConvoyModal';
 import { ConvoyActionModal } from './ConvoyActionModal';
 
@@ -350,7 +351,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onOpenProfile={props.onOpenProfile}
       onLogin={props.onLogin}
     />}
-    {mapTarget?.coords && <DestinationExplorer key={mapTarget.id || mapTarget.name} target={mapTarget} vehicle={props.currentVehicle}
+    {mapTarget?.coords && <DestinationExplorer key={destinationExploreKey(mapTarget)} target={mapTarget} vehicle={props.currentVehicle}
       gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates} onStartTrip={props.onStartTrip}
       selectedRouteId={displayRoute?.selectedId}
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
