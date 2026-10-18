@@ -64,7 +64,49 @@ try{
   await page.reload();
   await page.locator('.leaflet-container').waitFor({timeout:20000});
   assert.equal(await page.locator('[data-map-engine="maplibre-standalone"]').count(),0);
+  // Home/Map share the standalone viewport, but never follow GPS automatically.
+  await page.unroute('https://tiles.openfreemap.org/**');
+  await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[
+    {id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}
+  ]}}));
+  await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-explore.html');
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+  assert.equal(await page.locator('.leaflet-container').count(),0);
+  assert.equal(await page.getByRole('button',{name:'Orientar mapa na direção da viagem',exact:true}).count(),0);
+  await page.waitForFunction(()=>document.querySelector('[data-testid="visible"]')?.textContent?.includes('Mirante local'));
+  const beforeCenter=await map.getAttribute('data-map-center');
+  const beforeZoom=await map.getAttribute('data-map-zoom');
+  const tap=await map.evaluate(root=>{
+    const element=root as HTMLElement,box=element.getBoundingClientRect();
+    const [lat,lon]=JSON.parse(element.dataset.mapCenter!);
+    const size=512*2**Number(element.dataset.mapZoom);
+    const project=(latitude:number,longitude:number)=>({
+      x:(longitude+180)/360*size,
+      y:(1-Math.log(Math.tan(Math.PI/4+latitude*Math.PI/360))/Math.PI)/2*size
+    });
+    const center=project(lat,lon),target=project(-23.545,-46.62);
+    return {x:box.x+box.width/2+target.x-center.x,y:box.y+box.height/2+target.y-center.y};
+  });
+  await page.mouse.click(tap.x,tap.y);
+  await page.waitForFunction(()=>document.querySelector('[data-testid="selected"]')?.textContent==='scenic');
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+  assert.equal(await map.getAttribute('data-map-center'),beforeCenter,'choosing an alternative preserves the camera');
+  assert.equal(await map.getAttribute('data-map-zoom'),beforeZoom);
+  assert.equal(await page.locator('[data-testid="map-clicks"]').textContent(),'0','route selection must not trigger destination selection');
+  const homeMarker=page.locator('.user-live-marker');
+  const oldMarker=await homeMarker.getAttribute('style');
+  await page.getByRole('button',{name:'Mover GPS',exact:true}).click();
+  await page.waitForFunction(previous=>document.querySelector('.user-live-marker')?.getAttribute('style')!==previous,oldMarker);
+  assert.equal(await map.getAttribute('data-map-center'),beforeCenter,'home GPS fixes update the pin without moving the viewport');
+  await page.getByRole('button',{name:'Centralizar GPS',exact:true}).click();
+  await page.waitForFunction(()=>{
+    const el=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
+    if(!el?.dataset.mapCenter)return false;
+    const [lat,lon]=JSON.parse(el.dataset.mapCenter);
+    return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(el.dataset.mapZoom)===15;
+  });
+  await page.waitForFunction(()=>document.querySelector('[data-testid="visible"]')?.textContent==='');
   assert.deepEqual(errors,[]);
-  console.log('PASS: native MapLibre canvas, gestures, GPS isolation, recenter and vector failure fallback.');
+  console.log('PASS: native navigation, course, home route selection, visible places, GPS isolation and fallback.');
 }catch(error){throw error;}
 finally{await browser?.close();await vite.close();}

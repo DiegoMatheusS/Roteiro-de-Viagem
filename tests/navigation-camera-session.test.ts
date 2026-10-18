@@ -46,3 +46,18 @@ test('leaving navigation resets exploration and does not create a second camera 
   assert.deepEqual(s.calls,['first','stop','first']);
   assert.deepEqual(s.modes,['exploring','following']);
 });
+
+
+test('home map recenters only on request and never follows GPS automatically',()=>{
+  const s=setup();
+  const home={...input,navigationMode:false};
+  s.session.update(home);
+  s.session.update({...home,position:[-23.51,-46.6]});
+  assert.deepEqual(s.calls,[]);
+  s.session.update({...home,centerRequest:1,position:undefined});
+  s.session.update({...home,centerRequest:1});
+  assert.deepEqual(s.calls,['recenter']);
+  s.session.update({...home,centerRequest:1,position:[-23.52,-46.6]});
+  assert.deepEqual(s.calls,['recenter']);
+  assert.deepEqual(s.modes,[]);
+});

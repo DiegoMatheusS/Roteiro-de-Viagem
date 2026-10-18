@@ -57,7 +57,7 @@ test('course control starts north and GPS arrow stays aligned with the rotated m
   const map=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
   const pins=readFileSync(new URL('../src/services/mapLibreNavigationPins.ts',import.meta.url),'utf8');
   assert.match(map,/\[courseMode,setCourseMode\]=useState\(false\)/);
-  assert.match(map,/bearing=courseModeRef.current\?\(course\?\?0\):0/);
+  assert.match(map,/bearing=p.navigationMode&&courseModeRef.current\?\(course\?\?0\):0/);
   assert.match(pins,/rotationAlignment:kind==='live'\?'map':'viewport'/);
 });
 

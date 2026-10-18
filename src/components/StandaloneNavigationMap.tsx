@@ -11,13 +11,14 @@ import {createNavigationCameraSession} from '../services/navigationCameraSession
 import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
-import {updateRoleVectorRoutes} from '../services/mapLibreRouteLayers';
+import {updateRoleVectorRoutes,queryRoleVectorAlternative} from '../services/mapLibreRouteLayers';
 import {createRoleNavigationPins} from '../services/mapLibreNavigationPins';
 import {createRoleTripPins} from '../services/mapLibreTripPins';
 import {createRoleWeatherPins} from '../services/mapLibreWeatherPins';
 import {createRoleMaplibreRoadAlertController} from '../services/mapLibreRoadAlertMarkers';
 import {createRoleMaplibreMarkerController} from '../services/mapLibrePlaceMarkers';
-import {selectRoleVectorMarkers} from '../services/vectorPlaceData';
+import {selectRoleVectorMarkers,type RoleVectorMarker} from '../services/vectorPlaceData';
+import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import {useFuelStations} from '../hooks/useFuelStations';
 import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
 import {FuelStationModal} from './FuelStationModal';
@@ -34,7 +35,7 @@ const EMPTY_POINTS:[number,number][]=[];
 const COLORS={panoramica:'#059669',turistica:'#0284c7',gastronomica:'#ea580c',rapida:'#2563eb',economica:'#16a34a',equilibrada:'#0d9488'};
 const reducedMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false;
 
-/** Active navigation only: native MapLibre owns the canvas, camera and gestures.
+/** Full-screen public maps: native MapLibre owns the canvas, camera and gestures.
  * No Leaflet map or bridge is created in this renderer. Existing pin controllers
  * keep the same actions, data validation and incremental updates. */
 export default function StandaloneNavigationMap(props:InteractiveMapProps & {onUnavailable:()=>void}){
@@ -50,8 +51,9 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const [checking,setChecking]=useState(false);
   const [checkError,setCheckError]=useState('');
   const [checkMessage,setCheckMessage]=useState('');
+  const [viewportCenter,setViewportCenter]=useState<[number,number]|null>(null);
   const path=props.routePath || EMPTY_POINTS;
-  const discovery=path.length?path:props.originCoords?[props.originCoords]:EMPTY_POINTS;
+  const discovery=path.length?path:props.originCoords?[props.originCoords]:viewportCenter?[viewportCenter]:EMPTY_POINTS;
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
   const places=useNearbyPlaces(discovery,(props.showFuelStations??true)&&discovery.length>0);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
@@ -86,6 +88,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let fitInputs:unknown[]=[];
     let waitingForIdle=false;
     let lastFocus:InteractiveMapProps['focusedCoords'];
+    let drawn:RoleVectorMarker[]=[];
+    let visibleKey='';
     const navigation=createRoleNavigationPins(map);
     const trip=createRoleTripPins(map,{openFuel:(id,section)=>setStation({id,section})});
     const weather=createRoleWeatherPins(map);
@@ -105,29 +109,35 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       }
       const p=latest.current;
       course=updateMapCourse(course,p.userHeadingDegrees,p.userSpeedMetersPerSecond);
-      bearing=courseModeRef.current?(course??0):0;
+      bearing=p.navigationMode&&courseModeRef.current?(course??0):0;
       try{
-        updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
+        const root=container.current?.parentElement;
+        if(root)root.dataset.mapIdle='false';
+        const featureCount=updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
           selectedRouteId:p.selectedRouteId,modalityColor:COLORS[p.routeModality||'panoramica'],
           userLocation:p.userLiveCoords,travelledDistanceKm:p.travelledDistanceKm||0,
-          totalRouteKm:p.totalRouteKm||0,navigationMode:true,blueRoute:p.blueRoute??false});
+          totalRouteKm:p.totalRouteKm||0,navigationMode:p.navigationMode??false,blueRoute:p.blueRoute??false});
+        if(featureCount>0)container.current?.setAttribute('data-role-vector-routes',String(featureCount));
+        else container.current?.removeAttribute('data-role-vector-routes');
         navigation.update({origin:p.originCoords,destination:p.destinationCoords,live:p.userLiveCoords,
           headingDegrees:p.userHeadingDegrees,speedMetersPerSecond:p.userSpeedMetersPerSecond,
           originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
-          navigationMode:true,roadStyle:p.roadStyle??false});
+          navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
         trip.updateStops(p.stops||[]);trip.updateMeetings(p.meetingPoints||[]);
         trip.updateParticipants(p.convoyParticipants||[]);
         weather.update(p.weatherPoints||[],p.showRainLayer??false);
         alerts.update(p.roadAlerts||[]);
-        markers.update(selectRoleVectorMarkers({stations:data.current.stations,
+        const descriptors=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
           places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
-          navigationMode:true,tollVehicleType:p.tollVehicleType}));
+          navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
+        markers.update(descriptors);drawn=descriptors;
         const nextInputs=[p.originCoords,p.destinationCoords,p.routePath,p.routeAlternatives];
         if(nextInputs.some((value,index)=>value!==fitInputs[index])){
           fitInputs=nextInputs;
           const key=mapRouteFitKey({origin:p.originCoords,destination:p.destinationCoords,
             routePath:p.routePath||[],alternatives:p.routeAlternatives||[]});
-          const points=[...(p.routePath||[]),...(p.originCoords?[p.originCoords]:[]),
+          const alternatives=p.navigationMode?[]:(p.routeAlternatives||[]).flatMap(option=>option.routePath);
+          const points=[...(p.routePath||[]),...alternatives,...(p.originCoords?[p.originCoords]:[]),
             ...(p.destinationCoords?[p.destinationCoords]:[])];
           if(shouldFitMapRoute(fitted,key,points.length>0)){
             fitted=key;
@@ -137,13 +147,24 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             else cameraPort.focus(points[0],12);
           }
         }
-        camera.update({navigationMode:true,followUser:p.followUser??true,position:p.userLiveCoords,
+        camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,position:p.userLiveCoords,
           centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing});
         if(p.focusedCoords && p.focusedCoords!==lastFocus){
           camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
         }
         lastFocus=p.focusedCoords;
+        publishPlaces();
       }catch{fail();}
+    };
+    const publishPlaces=()=>{
+      const p=latest.current;
+      if(!loaded||disposed||!p.onVisiblePlacesChange)return;
+      const bounds=map.getBounds(),center=map.getCenter();
+      const visible=standaloneVisiblePlaces({markers:drawn,stations:data.current.stations,
+        places:data.current.places,stops:p.stops||[],center:[center.lat,center.lng],
+        contains:([lat,lon])=>bounds.contains([lon,lat])});
+      const signature=JSON.stringify(visible.map(place=>place.id));
+      if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
     const retry=()=>{waitingForIdle=false;render();};
     runtime.current={render,camera};
@@ -154,7 +175,19 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       root.dataset.mapCenter=JSON.stringify([center.lat,center.lng]);
       root.dataset.mapZoom=String(map.getZoom());
       root.dataset.mapBearing=String(map.getBearing());
+      const p=latest.current;
+      if(!p.routePath?.length&&!p.originCoords){
+        const point:[number,number]|null=map.getZoom()<10?null:
+          [Math.round(center.lat*100)/100,Math.round(center.lng*100)/100];
+        setViewportCenter(current=>current?.[0]===point?.[0]&&current?.[1]===point?.[1]?current:point);
+      }
+      publishPlaces();
     };
+    const publishIdle=()=>{
+      const root=container.current?.parentElement;
+      if(root&&!disposed)root.dataset.mapIdle='true';
+    };
+    map.on('idle',publishIdle);
     map.on('moveend',publishViewport);
     const userGesture=(event:{originalEvent?:unknown})=>{if(event.originalEvent)camera.explore();};
     map.on('dragstart',userGesture);
@@ -165,7 +198,17 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     });
     const resize=new ResizeObserver(()=>{if(!disposed)map.resize();});
     resize.observe(container.current);
-    const select=(event:MapMouseEvent)=>latest.current.onSelectCoordinates?.([event.lngLat.lat,event.lngLat.lng]);
+    const select=(event:MapMouseEvent)=>{
+      const p=latest.current;
+      if(!p.navigationMode && p.onSelectRoute){
+        const ids=new Set((p.routeAlternatives||[]).filter(option=>option.id!==p.selectedRouteId).map(option=>option.id));
+        try{
+          const id=queryRoleVectorAlternative(map,[event.lngLat.lat,event.lngLat.lng],ids);
+          if(id){p.onSelectRoute(id);return;}
+        }catch{/* A loading style must not swallow an ordinary map click. */}
+      }
+      p.onSelectCoordinates?.([event.lngLat.lat,event.lngLat.lng]);
+    };
     map.on('click',select);
     const onError=()=>{if(!loaded)fail();};
     map.on('error',onError);
@@ -182,7 +225,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       disposed=true;clearTimeout(timeout);runtime.current=null;
       unbindGestures();unbindResume();resize.disconnect();
       map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);
-      map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);
+      map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);
       navigation.destroy();trip.destroy();weather.destroy();alerts.destroy();markers.destroy();
       map.stop();map.remove();
     };
@@ -206,11 +249,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
   return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready}>
     <div ref={container} className="w-full h-full"/>
-    <button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
+    {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
       className="absolute bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-blue-700 shadow-xl">
       <Compass size={20}/><span>{courseMode?'Direção':'Norte'}</span>
-    </button>
+    </button>}
     {station&&<FuelStationModal key={`${station.id}:${station.section}`} stationId={station.id} initialSection={station.section} onClose={()=>setStation(null)}/>}
     {place&&<PlaceModal place={place} onClose={()=>setPlace(null)}/>}
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}
