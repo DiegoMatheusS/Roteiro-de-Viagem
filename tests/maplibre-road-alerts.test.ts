@@ -71,7 +71,7 @@ test('MapLibre and Leaflet reuse unchanged alert pins and refresh selected repor
   assert.match(ui,/controller\.update\(roadAlertInputRef\.current\)/);
   assert.match(ui,/controller\.update\(roadAlerts\)/);
   assert.match(ui,/\},\[vectorRoutesReady\]\)/);
-  assert.match(renderer,/record\.marker\.setLngLat\(\[alert\.lng,alert\.lat\]\)/);
+  assert.match(renderer,/record!\.marker\.setLngLat\(\[alert\.lng,alert\.lat\]\)/);
   assert.match(renderer,/onSelect\(markers\.get\(alert\.id\)\?\.alert\?\?alert\)/);
   assert.match(renderer,/if\(!wanted\.has\(id\)\)\{record\.marker\.remove\(\);markers\.delete\(id\);\}/);
   assert.doesNotMatch(renderer,/\.setHTML\(|innerHTML/);
