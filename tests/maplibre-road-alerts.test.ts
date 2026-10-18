@@ -47,7 +47,8 @@ test('renderer nativo preserva acesso por teclado e confirmação no mesmo modal
 
 test('ocorrência aprovada mantém o mesmo marcador quando só texto ou validade mudam',()=>{
   assert.equal(roadAlertMarkerChange(null,good),'create');
-  assert.equal(roadAlertMarkerChange(good,{...good,note:'Nova confirmação',expiresAt:'2026-10-19T00:00:00Z'}),'keep');
+  const updatedReport:RoadAlert={...good,note:'Nova confirmação',expiresAt:'2026-10-19T00:00:00Z'};
+  assert.equal(roadAlertMarkerChange(good,updatedReport),'keep');
   assert.equal(roadAlertMarkerChange(good,{...good,lat:-23.54}),'move');
   assert.equal(roadAlertMarkerChange(good,{...good,kind:'flooded_road'}),'replace');
 });
