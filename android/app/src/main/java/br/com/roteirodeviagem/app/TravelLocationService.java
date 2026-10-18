@@ -78,7 +78,7 @@ public class TravelLocationService extends Service implements LocationListener {
     long age=System.currentTimeMillis()-location.getTime();
     if(age>60000 || age< -5000 || !location.hasAccuracy() || location.getAccuracy()>50) { previous=null; return; }
     JSObject pos=new JSObject(); JSArray coords=new JSArray(); coords.put((Object)location.getLatitude()); coords.put((Object)location.getLongitude());
-    pos.put("coords",coords); pos.put("accuracyMeters",location.getAccuracy()); pos.put("timestamp",location.getTime()); pos.put("speedMetersPerSecond",location.hasSpeed()?location.getSpeed():org.json.JSONObject.NULL); lastPosition=pos;
+    pos.put("coords",coords); pos.put("accuracyMeters",location.getAccuracy()); pos.put("timestamp",location.getTime()); pos.put("speedMetersPerSecond",location.hasSpeed()?location.getSpeed():org.json.JSONObject.NULL); pos.put("headingDegrees",location.hasBearing() && Float.isFinite(location.getBearing()) ? location.getBearing() : org.json.JSONObject.NULL); lastPosition=pos;
     if(!tripId.isEmpty() && previous!=null) {
       double seconds=(location.getTime()-previous.getTime())/1000.0, meters=previous.distanceTo(location);
       if(seconds>0 && seconds<=30 && meters/seconds*3.6<=200 && meters>=Math.max(3,(previous.getAccuracy()+location.getAccuracy())/2)) { distanceKm+=meters/1000; previous=location; persist(); }
