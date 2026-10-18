@@ -9,6 +9,7 @@ import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import type { Vehicle, TripPlan, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap, type MapVisiblePlace } from './InteractiveMap';
+import { visiblePlacesSignature } from '../services/mapVisiblePlaces';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { RoadAlertReporter } from './RoadAlertReporter';
@@ -51,7 +52,7 @@ export function MapTab(props: MapTabProps) {
   const establishments = useMemo(() => visiblePlaces.filter(p => !p.id.startsWith('stop:')).slice(0,15),[visiblePlaces]);
   const updateVisible = useCallback((next:MapVisiblePlace[]) => {
     setVisiblePlaces(previous => {
-      const oldKey=previous.map(p=>p.id).join('|'),newKey=next.map(p=>p.id).join('|');
+      const oldKey=visiblePlacesSignature(previous),newKey=visiblePlacesSignature(next);
       return oldKey===newKey ? previous : next;
     });
   },[]);

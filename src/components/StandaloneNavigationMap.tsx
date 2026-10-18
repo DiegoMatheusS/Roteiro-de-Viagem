@@ -22,6 +22,7 @@ import {createRoleMaplibreRoadAlertController} from '../services/mapLibreRoadAle
 import {createRoleMaplibreMarkerController} from '../services/mapLibrePlaceMarkers';
 import {selectRoleVectorMarkers,type RoleVectorMarker} from '../services/vectorPlaceData';
 import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
+import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
 import {useFuelStations} from '../hooks/useFuelStations';
 import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
 import {FuelStationModal} from './FuelStationModal';
@@ -184,7 +185,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const visible=standaloneVisiblePlaces({markers:drawn,stations:data.current.stations,
         places:data.current.places,stops:p.stops||[],center:[center.lat,center.lng],
         contains:([lat,lon])=>bounds.contains([lon,lat])});
-      const signature=JSON.stringify(visible.map(place=>place.id));
+      const signature=visiblePlacesSignature(visible);
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
     const retry=()=>{waitingForIdle=false;render();};

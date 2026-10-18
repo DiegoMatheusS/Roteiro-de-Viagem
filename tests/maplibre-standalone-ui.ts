@@ -141,6 +141,12 @@ try{
   assert.equal(await page.locator('.leaflet-container').count(),0);
   assert.equal(await page.getByRole('button',{name:'Orientar mapa na direção da viagem',exact:true}).count(),0);
   await page.waitForFunction(()=>document.querySelector('[data-testid="visible"]')?.textContent?.includes('Mirante local'));
+  const placesCenter=await map.getAttribute('data-map-center');
+  const placesZoom=await map.getAttribute('data-map-zoom');
+  await page.getByRole('button',{name:'Atualizar descrição',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('[data-testid="visible-address"]')?.textContent==='Mirante atualizado');
+  assert.equal(await map.getAttribute('data-map-center'),placesCenter,'place metadata does not move the camera');
+  assert.equal(await map.getAttribute('data-map-zoom'),placesZoom,'place metadata does not change zoom');
   const beforeCenter=await map.getAttribute('data-map-center');
   const beforeZoom=await map.getAttribute('data-map-zoom');
   const tap=await map.evaluate(mapScreenPoint,[-23.545,-46.62] as [number,number]);
