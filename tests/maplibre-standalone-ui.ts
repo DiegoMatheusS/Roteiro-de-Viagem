@@ -45,6 +45,21 @@ try{
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector<SVGElement>('.user-live-marker svg')?.style.transform==='rotate(180deg)');
   assert.equal(Number(await map.getAttribute('data-map-bearing')),90,'GPS course updates must not rotate an explored map');
+  const exploredZoom=await map.getAttribute('data-map-zoom');
+  await page.getByRole('button',{name:'Manter o mapa apontado para o norte',exact:true}).click();
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
+  const northCenter=JSON.parse((await map.getAttribute('data-map-center'))!);
+  const exploredCenter=JSON.parse(center!);
+  assert.ok(northCenter.every((value:number,index:number)=>Math.abs(value-exploredCenter[index])<1e-8),'explicit north preserves the explored center');
+  assert.equal(await map.getAttribute('data-map-zoom'),exploredZoom);
+  assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring','compass must not resume GPS');
+  await page.getByRole('button',{name:'Orientar mapa na direção da viagem',exact:true}).click();
+  await page.waitForFunction(()=>Math.abs(Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))-180)<0.00001);
+  const courseCenter=JSON.parse((await map.getAttribute('data-map-center'))!);
+  assert.ok(courseCenter.every((value:number,index:number)=>Math.abs(value-exploredCenter[index])<1e-8),'explicit course preserves the explored center');
+  assert.equal(await map.getAttribute('data-map-zoom'),exploredZoom);
+  assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring');
+
   await page.getByRole('button',{name:'Seguir GPS',exact:true}).click();
   await page.waitForFunction(()=>{
     const el=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
