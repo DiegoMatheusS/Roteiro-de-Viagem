@@ -153,7 +153,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             fitted=key;
             if(points.length>1)cameraPort.fitRoute(points,{topLeft:[36,70],
               bottomRight:[36,p.roadStyle&&(p.routeAlternatives?.length||0)>0?
-                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):64],maxZoom:13});
+                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):
+                !p.navigationMode&&!p.roadStyle?Math.min(132,Math.round(map.getContainer().clientHeight*.4)):64],maxZoom:13});
             else cameraPort.focus(points[0],12);
           }
         }
