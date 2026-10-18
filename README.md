@@ -318,3 +318,10 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - A seleção continua filtrando coordenadas inválidas, categorias desconhecidas, alertas não aprovados e alertas expirados. O backend continua exigindo GPS recente e veículo parado para confirmação. Sem HTML de terceiros no ícone.
 - O controlador MapLibre é instalado uma vez por ciclo do mapa vetorial. Em falta de WebGL, os alertas continuam visíveis e interativos pelo fallback raster.
 - Não altera API, moderação, backend, painel admin, regras de validade nem controle híbrido Leaflet–MapLibre da câmera.
+
+## Câmera estável ao comparar rotas — PR #62
+
+- Ao escolher entre rotas alternativas de um mesmo percurso OSRM, o mapa não altera o centro ou o zoom escolhido com pinça/arrasto. A rota selecionada é atualizada, mas o usuário mantém o enquadramento.
+- O enquadramento automático permanece ao abrir um percurso novo, mudar origem/destino ou receber um conjunto realmente diferente de rotas. A ordem dos cards não redefine a câmera.
+- Paradas turísticas, participantes, pontos de encontro e previsões atualizadas não forçam `fitBounds` nem anulam a exploração manual.
+- A câmera segue pertencendo ao Leaflet no mapa híbrido, com MapLibre sincronizado, evitando giros de uma base separados de marcadores e linhas. Não altera GPS, backend, moderação ou painel administrativo.
