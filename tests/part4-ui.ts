@@ -59,7 +59,11 @@ try{
  // Explicit route publication is shared while meeting-point check-ins are retained.
  await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByRole('dialog',{name:'Entrar no comboio'}).getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByRole('button',{name:'Cheguei',exact:true}).first().click();
  await owner.getByRole('button',{name:'Atualizar roteiro do comboio',exact:true}).click();await rider.getByText('1 no local',{exact:true}).last().waitFor();
- await owner.getByRole('button',{name:'Encerrar Comboio',exact:true}).click();await owner.getByRole('button',{name:'Sim, Encerrar',exact:true}).click();await rider.getByText(/Este comboio foi encerrado/).waitFor();assert.equal(await rider.locator('.convoy-participant-marker').count(),0);
+ await owner.getByRole('button',{name:'Encerrar Comboio',exact:true}).click();await owner.getByRole('button',{name:'Sim, Encerrar',exact:true}).click();await rider.getByText(/Este comboio foi encerrado/).waitFor();
+ // The status banner commits before map effects reconcile/remove DOM pins.
+ // Verify the eventual cleanup, rather than racing that same React commit.
+ await rider.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===0);
+ assert.equal(await rider.locator('.convoy-participant-marker').count(),0);
  assert.deepEqual(errors,[]);console.log('PASS: duas sessões da mesma conta, edição offline, GPS automático em duas contas, outras telas, retomada e encerramento do Comboio.');
 }catch(error){for(const [index,page] of [owner,second,rider].entries())await page.screenshot({path:`test-results/part4-failure-${index}.png`,fullPage:true}).catch(()=>{});throw error;}
 finally{await browser.close();await vite.close();await new Promise<void>(r=>server.close(()=>r()));db.close();}

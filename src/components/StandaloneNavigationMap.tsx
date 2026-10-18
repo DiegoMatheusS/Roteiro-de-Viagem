@@ -7,7 +7,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type {InteractiveMapProps} from './InteractiveMap';
 import {canRenderVectorMap,applyRoleVectorPalette} from '../services/mapVectorStyle';
-import {createStandaloneMapLibreCameraPort} from '../services/mapCameraController';
+import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
 import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
@@ -65,7 +65,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
   const places=useNearbyPlaces(discovery,(props.showFuelStations??true)&&discovery.length>0);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
-  const runtime=useRef<{render:()=>void;setBaseStyle:(style:MapStyleType)=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
+  const runtime=useRef<{render:()=>void;orient:()=>void;setBaseStyle:(style:MapStyleType)=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
 
   useEffect(()=>{
     if(!container.current)return;
@@ -194,7 +194,14 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         map.setStyle(standaloneBaseStyle(style),{diff:false});
       }catch{fail();}
     };
-    runtime.current={render,camera,setBaseStyle:setBase};
+    runtime.current={render,camera,setBaseStyle:setBase,orient:()=>{
+      if(disposed||failed||!loaded||!latest.current.navigationMode||camera.snapshot().mode!=='exploring')return;
+      // Explicit orientation must also work while route tiles are loading.
+      const p=latest.current;
+      course=updateMapCourse(course,p.userHeadingDegrees,p.userSpeedMetersPerSecond);
+      bearing=courseModeRef.current?(course??0):0;
+      orientMapLibreCamera(map,bearing,reducedMotion());
+    }};
     const publishViewport=()=>{
       const root=container.current?.parentElement;
       if(!root||disposed)return;
@@ -275,6 +282,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   },[]);
 
   useEffect(()=>{runtime.current?.render();},[props,fuel.stations,places,ready,courseMode]);
+  useEffect(()=>{runtime.current?.orient();},[courseMode]);
   useEffect(()=>{runtime.current?.setBaseStyle(effectiveStyle);},[effectiveStyle,ready]);
 
   const check=async(present:boolean)=>{

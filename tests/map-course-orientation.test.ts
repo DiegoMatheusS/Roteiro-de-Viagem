@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {updateMapCourse} from '../src/services/gpsHeading';
-import {createStandaloneMapLibreCameraPort,type CameraPort} from '../src/services/mapCameraController';
+import {createStandaloneMapLibreCameraPort,orientMapLibreCamera,type CameraPort} from '../src/services/mapCameraController';
 import {createNavigationCameraSession} from '../src/services/navigationCameraSession';
 
 test('course keeps last reliable direction when stopped or GPS heading is missing',()=>{
@@ -72,4 +72,19 @@ test('new route bounds retain selected course instead of resetting bearing to no
     topLeft:[36,70],bottomRight:[36,64],maxZoom:13
   });
   assert.deepEqual(received,{padding:{top:70,left:36,bottom:64,right:36},maxZoom:13,duration:0,bearing:90});
+});
+
+
+test('explicit compass orientation preserves center/zoom and honors reduced motion',()=>{
+  const calls:unknown[]=[];
+  const map={getBearing:()=>90,
+    jumpTo:(options:{bearing:number})=>{calls.push(['jump',options]);},
+    easeTo:(options:{bearing:number;duration:number})=>{calls.push(['ease',options]);}};
+  orientMapLibreCamera(map,0,false);
+  orientMapLibreCamera(map,180,true);
+  assert.deepEqual(calls,[['ease',{bearing:0,duration:260}],['jump',{bearing:180}]]);
+  // Equivalent angles and invalid courses do not restart a camera animation.
+  orientMapLibreCamera(map,450,false);
+  orientMapLibreCamera(map,NaN,false);
+  assert.equal(calls.length,2);
 });

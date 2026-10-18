@@ -127,3 +127,18 @@ export function createStandaloneMapLibreCameraPort(
     }
   };
 }
+
+interface MapLibreOrientationCamera {
+  getBearing():number;
+  jumpTo(options:{bearing:number}):unknown;
+  easeTo(options:{bearing:number;duration:number}):unknown;
+}
+/** An explicit compass action can orient an explored map without resuming GPS
+ * or changing its center/zoom. GPS-driven bearing still uses the follow command. */
+export function orientMapLibreCamera(map:MapLibreOrientationCamera,bearing:number,reducedMotion:boolean):void {
+  if(!Number.isFinite(bearing))return;
+  const delta=((bearing-map.getBearing()+180)%360+360)%360-180;
+  if(Math.abs(delta)<0.001)return;
+  if(reducedMotion)map.jumpTo({bearing});
+  else map.easeTo({bearing,duration:260});
+}
