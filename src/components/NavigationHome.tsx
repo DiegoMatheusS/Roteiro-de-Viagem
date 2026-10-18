@@ -217,7 +217,9 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
-      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
+      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
+        userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
+        userSpeedMetersPerSecond={gps.status==='ready'?gps.position?.speedMetersPerSecond:null} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
         focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
