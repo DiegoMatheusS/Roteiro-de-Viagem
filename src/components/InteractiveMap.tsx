@@ -1013,17 +1013,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       for (const option of routeAlternatives) {
         if (option.id === selectedRouteId || option.routePath.length < 2) continue;
         if (!vectorRoutesReady) {
-          L.polyline(option.routePath, {color:'#ffffff',weight:9,opacity:.86,lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
-        }
           // In raster fallback Leaflet draws and selects the same OSRM path.
           // When MapLibre is ready, the click handler above queries its own
           // rendered features; there are no overlapping invisible Leaflet lines.
+          L.polyline(option.routePath, {color:'#ffffff',weight:9,opacity:.86,
+            lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
           const alternative=L.polyline(option.routePath,{
             color:'#64748b',weight:5,opacity:.78,
             lineCap:'round',lineJoin:'round',interactive:true,bubblingMouseEvents:false
           }).addTo(group);
           alternative.on('click',()=>selectRouteRef.current?.(option.id));
           alternative.bindTooltip('Selecionar rota alternativa',{sticky:true,direction:'top'});
+        }
         option.routePath.forEach(point=>bounds.push(point));
       }
     }
