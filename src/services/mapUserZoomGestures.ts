@@ -57,14 +57,14 @@ export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>
   target.addEventListener('pointerup',pointerEnd,passiveCapture);
   target.addEventListener('pointercancel',pointerEnd,passiveCapture);
   return ()=>{
-    target.removeEventListener('wheel',wheel,true);
-    target.removeEventListener('touchstart',touch,true);
-    target.removeEventListener('dblclick',doubleClick,true);
-    target.removeEventListener('gesturestart',gesture,true);
-    target.removeEventListener('keydown',key,true);
-    target.removeEventListener('pointerdown',pointerDown,true);
-    target.removeEventListener('pointerup',pointerEnd,true);
-    target.removeEventListener('pointercancel',pointerEnd,true);
+    target.removeEventListener('wheel',wheel,passiveCapture);
+    target.removeEventListener('touchstart',touch,passiveCapture);
+    target.removeEventListener('dblclick',doubleClick,passiveCapture);
+    target.removeEventListener('gesturestart',gesture,passiveCapture);
+    target.removeEventListener('keydown',key,{capture:true});
+    target.removeEventListener('pointerdown',pointerDown,passiveCapture);
+    target.removeEventListener('pointerup',pointerEnd,passiveCapture);
+    target.removeEventListener('pointercancel',pointerEnd,passiveCapture);
     pointerIds.clear();
   };
 }
