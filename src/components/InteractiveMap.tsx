@@ -28,6 +28,7 @@ import { arrowHeadingStyle } from '../services/gpsHeading';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
+import { bindMapResumeRefresh } from '../services/mapResumeRefresh';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
 import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
@@ -342,6 +343,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     mapInstanceRef.current = map;
     setHasMapReady(true);
 
+    // Returning from another app may not change container dimensions, so a
+    // ResizeObserver alone cannot repair a stale vector canvas.
+    const unbindResumeRefresh=bindMapResumeRefresh(document,window,()=>{
+      if(mapInstanceRef.current!==map)return;
+      map.invalidateSize({animate:false,debounceMoveend:true});
+      const gl=vectorMapRef.current;
+      if(gl){gl.resize();gl.triggerRepaint();}
+    });
+
     // Handle container resize to ensure tiles NEVER remain blank white
     const resizeObserver = new ResizeObserver(() => {
       map.invalidateSize();
@@ -355,6 +365,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return () => {
       clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      unbindResumeRefresh();
       map.off('dragstart',pauseFollowing);
       map.off('boxzoomstart',pauseFollowing);
       unbindManualZoom();

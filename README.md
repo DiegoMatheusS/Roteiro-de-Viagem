@@ -354,3 +354,9 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - A contagem de dedos é atualizada mesmo quando o toque termina fora do mapa.
 - Perda de captura, troca de aplicativo e ocultação da página limpam toques pendentes, evitando que o próximo toque simples seja confundido com pinça e pause o acompanhamento GPS.
 - A pinça real continua pausando o acompanhamento. Os listeners são removidos ao sair da tela, sem capturar toques nem bloquear gestos nativos.
+
+## Retorno ao mapa após trocar de aplicativo
+
+- Ao voltar ao app, restaurar a página ou mudar a orientação, o mapa agenda uma atualização de tamanho e redesenho da base vetorial existente.
+- Eventos simultâneos são agrupados em um único frame. O refresh não pede GPS, não enquadra a rota novamente e não altera o modo de acompanhamento escolhido.
+- A atualização é suspensa com a página oculta, e callbacks pendentes são cancelados ao sair da tela do mapa. A recuperação de contexto WebGL perdido continua sob responsabilidade do MapLibre.
