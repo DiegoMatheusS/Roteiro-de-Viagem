@@ -246,3 +246,10 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O marcador de um participante é atualizado incrementalmente por `setLngLat`, sem recriar os demais participantes e sem reiniciar a câmera. O fallback Leaflet utiliza `setLatLng` para o mesmo propósito.
 - Os pontos de encontro continuam mostrando quantos participantes confirmaram chegada. Paradas com referência OSM de posto preservam os comandos de preços e comentários. No fallback raster, os mesmos marcadores e pop-ups permanecem.
 - O renderizador MapLibre ainda usa a ponte de câmera/gestos Leaflet. Remover a dependência do Leaflet exige migrar os gestos e os overlays meteorológicos e validar o Android físico.
+
+## Seta do GPS orientada pelo deslocamento (PR #53)
+
+- Quando o GPS fornece um rumo real de deslocamento (`heading` no navegador/Capacitor e `Location.getBearing()` no Android nativo), a seta azul passa a apontar na direção de movimento, tanto no MapLibre quanto no fallback Leaflet.
+- Direções inválidas, ausentes ou com velocidade conhecida inferior a 1,4 m/s não fazem a seta girar. A última direção válida é mantida para reduzir oscilações em paradas. A interpolação angular escolhe o caminho mais curto ao cruzar 0°/360°.
+- A animação da seta respeita `prefers-reduced-motion`; não há novas permissões nem telemetria de GPS. O código não calcula rumo a partir de posições incertas nem inventa valores.
+- **Nesta fase a câmera continua apontada para o norte:** a base MapLibre ainda usa gestos e viewport controlados pelo Leaflet. Girar apenas a câmera MapLibre causaria dessincronização das rotas e pinos. Rotação do mapa e gestos MapLibre independentes exigem uma próxima etapa que substitua o adaptador por um controlador único e seja testada em aparelhos reais.

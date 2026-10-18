@@ -21,6 +21,7 @@ import { updateRoleVectorRoutes, clearRoleVectorRoutes } from '../services/mapLi
 import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
+import { arrowHeadingStyle } from '../services/gpsHeading';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
@@ -58,6 +59,8 @@ interface InteractiveMapProps {
   tollVehicleType?: 'car' | 'motorcycle';
   showRainLayer?: boolean;
   userLiveCoords?: [number, number];
+  userHeadingDegrees?: number | null;
+  userSpeedMetersPerSecond?: number | null;
   focusedCoords?: [number, number] | null;
   convoyParticipants?: ConvoyParticipant[];
   meetingPoints?: MeetingPoint[];
@@ -132,6 +135,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   tolls = EMPTY_TOLLS,
   tollVehicleType,
   userLiveCoords,
+  userHeadingDegrees,
+  userSpeedMetersPerSecond,
   focusedCoords,
   convoyParticipants = EMPTY_CONVOY,
   meetingPoints = EMPTY_MEETINGS,
@@ -163,9 +168,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   tripPinsDataRef.current={stops,meetingPoints,convoyParticipants};
   const vectorNavigationController = useRef<NavigationPinController|null>(null);
   const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
-    live:userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle});
+    live:userLiveCoords,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle});
   navigationPinInputs.current={origin:originCoords,destination:destinationCoords,
-    live:userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle};
+    live:userLiveCoords,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle};
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -174,6 +179,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const navigationPinGroupRef = useRef<L.LayerGroup | null>(null);
   const livePinGroupRef = useRef<L.LayerGroup | null>(null);
   const liveFallbackRef = useRef<L.Marker | null>(null);
+  const liveFallbackHeadingRef = useRef<number|null>(null);
   const progressGroupRef = useRef<L.LayerGroup | null>(null);
   const stopPinGroupRef = useRef<L.LayerGroup|null>(null);
   const meetingPinGroupRef = useRef<L.LayerGroup|null>(null);
@@ -671,7 +677,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   useEffect(() => {
     vectorNavigationController.current?.update(navigationPinInputs.current);
-  },[originCoords,destinationCoords,userLiveCoords,originLabel,destinationLabel,navigationMode,roadStyle]);
+  },[originCoords,destinationCoords,userLiveCoords,userHeadingDegrees,userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -711,6 +717,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     liveFallbackRef.current=L.marker(userLiveCoords,{icon,zIndexOffset:1000})
       .addTo(group).bindPopup('<b>Sua Posição Atual (GPS)</b>');
   },[userLiveCoords,vectorNavigationReady]);
+
+  // Rotate the GPS arrow itself, never the Leaflet/MapLibre cameras separately.
+  // Those cameras are still coupled through the hybrid adapter.
+  useEffect(()=>{
+    if(vectorNavigationReady)return;
+    const svg=liveFallbackRef.current?.getElement()?.querySelector('svg') || null;
+    liveFallbackHeadingRef.current=arrowHeadingStyle(
+      svg,liveFallbackHeadingRef.current,userHeadingDegrees,userSpeedMetersPerSecond,
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+    );
+  },[userLiveCoords,userHeadingDegrees,userSpeedMetersPerSecond,vectorNavigationReady]);
 
   // Lightweight progress overlays for raster/legacy mode. Vector mode already
   // updates its GeoJSON source independently, with the exact same GPS split.
