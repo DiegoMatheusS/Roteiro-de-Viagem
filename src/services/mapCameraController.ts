@@ -24,6 +24,7 @@ export interface CameraFitPadding {
 export interface CameraPort {
   zoom():number;
   firstGpsFix(point:CameraPoint):void;
+  focus(point:CameraPoint,zoom:number):void;
   fitRoute(points:readonly CameraPoint[],padding:CameraFitPadding):void;
   recenter(point:CameraPoint,navigation:boolean,reducedMotion:boolean):void;
   follow(point:CameraPoint,reducedMotion:boolean):void;
@@ -45,6 +46,7 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
       // The first live location must not animate from a distant map center.
       map.setView(point,16,{animate:false});
     },
+    focus(point,zoom){map.setView(point,zoom,{animate:false});},
     fitRoute(points,padding){
       if(!points.length)return;
       map.fitBounds(points,{
@@ -79,6 +81,7 @@ export function createStandaloneMapLibreCameraPort(map:StandaloneMapLibreCamera)
     firstGpsFix(point){
       map.jumpTo({center:lngLat(point),zoom:16});
     },
+    focus(point,zoom){map.jumpTo({center:lngLat(point),zoom});},
     fitRoute(points,padding){
       const valid=points.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180);
       if(!valid.length)return;
