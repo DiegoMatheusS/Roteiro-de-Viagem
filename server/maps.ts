@@ -64,20 +64,30 @@ export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fet
     active: true, openingHours: String(tags.opening_hours || '').slice(0, 200) || undefined };
 }
 
-export function validateCoordinates(value: unknown): Coordinates[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 25) throw new Error('Escolha um trajeto com até 25 pontos.');
+export function validateCoordinates(value: unknown, maxPoints = 25): Coordinates[] {
+  if (!Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 2500) throw new Error('Limite de coordenadas inválido.');
+  if (!Array.isArray(value) || value.length < 1 || value.length > maxPoints) throw new Error(`Escolha um trajeto com até ${maxPoints} pontos.`);
   return value.map(point => {
     if (!Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite) || Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180) throw new Error('Localização inválida.');
     return [point[0], point[1]] as Coordinates;
   });
 }
 
+// Prevent a failing Overpass instance from holding up every map refresh. Injectable
+// fetches in tests are isolated from the production circuit breaker.
+let overpassFailures = 0;
+let overpassPauseUntil = 0;
 export async function discoverStations(db: FuelDatabase, points: Coordinates[], radiusKm = 5, mapFetch: MapFetch = fetch) {
   const sampled = points.filter((_, index) => index === 0 || index === points.length - 1 || index % Math.max(1, Math.ceil(points.length / 6)) === 0);
   const key = createHash('sha256').update(JSON.stringify([sampled.map(p => p.map(c => Number(c.toFixed(3)))), radiusKm])).digest('hex');
   const cached = db.prepare('SELECT * FROM map_queries WHERE id=?').get(key) as any;
   const visible = (ids: string[]) => [...new Set([...ids, ...nearbyManagedStations(db, points, radiusKm)])].filter(id => db.prepare("SELECT id FROM stations WHERE id=? AND active=1 AND kind='fuel'").get(id));
   if (cached && Date.now() - Date.parse(cached.updated_at) < 6 * 3600000) return { stationIds: visible(JSON.parse(cached.station_ids)), cached: true, mapUnavailable: false };
+  const degraded = () => ({ stationIds: visible(cached ? JSON.parse(cached.station_ids) : []), cached: Boolean(cached), mapUnavailable: true });
+  // When upstream is down, return real cached/admin records with an explicit
+  // outage flag instead of HTTP 503 or an invented station list.
+  const useBreaker = mapFetch === fetch;
+  if (useBreaker && Date.now() < overpassPauseUntil) return degraded();
   const query = `[out:json][timeout:20];(${sampled.map(p => `nwr["amenity"="fuel"](around:${radiusKm * 1000},${p[0]},${p[1]});`).join('')});out center tags;`;
   try {
     const response = await mapFetch(process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter', {
@@ -106,12 +116,14 @@ export async function discoverStations(db: FuelDatabase, points: Coordinates[], 
       ids.push(id);
     }
     db.prepare('INSERT OR REPLACE INTO map_queries VALUES(?,?,?)').run(key, JSON.stringify(ids), now);
+    if (useBreaker) { overpassFailures = 0; overpassPauseUntil = 0; }
     return { stationIds: visible(ids), cached: false, mapUnavailable: false };
   } catch {
-    if (cached) return { stationIds: visible(JSON.parse(cached.station_ids)), cached: true, mapUnavailable: true };
-    const managed = nearbyManagedStations(db, points, radiusKm);
-    if (managed.length) return { stationIds: managed, cached: true, mapUnavailable: true };
-    throw new Error('Não foi possível carregar postos reais. Tente novamente em alguns minutos.');
+    if (useBreaker && ++overpassFailures >= 2) {
+      overpassPauseUntil = Date.now() + 2 * 60000;
+      overpassFailures = 0;
+    }
+    return degraded();
   }
 }
 
