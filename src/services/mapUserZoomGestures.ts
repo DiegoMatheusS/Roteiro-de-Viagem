@@ -38,7 +38,7 @@ export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>
   const doubleClick=(event:MouseEvent)=>notify(event,{type:'dblclick'});
   const gesture=(event:Event)=>notify(event,{type:'gesturestart'});
   const key=(event:KeyboardEvent)=>{
-    if(event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName))return;
+    if(typeof HTMLElement!=='undefined' && event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName))return;
     notify(event,{type:'keydown',key:event.key});
   };
   const pointerDown=(event:PointerEvent)=>{
