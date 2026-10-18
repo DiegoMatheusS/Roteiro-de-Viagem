@@ -294,12 +294,12 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       className="absolute bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-blue-700 shadow-xl">
       <Compass size={20}/><span>{courseMode?'Direção':'Norte'}</span>
     </button>}
-    {!props.navigationMode&&!props.roadStyle&&<div className="absolute bottom-5 left-4 z-30">
+    {!props.navigationMode&&!props.roadStyle&&<div className="pointer-events-none absolute bottom-5 left-4 z-30">
       <button type="button" title="Alterar visual do mapa" onClick={()=>setStyleMenu(value=>!value)}
-        className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xl">
+        className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xl">
         <span>{TILE_PROVIDERS[baseStyle].icon}</span><span>{TILE_PROVIDERS[baseStyle].name}</span><Layers size={16}/>
       </button>
-      {styleMenu&&<div className="absolute bottom-14 left-0 w-52 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+      {styleMenu&&<div className="pointer-events-auto absolute bottom-14 left-0 w-52 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
         <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Camadas do Mapa</span>
         {(Object.keys(TILE_PROVIDERS) as MapStyleType[]).map(style=><button key={style} type="button"
           aria-pressed={baseStyle===style} onClick={()=>{setBaseStyle(style);setStyleMenu(false);}}
