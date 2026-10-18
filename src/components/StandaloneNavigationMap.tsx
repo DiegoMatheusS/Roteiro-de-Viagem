@@ -9,7 +9,7 @@ import type {InteractiveMapProps} from './InteractiveMap';
 import {canRenderVectorMap,applyRoleVectorPalette} from '../services/mapVectorStyle';
 import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
-import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
+import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
 import {updateRoleVectorRoutes,queryRoleVectorAlternative} from '../services/mapLibreRouteLayers';
@@ -156,10 +156,16 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             ...(p.destinationCoords?[p.destinationCoords]:[])];
           if(shouldFitMapRoute(fitted,key,points.length>0)){
             fitted=key;
-            if(points.length>1)cameraPort.fitRoute(points,{topLeft:[36,70],
-              bottomRight:[36,p.roadStyle&&(p.routeAlternatives?.length||0)>0?
-                Math.min(360,Math.round(map.getContainer().clientHeight*.46)):64],maxZoom:13});
-            else cameraPort.focus(points[0],12);
+            const snapshot=camera.snapshot();
+            // Keep the driver's camera or an explored viewport when a new
+            // itinerary arrives. A first route without GPS can still fit.
+            if(shouldAutoFitRouteCamera(!!p.navigationMode,
+              !!p.userLiveCoords||!!snapshot.position,snapshot.mode==='exploring')){
+              if(points.length>1)cameraPort.fitRoute(points,{topLeft:[36,70],
+                bottomRight:[36,p.roadStyle&&(p.routeAlternatives?.length||0)>0?
+                  Math.min(360,Math.round(map.getContainer().clientHeight*.46)):64],maxZoom:13});
+              else cameraPort.focus(points[0],12);
+            }
           }
         }
         camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,position:p.userLiveCoords,

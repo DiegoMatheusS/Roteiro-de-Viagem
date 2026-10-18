@@ -28,7 +28,7 @@ import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers'
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
-import {mapRouteFitKey,shouldFitMapRoute} from '../services/mapRouteFit';
+import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
 import { bindMapResumeRefresh } from '../services/mapResumeRefresh';
 import type { TripPinsController } from '../services/mapLibreTripPins';
@@ -1364,6 +1364,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     });
     if(!shouldFitMapRoute(fittedGeometryRef.current,geometryKey,bounds.length>0))return;
     fittedGeometryRef.current=geometryKey;
+    // Raster fallback follows the same camera policy as native MapLibre:
+    // redraw a changed route without zooming out of active GPS navigation.
+    if(!shouldAutoFitRouteCamera(navigationMode,
+      !!userLiveCoords||!!lastFollowRef.current,followSuspendedRef.current))return;
     if (bounds.length > 1) {
       const sheetOverlay = roadStyle && routeAlternatives.length > 0;
       // The hybrid Leaflet camera remains the sole viewport owner.

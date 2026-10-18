@@ -32,3 +32,10 @@ export function shouldFitMapRoute(
 ):boolean {
   return hasBounds && previous!==current;
 }
+
+/** During an active trip, updated routes should change the line, not take the
+ * camera away from the driver. Before any GPS fix, framing the initial route
+ * remains useful unless the user has already explored the map manually. */
+export function shouldAutoFitRouteCamera(navigationMode:boolean,hasGpsFix:boolean,exploring:boolean):boolean {
+  return !navigationMode || (!hasGpsFix && !exploring);
+}
