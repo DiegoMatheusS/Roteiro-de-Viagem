@@ -43,11 +43,19 @@ export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>
     notify(event,{type:'keydown',key:event.key});
   };
   const pointerDown=(event:PointerEvent)=>{
-    if(event.pointerType!=='touch')return;
+    if(event.pointerType!=='touch' || isMarkerOrPopup(event))return;
     pointerIds.add(event.pointerId);
     notify(event,{type:'pointerdown',activeTouchPointers:pointerIds.size});
   };
-  const pointerEnd=(event:PointerEvent)=>pointerIds.delete(event.pointerId);
+  const pointerEnd=(event:Event)=>{pointerIds.delete((event as PointerEvent).pointerId);};
+  const resetPointers=()=>pointerIds.clear();
+  // A finger can leave the map before being released. Observe its end on the
+  // owning document; don't capture pointers or interfere with native gestures.
+  const pointerEndTarget=target.ownerDocument || target;
+  const ownerWindow=target.ownerDocument?.defaultView;
+  const handleVisibility=()=>{
+    if(target.ownerDocument?.visibilityState==='hidden')resetPointers();
+  };
   const passiveCapture={passive:true,capture:true} as const;
   target.addEventListener('wheel',wheel,passiveCapture);
   target.addEventListener('touchstart',touch,passiveCapture);
@@ -55,8 +63,11 @@ export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>
   target.addEventListener('gesturestart',gesture,passiveCapture);
   target.addEventListener('keydown',key,true);
   target.addEventListener('pointerdown',pointerDown,passiveCapture);
-  target.addEventListener('pointerup',pointerEnd,passiveCapture);
-  target.addEventListener('pointercancel',pointerEnd,passiveCapture);
+  pointerEndTarget.addEventListener('pointerup',pointerEnd,passiveCapture);
+  pointerEndTarget.addEventListener('pointercancel',pointerEnd,passiveCapture);
+  target.addEventListener('lostpointercapture',pointerEnd,passiveCapture);
+  ownerWindow?.addEventListener('blur',resetPointers);
+  target.ownerDocument?.addEventListener('visibilitychange',handleVisibility);
   return ()=>{
     target.removeEventListener('wheel',wheel,passiveCapture);
     target.removeEventListener('touchstart',touch,passiveCapture);
@@ -64,8 +75,11 @@ export function bindManualMapZoom(target:HTMLElement,onManualZoom:()=>void):()=>
     target.removeEventListener('gesturestart',gesture,passiveCapture);
     target.removeEventListener('keydown',key,{capture:true});
     target.removeEventListener('pointerdown',pointerDown,passiveCapture);
-    target.removeEventListener('pointerup',pointerEnd,passiveCapture);
-    target.removeEventListener('pointercancel',pointerEnd,passiveCapture);
+    pointerEndTarget.removeEventListener('pointerup',pointerEnd,passiveCapture);
+    pointerEndTarget.removeEventListener('pointercancel',pointerEnd,passiveCapture);
+    target.removeEventListener('lostpointercapture',pointerEnd,passiveCapture);
+    ownerWindow?.removeEventListener('blur',resetPointers);
+    target.ownerDocument?.removeEventListener('visibilitychange',handleVisibility);
     pointerIds.clear();
   };
 }

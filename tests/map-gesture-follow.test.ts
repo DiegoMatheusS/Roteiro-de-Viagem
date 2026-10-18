@@ -97,6 +97,15 @@ test('typing and marker or popup interaction never suspend GPS following',()=>{
         target.dispatchEvent(event);
       }
       assert.equal(calls,kind==='map'?4:0,kind);
+      if(kind==='overlay'){
+        for(const [id,overlay] of [[1,true],[2,false]] as const){
+          target.overlay=overlay;
+          const event=new Event('pointerdown');
+          Object.defineProperties(event,{pointerType:{value:'touch'},pointerId:{value:id}});
+          target.dispatchEvent(event);
+        }
+        assert.equal(calls,0,'a touch on a popup must not count toward a map pinch');
+      }
       cleanup();
     }
   }finally{
@@ -105,4 +114,42 @@ test('typing and marker or popup interaction never suspend GPS following',()=>{
     if(oldHTMLElement)Object.defineProperty(globalThis,'HTMLElement',oldHTMLElement);
     else Reflect.deleteProperty(globalThis,'HTMLElement');
   }
+});
+
+
+test('touch released outside the map or interrupted by app switching cannot become a phantom pinch',()=>{
+  const view=new EventTarget();
+  const doc=Object.assign(new EventTarget(),{defaultView:view,visibilityState:'visible'});
+  const map=Object.assign(new EventTarget(),{ownerDocument:doc});
+  let pauses=0;
+  const cleanup=bindManualMapZoom(map as unknown as HTMLElement,()=>pauses++);
+  const send=(target:EventTarget,type:string,pointerId=1)=>{
+    const event=new Event(type);
+    Object.defineProperties(event,{pointerType:{value:'touch'},pointerId:{value:pointerId}});
+    target.dispatchEvent(event);
+  };
+  send(map,'pointerdown',1);
+  send(doc,'pointerup',1);
+  send(map,'pointerdown',2);
+  assert.equal(pauses,0,'release outside the map clears the old finger');
+  send(doc,'pointercancel',2);
+  send(map,'pointerdown',3);
+  send(map,'lostpointercapture',3);
+  send(map,'pointerdown',4);
+  assert.equal(pauses,0,'lost capture clears that finger');
+  view.dispatchEvent(new Event('blur'));
+  send(map,'pointerdown',5);
+  assert.equal(pauses,0,'leaving the app clears pending touches');
+  doc.visibilityState='hidden';
+  doc.dispatchEvent(new Event('visibilitychange'));
+  doc.visibilityState='visible';
+  send(map,'pointerdown',6);
+  assert.equal(pauses,0,'backgrounding clears pending touches');
+  send(map,'pointerdown',7);
+  assert.equal(pauses,1,'a real two-finger gesture still pauses GPS');
+  cleanup();
+  send(map,'pointerdown',8);
+  send(doc,'pointerup',6);
+  view.dispatchEvent(new Event('blur'));
+  assert.equal(pauses,1,'unmounted map stops handling gestures');
 });
