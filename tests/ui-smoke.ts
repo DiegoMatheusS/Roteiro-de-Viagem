@@ -423,8 +423,15 @@ try {
   });
   assert.equal(mapRouteResponse.status(),200,'Enter na aba Mapa deve calcular as rotas');
   await mapDestination.getByText('Rota mais rápida').waitFor();
-  assert.ok(await page.locator('.leaflet-overlay-pane path').count()>0,
-    'As rotas da pesquisa direta devem aparecer desenhadas no Mapa');
+  // Leaflet SVG is used in raster fallback. In vector mode MapLibre renders
+  // lines on WebGL, so inspect the verified GeoJSON feature count instead of
+  // accidentally passing because an empty canvas happens to exist.
+  await page.waitForFunction(()=>{
+    const rasterPaths=document.querySelectorAll('.leaflet-overlay-pane path').length;
+    const map=document.querySelector('[data-role-vector-routes]');
+    const vectorFeatures=Number(map?.getAttribute('data-role-vector-routes')||0);
+    return rasterPaths>0 || vectorFeatures>0;
+  },undefined,{timeout:10000});
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
   await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
