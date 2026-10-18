@@ -253,6 +253,16 @@ try {
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
   await planner.getByText(/Percurso por estradas reais/).first().waitFor();
+  // Move the edge-of-route station clear of the provider attribution on the
+  // compact preview. Use a real drag, keeping pointer hit-testing enabled.
+  const preview=planner.locator('.maplibregl-canvas, .leaflet-container').first();
+  await preview.scrollIntoViewIfNeeded();
+  const previewBox=await preview.boundingBox();assert.ok(previewBox);
+  await page.mouse.move(previewBox.x+previewBox.width*.75,previewBox.y+previewBox.height*.55);
+  await page.mouse.down();
+  await page.mouse.move(previewBox.x+previewBox.width*.75,previewBox.y+previewBox.height*.55-60,{steps:10});
+  await page.waitForTimeout(200); // Stop drag velocity before release; no inertial overshoot.
+  await page.mouse.up();
   const fuelMarker = page.locator('.fuel-station-marker').first();
   await fuelMarker.getByRole('button', { name: 'Comentários de Posto de teste de interface', exact: true }).click();
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
