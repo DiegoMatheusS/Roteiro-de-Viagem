@@ -1,6 +1,19 @@
 // Cloudflare Pages advanced mode. Secrets are runtime bindings, never browser code.
 const DEFAULT_BACKEND = 'https://roteiro-api-production.up.railway.app';
-const error = (message, status) => Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } });
+const error = (message, status) => protect(Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } }));
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  // Safe baseline for the HTML, maps and Google sign-in (no script-src restriction yet).
+  'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",
+};
+const protect = response => {
+  const result = new Response(response.body, response);
+  for (const [name, value] of Object.entries(securityHeaders)) result.headers.set(name, value);
+  return result;
+};
+
 
 export default {
   async fetch(request, env) {
@@ -10,12 +23,12 @@ export default {
     // A separate administration site connects to the same backend with its own access controls.
     if (pathname === '/admin' || pathname.startsWith('/admin/') ||
         pathname === '/api/admin' || pathname.startsWith('/api/admin/')) {
-      return new Response('Página não encontrada.', {
+      return protect(new Response('Página não encontrada.', {
         status: 404,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
-      });
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+      }));
     }
-    if (url.pathname !== '/api' && !url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if (url.pathname !== '/api' && !url.pathname.startsWith('/api/')) return protect(await env.ASSETS.fetch(request));
     if (!['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return error('Método não permitido.', 405);
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('Origin') !== url.origin) return error('Origem da solicitação não permitida.', 403);
     if (typeof env.WEB_PROXY_SECRET !== 'string' || env.WEB_PROXY_SECRET.length < 32) return error('O serviço ainda não está configurado.', 503);
@@ -36,7 +49,7 @@ export default {
       const response = await fetch(new Request(forwarded, { redirect: 'manual', cache: 'no-store' }));
       const result = new Response(response.body, response);
       result.headers.set('Cache-Control', 'no-store');
-      return result;
+      return protect(result);
     } catch { return error('Não foi possível acessar o servidor. Tente novamente.', 503); }
   }
 };
