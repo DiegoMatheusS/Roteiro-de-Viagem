@@ -22,6 +22,7 @@ import { selectRoleVectorMarkers } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement } from '../services/mapRoadAlerts';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
+import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
@@ -74,6 +75,8 @@ interface InteractiveMapProps {
   blueRoute?: boolean;
   roadStyle?: boolean;
   followUser?: boolean;
+  /** Camera exploration status, separate from the compass/GPS course indicator. */
+  onCameraModeChange?: (mode: CameraMode) => void;
   roadAlerts?: RoadAlert[];
   onRoadAlertUpdated?: () => void;
   /** Lista apenas marcadores realmente renderizados dentro do viewport do mapa. */
@@ -148,6 +151,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   blueRoute = false,
   roadStyle = false,
   followUser = true,
+  onCameraModeChange,
   roadAlerts = EMPTY_ROAD_ALERTS,
   onRoadAlertUpdated,
   onVisiblePlacesChange,
@@ -186,6 +190,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const convoyPinGroupRef = useRef<L.LayerGroup|null>(null);
   const convoyFallbackMarkersRef = useRef<Map<string,{marker:L.Marker;signature:string}>>(new Map());
   const followSuspendedRef = useRef(false);
+  const cameraModeChangeRef = useRef(onCameraModeChange);
+  cameraModeChangeRef.current=onCameraModeChange;
+  const navigationModeRef=useRef(navigationMode);
+  navigationModeRef.current=navigationMode;
   const selectRouteRef = useRef(onSelectRoute);
   selectRouteRef.current = onSelectRoute;
   const fittedGeometryRef=useRef<string|null>(null);
@@ -274,7 +282,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     meetingPinGroupRef.current = L.layerGroup().addTo(map);
     convoyPinGroupRef.current = L.layerGroup().addTo(map);
     // Only a user's drag suspends following; programmatic GPS panning does not.
-    const pauseFollowing = () => { followSuspendedRef.current = true; };
+    const pauseFollowing = () => {
+      if(!navigationModeRef.current || followSuspendedRef.current)return;
+      followSuspendedRef.current=true;
+      cameraModeChangeRef.current?.('exploring');
+    };
     map.on('dragstart',pauseFollowing);
 
     mapInstanceRef.current = map;
@@ -326,11 +338,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (centerOnUserRequest <= lastCenterRequestRef.current) return;
     lastCenterRequestRef.current=centerOnUserRequest;
     if (!userLiveCoords || !mapInstanceRef.current) return;
-    followSuspendedRef.current = false;
+    if(followSuspendedRef.current){
+      followSuspendedRef.current=false;
+      if(navigationModeRef.current)cameraModeChangeRef.current?.('following');
+    }
     const map = mapInstanceRef.current;
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reducedMotion) map.setView(userLiveCoords, 15, {animate:false});
-    else map.flyTo(userLiveCoords, 15, {duration:0.55, easeLinearity:0.3});
+    const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+    // Hybrid map: Leaflet is the only camera owner. MapLibre follows its viewport.
+    createHybridCameraPort(map).recenter(userLiveCoords,navigationModeRef.current,reducedMotion);
     // A posição atual é deliberadamente lida apenas quando o usuário pede centralização.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centerOnUserRequest]);
@@ -1134,7 +1149,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map || !navigationMode || !userLiveCoords) {
       lastFollowRef.current = null;
-      if (!navigationMode) followSuspendedRef.current=false;
+      if (!navigationMode && followSuspendedRef.current){
+        followSuspendedRef.current=false;
+        cameraModeChangeRef.current?.('following');
+      }
       return;
     }
     const last = lastFollowRef.current;
@@ -1144,9 +1162,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       // GPS first fix: keep initial reposition snappy, no cross-country flyover.
       map.setView(userLiveCoords, 16, { animate: false });
     } else if (followUser && !followSuspendedRef.current) {
-      const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      if (reducedMotion) map.panTo(userLiveCoords,{animate:false});
-      else map.panTo(userLiveCoords,{animate:true,duration:0.45,easeLinearity:0.3});
+      const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+      createHybridCameraPort(map).follow(userLiveCoords,reducedMotion);
     }
     lastFollowRef.current = userLiveCoords;
   }, [navigationMode, userLiveCoords, followUser]);
