@@ -309,3 +309,12 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Na alternância entre MapLibre e Leaflet, os marcadores corretos aparecem sem duplicação. A geometria das rotas, suas cores e o zoom manual permanecem inalterados.
 - Evita fechar balões/pop-ups de paradas e pontos de encontro ao escolher outro roteiro, com o intuito de melhorar a percepção de fluidez.
 - Os testes cobrem troca de rota, atualização real de conteúdo, navegação e alternância vetor/raster. Backend e painel administrativo não são alterados.
+
+## Alertas colaborativos sem piscadas — PR #61
+
+- Alertas aprovados (buraco, veículo quebrado, radar, obstáculo, alagamento, policiamento e roubo) agora são reconciliados individualmente por ID no mapa MapLibre: atualizar uma ocorrência não recria os outros botões.
+- O fallback Leaflet usa a mesma estratégia de atualização: uma nova ocorrência, a expiração de um alerta ou uma mudança de posição afetam somente os ícones envolvidos.
+- Mudanças isoladas de localização utilizam `setLngLat` no MapLibre e `setLatLng` no Leaflet; mudança de categoria troca o ícone, e mudança de observação/horário mantém o elemento e atualiza o objeto usado no modal **Ainda continua lá?**.
+- A seleção continua filtrando coordenadas inválidas, categorias desconhecidas, alertas não aprovados e alertas expirados. O backend continua exigindo GPS recente e veículo parado para confirmação. Sem HTML de terceiros no ícone.
+- O controlador MapLibre é instalado uma vez por ciclo do mapa vetorial. Em falta de WebGL, os alertas continuam visíveis e interativos pelo fallback raster.
+- Não altera API, moderação, backend, painel admin, regras de validade nem controle híbrido Leaflet–MapLibre da câmera.
