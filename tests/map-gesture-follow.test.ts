@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {bindManualMapZoom,isManualMapZoom} from '../src/services/mapUserZoomGestures';
+
+test('only deliberate map zoom gestures suspend GPS follow',()=>{
+  assert.equal(isManualMapZoom({type:'touchstart',touchCount:1}),false);
+  assert.equal(isManualMapZoom({type:'touchstart',touchCount:2}),true);
+  assert.equal(isManualMapZoom({type:'pointerdown',activeTouchPointers:1}),false);
+  assert.equal(isManualMapZoom({type:'pointerdown',activeTouchPointers:2}),true);
+  assert.equal(isManualMapZoom({type:'wheel',deltaY:0}),false);
+  assert.equal(isManualMapZoom({type:'wheel',deltaY:120}),true);
+  assert.equal(isManualMapZoom({type:'wheel',deltaY:-90}),true);
+  assert.equal(isManualMapZoom({type:'dblclick'}),true);
+  assert.equal(isManualMapZoom({type:'gesturestart'}),true);
+  assert.equal(isManualMapZoom({type:'keydown',key:'='}),true);
+  assert.equal(isManualMapZoom({type:'keydown',key:'-'}),true);
+  assert.equal(isManualMapZoom({type:'keydown',key:'ArrowUp'}),false);
+});
+test('gesture listeners are passive, respond to pinch and are removed when the map unmounts',()=>{
+  const target=new EventTarget() as unknown as HTMLElement;
+  let n=0;
+  const cleanup=bindManualMapZoom(target,()=>{n++;});
+  const send=(type:string,props:Record<string,unknown>={})=>{
+    const event=new Event(type,{bubbles:true,cancelable:true});
+    Object.defineProperties(event,Object.fromEntries(Object.entries(props).map(([key,value])=>[key,{value,configurable:true}])));
+    target.dispatchEvent(event);
+  };
+  send('touchstart',{touches:[{identifier:1}]});
+  assert.equal(n,0);
+  send('wheel',{deltaY:130});
+  assert.equal(n,1);
+  send('touchstart',{touches:[{identifier:1},{identifier:2}]});
+  assert.equal(n,2);
+  send('pointerdown',{pointerType:'touch',pointerId:51});
+  send('pointerdown',{pointerType:'touch',pointerId:52});
+  assert.equal(n,3);
+  send('pointerup',{pointerType:'touch',pointerId:51});
+  send('pointercancel',{pointerType:'touch',pointerId:52});
+  send('dblclick');
+  assert.equal(n,4);
+  send('keydown',{key:'+'});
+  assert.equal(n,5);
+  cleanup();
+  send('wheel',{deltaY:120});
+  send('touchstart',{touches:[{},{}]});
+  assert.equal(n,5);
+});
+test('Leaflet remains the single camera owner and existing follow button resumes after zoom exploration',()=>{
+  const map=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
+  const screen=readFileSync(new URL('../src/components/ActiveTripModal.tsx',import.meta.url),'utf8');
+  const bridge=readFileSync(new URL('../src/services/mapLibreBridge.ts',import.meta.url),'utf8');
+  assert.match(map,/bindManualMapZoom\(map\.getContainer\(\),pauseFollowing\)/);
+  assert.match(map,/map\.on\('boxzoomstart',pauseFollowing\)/);
+  assert.match(map,/map\.off\('boxzoomstart',pauseFollowing\)/);
+  assert.match(map,/unbindManualZoom\(\)/);
+  assert.match(map,/cameraModeChangeRef\.current\?\.\('exploring'\)/);
+  assert.match(map,/cameraModeChangeRef\.current\?\.\('following'\)/);
+  assert.match(map,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
+  assert.match(screen,/onCameraModeChange=\{setCameraMode\}/);
+  assert.match(screen,/>Seguir GPS<\/span>/);
+  assert.match(bridge,/interactive: false/);
+  assert.doesNotMatch(map,/vectorMapRef\.current\.(?:jumpTo|easeTo|setBearing)/);
+});
