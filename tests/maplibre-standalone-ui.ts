@@ -128,6 +128,12 @@ try{
     assert.ok(Number(await page.locator('[data-role-vector-routes]').getAttribute('data-role-vector-routes'))>0);
   }
   await page.locator('.maplibregl-popup-close-button').click();
+  const meeting=page.locator('.meeting-point-marker');
+  await meeting.focus();
+  await meeting.press('Enter');
+  assert.equal(await page.locator('.maplibregl-popup').count(),1,'Enter opens exactly once');
+  await meeting.press('Space');
+  assert.equal(await page.locator('.maplibregl-popup').count(),0,'Space closes exactly once');
   const fixedBefore=await organizer.getAttribute('style'),riderBefore=await rider.getAttribute('style');
   await page.getByRole('button',{name:'Mover participante',exact:true}).click();
   await page.waitForFunction(previous=>document.querySelector('.convoy-participant-marker[title="Participante"]')?.getAttribute('style')!==previous,riderBefore);
