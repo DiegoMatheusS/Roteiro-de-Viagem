@@ -277,3 +277,11 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Os marcadores de previsão só aparecem quando o usuário ativa **Mostrar previsão de chuva**. Atualizações alteram somente os marcadores relevantes, sem modificar o zoom e os demais pontos do mapa.
 - A camada Leaflet permanece disponível em modo raster e se desliga quando os marcadores MapLibre são instalados; em fallback, usa as mesmas amostras válidas e evita horário `Invalid Date`.
 - Esta PR reduz mais uma dependência visual de Leaflet, mas os gestos e a câmera ainda pertencem à ponte Leaflet–MapLibre. A substituição segura do adaptador ainda exige migração dos hitboxes de rotas alternativas e da interação do mapa.
+
+## Seleção de rotas alternativas no MapLibre — PR #57
+
+- As rotas rodoviárias alternativas verificadas pelo OSRM continuam aparecendo juntas, mas cada linha MapLibre contém agora o **ID correspondente ao trajeto**. Ao tocar numa rota, a interface consulta diretamente a geometria renderizada pelo MapLibre e seleciona somente um ID que realmente conste das alternativas recebidas.
+- Na base vetorial, o mapa não precisa mais das polylines invisíveis Leaflet por cima das rotas. A posição tocada é projetada em pixels no canvas MapLibre e consultada com tolerância de 12 px, adequada ao toque.
+- O mapa ainda usa **Leaflet como controlador da câmera e dos gestos**. O clique Leaflet apenas encaminha a posição ao mapa vetorial; não são ativados dois controladores de câmera simultâneos.
+- No fallback raster, as alternativas continuam visíveis e selecionáveis pelas mesmas polylines Leaflet. Um toque sobre uma linha vetorial que seleciona rota não dispara também a ação de definir coordenadas do mapa.
+- Esta etapa não inventa rotas, não muda a geometria de origem, não faz merge automático e não altera backend nem admin.
