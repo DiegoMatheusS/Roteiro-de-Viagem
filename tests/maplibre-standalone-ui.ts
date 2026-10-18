@@ -199,6 +199,60 @@ try{
   const oldDetailCenter=JSON.parse(detailCenter!);
   assert.ok(Math.abs(rasterCenter[0]-oldDetailCenter[0])<0.0001 && Math.abs(rasterCenter[1]-oldDetailCenter[1])<0.0001);
   assert.equal(await rasterFallback.getAttribute('data-map-zoom'),detailZoom);
+  // Permission can be granted before the first position. Repeated center
+  // requests coalesce and survive a renderer failure while GPS is unavailable.
+  for(const scenario of ['native','cold-fallback','pending-handoff'] as const){
+    await page.unroute('https://tiles.openfreemap.org/**');
+    await page.route('https://tiles.openfreemap.org/**',route=>scenario==='cold-fallback'?route.abort():
+      route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}}));
+    await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-pending-gps.html');
+    const engine=scenario==='cold-fallback'?'leaflet-fallback':'maplibre-standalone';
+    await page.waitForFunction(engine=>{
+      const root=document.querySelector<HTMLElement>(`[data-map-engine="${engine}"]`);
+      return root?.dataset.mapCenter && (engine==='leaflet-fallback'||root.dataset.mapIdle==='true');
+    },engine);
+    const camera=page.locator('[data-map-engine]');
+    const waitingCenter=await camera.getAttribute('data-map-center');
+    const waitingZoom=await camera.getAttribute('data-map-zoom');
+    await page.getByRole('button',{name:'Centralizar GPS',exact:true}).click();
+    await page.getByRole('button',{name:'Centralizar GPS',exact:true}).click();
+    assert.equal(await page.locator('[data-testid="request"]').textContent(),'2');
+    assert.equal(await camera.getAttribute('data-map-center'),waitingCenter,'missing GPS must not move camera');
+    assert.equal(await camera.getAttribute('data-map-zoom'),waitingZoom);
+    if(scenario==='pending-handoff'){
+      await page.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
+      await page.locator('[data-map-engine="leaflet-fallback"]').waitFor();
+    }
+    await page.getByRole('button',{name:'Receber GPS',exact:true}).click();
+    await page.waitForFunction(()=>{
+      const root=document.querySelector<HTMLElement>('[data-map-engine]');
+      if(!root?.dataset.mapCenter)return false;
+      const [lat,lon]=JSON.parse(root.dataset.mapCenter);
+      return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(root.dataset.mapZoom)===15;
+    });
+    const completedCenter=await camera.getAttribute('data-map-center');
+    const livePin=page.locator('.user-live-marker').first();await livePin.waitFor();
+    const oldPin=await livePin.getAttribute('style');
+    await page.getByRole('button',{name:'Mover GPS',exact:true}).click();
+    await page.waitForFunction(previous=>document.querySelector('.user-live-marker')?.getAttribute('style')!==previous,oldPin);
+    assert.equal(await camera.getAttribute('data-map-center'),completedCenter,'later GPS fixes must not repeat a completed request');
+    await page.getByRole('button',{name:'Centralizar GPS',exact:true}).click();
+    await page.waitForFunction(()=>{
+      const root=document.querySelector<HTMLElement>('[data-map-engine]');
+      if(!root?.dataset.mapCenter)return false;
+      const [lat,lon]=JSON.parse(root.dataset.mapCenter);
+      return Math.abs(lat+23.58)<0.00001 && Math.abs(lon+46.6)<0.00001;
+    });
+    await page.getByRole('button',{name:'GPS indisponível',exact:true}).click();
+    await page.getByRole('button',{name:'Centralizar GPS',exact:true}).click();
+    await page.getByRole('button',{name:'Receber GPS',exact:true}).click();
+    await page.waitForFunction(()=>{
+      const root=document.querySelector<HTMLElement>('[data-map-engine]');
+      if(!root?.dataset.mapCenter)return false;
+      const [lat,lon]=JSON.parse(root.dataset.mapCenter);
+      return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001;
+    });
+  }
   assert.deepEqual(errors,[]);
   console.log('PASS: native navigation, home, detail/convoy, raster bases, participant updates and fallback.');
 }catch(error){throw error;}
