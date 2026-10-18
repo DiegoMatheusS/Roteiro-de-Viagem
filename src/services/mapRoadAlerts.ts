@@ -20,6 +20,21 @@ export function selectVisibleRoadAlerts(
   });
 }
 
+export type RoadAlertMarkerChange = 'create'|'replace'|'move'|'keep';
+
+/** Render changes depend on kind/coordinates, not on notes or timestamps.
+ * The selected alert object is refreshed separately even when the pin stays.
+ */
+export function roadAlertMarkerChange(
+  previous: Pick<RoadAlert,'kind'|'lat'|'lng'>|null,
+  next: Pick<RoadAlert,'kind'|'lat'|'lng'>
+):RoadAlertMarkerChange {
+  if(!previous)return 'create';
+  if(previous.kind!==next.kind)return 'replace';
+  if(previous.lat!==next.lat || previous.lng!==next.lng)return 'move';
+  return 'keep';
+}
+
 // Lucide-like vector pictograms. These paths are constants; never interpolated
 // from community notes, place names or other untrusted content.
 const iconPaths: Record<RoadAlertType, string> = {
