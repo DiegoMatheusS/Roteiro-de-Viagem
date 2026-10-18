@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {chromium} from 'playwright';
 import {createServer} from 'vite';
+import {mapScreenPoint} from './helpers/map-screen-point';
 
 const vite=await createServer({server:{host:'127.0.0.1',port:3000,strictPort:true}});
 await vite.listen();
@@ -76,17 +77,7 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-testid="visible"]')?.textContent?.includes('Mirante local'));
   const beforeCenter=await map.getAttribute('data-map-center');
   const beforeZoom=await map.getAttribute('data-map-zoom');
-  const tap=await map.evaluate(root=>{
-    const element=root as HTMLElement,box=element.getBoundingClientRect();
-    const [lat,lon]=JSON.parse(element.dataset.mapCenter!);
-    const size=512*2**Number(element.dataset.mapZoom);
-    const project=(latitude:number,longitude:number)=>({
-      x:(longitude+180)/360*size,
-      y:(1-Math.log(Math.tan(Math.PI/4+latitude*Math.PI/360))/Math.PI)/2*size
-    });
-    const center=project(lat,lon),target=project(-23.545,-46.62);
-    return {x:box.x+box.width/2+target.x-center.x,y:box.y+box.height/2+target.y-center.y};
-  });
+  const tap=await map.evaluate(mapScreenPoint,[-23.545,-46.62] as [number,number]);
   await page.mouse.click(tap.x,tap.y);
   await page.waitForFunction(()=>document.querySelector('[data-testid="selected"]')?.textContent==='scenic');
   await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
