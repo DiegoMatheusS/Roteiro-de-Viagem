@@ -104,7 +104,7 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
     const element=elementFor(kind,label,roadStyle);
     const popup=new Popup({offset:18,closeButton:true,closeOnClick:true})
       .setText(kind==='live'?'Sua Posição Atual (GPS)':kind==='origin'?`Partida: ${label}`:`Chegada: ${label}`);
-    const marker=new Marker({element,anchor:'center'})
+    const marker=new Marker({element,anchor:'center',rotationAlignment:kind==='live'?'map':'viewport'})
       .setLngLat(toNavigationLngLat(position)).setPopup(popup).addTo(map);
     current.set(kind,{marker,element,label,roadStyle});
   };

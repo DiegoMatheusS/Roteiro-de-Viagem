@@ -1,4 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {Compass} from 'lucide-react';
+import {updateMapCourse} from '../services/gpsHeading';
 import {Map as GlMap,setWorkerUrl,type MapMouseEvent} from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -39,6 +41,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const container=useRef<HTMLDivElement>(null);
   const latest=useRef(props);latest.current=props;
   const [ready,setReady]=useState(false);
+  const [courseMode,setCourseMode]=useState(false);
+  const courseModeRef=useRef(courseMode);courseModeRef.current=courseMode;
   const [station,setStation]=useState<{id:string;section:'prices'|'comments'}|null>(null);
   const [place,setPlace]=useState<Place|null>(null);
   const [toll,setToll]=useState<{id:string;section:'prices'|'comments';place:Place|null}|null>(null);
@@ -67,14 +71,16 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       map=new GlMap({container:container.current,style:ROLE_VECTOR_STYLE,
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
         minZoom:1,maxZoom:19,bearing:0,pitch:0,
-        // Rotate the whole map only in a later step, after physical-device QA.
+        // Course rotation is controlled by the camera; free rotation/tilt stay disabled.
         dragRotate:false,pitchWithRotate:false,touchPitch:false,
         attributionControl:{compact:true}});
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
     }catch{fail();return;}
     const timeout=setTimeout(fail,12000);
-    const cameraPort=createStandaloneMapLibreCameraPort(map);
+    let course:number|null=null;
+    let bearing=0;
+    const cameraPort=createStandaloneMapLibreCameraPort(map,()=>bearing);
     const camera=createNavigationCameraSession(cameraPort,mode=>latest.current.onCameraModeChange?.(mode));
     let fitted:string|null=null;
     let fitInputs:unknown[]=[];
@@ -98,6 +104,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         return;
       }
       const p=latest.current;
+      course=updateMapCourse(course,p.userHeadingDegrees,p.userSpeedMetersPerSecond);
+      bearing=courseModeRef.current?(course??0):0;
       try{
         updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
           selectedRouteId:p.selectedRouteId,modalityColor:COLORS[p.routeModality||'panoramica'],
@@ -130,7 +138,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           }
         }
         camera.update({navigationMode:true,followUser:p.followUser??true,position:p.userLiveCoords,
-          centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion()});
+          centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing});
         if(p.focusedCoords && p.focusedCoords!==lastFocus){
           camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
         }
@@ -145,6 +153,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const center=map.getCenter();
       root.dataset.mapCenter=JSON.stringify([center.lat,center.lng]);
       root.dataset.mapZoom=String(map.getZoom());
+      root.dataset.mapBearing=String(map.getBearing());
     };
     map.on('moveend',publishViewport);
     const userGesture=(event:{originalEvent?:unknown})=>{if(event.originalEvent)camera.explore();};
@@ -179,7 +188,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
   },[]);
 
-  useEffect(()=>{runtime.current?.render();},[props,fuel.stations,places,ready]);
+  useEffect(()=>{runtime.current?.render();},[props,fuel.stations,places,ready,courseMode]);
 
   const check=async(present:boolean)=>{
     if(!alert||checking)return;
@@ -197,6 +206,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
   return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready}>
     <div ref={container} className="w-full h-full"/>
+    <button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
+      aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
+      className="absolute bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-blue-700 shadow-xl">
+      <Compass size={20}/><span>{courseMode?'Direção':'Norte'}</span>
+    </button>
     {station&&<FuelStationModal key={`${station.id}:${station.section}`} stationId={station.id} initialSection={station.section} onClose={()=>setStation(null)}/>}
     {place&&<PlaceModal place={place} onClose={()=>setPlace(null)}/>}
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}

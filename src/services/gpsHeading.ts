@@ -29,3 +29,11 @@ export function arrowHeadingStyle(
   (svg as SVGElement & {style:CSSStyleDeclaration}).style.transformOrigin = '50% 50%';
   return angle;
 }
+
+
+/** Keep a continuous, valid vehicle course for a north/course map toggle.
+ * Missing or slow GPS updates retain the last reliable course. */
+export function updateMapCourse(previous:number|null,heading:unknown,speed?:number|null):number|null {
+  const valid=validGpsHeading(heading,speed);
+  return valid===null?previous:shortestHeadingTransition(previous,valid);
+}

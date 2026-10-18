@@ -25,6 +25,9 @@ try{
   assert.equal(await page.locator('.leaflet-container').count(),0,'native navigation must not create a Leaflet viewport');
   assert.equal(await page.locator('.maplibregl-canvas').count(),1,'there is exactly one native canvas');
   const marker=page.locator('.user-live-marker');await marker.waitFor();
+  assert.equal(Number(await map.getAttribute('data-map-bearing')),0,'north is the initial mode');
+  await page.getByRole('button',{name:'Orientar mapa na direção da viagem',exact:true}).click();
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing)-90)<0.00001);
   const box=await map.boundingBox();assert.ok(box);
   // Native drag (not a simulated camera call) must pause GPS following.
   await page.mouse.move(box.x+70,box.y+150);await page.mouse.down();
@@ -37,6 +40,9 @@ try{
   await page.getByRole('button',{name:'Mover GPS',exact:true}).click();
   await page.waitForFunction(previous=>document.querySelector('.user-live-marker')?.getAttribute('style')!==previous,position);
   assert.equal(await map.getAttribute('data-map-center'),center,'GPS updates move the pin while manual camera position remains unchanged');
+  await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector<SVGElement>('.user-live-marker svg')?.style.transform==='rotate(180deg)');
+  assert.equal(Number(await map.getAttribute('data-map-bearing')),90,'GPS course updates must not rotate an explored map');
   await page.getByRole('button',{name:'Seguir GPS',exact:true}).click();
   await page.waitForFunction(()=>{
     const el=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
@@ -46,6 +52,9 @@ try{
   });
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'following');
   assert.equal(Number(await map.getAttribute('data-map-zoom')),16,'recenter preserves navigation zoom');
+  assert.ok(Math.abs(Math.abs(Number(await map.getAttribute('data-map-bearing')))-180)<0.00001,'follow resumes with the latest reliable GPS course');
+  await page.getByRole('button',{name:'Manter o mapa apontado para o norte',exact:true}).click();
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
   fs.mkdirSync('test-results',{recursive:true});
   await page.screenshot({path:'test-results/maplibre-standalone-navigation.png'});
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();

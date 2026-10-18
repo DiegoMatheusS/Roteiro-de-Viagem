@@ -6,6 +6,7 @@ export interface NavigationCameraInput {
   position?:CameraPoint;
   centerRequest:number;
   reducedMotion:boolean;
+  bearing?:number;
 }
 
 /** State shared by native MapLibre events and React GPS updates. Programmatic
@@ -15,6 +16,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
   let navigating=false;
   let last:CameraPoint|null=null;
   let centerRequest=0;
+  let lastBearing:number|undefined;
   const mode=(next:boolean)=>{
     if(exploring===next)return;
     exploring=next;onMode(next?'exploring':'following');
@@ -26,19 +28,19 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
     },
     update(input:NavigationCameraInput){
       navigating=input.navigationMode;
-      if(!navigating){last=null;mode(false);return;}
+      if(!navigating){last=null;lastBearing=undefined;mode(false);return;}
       const point=input.position;
       if(!point || !point.every(Number.isFinite) || Math.abs(point[0])>90 || Math.abs(point[1])>180)return;
       if(input.centerRequest>centerRequest){
         centerRequest=input.centerRequest;mode(false);
         camera.recenter(point,true,input.reducedMotion);
-        last=[...point];return;
+        last=[...point];lastBearing=input.bearing;return;
       }
-      const changed=!last || Math.abs(last[0]-point[0])+Math.abs(last[1]-point[1])>0.00004;
+      const changed=!last || Math.abs(last[0]-point[0])+Math.abs(last[1]-point[1])>0.00004 || input.bearing!==lastBearing;
       if(!changed)return;
       if(!exploring){
-        if(!last)camera.firstGpsFix(point);
-        else if(input.followUser)camera.follow(point,input.reducedMotion);
+        if(!last){camera.firstGpsFix(point);lastBearing=input.bearing;}
+        else if(input.followUser){camera.follow(point,input.reducedMotion);lastBearing=input.bearing;}
       }
       last=[...point];
     }
