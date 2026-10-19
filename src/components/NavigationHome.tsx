@@ -375,7 +375,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/10 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
       <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`rdv-figma-preview bg-white w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':sheet==='destination'?'min-h-[56dvh] max-h-[75dvh]':'h-[63dvh]'} overflow-hidden`}>
         {preview ? <header className="flex items-center gap-3 p-4 bg-white shrink-0 text-slate-900 border-b border-slate-100">
-          <button type="button" aria-label="Voltar" onClick={()=>setPreview(null)} className="w-8 h-8 flex items-center justify-center"><X size={20}/></button>
+          <button type="button" aria-label="Fechar janela" onClick={()=>setPreview(null)} className="w-8 h-8 flex items-center justify-center"><X size={20}/></button>
           <h1 className="font-semibold text-[17px]">Seu próximo rolê</h1>
         </header> : <header className="fixed top-[max(51px,env(safe-area-inset-top))] left-0 right-0 z-10 bg-white px-5 py-4 h-[72px] flex items-center gap-3">
           <button type="button" aria-label="Voltar" onClick={closeSheet} className="w-8 h-8 flex items-center justify-center"><X size={20}/></button>
