@@ -2,7 +2,7 @@
  * Apenas apresentação: não substitui GPS, rotas, autenticação ou dados reais. */
 :root { --role-blue: #245ee9; --role-ink: #1f2937; --role-muted: #708091; }
 .rdv-figma-bottom-nav {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 59;
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 35;
   display: grid; grid-template-columns: repeat(4,minmax(0,1fr));
   height: calc(76px + env(safe-area-inset-bottom,0px));
   padding: 7px max(12px,calc((100vw - 550px)/2)) max(9px,env(safe-area-inset-bottom,9px));
@@ -67,3 +67,12 @@
 @media (prefers-reduced-motion:reduce) {
  .rdv-figma-bottom-icon,.rdv-figma-card{transition:none!important;}
 }
+
+/* A barra inferior não pode bloquear botões de diálogos e formulários abertos. */
+body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
+  pointer-events: none;
+  visibility: hidden;
+}
+/* Estados de foco e rolagem do painel inicial. */
+.rdv-figma-home-sheet [data-panel-scroll] { scrollbar-width: thin; }
+.rdv-figma-home-sheet .rdv-figma-card { -webkit-tap-highlight-color: transparent; }
