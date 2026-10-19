@@ -135,7 +135,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <span className="rdv-nav-guidance-copy">
           <strong>{nextTurn?
             (nextTurn.meters>=1000?`${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km`:`${nextTurn.meters} m`):
-            isGpsActive?'Siga a rota':'Aguardando GPS'}</strong>
+            isGpsActive?'Na rota':'Aguardando GPS'}</strong>
           <span>{nextTurn?<>
             <span>{nextTurn.direction==='right'?'À direita':nextTurn.direction==='left'?'À esquerda':
               nextTurn.direction==='roundabout'?'Na rotatória':
