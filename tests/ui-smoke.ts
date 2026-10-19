@@ -123,7 +123,20 @@ try {
     const sent=await request;
     assert.equal((sent.postDataJSON() as {mode:string}).mode,choice.mode);
     const realPreview=guestPage.getByRole('dialog',{name:'Visualizar viagem'});
-    await realPreview.getByText('40.0 km',{exact:false}).waitFor();
+    await realPreview.getByText('40 km',{exact:false}).first().waitFor();
+    const previewBounds=await realPreview.boundingBox();
+    const detailBounds=await realPreview.getByTestId('figma-preview-details').boundingBox();
+    assert.ok(previewBounds&&previewBounds.y<2&&previewBounds.height>=840,
+      'A prévia deve ocupar a tela inteira, conforme a terceira tela do Figma');
+    assert.ok(detailBounds&&detailBounds.y>0.48*844&&detailBounds.y<0.7*844,
+      'Mapa deve ocupar a maior parte superior e o painel iniciar no terço inferior');
+    await realPreview.getByText('Trajeto verificado').waitFor();
+    await realPreview.getByRole('button',{name:'Expandir mapa'}).click();
+    await realPreview.getByRole('button',{name:'Recolher mapa'}).waitFor();
+    await realPreview.getByRole('button',{name:'Recolher mapa'}).click();
+    if(choice.mode==='km') await guestPage.screenshot({path:'test-results/figma-tela-3-previa.png'});
+    await realPreview.getByRole('button',{name:'Salvar rota'}).click();
+    await realPreview.getByRole('button',{name:'Rota salva'}).waitFor();
     await realPreview.getByRole('button',{name:'Iniciar rolê'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
     assert.equal(await guestPage.getByRole('button',{name:'Voltar ao menu e manter viagem ativa'}).count(),0,
