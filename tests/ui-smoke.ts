@@ -189,11 +189,15 @@ try {
     const nav=document.querySelector('.rdv-figma-bottom-nav')?.getBoundingClientRect();return !!panel&&!!nav&&Math.abs(panel.bottom-nav.top)<2&&panel.height>=window.innerHeight*0.8;
   });
   const scrollHome=page.locator('[data-panel-scroll]');
-  assert.ok(await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight),
-    'O conteúdo completo do menu deve continuar rolável dentro da folha expandida');
-  await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
-  assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções');
-  await scrollHome.evaluate(el=>{el.scrollTop=0;});
+  // O novo painel minimalista não precisa forçar rolagem quando todo o conteúdo cabe.
+  const needsScroll=await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight);
+  if(needsScroll){
+    await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções quando necessário');
+    await scrollHome.evaluate(el=>{el.scrollTop=0;});
+  }else{
+    assert.ok(await scrollHome.evaluate(el=>el.clientHeight>0),'Conteúdo completo do painel deve permanecer visível');
+  }
   // Pulling down returns to the normal position, still without a map gap.
   const expandedGripBox=await homeGrip.boundingBox();
   assert.ok(expandedGripBox);
