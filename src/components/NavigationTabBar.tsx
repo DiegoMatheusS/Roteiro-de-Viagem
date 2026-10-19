@@ -42,7 +42,7 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
     { id:'ajustes', label:'Perfil', icon:UserRound }
   ];
   return <>
-    <nav className="rdv-figma-bottom-nav" aria-label="Navegação principal">
+    {activeTab==='inicio' && <nav className="rdv-figma-bottom-nav" aria-label="Navegação principal">
       {bottomTabs.map(tab => {
         const Icon=tab.icon;
         const active=activeTab===tab.id;
@@ -52,7 +52,7 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
           <span>{tab.label}</span>
         </button>;
       })}
-    </nav>
+    </nav>}
     <button type="button" aria-label="Abrir menu" aria-expanded={open} aria-controls="role-menu"
       onClick={() => setOpen(true)}
       className="rdv-figma-overflow fixed right-3 top-3 z-[61] w-9 h-9 rounded-full bg-white/90 border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-700 active:scale-95 transition-transform">
