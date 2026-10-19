@@ -23,6 +23,7 @@ interface SavedTabProps {
   onOpenShareModal: (trip: TripPlan) => void;
   onDeleteTrip: (tripId: string) => void;
   onOpenConvoyModal: (trip: TripPlan) => void;
+  onCreateTrip?: () => void;
 }
 
 export const SavedTab: React.FC<SavedTabProps> = ({
@@ -31,9 +32,9 @@ export const SavedTab: React.FC<SavedTabProps> = ({
   onStartTrip,
   onOpenShareModal,
   onDeleteTrip,
-  onOpenConvoyModal
+  onOpenConvoyModal, onCreateTrip
 }) => {
-  const [filter, setFilter] = useState<'all' | 'planned' | 'completed'>('all');
+  const [filter, setFilter] = useState<'all' | 'planned' | 'completed'>('completed');
 
   const filteredTrips = trips.filter(t => {
     if (filter === 'planned') return t.status === 'planned';
@@ -41,37 +42,36 @@ export const SavedTab: React.FC<SavedTabProps> = ({
     return true;
   });
 
+  const completedTrips = trips.filter(t=>t.status === 'completed');
+  const completedKm = completedTrips.reduce((sum,t)=>sum+(t.actualDistanceKm||t.trackedDistanceKm||0),0);
+  const plannedTrips = trips.filter(t=>t.status === 'planned');
   const getVehicleName = (vehicleId: string) => {
     const v = vehicles.find(veh => veh.id === vehicleId);
     return v ? (v.nickname || `${v.brand} ${v.model}`) : 'Veículo não definido';
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] pb-24 bg-slate-50 overflow-y-auto">
+    <div className="rdv-figma-page min-h-[calc(100vh-4rem)] pb-24 bg-[#f4f6f9] overflow-y-auto">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 pl-20 pr-6 py-5">
+      <div className="bg-white border-b border-slate-200 px-5 pt-[72px] pb-5">
         <h1 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-          <Bookmark className="w-5 h-5 text-emerald-600" />
-          <span>Minhas Viagens</span>
+          <span>Minhas viagens</span>
         </h1>
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-          Histórico de viagens realizadas, roteiros planejados e passeios salvos.
-        </p>
 
         {/* Filter Segmented Controls */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl mt-4 max-w-sm">
+        <div className="flex items-center gap-2 mt-5 max-w-sm">
           {[
-            { id: 'all', label: 'Todas' },
+            { id: 'completed', label: 'Concluídas' },
             { id: 'planned', label: 'Planejadas' },
-            { id: 'completed', label: 'Concluídas (Histórico)' }
+            { id: 'all', label: 'Todas' }
           ].map(f => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id as any)}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`rdv-figma-tab flex-1 py-2 px-2 text-xs font-semibold border transition-all ${
                 filter === f.id
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-blue-50 text-blue-600 border-blue-500'
+                  : 'bg-white text-slate-600 border-slate-200'
               }`}
             >
               {f.label}
@@ -80,21 +80,32 @@ export const SavedTab: React.FC<SavedTabProps> = ({
         </div>
       </div>
 
-      {/* Trips list */}
-      <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-4">
-        {/* Notice on tier km rule (Requirement #2) */}
-        <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 flex items-start gap-2.5 text-xs text-slate-600">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-          <span>
-            <strong>Regra de Pontuação:</strong> Somente viagens efetivamente realizadas e concluídas somam quilometragem ao seu Nível do Viajante. Viagens apenas planejadas não contam pontos.
-          </span>
+      <div className="max-w-2xl mx-auto px-5 pt-5">
+        <div className="grid grid-cols-3 gap-3 text-center pb-3" aria-label="Resumo de viagens">
+          <div><strong className="block text-[18px] text-slate-800">{Math.round(completedKm)} km</strong><span className="text-[11px] text-slate-500">percorridos</span></div>
+          <div><strong className="block text-[18px] text-slate-800">{completedTrips.length}</strong><span className="text-[11px] text-slate-500">viagens</span></div>
+          <div><strong className="block text-[18px] text-slate-800">{plannedTrips.length}</strong><span className="text-[11px] text-slate-500">rotas salvas</span></div>
         </div>
-
+      </div>
+      {/* Histórico real — nenhum exemplo artificial é inserido. */}
+      <div className="max-w-2xl mx-auto px-5 pb-5 space-y-4">
         {filteredTrips.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border border-slate-200">
-            <Bookmark className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-            <p className="text-sm font-semibold">Nenhuma viagem encontrada neste filtro.</p>
-            <p className="text-xs text-slate-400 mt-1">Planeje uma nova rota ou conclua um passeio para registrar seu histórico.</p>
+          <div className="min-h-[56dvh] flex flex-col items-center justify-center text-center px-5">
+            <div className="rdv-figma-empty-icon w-32 h-32 rounded-full flex items-center justify-center mb-5">
+              <Navigation size={53} strokeWidth={1.5}/>
+            </div>
+            <h2 className="text-[20px] font-bold text-slate-800 max-w-[260px] leading-snug">
+              {filter==='completed'?'Seu primeiro rolê começa aqui':filter==='planned'?'Nenhum rolê planejado':'Seus rolês aparecem aqui'}
+            </h2>
+            <p className="text-[13px] text-slate-500 mt-3 max-w-[275px] leading-relaxed">
+              Escolha km ou horas e saia para explorar. Suas viagens concluídas aparecem aqui.
+            </p>
+            <button type="button" disabled={!onCreateTrip} onClick={onCreateTrip}
+              className="rdv-figma-primary mt-6 w-full max-w-[270px] min-h-[48px] text-sm font-semibold disabled:opacity-60">
+              Criar meu primeiro rolê
+            </button>
+            <p className="text-xs text-blue-600 mt-3">Explore passeios ou encontre um destino no mapa.</p>
+            <span className="text-[10px] text-slate-400 mt-2">Só viagens concluídas somam quilômetros.</span>
           </div>
         ) : (
           filteredTrips.map(trip => {
