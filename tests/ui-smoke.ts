@@ -97,6 +97,16 @@ try {
   ]) {
     await guestPage.getByRole('button',{name:choice.name}).click();
     const modal=guestPage.getByRole('dialog',{name:'Criar um rolê'});
+    if(choice.mode==='km'){
+      await modal.getByRole('heading',{name:'Criar rolê'}).waitFor();
+      const screen=await modal.boundingBox();
+      const panel=await modal.getByTestId('figma-create-trip-panel').boundingBox();
+      assert.ok(screen && panel && screen.y < 2 && screen.height >= 840,
+        'Criar Rolê deve ocupar a tela inteira, como o design Figma');
+      assert.ok(panel.y > 0.3 * 844 && panel.y < 0.47 * 844,
+        'Painel Criar Rolê deve deixar o mapa visível no topo');
+      await guestPage.screenshot({path:'test-results/figma-tela-2-criar-role.png'});
+    }
     await modal.getByLabel(choice.label).fill(choice.amount);
     if(choice.mode==='km'){
       await modal.getByRole('button',{name:'Aumentar quantidade'}).click();
