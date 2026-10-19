@@ -508,8 +508,9 @@ export default function App() {
             {activeTab === 'passeios' && (
               <ToursTab
                 currentVehicle={currentVehicle}
-                onLaunchCircularTour={handleLaunchCircularTour}
-                onOpenCommunityRoute={() => setAppError('Ainda não há roteiros publicados pela comunidade.')}
+                onStartTrip={handleStartTrip}
+                onSaveTrip={(trip)=>{storageService.saveTrip(trip);setTrips(storageService.getTrips());}}
+                savedTripIds={trips.map(trip=>trip.id)}
               />
             )}
 
