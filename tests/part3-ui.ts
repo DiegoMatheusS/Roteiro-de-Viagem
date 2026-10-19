@@ -98,7 +98,7 @@ try {
   const updated=await page.evaluate(id=>JSON.parse(localStorage.getItem('rdv_private_v2_'+id+'_trips')||'[]')[0],traveler.user.id);
   assert.equal(updated.totalEstimatedCost,96);assert.equal(updated.costPerPerson,24);
   assert.equal(updated.tolls.length,1);assert.equal(updated.tolls[0].passages,2);assert.equal(updated.tolls[0].knownCost,13);
-  await page.getByText('Pedágios: R$ 26.00 conhecidos · cobertura parcial',{exact:true}).waitFor();
+  await page.getByText('Pedágios: R$ 26.00 verificados',{exact:true}).waitFor();
   await page.locator('.toll-marker').first().getByRole('button',{name:'Sugerir preço',exact:true}).focus();await page.locator('.toll-marker').first().getByRole('button',{name:'Sugerir preço',exact:true}).press('Enter');
   await toll.getByText('R$ 13.00 conhecidos',{exact:true}).waitFor();
   assert.equal(await toll.getByText('R$ 6.50',{exact:true}).count(),2);
