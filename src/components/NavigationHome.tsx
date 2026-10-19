@@ -26,11 +26,13 @@ import { destinationExploreKey } from '../services/destinationIdentity';
 import { CreateConvoyModal } from './CreateConvoyModal';
 import { ConvoyActionModal } from './ConvoyActionModal';
 import { CreateTouristCircuitScreen } from './CreateTouristCircuitScreen';
+import { TripPreviewScreen } from './TripPreviewScreen';
 
 interface NavigationHomeProps {
   currentVehicle: Vehicle | null;
   trips: TripPlan[];
   onStartTrip: (trip: TripPlan) => void;
+  onSaveTrip: (trip: TripPlan) => void;
   onOpenAllTrips: () => void;
   onOpenAllSuggestions: () => void;
   onOpenProfile: () => void;
@@ -386,38 +388,40 @@ export function NavigationHome(props: NavigationHomeProps) {
       onOpenVehicle={()=>{closeSheet();props.onOpenProfile();}}
       onSubmit={()=>void submitCircuit()}
     />}
-    {(sheet==='destination'||preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/10 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
-      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`rdv-figma-preview bg-white w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':sheet==='destination'?'min-h-[56dvh] max-h-[75dvh]':'h-[63dvh]'} overflow-hidden`}>
-        {preview ? <header className="flex items-center gap-3 p-4 bg-white shrink-0 text-slate-900 border-b border-slate-100">
-          <button type="button" aria-label="Fechar janela" onClick={()=>setPreview(null)} className="w-8 h-8 flex items-center justify-center"><X size={20}/></button>
-          <h1 className="font-semibold text-[17px]">Seu próximo rolê</h1>
-        </header> : <header className="fixed top-[max(51px,env(safe-area-inset-top))] left-0 right-0 z-10 bg-white px-5 py-4 h-[72px] flex items-center gap-3">
-          <button type="button" aria-label="Voltar" onClick={closeSheet} className="w-8 h-8 flex items-center justify-center"><X size={20}/></button>
-          <h1 className="text-[18px] font-bold">{sheet==='destination'?'Escolher destino':'Criar rolê'}</h1>
-        </header>}
-        {!preview && sheet!=='destination' && <div className="fixed top-[max(144px,calc(env(safe-area-inset-top)+94px))] left-5 right-5 z-10 bg-white rounded-xl p-3 flex items-center justify-between text-xs text-slate-800 shadow-sm">
-          <span className="flex gap-2 items-center"><Crosshair size={17} className="text-blue-600"/>Da sua localização atual</span><span className="text-blue-600">✓</span>
-        </div>}
-        {preview ? <div className="flex flex-col min-h-0 flex-1">
-          <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} blueRoute showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
-          <div className="p-5 space-y-3 shrink-0"><h2 className="font-extrabold text-xl">{preview.destinationName}</h2><p className="text-sm text-slate-500">{preview.distanceKm.toFixed(1)} km · {Math.round(preview.durationMinutes)} min · {preview.stops.length} paradas</p>
-            <p className="text-[11px] text-slate-500">Percurso por estradas reais. Os postos e os pontos turísticos disponíveis aparecem no mapa.</p>
-            {tollNotice && <p role="status" className="text-xs text-amber-800">{tollNotice}</p>}
-            {preview.routeWarnings?.map(warning => <p key={warning} className="text-xs text-amber-800">{warning}</p>)}
-            {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-            <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{if(props.currentVehicle){props.onViewTripDetails(preview);setPreview(null);}else{setPreview(null);setSheet(lastCircuitMode);}}}>Ajustar</button>
-              <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar rolê</button></div>
-          </div>
-        </div> : <div className="p-5 pt-1 space-y-4 overflow-y-auto">
+
+    {preview && <TripPreviewScreen
+      key={preview.id} trip={preview}
+      vehicleType={props.currentVehicle?.type || 'motorcycle'}
+      isSaved={props.trips.some(savedTrip=>savedTrip.id===preview.id)}
+      tollNotice={tollNotice} error={error}
+      onClose={()=>setPreview(null)}
+      onSave={()=>props.onSaveTrip(preview)}
+      onAdjust={()=>{
+        if(props.currentVehicle){props.onViewTripDetails(preview);setPreview(null);}
+        else{setPreview(null);setSheet(lastCircuitMode);}
+      }}
+      onStart={()=>{props.onStartTrip(preview);setPreview(null);}}
+    />}
+    {sheet==='destination' && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/10 flex items-end"
+      onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
+      <section role="dialog" aria-modal="true" aria-label="Escolher origem e destino"
+        className="rdv-figma-preview bg-white w-full max-w-xl mx-auto flex flex-col min-h-[56dvh] max-h-[75dvh] overflow-hidden">
+        <header className="flex gap-3 items-center p-4 bg-white border-b border-slate-100">
+          <button type="button" aria-label="Voltar" onClick={closeSheet}><X size={20}/></button>
+          <h1 className="text-[18px] font-bold">Escolher destino</h1>
+        </header>
+        <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
-          <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)} /> Sair da minha localização (GPS)</label>
-          {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords} />}
-          <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} placeholder="Cidade, endereço, parque ou restaurante" />
+          <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)}/> Sair da minha localização (GPS)</label>
+          {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords}/>}
+          <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} placeholder="Cidade, endereço, parque ou restaurante"/>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
           {!props.currentVehicle && <button type="button" className="text-xs font-bold underline text-blue-700" onClick={()=>{closeSheet();props.onOpenProfile();}}>Cadastrar meu veículo no Perfil</button>}
-          <button type="button" onClick={()=>void submitDestination()} disabled={busy || !dest.coords || (!useGps && !origin.coords)} className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button>
-        </div>}
+          <button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
+            className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button>
+        </div>
       </section>
     </div>}
+
   </div>;
 }
