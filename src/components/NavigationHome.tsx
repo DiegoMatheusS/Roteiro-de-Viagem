@@ -408,7 +408,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{if(props.currentVehicle){props.onViewTripDetails(preview);setPreview(null);}else{setPreview(null);setSheet(lastCircuitMode);}}}>Ajustar</button>
               <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar rolê</button></div>
           </div>
-        </div> : sheet==='destination' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
+        </div> : <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
           <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)} /> Sair da minha localização (GPS)</label>
           {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords} />}
