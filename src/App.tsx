@@ -420,7 +420,7 @@ export default function App() {
       ) : (
         <>
           {/* MAIN TABS CONTAINER */}
-          <main className={`flex-1 min-h-0 relative ${activeTab!=='inicio' ? 'rdv-figma-page' : ''}`}>
+          <main className="flex-1 min-h-0 relative">
             {activeTab === 'inicio' && !advancedHome && (
               <NavigationHome
                 currentVehicle={currentVehicle}
@@ -509,15 +509,6 @@ export default function App() {
                 currentVehicle={currentVehicle}
                 onLaunchCircularTour={handleLaunchCircularTour}
                 onOpenCommunityRoute={() => setAppError('Ainda não há roteiros publicados pela comunidade.')}
-                onOpenPlace={place=>{
-                  if(!currentVehicle){
-                    setAppError('Cadastre seu carro ou moto em Perfil → Minha garagem para planejar até este destino.');
-                    return;
-                  }
-                  void getCurrentDeviceLocation()
-                    .then(position=>handleOpenRoutePlanner('Sua localização atual',place.name,[place.lat,place.lng],position.coords))
-                    .catch(error=>setAppError((error as Error).message));
-                }}
               />
             )}
 
@@ -529,7 +520,6 @@ export default function App() {
                 onOpenShareModal={(trip) => setShareTripTarget(trip)}
                 onDeleteTrip={handleDeleteTrip}
                 onOpenConvoyModal={trip => void handleCreateConvoy(trip)}
-                onCreateTrip={() => {setActiveTab('inicio');setAdvancedHome(false);}}
               />
             )}
 
