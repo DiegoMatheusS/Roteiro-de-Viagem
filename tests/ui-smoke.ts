@@ -80,7 +80,7 @@ try {
   await tripsPage.getByRole('button',{name:'Explorar passeios'}).click();
   await page.getByRole('heading',{name:'Explorar',exact:true}).waitFor();
   await page.getByRole('button',{name:'Aba Viagens'}).click();
-  await tripsPage.getByRole('button',{name:'Criar um rolê'}).click();
+  await tripsPage.getByRole('button',{name:/^Criar (meu primeiro )?rolê$/}).click();
   await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
 
   // Tela 5: regressão visual e funcional do novo Explorar em largura Android.
