@@ -208,7 +208,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </button>
           <button type="button" onClick={() => setShowCompletionDialog(true)}
             className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-[0_5px_16px_rgba(5,150,105,.22)] active:scale-[.99]">
-            <CheckCircle size={19}/> Concluir viagem
+            <CheckCircle size={19}/> Concluir Viagem
           </button>
         </div>
       </div>
