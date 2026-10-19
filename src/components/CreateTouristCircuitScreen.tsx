@@ -16,8 +16,8 @@ interface CreateTouristCircuitScreenProps {
   tripType: 'round_trip' | 'one_way';
   preference: CircuitPreference;
   busy: boolean;
-  warning: string;
-  validation: string;
+  warning: string | null;
+  validation: string | null;
   error: string;
   onClose: () => void;
   onModeChange: (mode: CircuitMode) => void;
