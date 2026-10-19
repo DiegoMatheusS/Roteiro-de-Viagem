@@ -583,6 +583,9 @@ try {
   });
   const saved = trips.find((trip: any) => trip.fuelPriceSource?.stationId === 'osm:node:123');
   assert.ok(saved.distanceKm > 0); assert.equal(saved.routingSource, 'OSRM'); assert.equal(saved.isCircular, true); assert.equal(saved.fuelPricePerLiter, 5.899);
+  // O Figma abre em Concluídas por padrão; a rota recém-salva aparece em Planejadas.
+  await page.getByRole('region',{name:'Minhas viagens'})
+    .getByRole('button',{name:'Planejadas'}).click();
   await page.getByRole('button', { name: 'Comboio', exact: true }).first().click();
   await page.getByText(/Comboio sincronizado entre celulares/).waitFor();
   await page.getByRole('button', { name: 'Compartilhar Localização', exact: true }).click();
