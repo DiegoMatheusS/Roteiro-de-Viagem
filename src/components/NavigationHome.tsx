@@ -51,6 +51,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
+  const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [showCreateConvoy, setShowCreateConvoy] = useState(false);
   const [showConvoyActions, setShowConvoyActions] = useState(false);
@@ -170,6 +171,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
       // Mostre primeiro a prévia com a rota real, antes de iniciar a navegação.
+      setLastCircuitMode(mode);
       setSheet(null);
       setPreview(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
@@ -391,7 +393,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             {tollNotice && <p role="status" className="text-xs text-amber-800">{tollNotice}</p>}
             {preview.routeWarnings?.map(warning => <p key={warning} className="text-xs text-amber-800">{warning}</p>)}
             {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-            <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{props.onViewTripDetails(preview);setPreview(null);}}>Ajustar</button>
+            <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{if(props.currentVehicle){props.onViewTripDetails(preview);setPreview(null);}else{setPreview(null);setSheet(lastCircuitMode);}}}>Ajustar</button>
               <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar rolê</button></div>
           </div>
         </div> : sheet==='destination' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
