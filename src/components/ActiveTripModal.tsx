@@ -99,17 +99,17 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   };
 
   return (
-    <div className="rdv-figma-active-route fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900 animate-in fade-in overflow-hidden">
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900 animate-in fade-in overflow-hidden">
       {/* Compact navigation prompt: no secondary header over the map. */}
       <div role="status" aria-label="Próxima orientação de navegação"
-        className="relative z-20 flex min-h-[86px] shrink-0 items-center gap-3 rounded-[18px] mx-4 mt-[max(60px,env(safe-area-inset-top))] mb-1 bg-[#245ee9] px-4 py-3 pr-[96px] text-white shadow-sm">
+        className="relative z-20 flex min-h-[86px] shrink-0 items-center gap-3 rounded-b-[24px] bg-[#101827] px-4 py-3 pr-[96px] text-white shadow-[0_10px_26px_rgba(15,23,42,.18)]">
         <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl bg-white/10">
           {nextTurn?.direction === 'left' ? <CornerUpLeft size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'right' ? <CornerUpRight size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'roundabout' ? <RotateCcw size={30} strokeWidth={2.5}/> : nextTurn?.direction === 'arrive' ? <MapPin size={29}/> : <ArrowUp size={32} strokeWidth={2.6}/>}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[23px] font-bold tabular-nums text-white leading-tight">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
-          <p className="truncate text-[16px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Continue na rota'}</p>
-          {nextTurn?.road && <p className="truncate text-xs text-blue-100">{nextTurn.road}</p>}
+          <p className="text-xs font-medium text-slate-300">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
+          <p className="truncate text-[20px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Continue na rota'}</p>
+          {nextTurn?.road && <p className="truncate text-xs text-slate-300">{nextTurn.road}</p>}
         </div>
       </div>
       <button type="button" onClick={onOpenSos} aria-label="SOS" title="SOS - emergência"
@@ -174,15 +174,15 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       </div>
 
       {/* Compact native-like bottom dock. Weather and tolls live here, never over the map. */}
-      <div className="z-20 shrink-0 space-y-3 rounded-t-[24px] border-t border-slate-200/80 bg-white px-5 pb-[max(18px,env(safe-area-inset-bottom))] pt-4 shadow-[0_-4px_14px_rgba(15,23,42,.07)]">
+      <div className="z-20 shrink-0 space-y-3 rounded-t-[24px] border-t border-slate-200/80 bg-white px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,.10)]">
         <div className={`grid gap-2 text-center ${nextStop?'grid-cols-3':'grid-cols-2'}`}>
-          <div className="min-w-0 rounded-[12px] bg-white px-2 py-2.5">
+          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
             <span className="block text-[10px] font-medium text-slate-500">RESTANTE</span>
             <strong className="block text-[16px] font-semibold tabular-nums text-slate-900">{remainingKm.toFixed(1)} km</strong>
           </div>
-          <div className="min-w-0 rounded-[12px] bg-white px-2 py-2.5">
+          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
             <span className="block text-[10px] font-medium text-slate-500">TEMPO RESTANTE</span>
-            <strong className="block text-[16px] font-semibold tabular-nums text-[#245ee9]">~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min</strong>
+            <strong className="block text-[16px] font-semibold tabular-nums text-emerald-700">~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min</strong>
           </div>
           {nextStop && <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
             <span className="block text-[10px] font-medium text-slate-500">PRÓXIMA PARADA</span>
