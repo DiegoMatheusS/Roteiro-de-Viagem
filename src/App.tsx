@@ -522,6 +522,8 @@ export default function App() {
                 onOpenShareModal={(trip) => setShareTripTarget(trip)}
                 onDeleteTrip={handleDeleteTrip}
                 onOpenConvoyModal={trip => void handleCreateConvoy(trip)}
+                onCreateTrip={() => {setAdvancedHome(false);setActiveTab('inicio');}}
+                onExploreTours={() => setActiveTab('passeios')}
               />
             )}
 
