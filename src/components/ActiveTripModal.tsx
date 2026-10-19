@@ -6,6 +6,7 @@ import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from 
 import { InteractiveMap } from './InteractiveMap';
 import { Speedometer } from './Speedometer';
 import { VoiceGuidanceControl } from './VoiceGuidanceControl';
+import '../role-navigation-figma.css';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
