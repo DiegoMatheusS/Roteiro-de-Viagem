@@ -56,6 +56,7 @@ try {
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
+  await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
   // KM/H can show a preview without login or garage; navigation starts on confirmation.
   const guestContext=await browser.newContext({
