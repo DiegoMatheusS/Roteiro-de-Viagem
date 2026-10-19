@@ -78,7 +78,8 @@ export default function App() {
   const [exitNotice,setExitNotice] = useState(false);
   const exitIntentAt = useRef(0);
   useEffect(()=>{
-    if (!isNativeApp()) return;
+    // Bind the native Back event in both native and browser contexts so the
+    // exact same trip-preserving back path can be tested without a fake UI button.
     const back=()=>{
       // Prioridade: fechar overlays e menus; nenhum botão voltar deve encerrar a viagem.
       const closeOverlay = new Event('rdv:close-overlay',{cancelable:true});
