@@ -46,7 +46,7 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
       {bottomTabs.map(tab => {
         const Icon=tab.icon;
         const active=activeTab===tab.id;
-        return <button key={tab.id} type="button" aria-label={tab.label} aria-current={active?'page':undefined}
+        return <button key={tab.id} type="button" aria-label={`Aba ${tab.label}`} aria-current={active?'page':undefined}
           onClick={()=>navigate(tab.id)} className={`rdv-figma-bottom-link ${active?'is-current':''}`}>
           <span className="rdv-figma-bottom-icon"><Icon size={20} strokeWidth={1.7}/></span>
           <span>{tab.label}</span>
