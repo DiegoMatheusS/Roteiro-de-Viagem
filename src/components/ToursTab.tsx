@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
+import { InteractiveMap } from './InteractiveMap';
+import { TOURIST_PLACE_KINDS, type Place } from '../types/admin';
 import { Vehicle } from '../types';
 import type { CommunityRoute } from '../types';
 const INITIAL_COMMUNITY_ROUTES: CommunityRoute[] = [];
@@ -20,6 +24,7 @@ interface ToursTabProps {
   currentVehicle: Vehicle | null;
   onLaunchCircularTour: (params: { distanceKm?: number; durationHours?: number; budget?: number; returnHour?: string; isSurprise?: boolean }) => void;
   onOpenCommunityRoute: (routeId: string) => void;
+  onOpenPlace?: (place: Place) => void;
 }
 
 interface DestinationCategory {
@@ -64,8 +69,12 @@ const DESTINATION_CATEGORIES: DestinationCategory[] = [
 export const ToursTab: React.FC<ToursTabProps> = ({
   currentVehicle,
   onLaunchCircularTour,
-  onOpenCommunityRoute
+  onOpenCommunityRoute, onOpenPlace
 }) => {
+  const gps=useDeviceLocation(true,'role-explore');
+  const liveCoords=gps.status==='ready'?gps.position?.coords:undefined;
+  const nearby=useNearbyPlaces(liveCoords?[liveCoords]:[],Boolean(liveCoords))
+    .filter(place=>TOURIST_PLACE_KINDS.some(kind=>kind===place.kind));
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'rating' | 'distance_asc' | 'distance_desc'>('rating');
@@ -118,13 +127,11 @@ export const ToursTab: React.FC<ToursTabProps> = ({
   });
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] pb-24 bg-white overflow-y-auto">
-      <div className="max-w-xl mx-auto px-4 pb-5 pt-20 sm:px-5 space-y-5">
+    <div className="rdv-figma-page min-h-[calc(100vh-4rem)] pb-24 bg-white overflow-y-auto">
+      <div className="max-w-xl mx-auto px-5 pb-5 pt-[72px] space-y-5">
         {/* TOP BAR: Explorar Passeios & Filter Icon */}
         <div className="flex items-center justify-between pt-1">
-          <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-            Explorar Passeios
-          </h1>
+          <div><h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Explorar</h1><p className="text-xs text-slate-500 mt-1">Descubra o próximo caminho</p></div>
           <button
             type="button"
             onClick={() => setShowFilterModal(true)}
@@ -142,7 +149,7 @@ export const ToursTab: React.FC<ToursTabProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar cidade, região ou passeio..."
+            placeholder="Buscar passeios"
             className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
           />
           {searchQuery.length > 0 && (
@@ -157,6 +164,30 @@ export const ToursTab: React.FC<ToursTabProps> = ({
           )}
         </div>
 
+        <div className="flex items-center gap-2">
+          <span className="rdv-figma-mode is-current">Perto de mim</span>
+          <button type="button" className="rdv-figma-mode" onClick={()=>handleSelectCategory('Natureza')}>Natureza</button>
+          <button type="button" className="rdv-figma-mode" onClick={()=>handleSelectCategory('Estradas e Mirantes')}>Estrada</button>
+        </div>
+        <div className="relative w-full h-[195px] rounded-2xl overflow-hidden bg-[#eef0ec]">
+          {liveCoords
+           ? <InteractiveMap roadStyle userLiveCoords={liveCoords} showFuelStations={false} className="w-full h-full"/>
+           : <div className="h-full grid place-items-center text-xs text-slate-500">Ative o GPS para visualizar passeios próximos.</div>}
+        </div>
+        <section className="bg-white rounded-t-[22px] -mx-5 px-5 py-4 space-y-3 border-t border-slate-100">
+          <div className="flex items-center justify-between gap-2"><h2 className="font-semibold text-[16px]">Perto de você</h2>
+            <span className="text-[11px] text-slate-500">{gps.status==='ready'?'Da sua localização':'Aguardando GPS'}</span></div>
+          {nearby.filter(place=>!searchQuery.trim()||`${place.name} ${place.address}`.toLocaleLowerCase('pt-BR').includes(searchQuery.trim().toLocaleLowerCase('pt-BR'))).length===0
+            ? <p className="text-xs text-slate-500 bg-slate-50 rounded-xl p-4">{liveCoords?'Nenhum passeio cadastrado próximo com esse filtro.':'Ative sua localização para descobrir passeios próximos.'}</p>
+            : nearby.filter(place=>!searchQuery.trim()||`${place.name} ${place.address}`.toLocaleLowerCase('pt-BR').includes(searchQuery.trim().toLocaleLowerCase('pt-BR')))
+              .slice(0,12).map(place=><button type="button" key={place.id} onClick={()=>onOpenPlace?.(place)}
+                className="w-full text-left flex items-center gap-3 py-3 border-b border-slate-100">
+                <span className="w-[56px] h-[56px] rounded-lg bg-emerald-50 text-emerald-700 grid place-items-center shrink-0"><MapPin size={22}/></span>
+                <span className="flex-1 min-w-0"><small className="block text-[10px] text-blue-600 font-semibold">Passeio próximo</small>
+                  <strong className="block text-[13px] text-slate-800 truncate">{place.name}</strong>
+                  <span className="block text-xs text-slate-500 truncate">{place.address}</span></span>
+                <ChevronRight size={17} className="text-blue-500"/></button>)}
+        </section>
         {/* SECTION: Descubra seu próximo destino */}
         <div className="space-y-3">
           <div>
