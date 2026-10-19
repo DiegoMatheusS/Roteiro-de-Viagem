@@ -108,7 +108,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-slate-300">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
-          <p className="truncate text-[20px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Siga o trajeto indicado'}</p>
+          <p className="truncate text-[20px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Continue na rota'}</p>
           {nextTurn?.road && <p className="truncate text-xs text-slate-300">{nextTurn.road}</p>}
         </div>
       </div>
@@ -123,7 +123,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-2">
             <CloudRain className="w-4 h-4 shrink-0" />
-            <span>Condições meteorológicas adversas previstas no percurso. Confira a previsão e as condições da pista.</span>
+            <span>Atenção: chuva ou tempo adverso no percurso.</span>
           </div>
         </div>
       )}
@@ -166,7 +166,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         </div>
         {upcoming && <div role="status" className="pointer-events-none absolute left-3 right-[75px] top-3 z-30 max-w-[300px] rounded-[18px] border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-semibold text-amber-950 shadow-md">
           {ROAD_ALERT_TYPES.find(type => type.id === upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
-          <span className="block text-[10px] font-normal text-amber-800">Alerta comunitário verificado. Confira a via.</span>
         </div>}
 
         {/* Velocímetro com limite explícito da via (ou estado neutro). */}
@@ -176,7 +175,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
 
       {/* Compact native-like bottom dock. Weather and tolls live here, never over the map. */}
       <div className="z-20 shrink-0 space-y-3 rounded-t-[24px] border-t border-slate-200/80 bg-white px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,.10)]">
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className={`grid gap-2 text-center ${nextStop?'grid-cols-3':'grid-cols-2'}`}>
           <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
             <span className="block text-[10px] font-medium text-slate-500">RESTANTE</span>
             <strong className="block text-[16px] font-semibold tabular-nums text-slate-900">{remainingKm.toFixed(1)} km</strong>
@@ -185,10 +184,10 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
             <span className="block text-[10px] font-medium text-slate-500">TEMPO RESTANTE</span>
             <strong className="block text-[16px] font-semibold tabular-nums text-emerald-700">~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min</strong>
           </div>
-          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
+          {nextStop && <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
             <span className="block text-[10px] font-medium text-slate-500">PRÓXIMA PARADA</span>
-            <strong className="block truncate text-[13px] font-semibold text-slate-900">{nextStop ? nextStop.name : 'Destino final'}</strong>
-          </div>
+            <strong className="block truncate text-[13px] font-semibold text-slate-900">{nextStop.name}</strong>
+          </div>}
         </div>
         <button type="button" aria-label="Detalhes de clima e pedágios" aria-expanded={showRouteDetails}
           onClick={()=>setShowRouteDetails(value=>!value)}
