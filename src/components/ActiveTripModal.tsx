@@ -191,7 +191,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </button>
         </div>
         <div className="rdv-nav-bottom-actions">
-          <button type="button" onClick={()=>setShowEndConfirm(true)}
+          <button type="button" aria-label="Encerrar viagem" onClick={()=>setShowEndConfirm(true)}
             className="rdv-nav-bottom-button">
             <PowerOff size={16}/> <span>Encerrar</span>
           </button>
