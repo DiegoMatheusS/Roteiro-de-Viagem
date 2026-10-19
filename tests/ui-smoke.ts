@@ -57,6 +57,31 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
   await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
+  // Tela 5: regressão visual e funcional do novo Explorar em largura Android.
+  await page.getByRole('button',{name:'Aba Explorar'}).click();
+  const exploring=page.getByRole('region',{name:'Explorar passeios'});
+  await exploring.getByRole('heading',{name:'Explorar',exact:true}).waitFor();
+  await exploring.getByPlaceholder('Buscar passeios').waitFor();
+  await page.getByRole('button',{name:'Aba Explorar'}).getAttribute('aria-current')
+    .then(current=>assert.equal(current,'page'));
+  await exploring.getByRole('heading',{name:'Volta no Ibirapuera'}).waitFor();
+  await exploring.getByRole('heading',{name:'Estrada dos Romeiros'}).waitFor();
+  const exploreBox=await exploring.boundingBox();
+  const exploreSheet=await exploring.locator('.rdv-explore-sheet').boundingBox();
+  assert.ok(exploreBox&&exploreSheet&&exploreBox.height>=840&&
+    exploreSheet.y>360&&exploreSheet.y<480,
+    'Tela Explorar precisa ter mapa superior e folha inferior conforme PNG');
+  await page.screenshot({path:'test-results/figma-tela-5-explorar.png'});
+  await exploring.getByRole('button',{name:'Estrada',exact:true}).click();
+  await exploring.getByRole('heading',{name:'Estrada dos Romeiros'}).waitFor();
+  assert.equal(await exploring.getByRole('heading',{name:'Volta no Ibirapuera'}).count(),0);
+  await exploring.getByRole('button',{name:'Perto de mim'}).click();
+  await exploring.getByPlaceholder('Buscar passeios').fill('Ibirapuera');
+  assert.equal(await exploring.getByRole('heading',{name:'Estrada dos Romeiros'}).count(),0);
+  await exploring.getByPlaceholder('Buscar passeios').fill('');
+  await page.getByRole('button',{name:'Aba Início'}).click();
+  await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
   // KM/H can show a preview without login or garage; navigation starts on confirmation.
   const guestContext=await browser.newContext({
