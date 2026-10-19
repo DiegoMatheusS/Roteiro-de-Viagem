@@ -380,3 +380,274 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
 @media (prefers-reduced-motion: reduce) {
   .rdv-create-toggle, .rdv-create-toggle > span {transition:none;}
 }
+
+
+/* Tela 3/7 — prévia fiel ao PNG. Mapa MapLibre recebe a geometria da rota real. */
+.rdv-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #e8efec;
+  display: flex;
+  justify-content: center;
+}
+.rdv-preview-screen {
+  --preview-panel-height: 39dvh;
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 560px;
+  height: 100dvh;
+  overflow: hidden;
+  background: #e9efec;
+  color: #253140;
+  font-family: Inter,system-ui,-apple-system,sans-serif;
+}
+.rdv-preview-route-map {
+  position: absolute;
+  top: calc(env(safe-area-inset-top,0px) + 71px);
+  left: 0;
+  right: 0;
+  bottom: calc(var(--preview-panel-height) - 20px);
+  z-index: 0;
+}
+.rdv-preview-header {
+  position: absolute;
+  top: env(safe-area-inset-top,0px);
+  left: 0;
+  right: 0;
+  height: 72px;
+  z-index: 7;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 21px;
+}
+.rdv-preview-header h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -.027em;
+  color: #253140;
+}
+.rdv-preview-back {
+  width: 23px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  color: #16202c;
+}
+.rdv-preview-route-type,
+.rdv-preview-map-stat,
+.rdv-preview-origin-label {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border-radius: 11px;
+  padding: 8px 11px;
+  font-size: 12px;
+  box-shadow: 0 2px 9px #28394716;
+}
+.rdv-preview-route-type {
+  top: calc(env(safe-area-inset-top,0px) + 92px);
+  left: 20px;
+  color: #536377;
+  font-size: 11px;
+}
+.rdv-preview-route-type svg,
+.rdv-preview-origin-label svg {color:#2563eb;}
+.rdv-preview-map-stat {
+  top: 25dvh;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: #215eeb;
+  font-weight: 700;
+  font-size: 13px;
+}
+.rdv-preview-map-controls {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: calc(var(--preview-panel-height) + 24px);
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.rdv-preview-origin-label {
+  position: static;
+  color: #263342;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rdv-preview-map-expand {
+  border: 0;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: white;
+  color: #2563eb;
+  box-shadow: 0 2px 8px #182e491b;
+  pointer-events: auto;
+}
+.rdv-preview-details {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: var(--preview-panel-height);
+  padding: 34px 20px max(18px,env(safe-area-inset-bottom,0px));
+  background: #fff;
+  border-radius: 25px 25px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  box-shadow: 0 -3px 12px #2839470b;
+}
+.rdv-preview-handle {
+  position: absolute;
+  top: 11px;
+  left: calc(50% - 17px);
+  width: 34px;
+  height: 4px;
+  background: #dce1e7;
+  border-radius: 99px;
+}
+.rdv-preview-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  justify-content: space-between;
+}
+.rdv-preview-title-row h2 {
+  min-width:0;
+  flex:1;
+  font-size:21px;
+  line-height:1.22;
+  font-weight:700;
+  letter-spacing:-.02em;
+  color:#263342;
+  margin:0;
+}
+.rdv-preview-bookmark {
+  flex:0 0 auto;
+  width:32px;
+  height:32px;
+  border:0;
+  background:transparent;
+  color:#245ee9;
+  display:grid;
+  place-items:center;
+}
+.rdv-preview-bookmark:disabled {opacity:1;cursor:default;}
+.rdv-preview-subtitle {
+  font-size:12px;
+  color:#6b7c8c;
+  margin:6px 0 18px;
+  line-height:1.35;
+}
+.rdv-preview-metrics {
+  display:flex;
+  align-items:center;
+  min-width:0;
+  gap:0;
+}
+.rdv-preview-metric {
+  flex:1 1 0;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.rdv-preview-metric:first-child {
+  border-right:1px solid #e5e9ed;
+  padding-right:13px;
+}
+.rdv-preview-metric:nth-child(2) {padding-left:26px;}
+.rdv-preview-metric strong {
+  color:#23303f;
+  white-space:nowrap;
+  font-size:23px;
+  line-height:1.1;
+  font-weight:700;
+}
+.rdv-preview-metric span {color:#6b7d8d;font-size:11px;}
+.rdv-preview-vehicle {
+  display:flex;
+  align-items:center;
+  flex-shrink:0;
+  border:1px solid #e0e6ed;
+  border-radius:99px;
+  min-height:38px;
+  padding:0 15px;
+  color:#334155;
+  font-size:12px;
+  font-weight:600;
+}
+.rdv-preview-meta {
+  margin:16px 0 15px;
+  display:flex;
+  gap:6px;
+  align-items:center;
+  color:#66798b;
+  font-size:12px;
+}
+.rdv-preview-meta svg {color:#2460eb;flex:0 0 auto;}
+.rdv-preview-notice {
+  color:#9a661a;
+  background:#fff8e9;
+  border-radius:8px;
+  padding:6px 8px;
+  font-size:12px;
+  margin:0 0 8px;
+}
+.rdv-preview-actions {
+  display:grid;
+  grid-template-columns:112px minmax(0,1fr);
+  gap:9px;
+}
+.rdv-preview-adjust,
+.rdv-preview-start {
+  min-height:53px;
+  border:0;
+  border-radius:12px;
+  font-size:15px;
+  font-weight:700;
+}
+.rdv-preview-adjust {
+  background:#eaf0ff;
+  color:#215df0;
+}
+.rdv-preview-start {
+  display:flex;
+  gap:9px;
+  justify-content:center;
+  align-items:center;
+  color:#fff;
+  background:#275ee9;
+}
+.rdv-preview-screen button:focus-visible {outline:2px solid #235dee;outline-offset:2px;}
+.rdv-preview-map-expanded .rdv-preview-details {display:none;}
+.rdv-preview-map-expanded .rdv-preview-route-map {bottom:0;}
+.rdv-preview-map-expanded .rdv-preview-map-controls {bottom:max(24px,env(safe-area-inset-bottom,0px));}
+@media(max-height:670px) {
+  .rdv-preview-screen {--preview-panel-height:47dvh;}
+}
+@media(max-width:355px) {
+  .rdv-preview-details {padding-inline:14px;}
+  .rdv-preview-metric:nth-child(2) {padding-left:13px;}
+  .rdv-preview-metric strong {font-size:20px;}
+  .rdv-preview-vehicle {padding-inline:10px;}
+  .rdv-preview-actions {grid-template-columns:100px minmax(0,1fr);}
+}
