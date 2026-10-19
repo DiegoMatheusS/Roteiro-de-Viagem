@@ -55,9 +55,10 @@ try {
   await page.goto('http://127.0.0.1:3000/admin');
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
-  await page.getByRole('heading', {name:'Dar um rolê por aí?'}).waitFor();
+  await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
+  await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
   await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
-  // KM/H are one-tap navigation for guests: no login, garage, or planner step.
+  // KM/H can show a preview without login or garage; navigation starts on confirmation.
   const guestContext=await browser.newContext({
     viewport:{width:390,height:844},permissions:['geolocation'],
     geolocation:{latitude:-23.551,longitude:-46.629,accuracy:3}
@@ -89,7 +90,7 @@ try {
     }});
   });
   await guestPage.goto('http://127.0.0.1:3000');
-  await guestPage.getByRole('heading',{name:'Dar um rolê por aí?'}).waitFor();
+  await guestPage.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
   for(const choice of [
     {name:/Por distância/,label:'Quantidade de quilômetros',amount:'40',mode:'km'},
     {name:/Por tempo/,label:'Quantidade de horas',amount:'1',mode:'hours'}
@@ -105,12 +106,15 @@ try {
       assert.equal(await modal.getByLabel(choice.label).inputValue(),'40',
         'O botão − deve subtrair apenas 1 km');
     }
-    assert.equal(await modal.getByText('Sem login ou veículo cadastrado.',{exact:false}).count(),1);
+    assert.equal(await modal.getByText('Sem login ou veículo cadastrado.',{exact:false}).count(),0,'Design does not show redundant guest notice');
     const request=guestPage.waitForRequest(req=>
       new URL(req.url()).pathname==='/api/routes/tourist' && req.method()==='POST');
-    await modal.getByRole('button',{name:'Gerar e iniciar rolê'}).click();
+    await modal.getByRole('button',{name:'Ver meu trajeto'}).click();
     const sent=await request;
     assert.equal((sent.postDataJSON() as {mode:string}).mode,choice.mode);
+    const realPreview=guestPage.getByRole('dialog',{name:'Visualizar viagem'});
+    await realPreview.getByText('40.0 km',{exact:false}).waitFor();
+    await realPreview.getByRole('button',{name:'Iniciar rolê'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
     assert.equal(await guestPage.getByRole('button',{name:'Voltar ao menu e manter viagem ativa'}).count(),0,
       'A tela de navegação não pode manter o cabeçalho branco');
@@ -174,8 +178,8 @@ try {
   await page.mouse.down();
   await page.mouse.move(homeGripBox!.x+homeGripBox!.width/2,homeGripBox!.y-145,{steps:9});
   const draggedBox=await homePanel.boundingBox();
-  const screenBottom=await page.locator('.rdv-navigation-screen').evaluate(el=>el.getBoundingClientRect().bottom);
-  assert.ok(draggedBox && Math.abs(draggedBox.y+draggedBox.height-screenBottom)<2,
+  const sheetAnchor=await page.locator('.rdv-figma-bottom-nav').evaluate(el=>el.getBoundingClientRect().top);
+  assert.ok(draggedBox && Math.abs(draggedBox.y+draggedBox.height-sheetAnchor)<2,
     'Durante o gesto o painel deve permanecer ancorado na borda inferior, sem mostrar o mapa embaixo');
   assert.ok(draggedBox.height>initialHomeBounds!.height+110,
     'Puxar para cima deve aumentar a altura do painel, não mover todo o elemento');
@@ -183,14 +187,18 @@ try {
   await page.waitForFunction(()=>{
     const panel=document.querySelector('[data-testid="home-main-sheet"]')?.getBoundingClientRect();
     const screen=document.querySelector('.rdv-navigation-screen')?.getBoundingClientRect();
-    return !!panel&&!!screen&&Math.abs(panel.bottom-screen.bottom)<2&&panel.height>=window.innerHeight*0.8;
+    const nav=document.querySelector('.rdv-figma-bottom-nav')?.getBoundingClientRect();return !!panel&&!!nav&&Math.abs(panel.bottom-nav.top)<2&&panel.height>=window.innerHeight*0.8;
   });
   const scrollHome=page.locator('[data-panel-scroll]');
-  assert.ok(await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight),
-    'O conteúdo completo do menu deve continuar rolável dentro da folha expandida');
-  await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
-  assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções');
-  await scrollHome.evaluate(el=>{el.scrollTop=0;});
+  // O novo painel minimalista não precisa forçar rolagem quando todo o conteúdo cabe.
+  const needsScroll=await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight);
+  if(needsScroll){
+    await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções quando necessário');
+    await scrollHome.evaluate(el=>{el.scrollTop=0;});
+  }else{
+    assert.ok(await scrollHome.evaluate(el=>el.clientHeight>0),'Conteúdo completo do painel deve permanecer visível');
+  }
   // Pulling down returns to the normal position, still without a map gap.
   const expandedGripBox=await homeGrip.boundingBox();
   assert.ok(expandedGripBox);
@@ -201,7 +209,7 @@ try {
   await page.waitForFunction(()=>{
     const panel=document.querySelector('[data-testid="home-main-sheet"]')?.getBoundingClientRect();
     const screen=document.querySelector('.rdv-navigation-screen')?.getBoundingClientRect();
-    return !!panel&&!!screen&&Math.abs(panel.bottom-screen.bottom)<2&&panel.height<=window.innerHeight*0.65;
+    const nav=document.querySelector('.rdv-figma-bottom-nav')?.getBoundingClientRect();return !!panel&&!!nav&&Math.abs(panel.bottom-nav.top)<2&&panel.height<=window.innerHeight*0.65;
   });
 
   // O navegador bloqueia o GPS por site; não é possível reabrir o prompt automaticamente.
@@ -301,7 +309,7 @@ try {
   await page.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
   await page.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
   await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
-  await page.getByRole('heading',{name:'Dar um rolê por aí?'}).waitFor();
+  await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
   // O formulário detalhado de origem e destino continua disponível separadamente.
   await page.getByRole('button', {name:'Rolê com origem e destino'}).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });

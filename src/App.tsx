@@ -1,3 +1,4 @@
+import './role-figma.css';
 import { useConvoyGps } from './hooks/useConvoyGps';
 import { getDeviceId } from './services/deviceIdentity';
 import { SyncConflictPanel } from './components/SyncConflictPanel';
