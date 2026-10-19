@@ -1,3 +1,4 @@
+import './role-figma.css';
 import { useConvoyGps } from './hooks/useConvoyGps';
 import { getDeviceId } from './services/deviceIdentity';
 import { SyncConflictPanel } from './components/SyncConflictPanel';
@@ -419,7 +420,7 @@ export default function App() {
       ) : (
         <>
           {/* MAIN TABS CONTAINER */}
-          <main className="flex-1 min-h-0 relative">
+          <main className={`flex-1 min-h-0 relative ${activeTab!=='inicio' ? 'rdv-figma-page' : ''}`}>
             {activeTab === 'inicio' && !advancedHome && (
               <NavigationHome
                 currentVehicle={currentVehicle}
