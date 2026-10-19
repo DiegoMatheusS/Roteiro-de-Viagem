@@ -97,6 +97,16 @@ try {
   ]) {
     await guestPage.getByRole('button',{name:choice.name}).click();
     const modal=guestPage.getByRole('dialog',{name:'Criar um rolê'});
+    if(choice.mode==='km'){
+      await modal.getByRole('heading',{name:'Criar rolê'}).waitFor();
+      const screen=await modal.boundingBox();
+      const panel=await modal.getByTestId('figma-create-trip-panel').boundingBox();
+      assert.ok(screen && panel && screen.y < 2 && screen.height >= 840,
+        'Criar Rolê deve ocupar a tela inteira, como o design Figma');
+      assert.ok(panel.y > 0.3 * 844 && panel.y < 0.47 * 844,
+        'Painel Criar Rolê deve deixar o mapa visível no topo');
+      await guestPage.screenshot({path:'test-results/figma-tela-2-criar-role.png'});
+    }
     await modal.getByLabel(choice.label).fill(choice.amount);
     if(choice.mode==='km'){
       await modal.getByRole('button',{name:'Aumentar quantidade'}).click();
@@ -396,11 +406,30 @@ try {
   await page.waitForTimeout(200); // Stop drag velocity before release; no inertial overshoot.
   await page.mouse.up();
   const fuelMarker = page.locator('.fuel-station-marker').first();
-  await fuelMarker.getByRole('button', { name: 'Comentários de Posto de teste de interface', exact: true }).click();
+  // A atribuição MapLibre varia de tamanho conforme a plataforma e os tiles.
+  // Afaste o marcador dela com gestos reais até o botão receber toques;
+  // não use force:true, que esconderia problemas reais de hit-testing.
+  const tapFuelMarker=async(name:string)=>{
+    const button=fuelMarker.getByRole('button', {name,exact:true});
+    for(let attempt=0;attempt<4;attempt++){
+      try { await button.click({trial:true,timeout:1200});break; }
+      catch {
+        const view=await preview.boundingBox();
+        assert.ok(view,'O mapa de prévia precisa continuar acessível');
+        await page.mouse.move(view.x+view.width*.48,view.y+view.height*.7);
+        await page.mouse.down();
+        await page.mouse.move(view.x+view.width*.33,view.y+view.height*.28,{steps:12});
+        await page.mouse.up();
+        await page.waitForTimeout(120);
+      }
+    }
+    await button.click();
+  };
+  await tapFuelMarker('Comentários de Posto de teste de interface');
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
   await station.getByRole('heading', { name: 'Comentários do posto', exact: true }).waitFor();
   await station.getByRole('button', { name: 'Fechar posto', exact: true }).click();
-  await fuelMarker.getByRole('button', { name: 'Sugerir preço', exact: true }).click();
+  await tapFuelMarker('Sugerir preço');
   await station.getByText('Ainda não há preços informados para este posto.').waitFor();
   await station.getByRole('button', { name: 'Sugerir preço', exact: true }).click();
   await station.getByLabel('Preço 1', { exact: true }).fill('5,899');
