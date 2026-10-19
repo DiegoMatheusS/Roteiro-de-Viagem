@@ -1,0 +1,247 @@
+/* Tela 6 / Figma 402×874 — Minhas viagens.
+   Lista e painel sem sobreposição com a barra inferior compartilhada. */
+.rdv-trips-page {
+  width:100%;
+  height:100dvh;
+  min-height:440px;
+  overflow:hidden;
+  background:#f6f8fa;
+  color:#263342;
+  font-family:Inter,system-ui,-apple-system,sans-serif;
+}
+.rdv-trips-scroll {
+  position:relative;
+  height:calc(100dvh - 76px - env(safe-area-inset-bottom,0px));
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  padding:calc(72px + env(safe-area-inset-top,0px)) 20px 24px;
+}
+.rdv-trips-top h1 {
+  margin:0;
+  font-size:25px;
+  line-height:1.2;
+  font-weight:700;
+  letter-spacing:-.035em;
+}
+.rdv-trips-filters {
+  margin-top:31px;
+  display:flex;
+  gap:9px;
+  align-items:center;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.rdv-trips-filters::-webkit-scrollbar {display:none;}
+.rdv-trips-filters button {
+  flex-shrink:0;
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  border:1px solid #e3e8ee;
+  border-radius:99px;
+  padding:0 14px;
+  background:#fff;
+  color:#263442;
+  font-size:13px;
+  font-weight:500;
+  white-space:nowrap;
+}
+.rdv-trips-filters button.is-selected {
+  border-color:#2464f4;
+  color:#205ff0;
+  background:#eaf0ff;
+  font-weight:600;
+}
+.rdv-trips-filters svg {color:#758599;}
+.rdv-trips-statistics {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:start;
+  gap:13px;
+  margin-top:30px;
+}
+.rdv-trips-statistics > div {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.rdv-trips-statistics strong {
+  font-size:24px;
+  line-height:1.15;
+  font-weight:700;
+  letter-spacing:-.025em;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.rdv-trips-statistics span {
+  color:#657789;
+  font-size:12px;
+  white-space:nowrap;
+}
+.rdv-trips-empty {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  padding-top:61px;
+  margin:0 auto;
+  max-width:400px;
+}
+.rdv-trips-empty-art {
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:184px;
+  height:155px;
+  flex-shrink:0;
+  border-radius:50%;
+  background:#e8efff;
+}
+.rdv-trips-empty-route {width:184px;height:155px;}
+.rdv-trips-empty-flag {
+  position:absolute;
+  top:18px;
+  right:17px;
+  width:39px;
+  height:39px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:#fff;
+  color:#2764e8;
+}
+.rdv-trips-empty h2 {
+  margin:25px auto 0;
+  max-width:265px;
+  color:#253241;
+  font-size:24px;
+  line-height:1.35;
+  letter-spacing:-.025em;
+  font-weight:700;
+}
+.rdv-trips-empty > p {
+  margin:12px 0 0;
+  color:#657789;
+  font-size:16px;
+  line-height:1.5;
+  letter-spacing:.002em;
+  max-width:345px;
+}
+.rdv-trips-create {
+  margin-top:24px;
+  min-height:52px;
+  width:100%;
+  max-width:338px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  border:0;
+  border-radius:12px;
+  background:#275ee7;
+  color:#fff;
+  font-size:16px;
+  font-weight:600;
+  box-shadow:none;
+}
+.rdv-trips-create svg {width:13px;height:13px;}
+.rdv-trips-explore {
+  background:transparent;
+  border:0;
+  min-height:29px;
+  margin-top:11px;
+  color:#235eea;
+  font-size:14px;
+  font-weight:500;
+}
+.rdv-trips-bottom-hint {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:9px;
+  min-height:22px;
+  margin:0 auto;
+  color:#697b8d;
+  font-size:11px;
+  text-align:center;
+}
+.rdv-trips-bottom-hint svg {flex-shrink:0;}
+.rdv-trips-results {
+  display:flex;
+  flex-direction:column;
+  gap:13px;
+  margin-top:27px;
+  padding-bottom:15px;
+}
+.rdv-trips-trip {
+  border:1px solid #e3e8ee;
+  background:#fff;
+  border-radius:15px;
+  padding:15px;
+  box-shadow:0 2px 6px #1f324809;
+}
+.rdv-trips-trip-top {display:flex;align-items:flex-start;gap:10px;}
+.rdv-trips-trip-heading {flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+.rdv-trips-trip-heading h3 {
+  flex-basis:100%;
+  font-size:17px;
+  line-height:1.25;
+  font-weight:700;
+  letter-spacing:-.02em;
+  margin:3px 0 0;
+}
+.rdv-trips-status,.rdv-trips-gps-verified {
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 9px;border-radius:99px;
+  font-size:10px;font-weight:600;
+  background:#edf3ff;color:#245deb;
+}
+.rdv-trips-status.is-completed,.rdv-trips-gps-verified {
+  background:#e7f8ee;color:#15803d;
+}
+.rdv-trips-delete {border:0;background:transparent;padding:5px;color:#8797a5;}
+.rdv-trips-route-names {display:flex;align-items:center;gap:6px;font-size:12px;color:#6b7c8d;margin:12px 0;}
+.rdv-trips-route-names span {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rdv-trips-route-names svg {flex-shrink:0;color:#2761ed;}
+.rdv-trips-card-metrics {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  padding:12px;gap:7px;background:#f5f7fa;border-radius:10px;
+}
+.rdv-trips-card-metrics div {min-width:0;}
+.rdv-trips-card-metrics span {display:block;color:#758397;font-size:10px;}
+.rdv-trips-card-metrics strong {
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:12px;color:#253342;margin-top:4px;
+}
+.rdv-trips-card-note {font-size:11px;line-height:1.35;color:#946015;margin:7px 0 0;}
+.rdv-trips-review {font-size:12px;color:#657789;margin-top:9px;font-style:italic;}
+.rdv-trips-actions {
+  display:flex;gap:7px;align-items:center;flex-wrap:wrap;
+  border-top:1px solid #edf0f4;margin-top:13px;padding-top:13px;
+}
+.rdv-trips-actions button {
+  min-height:37px;
+  border:1px solid #e3e8ee;border-radius:9px;
+  background:#fff;color:#344354;
+  display:inline-flex;align-items:center;justify-content:center;
+  gap:6px;padding:0 10px;font-size:11px;font-weight:600;
+}
+.rdv-trips-actions button.rdv-trips-start {background:#2760eb;color:#fff;border-color:#2760eb;margin-left:auto;}
+.rdv-trips-page button:focus-visible {outline:2px solid #235ff0;outline-offset:2px;}
+@media(max-height:790px){
+  .rdv-trips-scroll {padding-top:calc(57px + env(safe-area-inset-top,0px));}
+  .rdv-trips-filters {margin-top:22px;}
+  .rdv-trips-statistics {margin-top:22px;}
+  .rdv-trips-empty {padding-top:27px;}
+}
+@media(max-width:355px){
+  .rdv-trips-scroll {padding-left:14px;padding-right:14px;}
+  .rdv-trips-filters {gap:6px;}
+  .rdv-trips-filters button {padding-inline:10px;font-size:12px;}
+  .rdv-trips-create {font-size:14px;}
+}
