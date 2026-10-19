@@ -290,7 +290,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onLostPointerCapture={()=>{if(dragStart.current!==null){dragStart.current=null;setDragOffset(0);}}}
       // Only the height changes during a gesture: bottom:0 stays anchored.
       style={{height:sheetDragHeight,transitionDuration:dragOffset?'0ms':undefined}}
-      className={`rdv-figma-home-sheet absolute bottom-0 inset-x-0 z-30 overflow-hidden flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[64px]':sheetExpanded?'h-[calc(82dvh-76px)]':dragOffset?'':'h-[228px]'}`}>
+      className={`rdv-figma-home-sheet absolute bottom-0 inset-x-0 z-30 overflow-hidden flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[64px]':sheetExpanded?'h-[82dvh]':dragOffset?'':'h-[228px]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>{if(swallowNextClick.current){swallowNextClick.current=false;return;}if(sheetExpanded)setSheetExpanded(false);else setCollapsed(c=>!c);}}
         data-panel-grip
         aria-expanded={!collapsed}
@@ -314,11 +314,11 @@ export function NavigationHome(props: NavigationHomeProps) {
             <p className="text-[14px] mt-1 text-slate-500">Saia de onde está. A gente cria a volta.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={()=>showSheet('km')} aria-label="Escolher KM" className="rdv-figma-card">
+            <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
               <strong className="rdv-figma-card-title">Por km</strong><small className="rdv-figma-card-detail">Escolha a distância</small>
             </button>
-            <button type="button" onClick={()=>showSheet('hours')} aria-label="Escolher horas" className="rdv-figma-card">
+            <button type="button" onClick={()=>showSheet('hours')} aria-label="Por tempo — Escolher horas" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Clock3 size={20} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
               <strong className="rdv-figma-card-title">Por horas</strong><small className="rdv-figma-card-detail">Escolha a duração</small>
             </button>
