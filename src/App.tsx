@@ -426,6 +426,7 @@ export default function App() {
                 currentVehicle={currentVehicle}
                 trips={trips}
                 onStartTrip={handleStartTrip}
+                onSaveTrip={(trip)=>{storageService.saveTrip(trip);setTrips(storageService.getTrips());}}
                 onOpenAllTrips={() => setActiveTab('salvos')}
                 onOpenAllSuggestions={() => setActiveTab('passeios')}
                 onOpenProfile={() => setActiveTab('ajustes')}
