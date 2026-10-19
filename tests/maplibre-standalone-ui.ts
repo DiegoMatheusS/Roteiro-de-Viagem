@@ -304,7 +304,7 @@ try{
   await guidance.getByText('Trecho de volta',{exact:true}).waitFor();
   await guidance.getByText('Vire à esquerda',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Simular fora da rota',exact:true}).click();
-  await guidance.getByText('Siga o trajeto indicado',{exact:true}).waitFor();
+  await guidance.getByText('Continue na rota',{exact:true}).waitFor();
   assert.equal(await guidance.getByText(/Em .* metros/).count(),0);
   // Refreshing a different area must not momentarily show stations or places
   // from the previous GPS location while the next provider request is pending.
