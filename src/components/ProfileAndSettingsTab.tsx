@@ -178,15 +178,17 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   };
 
   return (
-    <div className="rdv-figma-page min-h-[calc(100vh-4rem)] pb-28 bg-[#f4f6f9] overflow-y-auto">
+    <div className="min-h-[calc(100vh-4rem)] pb-28 bg-slate-50 overflow-y-auto">
       {/* Top Bar Navigation Tabs */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="px-5 pt-[72px] pb-4 flex items-center justify-between">
+        <div className="pl-20 pr-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
-              Perfil e garagem
+              Perfil
             </h1>
-
+            <p className="text-[11px] text-slate-500">
+              Nível do viajante, garagem inteligente e segurança.
+            </p>
           </div>
         </div>
 
@@ -213,41 +215,6 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
         </div>
       </div>
 
-      <section className="max-w-2xl mx-auto px-5 pt-5 space-y-4" aria-label="Visão geral do perfil">
-        <div className="flex items-center gap-3">
-          <span className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">{profile.name.charAt(0).toLocaleUpperCase('pt-BR')}</span>
-          <span className="flex-1 min-w-0"><strong className="text-[15px] font-semibold block truncate">{profile.name}</strong>
-            <small className="text-[11px] text-amber-700">Nível {tierInfo.tier}</small>
-          </span>
-          <button type="button" onClick={()=>{setActiveSubTab('perfil');setProfileName(profile.name);setProfileBio(profile.bio||'');setEditingProfile(true);}}
-            className="text-xs text-blue-600 font-semibold">Editar</button>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
-          <div className="flex items-center justify-between gap-2 text-[11px]">
-            <strong className="text-slate-800">Seu caminho até {tierInfo.nextTier || tierInfo.tier}</strong>
-            <span className="text-slate-500">{totalKm} / {tierInfo.thresholdMax} km</span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden"><div className="bg-blue-500 h-full rounded-full" style={{width:`${tierInfo.progressPercent}%`}} /></div>
-          <p className="text-[11px] text-slate-500">{tierInfo.nextTier?`Faltam ${tierInfo.neededKmForNextTier} km para o nível ${tierInfo.nextTier}.`:'Você atingiu o nível máximo.'}</p>
-        </div>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div><strong className="text-lg block">{totalKm} km</strong><span className="text-[11px] text-slate-500">percorridos</span></div>
-          <div><strong className="text-lg block">{completedTrips.length}</strong><span className="text-[11px] text-slate-500">viagens</span></div>
-          <div><strong className="text-lg block">{trips.filter(t=>t.status==='planned').length}</strong><span className="text-[11px] text-slate-500">rotas salvas</span></div>
-        </div>
-        <div className="flex justify-between items-center pt-2"><h2 className="text-[15px] font-semibold">Minha garagem</h2>
-          <button type="button" onClick={()=>{setActiveSubTab('garagem');setShowAddVehicleModal(true);}} className="text-blue-600 font-semibold text-xs">+ Adicionar</button></div>
-        {vehicles.length ? <div className="space-y-2">
-          {vehicles.slice(0,2).map(vehicle=><button key={vehicle.id} type="button" onClick={()=>setActiveSubTab('garagem')}
-             className="bg-white rounded-xl border border-slate-200 w-full text-left px-4 py-3 text-sm text-slate-700 flex items-center gap-3">
-             <Car size={20} className="text-blue-500"/> <span className="flex-1 truncate">{vehicle.nickname||`${vehicle.brand} ${vehicle.model}`}</span><ChevronRight size={17}/></button>)}
-        </div> : <button type="button" onClick={()=>{setActiveSubTab('garagem');setShowAddVehicleModal(true);}}
-          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 flex items-center gap-3 text-left">
-          <span className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><Car size={21}/></span>
-          <span className="flex-1"><strong className="block text-xs">Cadastre seu veículo</strong><small className="text-[11px] text-slate-500">Deixe tudo pronto para o próximo rolê.</small></span>
-          <ChevronRight size={17} className="text-slate-400"/>
-        </button>}
-      </section>
       <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
         <section className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
           <div className="min-w-0"><strong className="block text-sm">Minha conta</strong>
