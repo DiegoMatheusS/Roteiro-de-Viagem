@@ -97,6 +97,14 @@ try {
     await guestPage.getByRole('button',{name:choice.name}).click();
     const modal=guestPage.getByRole('dialog',{name:'Criar um rolê'});
     await modal.getByLabel(choice.label).fill(choice.amount);
+    if(choice.mode==='km'){
+      await modal.getByRole('button',{name:'Aumentar quantidade'}).click();
+      assert.equal(await modal.getByLabel(choice.label).inputValue(),'41',
+        'O botão + deve acrescentar apenas 1 km, não 10 km');
+      await modal.getByRole('button',{name:'Diminuir quantidade'}).click();
+      assert.equal(await modal.getByLabel(choice.label).inputValue(),'40',
+        'O botão − deve subtrair apenas 1 km');
+    }
     assert.equal(await modal.getByText('Sem login ou veículo cadastrado.',{exact:false}).count(),1);
     const request=guestPage.waitForRequest(req=>
       new URL(req.url()).pathname==='/api/routes/tourist' && req.method()==='POST');
@@ -104,6 +112,24 @@ try {
     const sent=await request;
     assert.equal((sent.postDataJSON() as {mode:string}).mode,choice.mode);
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
+    assert.equal(await guestPage.getByRole('button',{name:'Voltar ao menu e manter viagem ativa'}).count(),0,
+      'A tela de navegação não pode manter o cabeçalho branco');
+    assert.equal(await guestPage.getByRole('button',{name:'Minimizar navegação'}).count(),0);
+    assert.equal(await guestPage.getByRole('button',{name:'SOS',exact:true}).count(),1,
+      'SOS deve ficar flutuante no topo');
+    assert.equal(await guestPage.getByText('Seguir GPS',{exact:true}).count(),0,
+      'Botão de localização deve ser apenas ícone, inclusive com mapa livre');
+    const mapArea=guestPage.locator('.rdv-flat-map').last();
+    const mapBox=await mapArea.boundingBox();
+    assert.ok(mapBox&&mapBox.height>350,'O mapa de navegação deve ter bastante área disponível');
+    assert.equal(await guestPage.getByLabel('Condições da rota').count(),0,
+      'Informações de pedágios e clima não podem flutuar sobre o mapa');
+    const conditionsToggle=guestPage.getByRole('button',{name:'Detalhes de clima e pedágios'});
+    await conditionsToggle.click();
+    await guestPage.getByLabel('Condições da rota').waitFor();
+    assert.equal(await conditionsToggle.getAttribute('aria-expanded'),'true');
+    await conditionsToggle.click();
+    assert.equal(await guestPage.getByLabel('Condições da rota').count(),0);
     assert.equal(await guestPage.getByRole('dialog',{name:'Conta do viajante'}).count(),0);
     const guestSaved=await guestPage.evaluate(()=>{
       const raw=localStorage.getItem('rdv_private_v2_guest_trips')||'[]';
@@ -705,7 +731,8 @@ try {
   await page.getByRole('button', { name: 'Alterar rota', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
-  await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
+  // Android Back event replaces the removed bulky header while keeping the trip active.
+  await page.evaluate(()=>window.dispatchEvent(new Event('rdv:android-back')));
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
   const sessionState = await page.evaluate(async () => {
     const response = await fetch('/api/auth/me');
@@ -724,7 +751,7 @@ try {
   const runningId = sessionState.runningId;
   assert.ok(runningId);
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).click();
-  await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
+  await page.locator('div.fixed.inset-0.z-50').getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Abrir menu' }).click();

@@ -12,17 +12,17 @@ import { upcomingRoadAlert } from '../services/roadAlertDistance';
 import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
-  Navigation, ArrowLeft, PowerOff, ArrowUp, CornerUpLeft, CornerUpRight, RotateCcw,
+  Navigation, PowerOff, ArrowUp, CornerUpLeft, CornerUpRight, RotateCcw,
   MapPin, 
   AlertOctagon, 
   Home, 
   CloudRain, 
   Sun, 
   CheckCircle, 
-  X, 
   Radio, 
   Compass,
   LocateFixed,
+  ChevronDown,
   ShieldCheck,
   Award
 } from 'lucide-react';
@@ -57,6 +57,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
+  const [showRouteDetails,setShowRouteDetails] = useState(false);
   const [centerRequest,setCenterRequest] = useState(0);
   const [cameraMode,setCameraMode]=useState<CameraMode>('following');
   useEffect(()=>{if(!isOpen)setCameraMode('following');},[isOpen,trip.id]);
@@ -99,62 +100,22 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900 animate-in fade-in overflow-hidden">
-      {/* TOP ACTIVE NAVIGATION HUD - WHITE THEME */}
-      <div className="bg-white/95 border-b border-slate-200 p-4 flex items-center justify-between shrink-0 z-20 backdrop-blur-md shadow-xs">
-        <div className="flex items-center gap-3">
-          <button onClick={onClose} aria-label="Voltar ao menu e manter viagem ativa" title="Voltar ao menu" className="w-10 h-10 shrink-0 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md"><ArrowLeft className="w-5 h-5" /></button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-              <h2 className="text-sm font-extrabold text-slate-900 truncate max-w-[120px] sm:max-w-[200px]">
-                {trip.destinationName.split('-')[0].trim()}
-              </h2>
-            </div>
-            <div className="text-[11px] text-slate-500 font-medium">
-              {vehicle.nickname || vehicle.model} · {currentSpeed ?? '—'} km/h
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Quero Voltar Pra Casa - Com Confirmação */}
-          <button
-            onClick={() => setShowHomeConfirm(true)}
-            className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
-            title="Calcular retorno para casa"
-          >
-            <Home className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Voltar pra Casa</span>
-          </button>
-
-          {/* SOS BUTTON (Requirement #29) */}
-          <button
-            onClick={onOpenSos}
-            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1 shadow-md shadow-rose-600/30 transition-transform active:scale-95 cursor-pointer"
-          >
-            <AlertOctagon className="w-3.5 h-3.5" />
-            <span>SOS</span>
-          </button>
-
-          <button
-            aria-label="Minimizar navegação"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-      <div role="status" aria-label="Próxima orientação de navegação" className="bg-[#111827] text-white px-4 py-3 min-h-[78px] flex gap-4 items-center shadow-lg shrink-0 z-20">
-        <div className="shrink-0 w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center">
-          {nextTurn?.direction === 'left' ? <CornerUpLeft size={34} strokeWidth={2.8} /> : nextTurn?.direction === 'right' ? <CornerUpRight size={34} strokeWidth={2.8} /> : nextTurn?.direction === 'roundabout' ? <RotateCcw size={32} strokeWidth={2.6}/> : nextTurn?.direction === 'arrive' ? <MapPin size={30}/> : <ArrowUp size={34} strokeWidth={2.8}/>} 
+      {/* Compact navigation prompt: no secondary header over the map. */}
+      <div role="status" aria-label="Próxima orientação de navegação"
+        className="relative z-20 flex min-h-[86px] shrink-0 items-center gap-3 rounded-b-[24px] bg-[#101827] px-4 py-3 pr-[96px] text-white shadow-[0_10px_26px_rgba(15,23,42,.18)]">
+        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+          {nextTurn?.direction === 'left' ? <CornerUpLeft size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'right' ? <CornerUpRight size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'roundabout' ? <RotateCcw size={30} strokeWidth={2.5}/> : nextTurn?.direction === 'arrive' ? <MapPin size={29}/> : <ArrowUp size={32} strokeWidth={2.6}/>}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-slate-300 font-semibold">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
-          <p className="text-xl leading-tight font-black truncate">{nextTurn?.text || 'Siga o trajeto indicado'}</p>
-          {nextTurn?.road && <p className="text-xs text-slate-200 truncate">{nextTurn.road}</p>}
+          <p className="text-xs font-medium text-slate-300">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
+          <p className="truncate text-[20px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Continue na rota'}</p>
+          {nextTurn?.road && <p className="truncate text-xs text-slate-300">{nextTurn.road}</p>}
         </div>
       </div>
+      <button type="button" onClick={onOpenSos} aria-label="SOS" title="SOS - emergência"
+        className="absolute right-3 top-[max(14px,env(safe-area-inset-top))] z-40 flex h-12 min-w-12 items-center justify-center gap-1.5 rounded-2xl border border-white/20 bg-rose-600 px-3 text-white shadow-[0_7px_20px_rgba(190,24,93,.33)] transition-transform active:scale-95">
+        <AlertOctagon size={20} strokeWidth={2.3}/><span className="text-xs font-semibold">SOS</span>
+      </button>
       {tracking.error && <div role="alert" className="px-4 py-2 text-xs bg-amber-50 text-amber-900 flex items-center justify-between gap-2">{tracking.error}<button onClick={tracking.retry} className="font-bold">Tentar GPS novamente</button></div>}
 
       {/* MOTORCYCLE RAIN WEATHER ALERT IF APPLICABLE (Requirement #23) */}
@@ -162,7 +123,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-2">
             <CloudRain className="w-4 h-4 shrink-0" />
-            <span>Condições meteorológicas adversas previstas no percurso. Confira a previsão e as condições da pista.</span>
+            <span>Atenção: chuva ou tempo adverso no percurso.</span>
           </div>
         </div>
       )}
@@ -190,59 +151,63 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           className="w-full h-full"
         />
 
-        <div className="absolute bottom-24 right-4 z-30 flex flex-col items-center gap-3">
+        {/* Fixed controls only: all remaining space belongs to map gestures. */}
+        <div className="pointer-events-none absolute bottom-24 right-3 z-30 flex flex-col items-center gap-3">
           <button type="button" aria-label="Centralizar mapa na minha localização"
-            title={cameraMode==='exploring'?'Seguir GPS novamente':'Centralizar GPS'}
+            title={cameraMode==='exploring'?'Voltar a seguir o GPS':'Centralizar GPS'}
             onClick={()=>setCenterRequest(v=>v+1)} disabled={!isGpsActive}
-            className={`${cameraMode==='exploring'?'px-3':'w-12'} min-h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 transition-[width,padding] duration-200`}>
-            <LocateFixed size={24} strokeWidth={2.2}/>
-            {cameraMode==='exploring'&&<span className="text-[13px] font-semibold whitespace-nowrap">Seguir GPS</span>}
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 text-blue-700 shadow-[0_6px_20px_rgba(15,23,42,.18)] transition-transform active:scale-95 disabled:opacity-60">
+            <LocateFixed size={23} strokeWidth={2.2}/>
           </button>
-          <RoadAlertReporter location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
-            onSubmitted={() => { void roadAlerts.reload(); }} />
+          <div className="pointer-events-auto">
+            <RoadAlertReporter location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
+              onSubmitted={() => { void roadAlerts.reload(); }} />
+          </div>
         </div>
-        {upcoming && <div role="status" className="absolute top-14 left-3 right-3 z-30 bg-amber-50 border-2 border-amber-400 rounded-xl px-3 py-2 shadow-lg max-w-[310px] text-xs font-bold">
+        {upcoming && <div role="status" className="pointer-events-none absolute left-3 right-[75px] top-3 z-30 max-w-[300px] rounded-[18px] border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-semibold text-amber-950 shadow-md">
           {ROAD_ALERT_TYPES.find(type => type.id === upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
-          <span className="block font-normal text-[10px] text-amber-800">Alerta comunitário aprovado · confira a situação da via.</span>
         </div>}
-        <div className="absolute bottom-20 left-3 right-16 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={conditions} /></div>
 
         {/* Velocímetro com limite explícito da via (ou estado neutro). */}
         <Speedometer position={isGpsActive ? tracking.position : null}
           className="absolute bottom-3 left-3 z-30" />
       </div>
 
-      {/* BOTTOM NAVIGATION CONTROLS - WHITE MENU */}
-      <div className="bg-white border-t border-slate-200 p-4 space-y-3 shrink-0 shadow-xl">
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
-          <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[10px] text-slate-500 font-bold block">RESTANTE</span>
-            <strong className="text-sm font-extrabold text-slate-900">{remainingKm.toFixed(1)} km</strong>
+      {/* Compact native-like bottom dock. Weather and tolls live here, never over the map. */}
+      <div className="z-20 shrink-0 space-y-3 rounded-t-[24px] border-t border-slate-200/80 bg-white px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,.10)]">
+        <div className={`grid gap-2 text-center ${nextStop?'grid-cols-3':'grid-cols-2'}`}>
+          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
+            <span className="block text-[10px] font-medium text-slate-500">RESTANTE</span>
+            <strong className="block text-[16px] font-semibold tabular-nums text-slate-900">{remainingKm.toFixed(1)} km</strong>
           </div>
-          <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[10px] text-slate-500 font-bold block">TEMPO RESTANTE</span>
-            <strong className="text-sm font-extrabold text-emerald-700">
-              ~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min
-            </strong>
+          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
+            <span className="block text-[10px] font-medium text-slate-500">TEMPO RESTANTE</span>
+            <strong className="block text-[16px] font-semibold tabular-nums text-emerald-700">~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min</strong>
           </div>
-          <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[10px] text-slate-500 font-bold block">PRÓXIMA PARADA</span>
-            <strong className="text-xs font-bold text-slate-800 truncate block">
-              {nextStop ? nextStop.name.split(' ')[0] : 'Destino final'}
-            </strong>
-          </div>
+          {nextStop && <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
+            <span className="block text-[10px] font-medium text-slate-500">PRÓXIMA PARADA</span>
+            <strong className="block truncate text-[13px] font-semibold text-slate-900">{nextStop.name}</strong>
+          </div>}
         </div>
-
-        <div className="flex items-center justify-between pt-1">
-          <button onClick={() => setShowEndConfirm(true)} className="py-2.5 px-3 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex gap-2 items-center"><PowerOff className="w-4 h-4" />Encerrar viagem</button>
-
-          {/* Concluir Viagem Button (Requirement #7) */}
-          <button
-            onClick={() => setShowCompletionDialog(true)}
-            className="py-2.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-600/20 cursor-pointer"
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span>Concluir Viagem</span>
+        <button type="button" aria-label="Detalhes de clima e pedágios" aria-expanded={showRouteDetails}
+          onClick={()=>setShowRouteDetails(value=>!value)}
+          className="flex min-h-9 w-full items-center justify-between rounded-xl px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50">
+          <span className="flex items-center gap-2"><CloudRain size={16}/> Clima e pedágios</span>
+          <ChevronDown size={17} className={`transition-transform duration-200 ${showRouteDetails?'rotate-180':''}`}/>
+        </button>
+        {showRouteDetails && <div className="max-h-[32dvh] space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-2">
+          <RouteConditionsStatus trip={trip} conditions={conditions}/>
+          <button type="button" onClick={()=>setShowHomeConfirm(true)}
+            className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-medium text-blue-700 shadow-sm"><Home size={17}/> Traçar rota para casa</button>
+        </div>}
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={() => setShowEndConfirm(true)}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-700 shadow-[0_3px_12px_rgba(15,23,42,.05)]">
+            <PowerOff size={18}/> Encerrar viagem
+          </button>
+          <button type="button" onClick={() => setShowCompletionDialog(true)}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-[0_5px_16px_rgba(5,150,105,.22)] active:scale-[.99]">
+            <CheckCircle size={19}/> Concluir Viagem
           </button>
         </div>
       </div>

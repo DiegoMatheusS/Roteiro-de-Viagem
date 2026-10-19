@@ -222,7 +222,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     finally{if(generation===searchGeneration.current)setSearchBusy(false);}
   };
   const stepValue = (increase:boolean) => {
-    const amount = sheet === 'km' ? 10 : 0.5;
+    const amount = sheet === 'km' ? 1 : 0.5;
     const n = Math.max(sheet === 'km' ? 1 : 0.1,(parseTouristTarget(currentValue) || 0) + (increase ? amount : -amount));
     if(sheet === 'km')setKm(String(n));else setHours(String(n));
   };
