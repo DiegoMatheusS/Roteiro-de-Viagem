@@ -731,7 +731,8 @@ try {
   await page.getByRole('button', { name: 'Alterar rota', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Centralizar mapa na minha localização' }).waitFor();
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
-  await page.getByRole('button', { name: 'Voltar ao menu e manter viagem ativa', exact: true }).click();
+  // Android Back event replaces the removed bulky header while keeping the trip active.
+  await page.evaluate(()=>window.dispatchEvent(new Event('rdv:android-back')));
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
   const sessionState = await page.evaluate(async () => {
     const response = await fetch('/api/auth/me');
