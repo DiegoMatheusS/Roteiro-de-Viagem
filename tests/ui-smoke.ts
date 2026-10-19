@@ -756,7 +756,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
-  await page.locator('div.fixed.inset-0.z-50').getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log('UI: paradas reais, drag, recálculo, compartilhamento entre dispositivos, envio privado sem OCR, revisão manual no admin, publicação, cadastro real, comentários, exclusão de usuário, comparação, orçamento, circuito e consentimento passaram.');
