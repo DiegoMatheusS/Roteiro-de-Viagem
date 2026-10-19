@@ -107,7 +107,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           {nextTurn?.direction === 'left' ? <CornerUpLeft size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'right' ? <CornerUpRight size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'roundabout' ? <RotateCcw size={30} strokeWidth={2.5}/> : nextTurn?.direction === 'arrive' ? <MapPin size={29}/> : <ArrowUp size={32} strokeWidth={2.6}/>}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[23px] font-bold tabular-nums text-white leading-tight">{nextTurn ? (nextTurn.meters >= 1000 ? `${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `${nextTurn.meters} m`) : 'Navegação em andamento'}</p>
+          <p className="text-[23px] font-bold tabular-nums text-white leading-tight">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
           <p className="truncate text-[16px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Continue na rota'}</p>
           {nextTurn?.road && <p className="truncate text-xs text-blue-100">{nextTurn.road}</p>}
         </div>
