@@ -58,8 +58,8 @@ export function CreateTouristCircuitScreen({
       </header>
       <div className="rdv-create-origin">
         <Crosshair size={19} strokeWidth={2} aria-hidden="true"/>
-        <span>Da sua localização atual</span>
-        <Check size={19} aria-hidden="true"/>
+        <span>{coords?'Da sua localização atual':'Ative o GPS para definir a origem'}</span>
+        {coords && <Check size={19} aria-hidden="true"/>}
       </div>
 
       <div className="rdv-create-panel" data-testid="figma-create-trip-panel">
