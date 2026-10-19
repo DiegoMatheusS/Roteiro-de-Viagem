@@ -85,11 +85,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       map=new GlMap({container:container.current,style:standaloneBaseStyle(activeStyle),
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
         minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,pitch:0,
-        // Course rotation is controlled by the camera; free rotation/tilt stay disabled.
-        dragRotate:false,pitchWithRotate:false,touchPitch:false,
+        // Preserve native pan, pinch zoom and two-finger rotation while exploring.
+        // Camera following pauses on explicit gestures and resumes via GPS.
+        dragRotate:true,pitchWithRotate:false,touchPitch:false,
         attributionControl:{compact:true}});
-      map.touchZoomRotate.disableRotation();
-      map.keyboard.disableRotation();
+      map.touchZoomRotate.enableRotation();
     }catch{fail();return;}
     const timeout=setTimeout(fail,12000);
     let course:number|null=null;
@@ -241,6 +241,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const userGesture=(event:{originalEvent?:unknown})=>{if(event.originalEvent)camera.explore();};
     map.on('dragstart',userGesture);
     map.on('zoomstart',userGesture);
+    map.on('rotatestart',userGesture);
     const unbindGestures=bindManualMapZoom(map.getContainer(),()=>camera.explore());
     const unbindResume=bindMapResumeRefresh(document,window,()=>{
       if(!disposed){map.resize();map.triggerRepaint();}
@@ -281,7 +282,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     return ()=>{
       disposed=true;clearTimeout(timeout);if(styleTimeout)clearTimeout(styleTimeout);runtime.current=null;
       unbindGestures();unbindResume();resize.disconnect();
-      map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);
+      map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);map.off('rotatestart',userGesture);
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
       navigation.destroy();trip.destroy();weather.destroy();alerts.destroy();markers.destroy();
       map.stop();map.remove();
@@ -310,8 +311,9 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
-      className="absolute bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-[13px] font-semibold text-blue-700 shadow-xl">
-      <Compass size={20}/><span>{courseMode?'Direção':'Norte'}</span>
+      title={courseMode?'Orientar pela direção da viagem':'Apontar mapa para o norte'}
+      className="absolute bottom-4 right-3 z-30 flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 text-blue-700 shadow-[0_6px_20px_rgba(15,23,42,.18)] transition-transform active:scale-95">
+      <Compass size={22}/>
     </button>}
     {showBaseSelector&&<div className="pointer-events-none relative z-30 flex h-16 items-center border-t border-slate-200 bg-white px-4">
       <button type="button" title="Alterar visual do mapa" onClick={()=>setStyleMenu(value=>!value)}
