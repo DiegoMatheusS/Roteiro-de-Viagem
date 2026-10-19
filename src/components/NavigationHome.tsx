@@ -167,7 +167,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       // Sem veículo, a rota é real e navegável; consumo não é estimado.
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
         originName:'Sua localização atual',originCoords:coords,
-        interests,vehicle:props.currentVehicle || GUEST_NAVIGATION_VEHICLE });
+        interests,vehicle:props.currentVehicle || {...GUEST_NAVIGATION_VEHICLE,type:'motorcycle'} });
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
