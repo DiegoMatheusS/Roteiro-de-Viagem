@@ -102,7 +102,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [centerRequest,setCenterRequest] = useState(0);
   const centeredOnce=React.useRef(false);
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
-  const [km, setKm] = useState('150'), [hours, setHours] = useState('3');
+  const [km, setKm] = useState('20'), [hours, setHours] = useState('2');
   const [tripType, setTripType] = useState<'round_trip'|'one_way'>('round_trip');
   const [preference, setPreference] = useState<'tranquila'|'curvas'|'cidades'>('tranquila');
   const [origin, setOrigin] = useState<LocationSelection>({name:''});
@@ -169,9 +169,9 @@ export function NavigationHome(props: NavigationHomeProps) {
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
+      // Mostre primeiro a prévia com a rota real, antes de iniciar a navegação.
       setSheet(null);
-      // Fluxo rápido: gerar e começar a navegar sem passar pelo editor de roteiro.
-      props.onStartTrip(trip);
+      setPreview(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const submitDestination = async () => {
@@ -228,7 +228,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
-  const sheetHeight=sheetDragHeight || (collapsed?'74px':sheetExpanded?HOME_SHEET_EXPANDED_HEIGHT:'max(37dvh, 300px)');
+  const sheetHeight=sheetDragHeight || (collapsed?'64px':sheetExpanded?HOME_SHEET_EXPANDED_HEIGHT:'228px');
   // Buttons follow the top of the sheet, including while the grip is dragged.
   const controlsBottom=dragOffset?{bottom:`calc(${sheetHeight} + 25px)`,transitionDuration:'0ms'}:undefined;
   const speedBottom=dragOffset?{bottom:`calc(${sheetHeight} + 12px)`,transitionDuration:'0ms'}:undefined;
@@ -243,10 +243,31 @@ export function NavigationHome(props: NavigationHomeProps) {
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
-    {/* Velocímetro, GPS e reporte alinhados horizontalmente e acompanhando o painel. */}
+<form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
+          className="rdv-figma-home-search">
+          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
+          <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
+            aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
+            onChange={event=>{searchGeneration.current++;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
+          <button type="submit" aria-label="Pesquisar destino" disabled={searchBusy || searchPlace.name.trim().length<3}
+            className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
+            {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
+          </button>
+        </form>
+        {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>}
+    <div className="rdv-figma-home-modes" aria-label="Modalidade de transporte">
+      <button type="button" className="rdv-figma-mode is-current" onClick={props.onOpenProfile}>
+        <Navigation size={15}/> {props.currentVehicle?.type==='car'?'Carro':'Moto'}
+      </button>
+      <button type="button" className="rdv-figma-mode" onClick={()=>{setError('Trajetos a pé ainda não estão disponíveis. Use uma rota de carro ou moto.');setCollapsed(false);setSheetExpanded(true);}}>
+        A pé
+      </button>
+    </div>
+        {/* Velocímetro, GPS e reporte alinhados horizontalmente e acompanhando o painel. */}
     <div aria-label="Controles de localização e ocorrência no início"
       style={controlsBottom}
-      className={`absolute right-4 z-40 flex flex-row items-center gap-3 transition-[bottom] duration-300 ${collapsed?'bottom-[99px]':sheetExpanded?'bottom-[calc(82dvh+25px)]':'bottom-[calc(max(37dvh,300px)+25px)]'}`}>
+      className={`absolute right-4 z-40 flex flex-row items-center gap-3 transition-[bottom] duration-300 ${collapsed?'bottom-[calc(140px+env(safe-area-inset-bottom))]':sheetExpanded?'bottom-[calc(82dvh+25px)]':'bottom-[calc(304px+env(safe-area-inset-bottom))]'}`}>
       <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
         className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
         <Crosshair size={22} strokeWidth={2.2}/>
@@ -260,7 +281,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     </div>
     <Speedometer position={gps.status === 'ready' ? gps.position : null}
       style={speedBottom}
-      className={`absolute left-4 z-40 transition-[bottom] duration-300 ${collapsed?'bottom-[86px]':sheetExpanded?'bottom-[calc(82dvh+12px)]':'bottom-[calc(max(37dvh,300px)+12px)]'}`} />
+      className={`absolute left-4 z-40 transition-[bottom] duration-300 ${collapsed?'bottom-[calc(125px+env(safe-area-inset-bottom))]':sheetExpanded?'bottom-[calc(82dvh+12px)]':'bottom-[calc(294px+env(safe-area-inset-bottom))]'}`} />
     <div data-testid="home-main-sheet"
       onPointerDown={startPanelDrag}
       onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}
@@ -269,7 +290,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onLostPointerCapture={()=>{if(dragStart.current!==null){dragStart.current=null;setDragOffset(0);}}}
       // Only the height changes during a gesture: bottom:0 stays anchored.
       style={{height:sheetDragHeight,transitionDuration:dragOffset?'0ms':undefined}}
-      className={`absolute bottom-0 inset-x-0 z-30 overflow-hidden rounded-t-[28px] bg-white/95 backdrop-blur-xl shadow-[0_-14px_45px_rgba(15,23,42,.14)] border-t border-white/90 flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[74px]':sheetExpanded?'h-[82dvh]':dragOffset?'':'h-[37dvh] min-h-[300px] max-h-[65dvh]'}`}>
+      className={`rdv-figma-home-sheet absolute bottom-0 inset-x-0 z-30 overflow-hidden flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[64px]':sheetExpanded?'h-[calc(82dvh-76px)]':dragOffset?'':'h-[228px]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>{if(swallowNextClick.current){swallowNextClick.current=false;return;}if(sheetExpanded)setSheetExpanded(false);else setCollapsed(c=>!c);}}
         data-panel-grip
         aria-expanded={!collapsed}
@@ -277,20 +298,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         className="mx-auto w-full h-9 flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing select-none" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
-      {!collapsed && <div data-panel-scroll className="flex-1 min-h-0 w-full max-w-xl mx-auto overflow-y-auto overscroll-contain px-4 sm:px-5 pb-8 space-y-5">
-        <form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
-          className="rounded-[20px] w-full bg-[#f3f7fb] border border-slate-200/80 px-4 py-2 flex items-center gap-3 text-slate-600 text-sm min-h-[54px] shadow-[0_3px_12px_#2239550e] focus-within:border-blue-400 focus-within:ring-[3px] focus-within:ring-blue-100/80 transition-shadow">
-          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
-          <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
-            aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" value={searchPlace.name}
-            onChange={event=>{searchGeneration.current++;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
-            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
-          <button type="submit" aria-label="Pesquisar destino" disabled={searchBusy || searchPlace.name.trim().length<3}
-            className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
-            {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
-          </button>
-        </form>
-        {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>}
+      {!collapsed && <div data-panel-scroll className="rdv-figma-sheet-content flex-1 min-h-0 w-full max-w-xl mx-auto overflow-y-auto overscroll-contain px-5 sm:px-5 pb-8 space-y-5">
         {(gps.error || locationAccess.help) && <div role="alert" className="bg-amber-50 p-3 rounded-xl text-xs text-amber-900 space-y-2">
           <p>{gps.error}</p>
           {locationAccess.help && <p className="font-medium">{locationAccess.help}</p>}
@@ -302,29 +310,17 @@ export function NavigationHome(props: NavigationHomeProps) {
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
           <div>
-            <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Dar um rolê por aí?</h2>
-            <p className="text-[14px] mt-1 text-slate-500">Escolha como prefere passear.</p>
+            <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Bora dar um rolê?</h2>
+            <p className="text-[14px] mt-1 text-slate-500">Saia de onde está. A gente cria a volta.</p>
           </div>
-          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
-            <button type="button" onClick={()=>showSheet('km')}
-              className="rdv-choice-card group bg-gradient-to-br from-[#eaf5ff] to-white border border-[#cfe4fb] rounded-[20px] p-3 min-h-[158px] flex flex-col items-start gap-2 text-left shadow-[0_5px_16px_#1a5aa90c]">
-              <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center" aria-hidden="true">
-                <Navigation size={21} strokeWidth={2.2}/>
-              </span>
-              <strong className="text-blue-800 text-[16px] font-semibold block tracking-tight">Por distância</strong>
-              <span className="rdv-primary-action rdv-primary-action--blue mt-auto w-full">
-                Escolher KM <ChevronRight size={17} strokeWidth={2.2} aria-hidden="true"/>
-              </span>
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={()=>showSheet('km')} className="rdv-figma-card">
+              <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
+              <strong className="rdv-figma-card-title">Por km</strong><small className="rdv-figma-card-detail">Escolha a distância</small>
             </button>
-            <button type="button" onClick={()=>showSheet('hours')}
-              className="rdv-choice-card group bg-gradient-to-br from-[#eafaf3] to-white border border-[#bde7d5] rounded-[20px] p-3 min-h-[158px] flex flex-col items-start gap-2 text-left shadow-[0_5px_16px_#19765e0b]">
-              <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center" aria-hidden="true">
-                <Clock3 size={21} strokeWidth={2.2}/>
-              </span>
-              <strong className="text-emerald-800 text-[16px] font-semibold block tracking-tight">Por tempo</strong>
-              <span className="rdv-primary-action rdv-primary-action--green mt-auto w-full">
-                Escolher horas <ChevronRight size={17} strokeWidth={2.2} aria-hidden="true"/>
-              </span>
+            <button type="button" onClick={()=>showSheet('hours')} className="rdv-figma-card">
+              <span className="rdv-figma-card-icon"><Clock3 size={20} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
+              <strong className="rdv-figma-card-title">Por horas</strong><small className="rdv-figma-card-detail">Escolha a duração</small>
             </button>
           </div>
           <button type="button" aria-label="Comboio" onClick={()=>setShowConvoyActions(true)}
@@ -377,7 +373,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/55 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
-      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`bg-white rounded-t-[30px] w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden shadow-2xl`}>
+      <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`rdv-figma-preview bg-white w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':'max-h-[90dvh]'} overflow-hidden`}>
         <div className="flex justify-end p-4 shrink-0"><button type="button" aria-label="Fechar janela" onClick={closeSheet} className="text-slate-500"><X size={20}/></button></div>
         {preview ? <div className="flex flex-col min-h-0 flex-1">
           <div className="flex-1 min-h-36 rdv-flat-map"><InteractiveMap originCoords={preview.originCoords} destinationCoords={preview.destinationCoords} routePath={preview.routePath} navigationMode={false} blueRoute showFuelStations tolls={preview.tolls||[]} tollVehicleType={props.currentVehicle?.type} stops={preview.stops} className="w-full h-full" /></div>
@@ -386,8 +382,8 @@ export function NavigationHome(props: NavigationHomeProps) {
             {tollNotice && <p role="status" className="text-xs text-amber-800">{tollNotice}</p>}
             {preview.routeWarnings?.map(warning => <p key={warning} className="text-xs text-amber-800">{warning}</p>)}
             {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-            <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{props.onViewTripDetails(preview);setPreview(null);}}>Detalhes</button>
-              <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar</button></div>
+            <div className="flex gap-2"><button className="border border-blue-600 text-blue-700 rounded-xl py-3 flex-1 font-bold text-sm" onClick={()=>{props.onViewTripDetails(preview);setPreview(null);}}>Ajustar</button>
+              <button className="rounded-xl bg-blue-600 text-white py-3 flex-1 font-bold text-sm" onClick={()=>{props.onStartTrip(preview);setPreview(null);}}>Iniciar rolê</button></div>
           </div>
         </div> : sheet==='destination' ? <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
@@ -412,10 +408,8 @@ export function NavigationHome(props: NavigationHomeProps) {
             onChange={e=>sheet==='km'?setKm(e.target.value):setHours(e.target.value)} className={`w-full ${sheet==='km'?'accent-blue-600':'accent-emerald-600'}`}/>
           <div className="grid grid-cols-2 gap-2 text-xs"><button className={`border rounded-xl p-3 ${tripType==='round_trip'?'border-blue-500 bg-blue-50':''}`} onClick={()=>setTripType('round_trip')}>Ida e volta</button><button className={`border rounded-xl p-3 ${tripType==='one_way'?'border-blue-500 bg-blue-50':''}`} onClick={()=>setTripType('one_way')}>Só ida</button></div>
           <div className="grid grid-cols-3 gap-2 text-[11px]">{([['tranquila','Rota tranquila'],['curvas','Mais curvas'],['cidades','Cidades turísticas']] as const).map(([id,label])=><button type="button" key={id} onClick={()=>setPreference(id)} className={`border rounded-xl p-2 ${preference===id?'bg-emerald-50 border-emerald-500 text-emerald-800 font-bold':''}`}>{label}</button>)}</div>
-          <p className="p-3 rounded-xl text-xs text-slate-600 bg-slate-50">Eu monto o trajeto usando sua localização e estradas reais.</p>
           {warning && <p className="text-rose-700 text-xs">{warning}</p>}{validation && <p className="text-rose-700 text-xs">{validation}</p>}{error && <p role="alert" className="text-rose-700 text-xs">{error}</p>}
-          {!props.currentVehicle && <p className="text-xs text-slate-600">Sem login ou veículo cadastrado. O trajeto e o GPS funcionam normalmente; a estimativa de combustível fica indisponível.</p>}
-          <button type="button" disabled={Boolean(validation)||busy} onClick={()=>void submitCircuit()} className={`rounded-xl text-white py-4 w-full font-bold ${sheet==='km'?'bg-blue-600':'bg-emerald-600'} disabled:opacity-50`}>{busy?'Preparando seu rolê...':'Gerar e iniciar rolê'}</button>
+          <button type="button" disabled={Boolean(validation)||busy} onClick={()=>void submitCircuit()} className={`rounded-xl text-white py-4 w-full font-bold ${sheet==='km'?'bg-blue-600':'bg-emerald-600'} disabled:opacity-50`}>{busy?'Preparando seu rolê...':'Ver meu trajeto'}</button>
         </div>}
       </section>
     </div>}
