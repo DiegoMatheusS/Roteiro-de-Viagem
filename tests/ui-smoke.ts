@@ -139,6 +139,23 @@ try {
     await realPreview.getByRole('button',{name:'Rota salva'}).waitFor();
     await realPreview.getByRole('button',{name:'Iniciar rolê'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
+    const navScreen=guestPage.getByLabel('Navegação GPS ativa');
+    await navScreen.locator('.rdv-nav-bottom-actions').waitFor();
+    assert.equal(await navScreen.locator('.rdv-nav-bottom-button').count(),3,
+      'A tela 4 deve exibir somente Encerrar, Compartilhar e SOS no rodapé');
+    const navGeometry=await navScreen.boundingBox();
+    const bottomGeometry=await navScreen.locator('.rdv-nav-bottom').boundingBox();
+    assert.ok(navGeometry&&bottomGeometry&&
+      navGeometry.y<2&&navGeometry.height>=840&&
+      bottomGeometry.y>0.65*844&&bottomGeometry.y<0.85*844,
+      'Navegação deve ocupar toda a tela e reservar um painel compacto inferior');
+    await navScreen.getByRole('button',{name:'Orientações por voz'}).waitFor();
+    if(choice.mode==='km'){
+      await guestPage.screenshot({path:'test-results/figma-tela-4-navegacao.png'});
+      await navScreen.getByRole('button',{name:'Compartilhar',exact:true}).click();
+      const sharing=guestPage.getByRole('dialog',{name:'Compartilhar viagem'});
+      await sharing.getByRole('button',{name:'Fechar compartilhamento'}).click();
+    }
     assert.equal(await guestPage.getByRole('button',{name:'Voltar ao menu e manter viagem ativa'}).count(),0,
       'A tela de navegação não pode manter o cabeçalho branco');
     assert.equal(await guestPage.getByRole('button',{name:'Minimizar navegação'}).count(),0);
@@ -801,7 +818,7 @@ try {
   const runningId = sessionState.runningId;
   assert.ok(runningId);
   await page.getByRole('button', { name: 'Retomar mapa', exact: true }).click();
-  await page.locator('div.fixed.inset-0.z-50').getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
+  await page.locator('.rdv-nav-figma-root').getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Abrir menu' }).click();
