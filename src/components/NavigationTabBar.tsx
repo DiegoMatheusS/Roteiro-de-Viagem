@@ -35,10 +35,27 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
   const initials = signedIn && userName?.trim()
     ? userName.trim().split(/\s+/).slice(0, 2).map(word => word.charAt(0).toLocaleUpperCase('pt-BR')).join('')
     : null;
+  const bottomTabs: { id: MainTabType; label: string; icon: React.ElementType }[] = [
+    { id:'inicio', label:'Início', icon:Map },
+    { id:'passeios', label:'Explorar', icon:Compass },
+    { id:'salvos', label:'Viagens', icon:Bookmark },
+    { id:'ajustes', label:'Perfil', icon:UserRound }
+  ];
   return <>
+    <nav className="rdv-figma-bottom-nav" aria-label="Navegação principal">
+      {bottomTabs.map(tab => {
+        const Icon=tab.icon;
+        const active=activeTab===tab.id;
+        return <button key={tab.id} type="button" aria-label={tab.label} aria-current={active?'page':undefined}
+          onClick={()=>navigate(tab.id)} className={`rdv-figma-bottom-link ${active?'is-current':''}`}>
+          <span className="rdv-figma-bottom-icon"><Icon size={20} strokeWidth={1.7}/></span>
+          <span>{tab.label}</span>
+        </button>;
+      })}
+    </nav>
     <button type="button" aria-label="Abrir menu" aria-expanded={open} aria-controls="role-menu"
       onClick={() => setOpen(true)}
-      className="fixed left-4 top-5 z-[61] w-12 h-12 rounded-full bg-white border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,.13)] flex items-center justify-center text-slate-900 active:scale-95 transition-transform">
+      className="rdv-figma-overflow fixed right-3 top-3 z-[61] w-9 h-9 rounded-full bg-white/90 border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-700 active:scale-95 transition-transform">
       <Menu size={22} strokeWidth={2.1} />
     </button>
     {/* Mantido montado para animar tanto a subida como a descida; oculto da navegação por teclado quando fechado. */}
