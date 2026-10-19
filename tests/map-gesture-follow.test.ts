@@ -63,7 +63,12 @@ test('Leaflet remains the single camera owner and existing follow button resumes
   assert.match(map,/cameraModeChangeRef\.current\?\.\('following'\)/);
   assert.match(map,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
   assert.match(screen,/onCameraModeChange=\{setCameraMode\}/);
-  assert.match(screen,/>Seguir GPS<\/span>/);
+  assert.doesNotMatch(screen,/>Seguir GPS<\\/span>/,
+    'GPS remains an icon-only control while exploring');
+  assert.match(screen,/aria-label="Centralizar mapa na minha localização"/);
+  assert.match(screen,/onClick=\\{\\(\\)=>setCenterRequest\\(v=>v\\+1\\)\\}/);
+  assert.match(screen,/pointer-events-none absolute bottom-24/,
+    'empty floating-control space must not steal map pan and zoom touches');
   assert.match(bridge,/interactive: false/);
   assert.doesNotMatch(map,/vectorMapRef\.current\.(?:jumpTo|easeTo|setBearing)/);
 });
