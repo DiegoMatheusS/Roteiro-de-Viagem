@@ -610,6 +610,7 @@ export default function App() {
           onEndTrip={() => handleEndTrip(activeTrip)}
           onCompleteTrip={handleCompleteTrip}
           onOpenSos={() => setIsSosOpen(true)}
+          onOpenShareModal={(trip)=>setShareTripTarget(trip)}
           onReturnHome={handleReturnHome}
         />
       )}

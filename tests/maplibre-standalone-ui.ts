@@ -295,17 +295,17 @@ try{
   await guidance.getByText('Primeira curva',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Simular volta ao início',exact:true}).click();
   await guidance.getByText('Chegando ao destino',{exact:true}).waitFor();
-  await guidance.getByText('Em 0 metros',{exact:true}).waitFor();
+  await guidance.getByText('0 m',{exact:true}).waitFor();
   assert.equal(await guidance.getByText('Primeira curva',{exact:true}).count(),0);
   await page.getByRole('button',{name:'Simular cruzamento na ida',exact:true}).click();
   await guidance.getByText('Trecho de ida',{exact:true}).waitFor();
-  await guidance.getByText('Vire à direita',{exact:true}).waitFor();
+  await guidance.getByText('À direita',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Simular cruzamento na volta',exact:true}).click();
   await guidance.getByText('Trecho de volta',{exact:true}).waitFor();
-  await guidance.getByText('Vire à esquerda',{exact:true}).waitFor();
+  await guidance.getByText('À esquerda',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Simular fora da rota',exact:true}).click();
-  await guidance.getByText('Continue na rota',{exact:true}).waitFor();
-  assert.equal(await guidance.getByText(/Em .* metros/).count(),0);
+  await guidance.getByText('Siga a rota',{exact:true}).waitFor();
+  assert.equal(await guidance.locator('.rdv-nav-guidance-copy > strong').getByText(/^[0-9]+ m$/).count(),0);
   // Refreshing a different area must not momentarily show stations or places
   // from the previous GPS location while the next provider request is pending.
   const discoveryPage=await browser.newPage();

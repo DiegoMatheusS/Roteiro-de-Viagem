@@ -5,6 +5,8 @@ import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
 import { InteractiveMap } from './InteractiveMap';
 import { Speedometer } from './Speedometer';
+import { VoiceGuidanceControl } from './VoiceGuidanceControl';
+import '../role-navigation-figma.css';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
@@ -23,6 +25,8 @@ import {
   Compass,
   LocateFixed,
   ChevronDown,
+  Share2,
+  ShieldAlert,
   ShieldCheck,
   Award
 } from 'lucide-react';
@@ -38,6 +42,7 @@ interface ActiveTripModalProps {
   onEndTrip: () => void;
   onCompleteTrip: (tripId: string, actualKm: number, verifiedGps: boolean) => { newAchievements: Achievement[]; leveledUp: boolean };
   onOpenSos: () => void;
+  onOpenShareModal: (trip:TripPlan) => void;
   onReturnHome: () => void;
 }
 
@@ -52,6 +57,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   onEndTrip,
   onCompleteTrip,
   onOpenSos,
+  onOpenShareModal,
   onReturnHome
 }) => {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -99,119 +105,126 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900 animate-in fade-in overflow-hidden">
-      {/* Compact navigation prompt: no secondary header over the map. */}
-      <div role="status" aria-label="Próxima orientação de navegação"
-        className="relative z-20 flex min-h-[86px] shrink-0 items-center gap-3 rounded-b-[24px] bg-[#101827] px-4 py-3 pr-[96px] text-white shadow-[0_10px_26px_rgba(15,23,42,.18)]">
-        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl bg-white/10">
-          {nextTurn?.direction === 'left' ? <CornerUpLeft size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'right' ? <CornerUpRight size={32} strokeWidth={2.6} /> : nextTurn?.direction === 'roundabout' ? <RotateCcw size={30} strokeWidth={2.5}/> : nextTurn?.direction === 'arrive' ? <MapPin size={29}/> : <ArrowUp size={32} strokeWidth={2.6}/>}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-slate-300">{nextTurn ? (nextTurn.meters >= 1000 ? `Em ${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km` : `Em ${nextTurn.meters} metros`) : 'Navegação em andamento'}</p>
-          <p className="truncate text-[20px] font-semibold leading-tight tracking-tight">{nextTurn?.text || 'Continue na rota'}</p>
-          {nextTurn?.road && <p className="truncate text-xs text-slate-300">{nextTurn.road}</p>}
-        </div>
-      </div>
-      <button type="button" onClick={onOpenSos} aria-label="SOS" title="SOS - emergência"
-        className="absolute right-3 top-[max(14px,env(safe-area-inset-top))] z-40 flex h-12 min-w-12 items-center justify-center gap-1.5 rounded-2xl border border-white/20 bg-rose-600 px-3 text-white shadow-[0_7px_20px_rgba(190,24,93,.33)] transition-transform active:scale-95">
-        <AlertOctagon size={20} strokeWidth={2.3}/><span className="text-xs font-semibold">SOS</span>
-      </button>
-      {tracking.error && <div role="alert" className="px-4 py-2 text-xs bg-amber-50 text-amber-900 flex items-center justify-between gap-2">{tracking.error}<button onClick={tracking.retry} className="font-bold">Tentar GPS novamente</button></div>}
-
-      {/* MOTORCYCLE RAIN WEATHER ALERT IF APPLICABLE (Requirement #23) */}
-      {(trip.hasRainRisk || trip.weatherPoints.some(p => p.warning)) && vehicle.type === 'motorcycle' && (
-        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-2">
-            <CloudRain className="w-4 h-4 shrink-0" />
-            <span>Atenção: chuva ou tempo adverso no percurso.</span>
-          </div>
-        </div>
-      )}
-
-      {/* MAP AND ROUTE CONTAINER */}
-      <div className="flex-1 relative rdv-flat-map">
+    <div className="rdv-nav-figma-root" aria-label="Navegação GPS ativa">
+      {/* O mapa continua vivo e ocupando a tela toda; a UI não intercepta os gestos. */}
+      <div className="rdv-nav-figma-map rdv-flat-map">
         <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
-          originCoords={trip.originCoords}
-          destinationCoords={trip.destinationCoords}
-          routePath={trip.routePath}
-          navigationMode
+          originCoords={trip.originCoords} destinationCoords={trip.destinationCoords}
+          routePath={trip.routePath} navigationMode roadStyle
           onCameraModeChange={setCameraMode}
-          travelledDistanceKm={distanceTraveledKm}
-          totalRouteKm={trip.distanceKm}
-          stops={trip.stops}
-          weatherPoints={trip.weatherPoints}
-          roadAlerts={roadAlerts.alerts}
-          centerOnUserRequest={centerRequest}
-          tolls={trip.tolls || []}
+          travelledDistanceKm={distanceTraveledKm} totalRouteKm={trip.distanceKm}
+          stops={trip.stops} weatherPoints={trip.weatherPoints} roadAlerts={roadAlerts.alerts}
+          centerOnUserRequest={centerRequest} tolls={trip.tolls||[]}
           tollVehicleType={vehicle.type}
-          userLiveCoords={isGpsActive ? tracking.position?.coords : undefined}
-           userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
-           userSpeedMetersPerSecond={isGpsActive ? tracking.position?.speedMetersPerSecond : null}
+          userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
+          userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
+          userSpeedMetersPerSecond={isGpsActive?tracking.position?.speedMetersPerSecond:null}
           showRainLayer={trip.hasRainRisk}
-          className="w-full h-full"
-        />
-
-        {/* Fixed controls only: all remaining space belongs to map gestures. */}
-        <div className="pointer-events-none absolute bottom-24 right-3 z-30 flex flex-col items-center gap-3">
-          <button type="button" aria-label="Centralizar mapa na minha localização"
-            title={cameraMode==='exploring'?'Voltar a seguir o GPS':'Centralizar GPS'}
-            onClick={()=>setCenterRequest(v=>v+1)} disabled={!isGpsActive}
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 text-blue-700 shadow-[0_6px_20px_rgba(15,23,42,.18)] transition-transform active:scale-95 disabled:opacity-60">
-            <LocateFixed size={23} strokeWidth={2.2}/>
-          </button>
-          <div className="pointer-events-auto">
-            <RoadAlertReporter location={isGpsActive ? tracking.position : null} speedKmH={currentSpeed}
-              onSubmitted={() => { void roadAlerts.reload(); }} />
-          </div>
-        </div>
-        {upcoming && <div role="status" className="pointer-events-none absolute left-3 right-[75px] top-3 z-30 max-w-[300px] rounded-[18px] border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-semibold text-amber-950 shadow-md">
-          {ROAD_ALERT_TYPES.find(type => type.id === upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
-        </div>}
-
-        {/* Velocímetro com limite explícito da via (ou estado neutro). */}
-        <Speedometer position={isGpsActive ? tracking.position : null}
-          className="absolute bottom-3 left-3 z-30" />
+          className="w-full h-full"/>
       </div>
 
-      {/* Compact native-like bottom dock. Weather and tolls live here, never over the map. */}
-      <div className="z-20 shrink-0 space-y-3 rounded-t-[24px] border-t border-slate-200/80 bg-white px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,.10)]">
-        <div className={`grid gap-2 text-center ${nextStop?'grid-cols-3':'grid-cols-2'}`}>
-          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
-            <span className="block text-[10px] font-medium text-slate-500">RESTANTE</span>
-            <strong className="block text-[16px] font-semibold tabular-nums text-slate-900">{remainingKm.toFixed(1)} km</strong>
-          </div>
-          <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
-            <span className="block text-[10px] font-medium text-slate-500">TEMPO RESTANTE</span>
-            <strong className="block text-[16px] font-semibold tabular-nums text-emerald-700">~{Math.max(0, Math.round(remainingKm / Math.max(trip.distanceKm, 0.001) * trip.durationMinutes))} min</strong>
-          </div>
-          {nextStop && <div className="min-w-0 rounded-[18px] border border-slate-200/80 bg-slate-50 px-2 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,.04)]">
-            <span className="block text-[10px] font-medium text-slate-500">PRÓXIMA PARADA</span>
-            <strong className="block truncate text-[13px] font-semibold text-slate-900">{nextStop.name}</strong>
-          </div>}
-        </div>
-        <button type="button" aria-label="Detalhes de clima e pedágios" aria-expanded={showRouteDetails}
-          onClick={()=>setShowRouteDetails(value=>!value)}
-          className="flex min-h-9 w-full items-center justify-between rounded-xl px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50">
-          <span className="flex items-center gap-2"><CloudRain size={16}/> Clima e pedágios</span>
-          <ChevronDown size={17} className={`transition-transform duration-200 ${showRouteDetails?'rotate-180':''}`}/>
+      <div role="status" aria-label="Próxima orientação de navegação"
+        className="rdv-nav-guidance">
+        <span aria-hidden="true" className="rdv-nav-guidance-icon">
+          {nextTurn?.direction==='left'?<CornerUpLeft size={34} strokeWidth={1.5}/>:
+            nextTurn?.direction==='right'?<CornerUpRight size={34} strokeWidth={1.5}/>:
+            nextTurn?.direction==='roundabout'?<RotateCcw size={34} strokeWidth={1.5}/>:
+            nextTurn?.direction==='arrive'?<MapPin size={33} strokeWidth={1.5}/>:
+            <ArrowUp size={35} strokeWidth={1.5}/>}
+        </span>
+        <span className="rdv-nav-guidance-copy">
+          <strong>{nextTurn?
+            (nextTurn.meters>=1000?`${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km`:`${nextTurn.meters} m`):
+            isGpsActive?'Na rota':'Aguardando GPS'}</strong>
+          <span>{nextTurn?<>
+            <span>{nextTurn.direction==='right'?'À direita':nextTurn.direction==='left'?'À esquerda':
+              nextTurn.direction==='roundabout'?'Na rotatória':
+              nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente'}</span>
+            {nextTurn.road&&<> na <span>{nextTurn.road}</span></>}
+          </>:isGpsActive?'Siga a rota':'Ative a localização para receber instruções'}</span>
+        </span>
+      </div>
+      <div className="rdv-nav-gps-status" aria-live="polite">
+        <span aria-hidden="true">ⓘ</span>
+        {isGpsActive?'GPS ativo · localização ao vivo':
+          tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
+      </div>
+      {tracking.error&&<button type="button" onClick={tracking.retry}
+        className="rdv-nav-retry">Tentar GPS novamente</button>}
+      {(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&
+        <div className="rdv-nav-rain-warning" role="status">
+          <CloudRain size={17}/> Atenção: condições de chuva no percurso.
+        </div>}
+
+      {upcoming&&<div role="status" className="rdv-nav-upcoming-alert">
+        {ROAD_ALERT_TYPES.find(type=>type.id===upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
+      </div>}
+
+      <div className="rdv-nav-left-controls">
+        <Speedometer position={isGpsActive?tracking.position:null}/>
+      </div>
+      <div className="rdv-nav-right-controls">
+        <VoiceGuidanceControl guidance={nextTurn}/>
+        <button type="button" aria-label="Centralizar mapa na minha localização"
+          title={cameraMode==='exploring'?'Voltar a seguir o GPS':'Centralizar GPS'}
+          onClick={()=>setCenterRequest(v=>v+1)} disabled={!isGpsActive}
+          className="rdv-nav-map-button">
+          <LocateFixed size={21} strokeWidth={1.9}/><span>Centrar</span>
         </button>
-        {showRouteDetails && <div className="max-h-[32dvh] space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-2">
-          <RouteConditionsStatus trip={trip} conditions={conditions}/>
-          <button type="button" onClick={()=>setShowHomeConfirm(true)}
-            className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-medium text-blue-700 shadow-sm"><Home size={17}/> Traçar rota para casa</button>
-        </div>}
-        <div className="grid grid-cols-2 gap-3">
-          <button type="button" onClick={() => setShowEndConfirm(true)}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-700 shadow-[0_3px_12px_rgba(15,23,42,.05)]">
-            <PowerOff size={18}/> Encerrar viagem
+      </div>
+
+      {/* Painel inferior da referência: ETA calculada, distância restante e três ações. */}
+      <div className="rdv-nav-bottom">
+        <div className="rdv-nav-trip-progress">
+          <div className="rdv-nav-left-stat">
+            <strong>{Math.max(0,Math.round(
+              remainingKm/Math.max(trip.distanceKm,0.001)*trip.durationMinutes))} min</strong>
+            <span>{remainingKm.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} km restantes</span>
+          </div>
+          <button type="button" aria-label="Detalhes de clima e pedágios"
+            aria-expanded={showRouteDetails} onClick={()=>setShowRouteDetails(v=>!v)}
+            className="rdv-nav-eta-stat" title="Ver clima, pedágios e opções da viagem">
+            <strong>{new Date(Date.now()+
+              Math.max(0,Math.round(remainingKm/Math.max(trip.distanceKm,0.001)*trip.durationMinutes))*60000)
+              .toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong>
+            <span>{trip.isCircular?'de volta ao início':'chegada prevista'}</span>
           </button>
-          <button type="button" onClick={() => setShowCompletionDialog(true)}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-[0_5px_16px_rgba(5,150,105,.22)] active:scale-[.99]">
-            <CheckCircle size={19}/> Concluir Viagem
+        </div>
+        <div className="rdv-nav-bottom-actions">
+          <button type="button" aria-label="Encerrar viagem" onClick={()=>setShowEndConfirm(true)}
+            className="rdv-nav-bottom-button">
+            <PowerOff size={16}/> <span>Encerrar</span>
+          </button>
+          <button type="button" onClick={()=>onOpenShareModal(trip)}
+            className="rdv-nav-bottom-button">
+            <Share2 size={16}/> <span>Compartilhar</span>
+          </button>
+          <button type="button" onClick={onOpenSos} aria-label="SOS"
+            className="rdv-nav-bottom-button rdv-nav-sos">
+            <ShieldAlert size={16}/> <span>SOS</span>
           </button>
         </div>
       </div>
 
+      {showRouteDetails&&<div role="region" aria-label="Opções e condições do trajeto"
+        className="rdv-nav-extra-panel">
+        <div className="rdv-nav-extra-heading">
+          <strong>Detalhes do trajeto</strong>
+          <button type="button" aria-label="Fechar detalhes da rota"
+            onClick={()=>setShowRouteDetails(false)}><ChevronDown size={17}/></button>
+        </div>
+        <RouteConditionsStatus trip={trip} conditions={conditions}/>
+        {nextStop&&<p className="text-xs text-slate-700">Próxima parada: {nextStop.name}</p>}
+        <div className="rdv-nav-extra-buttons">
+          <div className="min-w-0"><RoadAlertReporter
+            location={isGpsActive?tracking.position:null} speedKmH={currentSpeed}
+            onSubmitted={()=>{void roadAlerts.reload();}}/></div>
+          <button type="button" onClick={()=>setShowHomeConfirm(true)}
+            className="rdv-nav-extra-action"><Home size={17}/> Traçar rota para casa</button>
+          <button type="button" onClick={()=>setShowCompletionDialog(true)}
+            className="rdv-nav-extra-action"><CheckCircle size={17}/> Concluir Viagem</button>
+        </div>
+      </div>}
       {showEndConfirm && <div role="dialog" aria-modal="true" aria-label="Encerrar viagem" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-5 max-w-sm space-y-4"><h3 className="font-bold">Encerrar esta viagem?</h3><p className="text-sm text-slate-600">A navegação será interrompida e a viagem ficará no histórico como encerrada, sem contabilizar uma conclusão ou medalhas.</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="p-3 border rounded-xl">Continuar viagem</button><button onClick={onEndTrip} className="p-3 bg-rose-700 text-white rounded-xl">Sim, encerrar</button></div></div></div>}
 
       {/* COMPLETION DIALOG (Requirement #7: Updates profile, vehicle, and achievements) */}
