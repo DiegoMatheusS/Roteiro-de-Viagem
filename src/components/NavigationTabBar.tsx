@@ -55,7 +55,7 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
     </nav>}
     <button type="button" aria-label="Abrir menu" aria-expanded={open} aria-controls="role-menu"
       onClick={() => setOpen(true)}
-      className="rdv-figma-overflow fixed right-3 top-3 z-[61] w-9 h-9 rounded-full bg-white/90 border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-700 active:scale-95 transition-transform">
+      className={activeTab==='inicio' ? "rdv-figma-overflow fixed right-3 top-3 z-[61] w-9 h-9 rounded-full bg-white/90 border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-700 active:scale-95 transition-transform" : "fixed left-4 top-5 z-[61] w-12 h-12 rounded-full bg-white border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,.13)] flex items-center justify-center text-slate-900 active:scale-95 transition-transform"}>
       <Menu size={22} strokeWidth={2.1} />
     </button>
     {/* Mantido montado para animar tanto a subida como a descida; oculto da navegação por teclado quando fechado. */}
