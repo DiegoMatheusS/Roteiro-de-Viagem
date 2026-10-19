@@ -1,0 +1,174 @@
+/* Tela 5 — Explorar. Geometria adaptada do PNG original 402 × 874. */
+.rdv-explore-page {
+  position:relative;
+  isolation:isolate;
+  width:100%;
+  height:100dvh;
+  min-height:420px;
+  overflow:hidden;
+  background:#fff;
+  color:#263342;
+  font-family:Inter,system-ui,-apple-system,sans-serif;
+}
+.rdv-explore-header {
+  position:absolute;top:0;left:0;right:0;z-index:18;
+  height:252px;
+  padding:calc(58px + env(safe-area-inset-top,0px)) 20px 0;
+  background:#fff;
+}
+.rdv-explore-header h1 {margin:0;font-size:25px;font-weight:700;line-height:1.13;letter-spacing:-.035em;}
+.rdv-explore-header > p:not(.rdv-explore-search-note) {
+  margin:8px 0 0;color:#687b8d;font-size:14px;font-weight:400;
+}
+.rdv-explore-search {
+  position:relative;display:flex;align-items:center;gap:14px;
+  width:100%;height:54px;
+  padding:0 14px 0 16px;margin-top:14px;
+  border:1px solid #e0e5ed;border-radius:12px;
+  background:#fff;box-shadow:0 3px 11px #273b5010;
+}
+.rdv-explore-search > svg {flex-shrink:0;color:#3068ef;}
+.rdv-explore-search input {
+  width:100%;min-width:0;flex:1;background:transparent;
+  border:0;outline:0;font-size:15px;font-weight:450;
+  color:#263342;appearance:none;
+}
+.rdv-explore-search input::placeholder {color:#273241;opacity:1;}
+.rdv-explore-search input::-webkit-search-cancel-button {display:none;}
+.rdv-explore-search button {
+  flex:0 0 24px;display:grid;place-items:center;
+  background:transparent;color:#8a98a7;padding:2px;
+}
+.rdv-explore-filters {
+  display:flex;align-items:center;gap:8px;margin-top:12px;
+  white-space:nowrap;overflow-x:auto;scrollbar-width:none;
+}
+.rdv-explore-filters::-webkit-scrollbar {display:none;}
+.rdv-explore-filters button {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:42px;padding:0 14px;flex-shrink:0;
+  border-radius:100px;border:1px solid #e2e7ed;
+  background:#fff;color:#2e3d4c;
+  font-size:13px;font-weight:600;
+}
+.rdv-explore-filters button.is-selected {
+  border-color:#2660ed;background:#eaf0ff;color:#205df1;
+}
+.rdv-explore-search-note {
+  margin:2px 0;position:absolute;right:20px;top:185px;
+  padding:3px 8px;border-radius:7px;background:#fff4dc;
+  font-size:10px;color:#8a5715;
+}
+.rdv-explore-map {
+  position:absolute;top:252px;left:0;right:0;height:220px;z-index:1;
+  background:#e9efe7;overflow:hidden;
+}
+.rdv-explore-distance-badge {
+  position:absolute;z-index:5;top:46%;left:53%;
+  display:flex;align-items:center;gap:7px;transform:translate(-50%,-50%);
+  padding:7px 11px;white-space:nowrap;
+  border-radius:99px;background:#2862e9;color:#fff;
+  box-shadow:0 4px 10px #184ec01c;
+  font-size:12px;font-weight:700;pointer-events:none;
+}
+.rdv-explore-sheet {
+  position:absolute;
+  top:50.2dvh;left:0;right:0;
+  bottom:calc(76px + env(safe-area-inset-bottom,0px));
+  z-index:20;
+  border-radius:24px 24px 0 0;
+  background:#fff;
+  padding:31px 20px 0;
+  box-shadow:0 -3px 12px #1a35430b;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.rdv-explore-sheet-handle {
+  position:absolute;top:9px;left:calc(50% - 17px);
+  height:4px;width:34px;border-radius:99px;background:#dfe4e9;
+}
+.rdv-explore-sheet-title {
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:9px;margin-bottom:20px;flex-shrink:0;
+}
+.rdv-explore-sheet-title h2 {margin:0;font-size:20px;letter-spacing:-.025em;font-weight:700;line-height:1.2;}
+.rdv-explore-sheet-title span {
+  font-size:11px;color:#738396;white-space:nowrap;
+}
+.rdv-explore-list {flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;}
+.rdv-explore-route-row {
+  position:relative;
+  display:flex;align-items:center;gap:14px;
+  min-height:115px;padding:0 1px 15px;
+  margin-bottom:16px;border-bottom:1px solid #e4e9ee;
+}
+.rdv-explore-route-row > img {
+  flex:0 0 100px;height:100px;width:100px;min-width:100px;
+  object-fit:cover;border-radius:9px;background:#e4ece7;
+}
+.rdv-explore-route-copy {
+  flex:1;min-width:0;align-self:stretch;
+  display:flex;flex-direction:column;align-items:flex-start;
+  padding-top:3px;padding-right:13px;
+}
+.rdv-explore-route-category {
+  color:#2664f0;font-size:10px;line-height:1.4;font-weight:700;
+}
+.rdv-explore-route-copy h3 {
+  color:#263341;font-size:16px;line-height:1.25;
+  font-weight:700;letter-spacing:-.015em;
+  margin:10px 0 6px;
+  overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+}
+.rdv-explore-route-copy p {
+  margin:0;color:#6b7c8c;font-size:11px;
+  line-height:1.4;white-space:nowrap;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.rdv-explore-route-cta {
+  display:flex;align-items:center;gap:6px;min-width:0;
+  padding:0;margin-top:auto;
+  background:transparent;color:#263341;font-size:12px;font-weight:550;
+  white-space:nowrap;
+}
+.rdv-explore-chevron {color:#2660ee;flex-shrink:0;}
+.rdv-explore-route-cta:disabled {opacity:.6;}
+.rdv-explore-bookmark {
+  position:absolute;right:0;top:2px;
+  padding:2px;color:#8594a4;background:transparent;
+}
+.rdv-explore-bookmark:disabled {opacity:.5;}
+.rdv-explore-alert {
+  flex-shrink:0;margin:-8px 0 10px;padding:7px;
+  background:#fff1f2;color:#9f1239;border-radius:9px;font-size:12px;
+}
+.rdv-explore-gps-hint {
+  display:flex;align-items:center;gap:8px;flex-shrink:0;margin:-8px 0 10px;
+  padding:7px;border-radius:9px;background:#fff8ec;
+}
+.rdv-explore-gps-hint p {flex:1;min-width:0;font-size:11px;color:#835b1d;margin:0;}
+.rdv-explore-gps-hint button {font-size:11px;font-weight:700;color:#235ddd;}
+.rdv-explore-empty {
+  min-height:170px;padding:24px 12px;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:10px;text-align:center;color:#778597;
+}
+.rdv-explore-empty strong {font-size:14px;color:#334155;}
+.rdv-explore-empty p {font-size:12px;max-width:280px;}
+.rdv-explore-empty button {color:#265de9;font-size:13px;font-weight:700;}
+.rdv-explore-page button:focus-visible,
+.rdv-explore-page input:focus-visible {outline:2px solid #265de9;outline-offset:2px;}
+@media (max-height:760px) {
+  .rdv-explore-header {height:231px;padding-top:calc(39px + env(safe-area-inset-top,0px));}
+  .rdv-explore-map {top:231px;}
+  .rdv-explore-sheet {top:49dvh;}
+  .rdv-explore-sheet-title {margin-bottom:14px;}
+}
+@media (max-width:360px) {
+  .rdv-explore-header,.rdv-explore-sheet {padding-left:14px;padding-right:14px;}
+  .rdv-explore-route-row {gap:10px;}
+  .rdv-explore-route-row > img {width:87px;min-width:87px;flex-basis:87px;height:90px;}
+  .rdv-explore-route-copy h3 {font-size:14px;}
+  .rdv-explore-filters {gap:5px;}
+  .rdv-explore-filters button {padding-inline:11px;}
+}
