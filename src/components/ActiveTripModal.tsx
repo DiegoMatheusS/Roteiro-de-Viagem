@@ -136,12 +136,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           <strong>{nextTurn?
             (nextTurn.meters>=1000?`${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km`:`${nextTurn.meters} m`):
             isGpsActive?'Siga a rota':'Aguardando GPS'}</strong>
-          <span>{nextTurn?
-            (nextTurn.direction==='right'?'À direita':nextTurn.direction==='left'?'À esquerda':
+          <span>{nextTurn?<>
+            <span>{nextTurn.direction==='right'?'À direita':nextTurn.direction==='left'?'À esquerda':
               nextTurn.direction==='roundabout'?'Na rotatória':
-              nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente')+
-              (nextTurn.road?` na ${nextTurn.road}`:''):
-            isGpsActive?'Acompanhe o caminho no mapa':'Ative a localização para receber instruções'}</span>
+              nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente'}</span>
+            {nextTurn.road&&<> na <span>{nextTurn.road}</span></>}
+          </>:isGpsActive?'Siga a rota':'Ative a localização para receber instruções'}</span>
         </span>
       </div>
       <div className="rdv-nav-gps-status" aria-live="polite">
