@@ -25,6 +25,7 @@ import { draggedHomeSheetHeight, HOME_SHEET_EXPANDED_HEIGHT, type HomeSheetStage
 import { destinationExploreKey } from '../services/destinationIdentity';
 import { CreateConvoyModal } from './CreateConvoyModal';
 import { ConvoyActionModal } from './ConvoyActionModal';
+import { CreateTouristCircuitScreen } from './CreateTouristCircuitScreen';
 
 interface NavigationHomeProps {
   currentVehicle: Vehicle | null;
@@ -374,7 +375,18 @@ export function NavigationHome(props: NavigationHomeProps) {
       selectedRouteId={displayRoute?.selectedId}
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
-    {(sheet!==null || preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/10 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
+    {(sheet==='km'||sheet==='hours') && !preview && <CreateTouristCircuitScreen
+      mode={sheet} km={km} hours={hours} vehicle={props.currentVehicle} coords={liveCoords}
+      tripType={tripType} preference={preference} busy={busy}
+      warning={warning} validation={validation} error={error}
+      onClose={closeSheet} onModeChange={setSheet}
+      onKmChange={setKm} onHoursChange={setHours} onStep={stepValue}
+      onTripTypeChange={()=>setTripType(value=>value==='round_trip'?'one_way':'round_trip')}
+      onPreferenceChange={setPreference}
+      onOpenVehicle={()=>{closeSheet();props.onOpenProfile();}}
+      onSubmit={()=>void submitCircuit()}
+    />}
+    {(sheet==='destination'||preview!==null) && <div role="presentation" className="fixed inset-0 z-[70] bg-slate-950/10 flex items-end" onMouseDown={event=>{if(event.target===event.currentTarget)closeSheet();}}>
       <section role="dialog" aria-modal="true" aria-label={preview?'Visualizar viagem':sheet==='destination'?'Escolher origem e destino':'Criar um rolê'} className={`rdv-figma-preview bg-white w-full max-w-xl mx-auto flex flex-col ${preview?'h-[88dvh]':sheet==='destination'?'min-h-[56dvh] max-h-[75dvh]':'h-[63dvh]'} overflow-hidden`}>
         {preview ? <header className="flex items-center gap-3 p-4 bg-white shrink-0 text-slate-900 border-b border-slate-100">
           <button type="button" aria-label="Fechar janela" onClick={()=>setPreview(null)} className="w-8 h-8 flex items-center justify-center"><X size={20}/></button>
@@ -404,50 +416,6 @@ export function NavigationHome(props: NavigationHomeProps) {
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
           {!props.currentVehicle && <button type="button" className="text-xs font-bold underline text-blue-700" onClick={()=>{closeSheet();props.onOpenProfile();}}>Cadastrar meu veículo no Perfil</button>}
           <button type="button" onClick={()=>void submitDestination()} disabled={busy || !dest.coords || (!useGps && !origin.coords)} className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button>
-        </div> : <div className="p-5 pt-1 space-y-5 overflow-y-auto">
-          <h2 className="font-semibold text-[19px]">Quanto você quer rodar?</h2>
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-1 text-[12px]">
-            <button type="button" onClick={()=>setSheet('km')} className={`py-2 flex-1 rounded-full font-bold ${sheet==='km'?'bg-blue-600 text-white':'text-slate-600'}`}>Distância · km</button>
-            <button type="button" onClick={()=>setSheet('hours')} className={`py-2 flex-1 rounded-full font-bold ${sheet==='hours'?'bg-blue-600 text-white':'text-slate-600'}`}>Duração · horas</button>
-          </div>
-          <div className="flex gap-3 items-center justify-center">
-            <button type="button" aria-label="Diminuir quantidade" className="bg-white border border-slate-200 rounded-full w-10 h-10" onClick={()=>stepValue(false)}>−</button>
-            <label className="flex items-baseline gap-1"><input type="text" inputMode="decimal" aria-label={sheet==='km'?'Quantidade de quilômetros':'Quantidade de horas'} className="text-center font-semibold text-[38px] w-24 outline-none tabular-nums" value={currentValue} onChange={e=>sheet==='km'?setKm(e.target.value):setHours(e.target.value)}/><span className="text-sm text-slate-500">{sheet==='km'?'km':'h'}</span></label>
-            <button type="button" aria-label="Aumentar quantidade" className="bg-white border border-slate-200 rounded-full w-10 h-10" onClick={()=>stepValue(true)}>+</button>
-          </div>
-          <div className="flex items-center justify-center gap-2">
-            {(sheet==='km'?[10,20,30,50]:[1,2,3,4]).map(value=><button key={value} type="button"
-              onClick={()=>sheet==='km'?setKm(String(value)):setHours(String(value))}
-              className={`px-3 min-h-9 rounded-full border text-xs ${parseTouristTarget(currentValue)===value?'border-blue-500 bg-blue-50 text-blue-600':'border-slate-200 text-slate-700'}`}>
-              {value} {sheet==='km'?'km':'h'}
-            </button>)}
-          </div>
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <strong className="font-semibold text-slate-700">Vou de</strong>
-            <div className="flex gap-2">
-              <button type="button" onClick={props.onOpenProfile} className="rdv-figma-mode is-current">{props.currentVehicle?.type==='car'?'Carro':'Moto'}</button>
-              <button type="button" onClick={()=>setError('O modo a pé ainda não é suportado pelo cálculo de rotas.')} className="rdv-figma-mode">A pé</button>
-            </div>
-          </div>
-          <button type="button" role="switch" aria-checked={tripType==='round_trip'}
-            onClick={()=>setTripType(previous=>previous==='round_trip'?'one_way':'round_trip')}
-            className="flex items-center gap-3 w-full text-left">
-            <Route size={18} className="text-blue-600"/><span className="flex-1 min-w-0"><strong className="block text-sm text-slate-800">Voltar ao ponto de partida</strong>
-              <small className="text-[11px] text-slate-500">Um circuito, sem precisar de destino.</small></span>
-            <span className={`w-12 h-7 flex items-center rounded-full p-1 transition-colors ${tripType==='round_trip'?'bg-blue-600':'bg-slate-300'}`}>
-              <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${tripType==='round_trip'?'translate-x-5':'translate-x-0'}`}/>
-            </span>
-          </button>
-          <details className="text-xs text-slate-500"><summary className="cursor-pointer">Preferências do trajeto</summary>
-            <div className="space-y-3 pt-3">
-              <input aria-label="Ajustar distância ou tempo" type="range" min={sheet==='km'?1:0.5} max={sheet==='km'?500:12} step={sheet==='km'?1:0.5} value={Math.max(sheet==='km'?1:0.5,Math.min(sheet==='km'?500:12,parseTouristTarget(currentValue)||1))}
-                onChange={e=>sheet==='km'?setKm(e.target.value):setHours(e.target.value)} className="w-full accent-blue-600"/>
-              <div className="grid grid-cols-3 gap-2">{([['tranquila','Rota tranquila'],['curvas','Mais curvas'],['cidades','Cidades turísticas']] as const).map(([id,label])=><button type="button" key={id} onClick={()=>setPreference(id)} className={`border rounded-xl p-2 ${preference===id?'bg-blue-50 border-blue-500 text-blue-800 font-bold':''}`}>{label}</button>)}</div>
-            </div>
-          </details>
-          {warning && <p className="text-rose-700 text-xs">{warning}</p>}{validation && <p className="text-rose-700 text-xs">{validation}</p>}{error && <p role="alert" className="text-rose-700 text-xs">{error}</p>}
-          <button type="button" disabled={Boolean(validation)||busy} onClick={()=>void submitCircuit()} className={`rounded-xl text-white py-4 w-full font-bold ${sheet==='km'?'bg-blue-600':'bg-blue-600'} disabled:opacity-50`}>{busy?'Preparando seu rolê...':'Ver meu trajeto'}</button>
-          <p className="text-center text-[11px] text-slate-500">Distância e tempo aproximados.</p>
         </div>}
       </section>
     </div>}
