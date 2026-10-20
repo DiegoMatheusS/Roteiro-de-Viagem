@@ -182,7 +182,7 @@ export function RoadAlertReporter({
               onClick={()=>{setOpen(false);cancelSwipe();}}><X size={22}/></button>
           </div>
           <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            Somente com o veículo parado em local seguro. Não use o celular dirigindo.
+            Pare em segurança antes de alertar. Não use o celular dirigindo.
           </p>
           {!location&&<p role="alert" className="text-sm text-amber-800">GPS indisponível. Ative a localização precisa.</p>}
           {moving&&<p role="alert" className="text-sm text-rose-700">Veículo em movimento. Envio bloqueado.</p>}
