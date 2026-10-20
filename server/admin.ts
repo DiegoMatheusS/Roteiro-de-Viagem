@@ -58,7 +58,7 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
       throw new ApiError('O raio de busca deve estar entre 1 e 120 km.');
     // Catálogo turístico amplo: um único ponto por tela Explorar, limite de resultados.
     const points = validate(() => validateCoordinates(req.body.points, radiusKm > 10 ? 3 : 25));
-    const places = nearbyPlaceRows(db, points, radiusKm).filter(place => place.kind !== 'fuel')
+    const places = nearbyPlaceRows(db, points, radiusKm, true)
       .sort((a,b) => Number(b.managed) - Number(a.managed) ||
         distanceBetweenKm(points[0],[a.lat,a.lng]) - distanceBetweenKm(points[0],[b.lat,b.lng]))
       .slice(0, 150).map(placeDto);
