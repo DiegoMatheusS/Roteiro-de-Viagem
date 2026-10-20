@@ -100,6 +100,22 @@ test('sem atrações, gera apenas percurso rodoviário verificado e sem paradas 
     assert.deepEqual(result.stops, []);
     assert.ok(result.routePath.length >= 2);
     assert.ok(result.warnings.some((warning: string) => warning.includes('sem atrações') || warning.includes('Não foram incluídas atrações')));
+    const alternateResponse = await fetch(`http://127.0.0.1:${(server.address() as any).port}/api/routes/tourist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode:'km', target:30, tripType:'round_trip',
+        originCoords:[0,0], interests:[], avoidWaypoints:[result.waypoints] })
+    });
+    assert.equal(alternateResponse.status,200);
+    const alternative = await alternateResponse.json() as any;
+    assert.notDeepEqual(alternative.waypoints,result.waypoints,
+      'Pedir outra rota deve retornar diferentes pontos de passagem em estradas reais');
+    assert.equal(alternative.routingSource,'OSRM');
+    const invalidResponse = await fetch(`http://127.0.0.1:${(server.address() as any).port}/api/routes/tourist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode:'km', target:30, tripType:'round_trip',
+        originCoords:[0,0], interests:[], avoidWaypoints:[[[200,0],[0,0]]] })
+    });
+    assert.equal(invalidResponse.status,400,'Não aceitar coordenadas inválidas no histórico');
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     db.close();
