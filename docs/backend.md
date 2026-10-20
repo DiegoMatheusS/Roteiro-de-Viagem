@@ -55,3 +55,49 @@ dados pessoais. Não usar endereços privados para treinar recomendações globa
 sem consentimento específico. Para eliminar de fato a dependência de terceiros em
 escala, será necessário hospedar dados OSM e um serviço próprio de geocodificação e
 roteamento, respeitando os termos e atribuição de dados do OSM e provedores.
+
+
+## Catálogo regional de turismo (OpenStreetMap)
+
+O Rolê suporta importação de **locais reais** em 31 regiões do Brasil:
+parques, reservas naturais, cachoeiras, museus, galerias, teatros,
+monumentos, praias, mirantes e **estradas marcadas como cênicas** no OSM.
+A região é uma área de busca de aproximadamente 35 km ao redor de cada centro;
+**não representa um cadastro completo do município, estado ou Brasil**.
+A presença no OSM não garante acesso de carro/moto, abertura ou segurança:
+sempre confira condições de acesso, horários e sinalização.
+
+Para carregar uma região, com o backend parado ou em um banco de preparação:
+
+```bash
+npm ci
+npm run tourism:import -- --region=sao-paulo --db=./data/roteiro.sqlite
+npm run tourism:import -- --region=rio-de-janeiro --db=./data/roteiro.sqlite
+npm run tourism:import -- --region=serra-gaucha --db=./data/roteiro.sqlite
+```
+
+`npm run tourism:import` sem parâmetros lista as regiões suportadas.
+Também é possível usar `--db=/caminho/roteiro.sqlite` para **um banco separado**
+de preparação, sem tocar na produção. Os scripts não se conectam ao Railway
+nem ao Cloudflare automaticamente. **Não substitua o SQLite de produção por
+esse banco local**, porque ele não contém usuários nem viagens existentes.
+Depois da normalização do Railway, execute a importação no mesmo volume de
+dados, depois de fazer um backup e conferir o caminho `DATABASE_PATH`.
+A importação não deve ser executada em paralelo a uma segunda escrita.
+
+Cada consulta Overpass é limitada a 40 km, 500 elementos e 30 s de timeout;
+execute regiões separadamente e respeite a capacidade do serviço público.
+Falhas externas não apagam o banco. Os itens importados recebem ID e link
+para o elemento OSM de origem, `managed=0`, permanecem ativos no catálogo
+e alimentam `stations` e `locations`; atualizações **não sobrescrevem**
+local desativado ou gerenciado pelo Admin.
+
+Na aba Explorar, a busca de atrações passa a consultar até 120 km (no máximo
+150 itens retornados), e a pesquisa usual de postos/mapa mantém o raio padrão
+de 5 km. O cálculo efetivo das rotas continua dependendo do OSRM;
+importar o ponto geográfico **não cria automaticamente** uma estrada transitável
+ou um roteiro verificado. Para estradas cênicas, a posição OSM é apenas
+uma referência, não a geometria completa da estrada.
+
+Dados de origem: contribuidores do OpenStreetMap (ODbL);
+atribuição: https://www.openstreetmap.org/copyright.
