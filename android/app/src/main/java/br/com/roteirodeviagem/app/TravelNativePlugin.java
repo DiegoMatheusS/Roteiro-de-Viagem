@@ -160,6 +160,8 @@ public class TravelNativePlugin extends Plugin {
       JSObject value=new JSObject();value.put("credential",account.getIdToken());call.resolve(value);
     } catch(ApiException error) {
       if(error.getStatusCode()==12501 || error.getStatusCode()==16)call.reject("Login Google cancelado.");
+      else if(error.getStatusCode()==10)
+        call.reject("Login Google não autorizado (código 10). Cadastre no Google Cloud o pacote Android e o SHA-1 da assinatura deste APK. Builds debug do CI precisam de chave persistente.");
       else call.reject("Falha ao entrar com Google (código "+error.getStatusCode()+"). Confira a configuração OAuth e o SHA-1 da assinatura.");
     } catch(Exception error){call.reject("Não foi possível autenticar com Google.");}
   }
