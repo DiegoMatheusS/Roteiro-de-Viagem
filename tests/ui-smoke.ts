@@ -284,7 +284,7 @@ try {
     await guestPage.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
   }
-  assert.deepEqual(modes,['km','hours']);
+  assert.deepEqual(modes,['km','km','hours'], 'A opção Outra rota refaz a busca por KM antes do teste por horas');
   assert.deepEqual(guestErrors,[]);
   await guestContext.close();
   // Um único botão Comboio abre a escolha Criar/Entrar sem sair do Início.
