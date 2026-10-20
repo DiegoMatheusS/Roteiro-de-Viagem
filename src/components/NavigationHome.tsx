@@ -21,7 +21,7 @@ import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
-import { draggedHomeSheetHeight, HOME_SHEET_EXPANDED_HEIGHT, type HomeSheetStage } from '../services/homeSheetSizing';
+import { draggedHomeSheetHeight, type HomeSheetStage } from '../services/homeSheetSizing';
 import { destinationExploreKey } from '../services/destinationIdentity';
 import { CreateConvoyModal } from './CreateConvoyModal';
 import { ConvoyActionModal } from './ConvoyActionModal';
@@ -235,7 +235,6 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
-  const sheetHeight=sheetDragHeight || (collapsed?'64px':sheetExpanded?HOME_SHEET_EXPANDED_HEIGHT:'228px');
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
