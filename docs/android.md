@@ -13,6 +13,23 @@ O endereço padrão é `https://roteiro-api-production.up.railway.app`; `RDV_API
 
 O pacote de teste tem nome **Roteiro de Viagem (Teste)** e ID `br.com.roteirodeviagem.app.debug`. Ele pode coexistir com o pacote release. Builds debug de máquinas diferentes podem ter assinaturas diferentes; para atualizar a mesma instalação, use a mesma chave debug. Não desinstale um app com alterações offline pendentes antes de sincronizar seus dados.
 
+### Corrigir login Google (erro 10 / DEVELOPER_ERROR)
+
+O login nativo usa `requestIdToken(GOOGLE_CLIENT_ID)` com **OAuth Client ID do tipo Web** configurado no backend. Além dele, o projeto no **Google Cloud Console → APIs e serviços → Credenciais** precisa de um OAuth Client ID do tipo **Android** para cada pacote/assinatura:
+
+- APK debug de testes: pacote `br.com.roteirodeviagem.app.debug` + **SHA-1** do certificado que assinou o APK instalado.
+- APK release: pacote `br.com.roteirodeviagem.app` + **SHA-1** da chave de release (ou da chave de assinatura da Play Store, se a loja reassinar).
+
+**Importante:** o APK debug gerado pelo GitHub Actions normalmente tem uma chave temporária por runner. Registrar apenas o SHA-1 de um APK antigo não resolve os próximos. Para tornar o APK de teste estável, configure os quatro secrets `RDV_KEYSTORE_BASE64`, `RDV_STORE_PASSWORD`, `RDV_KEY_ALIAS` e `RDV_KEY_PASSWORD` com a **mesma chave persistente** usada no fluxo de assinatura do proprietário. Em `main` e em execução manual, o workflow passa a assinar o pacote `.debug` com essa chave quando todos os secrets estiverem disponíveis; em PRs, nunca expõe esses secrets. Sem secrets, continua produzindo APK de teste, mas **o login Google pode falhar com código 10**.
+
+Confira o SHA-1 do APK efetivamente instalado com o `apksigner` do Android SDK (Windows, PowerShell):
+
+```powershell
+& "$env:ANDROID_HOME\build-tools\36.0.0\apksigner.bat" verify --print-certs "app-debug.apk"
+```
+
+No Google Cloud, use esse SHA-1 e o pacote **exato**; o tipo Web do `GOOGLE_CLIENT_ID` no Railway deve pertencer ao mesmo projeto OAuth. Não cole chaves privadas, secrets nem senhas no repositório ou na conversa.
+
 No computador: Node 24, JDK 21, Android SDK 36 e Android Studio. PowerShell:
 
 ```powershell
