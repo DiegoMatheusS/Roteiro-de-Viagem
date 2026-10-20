@@ -353,6 +353,25 @@ try {
   await login.getByLabel('Repetir senha', { exact: true }).fill('ui-test-password');
   await login.getByRole('button', { name: 'Criar minha conta' }).click();
   await login.waitFor({ state: 'hidden' });
+  // Tela 7: design Figma, nível real, garagem e acesso às funções detalhadas.
+  const figmaProfile=page.getByRole('region',{name:'Perfil e garagem'});
+  await figmaProfile.getByRole('heading',{name:'Perfil e garagem'}).waitFor();
+  await figmaProfile.getByText('Nível Bronze').waitFor();
+  await figmaProfile.getByLabel('Estatísticas do viajante').getByText('0 km').waitFor();
+  const profileBounds=await figmaProfile.boundingBox();
+  const progressBounds=await figmaProfile.getByRole('region',{name:'Progresso do nível'}).boundingBox();
+  const garageBounds=await figmaProfile.getByRole('button',{name:'Cadastrar meu veículo'}).boundingBox();
+  assert.ok(profileBounds&&progressBounds&&garageBounds&&
+    profileBounds.height>=840&&progressBounds.y>160&&progressBounds.y<300&&
+    garageBounds.y>355&&garageBounds.y<530,
+    'Tela Perfil deve seguir posição do cartão de nível e da garagem no Figma');
+  await page.screenshot({path:'test-results/figma-tela-7-perfil.png'});
+  await figmaProfile.getByRole('button',{name:'Segurança e SOS'}).click();
+  await page.getByText('Central SOS de Emergência').waitFor();
+  await page.getByRole('button',{name:'Voltar ao perfil'}).click();
+  await figmaProfile.getByRole('button',{name:'Configurações'}).click();
+  await page.getByText('Configurações de Privacidade').waitFor();
+  await page.getByRole('button',{name:'Voltar ao perfil'}).click();
   // O cadastro de veículos permanece no Perfil, não na antiga aba inferior.
   await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
