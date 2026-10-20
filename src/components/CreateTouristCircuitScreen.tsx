@@ -27,6 +27,7 @@ interface CreateTouristCircuitScreenProps {
   onPreferenceChange: (preference: CircuitPreference) => void;
   onTravelModeChange: (value: 'car'|'motorcycle') => void;
   onSubmit: () => void;
+  nearbySuggestions?: {id:string;name:string;kind:string;distanceKm:number}[];
 }
 
 /**
@@ -37,7 +38,8 @@ interface CreateTouristCircuitScreenProps {
 export function CreateTouristCircuitScreen({
   mode, km, hours, travelMode, coords, tripType, preference, busy, warning,
   validation, error, onClose, onModeChange, onKmChange, onHoursChange,
-  onStep, onTripTypeChange, onPreferenceChange, onTravelModeChange, onSubmit
+  onStep, onTripTypeChange, onPreferenceChange, onTravelModeChange, onSubmit,
+  nearbySuggestions = []
 }: CreateTouristCircuitScreenProps) {
   const value=mode==='km'?km:hours;
   const options=mode==='km'?[10,20,30,50]:[1,2,3,4];
@@ -94,6 +96,21 @@ export function CreateTouristCircuitScreen({
               {option} {mode==='km'?'km':'h'}
             </button>)}
         </div>
+
+        <section aria-label="Destinos próximos" className="mt-1 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+          <p className="text-[12px] font-semibold text-blue-900">
+            {nearbySuggestions.length?'Pontos próximos para seu rolê':'Passeio pela cidade'}
+          </p>
+          {nearbySuggestions.length?<div className="mt-2 flex gap-2 overflow-x-auto pb-1" data-testid="nearby-tourist-points">
+            {nearbySuggestions.slice(0,3).map(place=><span key={place.id}
+              className="max-w-[185px] shrink-0 rounded-full border border-blue-200 bg-white px-3 py-2 text-[12px] text-slate-800 shadow-sm"
+              title="Distância em linha reta, não distância por estrada">
+              {place.name} · {Math.round(place.distanceKm)} km
+            </span>)}
+          </div>:<p className="mt-1 text-xs text-slate-600">
+            Se não houver pontos próximos disponíveis, vamos procurar ruas reais para passear.
+          </p>}
+        </section>
 
         <div className="rdv-create-vehicle-row">
           <strong>Vou de</strong>
