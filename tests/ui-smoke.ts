@@ -355,8 +355,8 @@ try {
   assert.ok(menuBounds && menuBounds.y<100,
     'Ícones de alerta precisam aparecer no topo do telefone, não ao lado do botão');
   const menuAnimation=await homeReportOptions.evaluate(el=>getComputedStyle(el).animationName);
-  assert.ok(menuAnimation.includes('rdv-alert-slide-to-top'),
-    'Menu de alerta deve animar de baixo para cima');
+  assert.ok(menuAnimation.includes('rdv-alert-drop-down'),
+    'Menu de alerta deve descer de cima para baixo');
   await homeReportOptions.getByRole('menuitem', {name:'Veículo parado / quebrado'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Pedágio'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).click();
