@@ -15,6 +15,9 @@ interface TripPreviewScreenProps {
   onSave: () => void;
   onRegenerate?: () => void;
   regenerating?: boolean;
+  onDragWaypoint?: (point:[number,number])=>void;
+  mapEditing?:boolean;
+  mapEditError?:string;
 }
 
 function formatDistance(distance:number):string {
@@ -29,7 +32,7 @@ function formatDuration(durationMinutes:number):string {
 /** Tela 3/7: visual do Figma, usando dados e geometria da rota verificada. */
 export function TripPreviewScreen({
   trip, vehicleType, isSaved, tollNotice, error, onClose, onAdjust, onStart, onSave,
-  onRegenerate, regenerating = false
+  onRegenerate, regenerating = false, onDragWaypoint, mapEditing=false, mapEditError=''
 }:TripPreviewScreenProps) {
   const [mapExpanded,setMapExpanded]=useState(false);
   const distance=formatDistance(trip.distanceKm);
@@ -58,6 +61,9 @@ export function TripPreviewScreen({
           originCoords={trip.originCoords} destinationCoords={trip.destinationCoords}
           routePath={trip.routePath} navigationMode={false}
           blueRoute showFuelStations={false}
+          editableWaypoint={onDragWaypoint && trip.routePath.length>2?
+            trip.editedWaypoint||trip.routePath[Math.floor(trip.routePath.length/2)]:undefined}
+          onDragWaypoint={mapEditing?undefined:onDragWaypoint}
           stops={trip.stops} tolls={trip.tolls||[]}
           tollVehicleType={vehicleType} className="w-full h-full"/>
       </div>
@@ -70,6 +76,9 @@ export function TripPreviewScreen({
         <Route size={16}/>Trajeto verificado
       </div>
       <div className="rdv-preview-map-stat">{distance} km · {minutes} min</div>
+      {onDragWaypoint && <p className="absolute left-3 top-[31%] z-20 rounded-xl border border-blue-200 bg-white/95 px-3 py-2 text-xs text-blue-800 shadow-md pointer-events-none">
+        {mapEditing?'Recalculando pelas ruas…':'Arraste o ponto azul para mudar o trajeto'}
+      </p>}
       <div className="rdv-preview-map-controls">
         <span className="rdv-preview-origin-label">
           <Navigation2 size={16}/>{trip.isCircular?'Saída e chegada':'Ponto de partida'}
@@ -114,9 +123,10 @@ export function TripPreviewScreen({
         {tollNotice && <p className="rdv-preview-notice" role="status">{tollNotice}</p>}
         {visibleWarnings.map((warning,i)=><p className="rdv-preview-notice" key={i}>{warning}</p>)}
         {error && <p className="rdv-preview-notice" role="alert">{error}</p>}
+        {mapEditError && <p className="rdv-preview-notice" role="alert">{mapEditError}</p>}
         <div className="rdv-preview-actions">
           <button type="button" onClick={onAdjust} className="rdv-preview-adjust">Ajustar</button>
-          <button type="button" onClick={onStart} className="rdv-preview-start">
+          <button type="button" onClick={onStart} disabled={mapEditing} className="rdv-preview-start">
             <Play size={16} fill="currentColor"/> Iniciar rolê
           </button>
         </div>
