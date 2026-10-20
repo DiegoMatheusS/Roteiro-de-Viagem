@@ -1,0 +1,105 @@
+/* O seletor de ocorrência abre no TOPO do celular, com movimento de baixo para cima. */
+.rdv-alert-menu-layer {
+  position:fixed;
+  inset:0;
+  z-index:105;
+  background:rgba(15,23,42,.23);
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  overflow:hidden;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 12px 12px;
+}
+.rdv-alert-top-menu {
+  position:relative;
+  width:min(100%,420px);
+  padding:13px;
+  border-radius:18px;
+  border:1px solid #e4e9f1;
+  background:#fff;
+  box-shadow:0 12px 28px rgba(15,23,42,.19);
+  animation:rdv-alert-slide-to-top 300ms cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes rdv-alert-slide-to-top {
+  from {transform:translateY(42vh);opacity:.2;}
+  to {transform:translateY(0);opacity:1;}
+}
+.rdv-alert-menu-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:28px;
+  padding:0 1px 8px;
+  color:#273445;
+  font-size:15px;
+}
+.rdv-alert-menu-header button {
+  border:0;
+  background:transparent;
+  padding:3px;
+  color:#6b7b89;
+}
+.rdv-alert-icon-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+}
+.rdv-alert-icon-option {
+  min-height:62px;
+  display:grid;
+  place-items:center;
+  border:1px solid #e2e9f1;
+  background:#f9fbfd;
+  border-radius:14px;
+  color:#235ee7;
+}
+.rdv-alert-icon-option:active {background:#eaf0ff;}
+.rdv-alert-icon-option.rdv-alert-icon-toll {color:#12805c;}
+.rdv-alert-confirm {
+  box-shadow:0 12px 32px rgba(0,0,0,.11);
+}
+.rdv-alert-swipe-track {
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:60px;
+  padding:0 60px;
+  overflow:hidden;
+  background:#e7efff;
+  color:#245fe9;
+  border:1px solid #b3c9ff;
+  border-radius:99px;
+  font-weight:700;
+  font-size:14px;
+  cursor:grab;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+}
+.rdv-alert-swipe-track:active {cursor:grabbing;}
+.rdv-alert-swipe-track:disabled {cursor:not-allowed;opacity:.5;}
+.rdv-alert-swipe-copy {pointer-events:none;white-space:nowrap;}
+.rdv-alert-swipe-handle {
+  position:absolute;
+  top:4px;
+  bottom:4px;
+  width:52px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#2762ea;
+  color:#fff;
+  box-shadow:0 2px 7px rgba(17,68,171,.25);
+  pointer-events:none;
+}
+@media (max-width:355px) {
+  .rdv-alert-top-menu {padding:10px;}
+  .rdv-alert-icon-option {min-height:54px;}
+  .rdv-alert-swipe-track {font-size:12px;padding-inline:52px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .rdv-alert-top-menu {animation:none;}
+}
