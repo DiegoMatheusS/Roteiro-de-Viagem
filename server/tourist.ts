@@ -25,6 +25,8 @@ const adminTouristKinds: Record<string, { category: RouteStop['category']; inter
   trail: { category: 'parque', interest: 'natureza' },
   beach: { category: 'parque', interest: 'natureza' },
   museum: { category: 'museu', interest: 'museus' },
+  theatre: { category: 'monumento', interest: 'historico' },
+  scenic_road: { category: 'mirante', interest: 'panoramico' },
   landmark: { category: 'monumento', interest: 'historico' },
   historic: { category: 'monumento', interest: 'historico' },
   attraction: { category: 'monumento', interest: 'historico' }
@@ -88,7 +90,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     // Pontos turísticos aprovados no Admin participam da geração, independentemente do Overpass.
     const localRadiusKm = Math.max(radiusM / 1000, Math.min(240, estimatedKm * (tripType === 'round_trip' ? 0.55 : 1)));
     const adminCandidates: Candidate[] = nearbyPlaceRows(db, [origin], localRadiusKm)
-      .filter((row: any) => row.managed && adminTouristKinds[row.kind] && row.name)
+      .filter((row: any) => adminTouristKinds[row.kind] && row.name)
       .map((row: any) => ({
         id: row.id, name: row.name, coords: [row.lat, row.lng] as Coordinates,
         category: adminTouristKinds[row.kind].category, interest: adminTouristKinds[row.kind].interest,
@@ -103,6 +105,8 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       .map((place): Candidate | null => {
         const mapping: Record<string, { category: RouteStop['category']; interest: Interest }> = {
           museum: { category: 'museu', interest: 'museus' },
+          theatre: { category: 'monumento', interest: 'historico' },
+          scenic_road: { category: 'mirante', interest: 'panoramico' },
           viewpoint: { category: 'mirante', interest: 'panoramico' },
           restaurant: { category: 'restaurante', interest: 'gastronomico' },
           cafe: { category: 'restaurante', interest: 'gastronomico' },
