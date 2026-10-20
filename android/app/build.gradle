@@ -31,7 +31,15 @@ android {
         }
     }
     buildTypes {
-        debug { applicationIdSuffix '.debug'; versionNameSuffix '-debug'; resValue 'string', 'app_name', 'Roteiro de Viagem (Teste)' }
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+            resValue 'string', 'app_name', 'Roteiro de Viagem (Teste)'
+            // Sem uma chave persistente, cada runner assina o APK debug de forma diferente.
+            // O Google OAuth Android exige PACKAGE + SHA-1 da assinatura cadastrados.
+            if (signingReady && System.getenv('RDV_USE_STABLE_DEBUG_SIGNING') == '1')
+                signingConfig signingConfigs.releaseKey
+        }
         release {
             if (signingReady) signingConfig signingConfigs.releaseKey
             minifyEnabled false
