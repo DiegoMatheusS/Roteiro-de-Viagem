@@ -141,7 +141,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const visitedPlaceIds=useMemo(()=>[...new Set(completedTrips.flatMap(trip=>[
     ...(trip.acceptedSuggestions||[]).map(s=>s.location?.id).filter((id):id is string=>typeof id==='string'),
     ...(trip.stops||[]).flatMap(stop=>{
-      const match=stop.sourceUrl?.match(/openstreetmap\\.org\\/(node|way|relation)\\/(\\d+)/);
+      const match=stop.sourceUrl?.match(/openstreetmap[.]org[/](node|way|relation)[/]([0-9]+)/);
       return match?[`osm:${match[1]}:${match[2]}`]:[];
     })
   ]))].slice(0,40),[completedTrips]);
