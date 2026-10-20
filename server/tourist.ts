@@ -63,6 +63,25 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
   const { db, limit } = options;
   const mapFetch = options.mapFetch || fetch;
 
+  // Move a preview's blue control point and recompute its geometry on actual
+  // road network edges. Never return an invented straight-line route.
+  app.post('/api/routes/adjust', asyncRoute(async(req,res)=>{
+    limit(`route-adjust:${clientIp(req)}`,8,60000);
+    const waypoints=validate(()=>validateCoordinates(req.body.waypoints,8));
+    if(waypoints.length<3)throw new ApiError('Escolha origem, ponto de ajuste e destino.');
+    const road=await privateRoadRoute(db,user(res)?.id,waypoints,mapFetch,true);
+    if(!road.geometry || !road.legsSeconds || road.distanceKm<0.03)
+      throw new ApiError('Não encontramos estradas acessíveis para essa alteração.',422);
+    res.json({
+      routePath:sampleRoutePath(road.geometry,2500),
+      routeSteps:road.routeSteps||[],
+      distanceKm:Number(road.distanceKm.toFixed(2)),
+      drivingMinutes:Math.ceil(road.legsSeconds.reduce((a,v)=>a+v,0)/60),
+      routingSource:'OSRM',
+      stale:Boolean(road.stale)
+    });
+  }));
+
   app.post('/api/routes/tourist', asyncRoute(async (req, res) => {
     limit(`tourist:${clientIp(req)}`, 6, 60000);
     const origin = validate(() => validateCoordinates([req.body.originCoords]))[0];
