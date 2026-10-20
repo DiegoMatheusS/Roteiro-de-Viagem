@@ -73,6 +73,44 @@ export function createRoadDraft(options: {
   };
 }
 
+interface AdjustedRoadResult {
+  routePath: [number,number][];
+  routeSteps: NavigationManeuver[];
+  distanceKm:number;
+  drivingMinutes:number;
+  routingSource:'OSRM';
+  stale:boolean;
+}
+/** The map handle changes an intermediate waypoint, never draws arbitrary lines. */
+export async function recalculateDragRoute(trip:TripPlan,point:[number,number],vehicle:Vehicle):Promise<TripPlan> {
+  const original=trip.waypointOrder?.length && trip.waypointOrder.length>=2
+    ? trip.waypointOrder : [trip.originCoords,trip.destinationCoords];
+  const stops=trip.editedWaypoint?original.slice(2):original.slice(1);
+  const waypoints:[number,number][]=[trip.originCoords,point,...stops];
+  if(waypoints.length>8)throw new Error('Muitos pontos no trajeto. Remova uma parada antes de ajustar a rota.');
+  const next=await fuelApi<AdjustedRoadResult>('/routes/adjust',{
+    method:'POST',body:JSON.stringify({waypoints})
+  });
+  if(next.routingSource!=='OSRM' || !Array.isArray(next.routePath) || next.routePath.length<2 ||
+    !Number.isFinite(next.distanceKm)||!Number.isFinite(next.drivingMinutes))
+    throw new Error('O roteador não confirmou uma rota rodoviária válida.');
+  const consumption=vehicle.consumption.userConfigured || vehicle.consumption.referenceAverage;
+  const liters=consumption>0?Number((next.distanceKm/consumption).toFixed(2)):0;
+  return {...trip,
+    routePath:next.routePath,routeSteps:next.routeSteps,
+    distanceKm:next.distanceKm,drivingMinutes:next.drivingMinutes,
+    durationMinutes:next.drivingMinutes + trip.stops.reduce((n,s)=>n+(s.recommendedMinutes||0),0),
+    waypointOrder:waypoints,editedWaypoint:point,routingSource:'OSRM',
+    estimatedFuelLiters:liters,
+    estimatedFuelCost:trip.fuelPricePerLiter>0?Number((liters*trip.fuelPricePerLiter).toFixed(2)):trip.estimatedFuelCost,
+    routeWarnings:[
+      ...(trip.routeWarnings||[]).filter(w=>!w.startsWith('O roteiro real tem ') &&
+        !w.startsWith('O serviço de rotas está indisponível.')),
+      ...(next.stale?['A rota foi recuperada do cache e pode estar desatualizada. Confira as condições antes de seguir.']:[])
+    ]
+  };
+}
+
 export async function generateVerifiedTouristCircuit(request: TouristRequest): Promise<TripPlan> {
   const result = await fuelApi<VerifiedTouristResult>('/routes/tourist', {
     method: 'POST',
