@@ -1,5 +1,6 @@
 import { AndroidStatus } from './AndroidStatus';
 import { EmergencyContactsEditor } from './EmergencyContactsEditor';
+import { ProfileFigmaHome } from './ProfileFigmaHome';
 import React, { useState } from 'react';
 import { 
   TravelerProfile, 
@@ -73,6 +74,10 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
 }) => {
   const [editingProfile,setEditingProfile]=useState(false),[profileName,setProfileName]=useState(''),[profileBio,setProfileBio]=useState('');
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'garagem' | 'seguranca' | 'privacidade'>('perfil');
+  const [showDetails,setShowDetails]=useState(false);
+  const openDetails=(tab:'perfil'|'garagem'|'seguranca'|'privacidade')=>{
+    setActiveSubTab(tab);setShowDetails(true);
+  };
 
   // Stats filter (Requirement #1: por mês, ano, veículo)
   const [statsPeriod, setStatsPeriod] = useState<'total' | 'ano' | 'mes'>('total');
@@ -178,7 +183,23 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] pb-28 bg-slate-50 overflow-y-auto">
+    <div className="rdv-profile-shell">
+      {!showDetails && <ProfileFigmaHome
+        profile={profile} vehicles={vehicles} trips={trips} selectedVehicleId={selectedVehicleId}
+        accountLabel={accountLabel} onLogin={onLogin}
+        onEdit={()=>{setProfileName(profile.name);setProfileBio(profile.bio||'');setEditingProfile(true);openDetails('perfil');}}
+        onAddVehicle={()=>setShowAddVehicleModal(true)}
+        onOpenGarage={()=>openDetails('garagem')}
+        onSelectVehicle={onSelectVehicle}
+        onOpenSafety={()=>openDetails('seguranca')}
+        onOpenSettings={()=>openDetails('privacidade')}
+      />}
+      {showDetails && <div className="rdv-profile-details">
+        <div className="rdv-profile-details-return">
+          <button type="button" onClick={()=>{setShowDetails(false);setEditingProfile(false);}}>
+            <span aria-hidden="true">←</span> Voltar ao perfil
+          </button>
+        </div>
       {/* Top Bar Navigation Tabs */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
         <div className="pl-20 pr-6 py-4 flex items-center justify-between">
@@ -696,6 +717,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
           </div>
         )}
       </div>
+      </div>}
 
       {/* ================================================= */}
       {/* MODAL: NOVO VEÍCULO COM CONSULTA TÉCNICA INTELIGENTE */}
