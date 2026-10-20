@@ -18,10 +18,10 @@
   border:1px solid #e4e9f1;
   background:#fff;
   box-shadow:0 12px 28px rgba(15,23,42,.19);
-  animation:rdv-alert-slide-to-top 300ms cubic-bezier(.22,1,.36,1) both;
+  animation:rdv-alert-drop-down 300ms cubic-bezier(.22,1,.36,1) both;
 }
-@keyframes rdv-alert-slide-to-top {
-  from {transform:translateY(42vh);opacity:.2;}
+@keyframes rdv-alert-drop-down {
+  from {transform:translateY(calc(-100% - 32px));opacity:.2;}
   to {transform:translateY(0);opacity:1;}
 }
 .rdv-alert-menu-header {
