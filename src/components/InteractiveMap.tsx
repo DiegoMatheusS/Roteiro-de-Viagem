@@ -31,6 +31,7 @@ import { arrowHeadingStyle } from '../services/gpsHeading';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
+import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
 import { bindMapResumeRefresh } from '../services/mapResumeRefresh';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
@@ -202,6 +203,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const convoyPinGroupRef = useRef<L.LayerGroup|null>(null);
   const convoyFallbackMarkersRef = useRef<Map<string,{marker:L.Marker;signature:string}>>(new Map());
   const followSuspendedRef = useRef(resumeViewport?.mode==='exploring');
+  const idleFollowRef=useRef<ReturnType<typeof createNavigationIdleFollow>|null>(null);
+  const latestLiveCoords=useRef(userLiveCoords);
+  latestLiveCoords.current=userLiveCoords;
   const initialFocusRef=useRef(true);
   const cameraModeChangeRef = useRef(onCameraModeChange);
   cameraModeChangeRef.current=onCameraModeChange;
@@ -315,11 +319,26 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     stopPinGroupRef.current = L.layerGroup().addTo(map);
     meetingPinGroupRef.current = L.layerGroup().addTo(map);
     convoyPinGroupRef.current = L.layerGroup().addTo(map);
+    const idleFollow=createNavigationIdleFollow({
+      active:()=>navigationModeRef.current,
+      resume:()=>{
+        const point=latestLiveCoords.current;
+        if(!navigationModeRef.current || !point || !validMarkerPosition(point))return false;
+        followSuspendedRef.current=false;
+        cameraModeChangeRef.current?.('following');
+        const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false;
+        // Leaflet owns the fallback camera, so never move MapLibre independently.
+        createHybridCameraPort(map).recenter(point,true,reducedMotion);
+        return true;
+      }
+    });
+    idleFollowRef.current=idleFollow;
     // Only a user's drag suspends following; programmatic GPS panning does not.
     const pauseFollowing = () => {
       if(!navigationModeRef.current)return;
       // Cancel an in-flight GPS/recenter animation before handing control to the user.
       createHybridCameraPort(map).stop();
+      idleFollow.activity();
       if(followSuspendedRef.current)return;
       followSuspendedRef.current=true;
       cameraModeChangeRef.current?.('exploring');
@@ -330,6 +349,23 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // just like dragging: GPS follow must not recenter while zooming.
     // They are detected on the map canvas, not on floating navigation controls.
     const unbindManualZoom=bindManualMapZoom(map.getContainer(),pauseFollowing);
+    const activePointers=new Set<number>();
+    const pointerDown=(event:PointerEvent)=>{
+      if(!navigationModeRef.current)return;
+      activePointers.add(event.pointerId);
+      idleFollow.hold();
+    };
+    const pointerUp=(event:PointerEvent)=>{
+      activePointers.delete(event.pointerId);
+      if(activePointers.size===0)idleFollow.release();
+    };
+    const gestureEnd=()=>{if(activePointers.size===0)idleFollow.release();};
+    map.getContainer().addEventListener('pointerdown',pointerDown,{passive:true});
+    document.addEventListener('pointerup',pointerUp,{passive:true});
+    document.addEventListener('pointercancel',pointerUp,{passive:true});
+    map.on('dragend',gestureEnd);
+    map.on('boxzoomend',gestureEnd);
+    map.on('zoomend',gestureEnd);
 
     mapInstanceRef.current = map;
     setHasMapReady(true);
@@ -359,6 +395,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       unbindResumeRefresh();
       map.off('dragstart',pauseFollowing);
       map.off('boxzoomstart',pauseFollowing);
+      map.off('dragend',gestureEnd);
+      map.off('boxzoomend',gestureEnd);
+      map.off('zoomend',gestureEnd);
+      map.getContainer().removeEventListener('pointerdown',pointerDown);
+      document.removeEventListener('pointerup',pointerUp);
+      document.removeEventListener('pointercancel',pointerUp);
+      idleFollow.dispose();idleFollowRef.current=null;
       unbindManualZoom();
       map.stop();
       map.remove();
@@ -415,6 +458,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // Consume only after a valid fix and map exist; a permission request can
     // resolve before the first location arrives. Later fixes must not replay it.
     lastCenterRequestRef.current=centerOnUserRequest;
+    idleFollowRef.current?.reset();
     if(followSuspendedRef.current){
       followSuspendedRef.current=false;
       if(navigationModeRef.current)cameraModeChangeRef.current?.('following');
@@ -1429,6 +1473,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !navigationMode || !userLiveCoords) {
+      if(!navigationMode)idleFollowRef.current?.reset();
       lastFollowRef.current = null;
       if (!navigationMode && followSuspendedRef.current){
         followSuspendedRef.current=false;

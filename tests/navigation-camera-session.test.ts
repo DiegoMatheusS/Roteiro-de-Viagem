@@ -28,6 +28,24 @@ test('native gestures interrupt movement; subsequent GPS fixes cannot steal expl
   assert.deepEqual(s.modes,['exploring','following']);
 });
 
+test('idle resume uses latest GPS coordinates after exploring, without altering zoom or pitch',()=>{
+  const calls:Array<{command:string;point:[number,number]}>=[],modes:CameraMode[]=[];
+  const camera:CameraPort={
+    zoom:()=>16,stop:()=>{},firstGpsFix:()=>{},follow:()=>{},fitRoute:()=>{},focus:()=>{},
+    recenter:point=>calls.push({command:'recenter',point})
+  };
+  const session=createNavigationCameraSession(camera,mode=>modes.push(mode));
+  assert.equal(session.resume(),false,'no navigation or GPS yet');
+  session.update(input);
+  session.explore();
+  session.update({...input,position:[-23.54,-46.63]});
+  assert.equal(session.resume(),true);
+  assert.deepEqual(calls,[{command:'recenter',point:[-23.54,-46.63]}]);
+  assert.deepEqual(modes,['exploring','following']);
+  session.update({...input,navigationMode:false});
+  assert.equal(session.resume(),false,'never recenter an inactive trip');
+});
+
 test('pending GPS recenter survives missing location; tiny or invalid fixes do not move camera',()=>{
   const s=setup();
   s.session.update({...input,position:undefined,centerRequest:1});

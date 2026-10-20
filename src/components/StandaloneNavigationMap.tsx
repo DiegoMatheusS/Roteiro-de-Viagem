@@ -9,6 +9,7 @@ import type {InteractiveMapProps} from './InteractiveMap';
 import {canRenderVectorMap,applyRoleVectorPalette} from '../services/mapVectorStyle';
 import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
+import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
@@ -96,7 +97,15 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let course:number|null=null;
     let bearing=0;
     const cameraPort=createStandaloneMapLibreCameraPort(map,()=>bearing);
-    const camera=createNavigationCameraSession(cameraPort,mode=>latest.current.onCameraModeChange?.(mode));
+    let idleFollow:ReturnType<typeof createNavigationIdleFollow>|null=null;
+    const camera=createNavigationCameraSession(cameraPort,mode=>{
+      if(mode==='following')idleFollow?.reset();
+      latest.current.onCameraModeChange?.(mode);
+    });
+    idleFollow=createNavigationIdleFollow({
+      active:()=>Boolean(latest.current.navigationMode),
+      resume:()=>camera.resume()
+    });
     let fitted:string|null=null;
     let fitInputs:unknown[]=[];
     let waitingForIdle=false;
@@ -264,12 +273,38 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     map.on('movestart',markBusy);
     map.on('idle',publishIdle);
     map.on('moveend',publishViewport);
-    const userGesture=(event:{originalEvent?:unknown})=>{if(event.originalEvent)camera.explore();};
+    // Begin exploring on deliberate gestures only. Do not count programmatic
+    // GPS panning, and never recenter while fingers are still on the canvas.
+    const pointerIds=new Set<number>();
+    const pointerDown=(event:PointerEvent)=>{
+      if(!latest.current.navigationMode)return;
+      pointerIds.add(event.pointerId);
+      idleFollow?.hold();
+    };
+    const pointerUp=(event:PointerEvent)=>{
+      pointerIds.delete(event.pointerId);
+      if(pointerIds.size===0)idleFollow?.release();
+    };
+    const gestureEnd=()=>{if(pointerIds.size===0)idleFollow?.release();};
+    const userGesture=(event:{originalEvent?:unknown})=>{
+      if(!event.originalEvent)return;
+      camera.explore();
+      idleFollow?.activity();
+      idleFollow?.hold();
+    };
     map.on('dragstart',userGesture);
     map.on('zoomstart',userGesture);
     map.on('rotatestart',userGesture);
     map.on('pitchstart',userGesture);
-    const unbindGestures=bindManualMapZoom(map.getContainer(),()=>camera.explore());
+    for(const event of ['dragend','zoomend','rotateend','pitchend'] as const)
+      map.on(event,gestureEnd);
+    map.getContainer().addEventListener('pointerdown',pointerDown,{passive:true});
+    document.addEventListener('pointerup',pointerUp,{passive:true});
+    document.addEventListener('pointercancel',pointerUp,{passive:true});
+    const unbindGestures=bindManualMapZoom(map.getContainer(),()=>{
+      camera.explore();
+      idleFollow?.activity();
+    });
     const unbindResume=bindMapResumeRefresh(document,window,()=>{
       if(!disposed){map.resize();map.triggerRepaint();}
     });
@@ -308,7 +343,13 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     map.once('load',load);
     return ()=>{
       disposed=true;clearTimeout(timeout);if(styleTimeout)clearTimeout(styleTimeout);runtime.current=null;
+      idleFollow?.dispose();
       unbindGestures();unbindResume();resize.disconnect();
+      map.getContainer().removeEventListener('pointerdown',pointerDown);
+      document.removeEventListener('pointerup',pointerUp);
+      document.removeEventListener('pointercancel',pointerUp);
+      for(const event of ['dragend','zoomend','rotateend','pitchend'] as const)
+        map.off(event,gestureEnd);
       map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);map.off('rotatestart',userGesture);map.off('pitchstart',userGesture);
       editablePin?.remove();
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
