@@ -67,6 +67,9 @@ export interface InteractiveMapProps {
   routeAlternatives?: {id:string; routePath:[number,number][]}[];
   selectedRouteId?: string;
   onSelectRoute?: (id: string) => void;
+  /** Only in previews: blue drag handle for OSRM road recalculation. */
+  editableWaypoint?: [number,number];
+  onDragWaypoint?: (position:[number,number]) => void;
   routeModality?: RouteModality;
   stops?: RouteStop[];
   weatherPoints?: WeatherPoint[];
@@ -123,6 +126,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   routeAlternatives = EMPTY_ALTERNATIVES,
   selectedRouteId,
   onSelectRoute,
+  editableWaypoint,
+  onDragWaypoint,
   routeModality = 'panoramica',
   stops = EMPTY_STOPS,
   showRainLayer = false,
@@ -152,6 +157,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const editorMarkerRef=useRef<L.Marker|null>(null);
+  const onDragWaypointRef=useRef(onDragWaypoint);
+  onDragWaypointRef.current=onDragWaypoint;
   const currentTileLayerRef = useRef<L.Layer | null>(null);
   const vectorMapRef = useRef<MapLibreMap | null>(null);
   const [vectorRoutesReady, setVectorRoutesReady] = useState(false);
@@ -357,6 +365,21 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // Same draggable editing affordance on the raster/Leaflet fallback.
+  useEffect(()=>{
+    const map=mapInstanceRef.current;
+    if(!map || !editableWaypoint || !onDragWaypoint || navigationMode){
+      editorMarkerRef.current?.remove();editorMarkerRef.current=null;return;
+    }
+    const icon=L.divIcon({className:'role-route-edit-marker',
+      html:'<span style="display:flex;width:42px;height:42px;border-radius:50%;border:3px solid white;background:#2563eb;box-shadow:0 2px 12px #1e40af55;align-items:center;justify-content:center;color:white;font-size:19px">↔</span>',
+      iconSize:[42,42],iconAnchor:[21,21]});
+    const marker=L.marker(editableWaypoint,{icon,draggable:true,zIndexOffset:2400,autoPan:true}).addTo(map);
+    marker.on('dragend',()=>{const p=marker.getLatLng();onDragWaypointRef.current?.([p.lat,p.lng]);});
+    editorMarkerRef.current=marker;
+    return()=>{marker.remove();if(editorMarkerRef.current===marker)editorMarkerRef.current=null;};
+  },[hasMapReady,editableWaypoint?.[0],editableWaypoint?.[1],Boolean(onDragWaypoint),navigationMode]);
 
   // O mapa pode ser explorado sem GPS: descobrir dados do local central após zoom.
   useEffect(() => {
