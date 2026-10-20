@@ -68,6 +68,19 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     if (!['round_trip', 'one_way'].includes(tripType)) throw new ApiError('Escolha ida e volta ou só ida.');
     if (!Array.isArray(req.body.interests) || req.body.interests.length > 5 ||
         req.body.interests.some((item: unknown) => !interests.includes(item as Interest))) throw new ApiError('Seleção de atrações inválida.');
+    // Regeração descarta trajetos já exibidos, sem enviar todo o traçado GPS ao servidor.
+    // Limitamos o histórico para evitar payloads excessivos na rota pública.
+    const avoidWaypoints: Coordinates[][] = req.body.avoidWaypoints ?? [];
+    if (!Array.isArray(avoidWaypoints) || avoidWaypoints.length > 5 ||
+        avoidWaypoints.some(path => !Array.isArray(path) || path.length < 2 || path.length > 4 ||
+          path.some(coords => !Array.isArray(coords) || coords.length !== 2 ||
+            !Number.isFinite(coords[0]) || !Number.isFinite(coords[1]) ||
+            Math.abs(coords[0]) > 90 || Math.abs(coords[1]) > 180))) {
+      throw new ApiError('Histórico de trajetos inválido.');
+    }
+    const alreadyShown = (path: Coordinates[]) => avoidWaypoints.some(previous =>
+      previous.length === path.length &&
+      previous.every((point,index) => distanceKm(point,path[index]) < 1.2));
     const selected = new Set<Interest>(req.body.interests.length ? req.body.interests : interests);
     // Radius is bounded; the public Overpass service is for light use, not production traffic.
     const estimatedKm = mode === 'km' ? target : target * 45;
@@ -158,6 +171,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     let best: { selected: Candidate[]; score: number; road: CachedRoad; totalMinutes: number; path: Coordinates[] } | null = null;
     for (const points of attempts.slice(0, 11)) {
       const path = [origin, ...points.map(place => place.coords), ...(tripType === 'round_trip' ? [origin] : [])];
+      if (alreadyShown(path)) continue;
       try {
         const road = await privateRoadRoute(db, user(res)?.id, path, mapFetch, true);
         if (!road.geometry || !road.legsSeconds) continue;
@@ -187,6 +201,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         const path: Coordinates[] = tripType === 'round_trip'
           ? [origin, waypoint(bearing), waypoint(bearing + Math.PI / 2), origin]
           : [origin, waypoint(bearing)];
+        if (alreadyShown(path)) continue;
         try {
           const road = await privateRoadRoute(db, user(res)?.id, path, mapFetch, true);
           if (!road.geometry || !road.legsSeconds || road.distanceKm < 0.03) continue;
@@ -200,7 +215,9 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         } catch { /* Só usa trajeto validado por provedor rodoviário. */ }
       }
     }
-    if (!best) throw new ApiError('Não encontramos estradas verificadas próximas da distância/duração solicitada. Escolha outro valor ou região.', 422);
+    if (!best) throw new ApiError(avoidWaypoints.length
+      ? 'Não encontramos outra rota rodoviária diferente nesta região. Ajuste a distância ou o tipo de passeio.'
+      : 'Não encontramos estradas verificadas próximas da distância/duração solicitada. Escolha outro valor ou região.', 422);
 
     // Persist OSM identities so the selected tourist stops survive user edits and itinerary recalculation.
     const insert = db.prepare('INSERT OR IGNORE INTO locations VALUES(?,?,?,?,?,?,?,?)');
