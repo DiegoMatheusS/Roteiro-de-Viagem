@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 COPY . .
 RUN npm run build
 
@@ -10,7 +10,7 @@ WORKDIR /app
 ENV NODE_ENV=production API_PORT=3001 DATABASE_PATH=/app/data/roteiro.sqlite
 COPY package.json package-lock.json ./
 RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/* \
-    && npm ci --omit=dev && mkdir -p /app/data && chown node:node /app/data
+    && npm ci --omit=dev --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000 && mkdir -p /app/data && chown node:node /app/data
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY src ./src
