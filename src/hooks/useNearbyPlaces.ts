@@ -9,9 +9,9 @@ const cache=new Map<string,{places:Place[];until:number}>();
 const OK_TTL=120_000,FAILURE_TTL=30_000;
 type PlaceView={key:string;places:Place[]};
 
-export function useNearbyPlaces(points:[number,number][],enabled:boolean){
+export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusKm=5){
   const sampled=sampleRoutePath(points);
-  const key=JSON.stringify(sampled);
+  const key=JSON.stringify([radiusKm,sampled]);
   const initial=useMemo(()=>cache.get(key),[key]);
   const [view,setView]=useState<PlaceView>(()=>({key,places:initial?.places||[]}));
   useEffect(()=>{
@@ -24,7 +24,7 @@ export function useNearbyPlaces(points:[number,number][],enabled:boolean){
     const controller=new AbortController();
     setView({key,places:cached?.places||[]});
     fuelApi<{places:Place[]}>('/places/search',{
-      method:'POST',body:JSON.stringify({points:sampled}),signal:controller.signal
+      method:'POST',body:JSON.stringify({points:sampled,radiusKm}),signal:controller.signal
     }).then(result=>{
       if(controller.signal.aborted)return;
       const places=Array.isArray(result.places)?result.places:[];

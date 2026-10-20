@@ -24,7 +24,7 @@ interface ToursTabProps {
   savedTripIds:string[];
 }
 const natureKinds=new Set<string>(['park','waterfall','nature_reserve','trail','beach','viewpoint']);
-const roadKinds=new Set<string>(['viewpoint','historic','landmark']);
+const roadKinds=new Set<string>(['viewpoint','historic','landmark','scenic_road']);
 const touristKinds=new Set<string>(TOURIST_PLACE_KINDS);
 const saoPauloExamples:ExplorePlace[]=[
   {id:'figma-ibirapuera',name:'Volta no Ibirapuera',coords:[-23.5874,-46.6576],
@@ -46,8 +46,9 @@ function isSaoPauloArea(coords:Coords) {
   return coords[0]>-23.9&&coords[0]<-23.2&&coords[1]>-47.05&&coords[1]<-46.2;
 }
 function sourceToExplore(place:Place):ExplorePlace{
-  const category=place.kind==='viewpoint'||place.kind==='trail'?'Estrada':
-    ['park','museum','landmark','historic'].includes(place.kind)?'Urbano':'Natureza';
+  const category=['scenic_road','viewpoint','trail'].includes(place.kind)?'Estrada':
+    ['museum','theatre','historic','landmark'].includes(place.kind)?'Cultura':
+    place.kind==='park'?'Urbano':'Natureza';
   const photo=category==='Estrada'?romeirosPhoto:ibirapueraPhoto;
   return {id:place.id,name:place.name,coords:[place.lat,place.lng],kind:place.kind,
     address:place.address,category,photo,city:placeCity(place.address)};
@@ -56,7 +57,8 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const gps=useDeviceLocation(true,'role-explore-figma');
   const permission=useGpsPermissionAction(gps.retry);
   const origin=gps.status==='ready'?gps.position?.coords:undefined;
-  const places=useNearbyPlaces(origin?[origin]:[],Boolean(origin));
+  // A aba Explorar procura destinos de passeio, não apenas os 5 km do mapa de postos.
+  const places=useNearbyPlaces(origin?[origin]:[],Boolean(origin),120);
   const [filter,setFilter]=useState<ExploreFilter>('near');
   const [query,setQuery]=useState('');
   const [busyId,setBusyId]=useState<string|null>(null);

@@ -25,6 +25,8 @@ const adminTouristKinds: Record<string, { category: RouteStop['category']; inter
   trail: { category: 'parque', interest: 'natureza' },
   beach: { category: 'parque', interest: 'natureza' },
   museum: { category: 'museu', interest: 'museus' },
+  theatre: { category: 'monumento', interest: 'historico' },
+  scenic_road: { category: 'mirante', interest: 'panoramico' },
   landmark: { category: 'monumento', interest: 'historico' },
   historic: { category: 'monumento', interest: 'historico' },
   attraction: { category: 'monumento', interest: 'historico' }
@@ -40,8 +42,14 @@ function candidateFromOsm(record: any): Candidate | null {
   if (!name || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   let category: RouteStop['category'];
   let interest: Interest;
-  if (tags.tourism === 'viewpoint') { category = 'mirante'; interest = 'panoramico'; }
+  if (tags.amenity === 'theatre') { category = 'monumento'; interest = 'historico'; }
+  else if (tags.tourism === 'viewpoint') { category = 'mirante'; interest = 'panoramico'; }
   else if (['museum', 'gallery'].includes(tags.tourism)) { category = 'museu'; interest = 'museus'; }
+  else if (tags.waterway === 'waterfall') { category = 'parque'; interest = 'natureza'; }
+  else if (kind === 'way' && tags.scenic === 'yes' && typeof tags.highway === 'string' &&
+    /^(secondary|tertiary|unclassified|residential|living_street)$/.test(tags.highway) &&
+    !['no','private'].includes(tags.access) && tags.motor_vehicle !== 'no' && tags.motorcar !== 'no' && tags.motorcycle !== 'no')
+    { category = 'mirante'; interest = 'panoramico'; }
   else if (tags.historic || tags.tourism === 'attraction') { category = 'monumento'; interest = 'historico'; }
   else if (['restaurant', 'cafe'].includes(tags.amenity)) { category = 'restaurante'; interest = 'gastronomico'; }
   else if (['park', 'nature_reserve'].includes(tags.leisure) || tags.tourism === 'picnic_site') { category = 'parque'; interest = 'natureza'; }
@@ -88,7 +96,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     // Pontos turísticos aprovados no Admin participam da geração, independentemente do Overpass.
     const localRadiusKm = Math.max(radiusM / 1000, Math.min(240, estimatedKm * (tripType === 'round_trip' ? 0.55 : 1)));
     const adminCandidates: Candidate[] = nearbyPlaceRows(db, [origin], localRadiusKm)
-      .filter((row: any) => row.managed && adminTouristKinds[row.kind] && row.name)
+      .filter((row: any) => adminTouristKinds[row.kind] && row.name)
       .map((row: any) => ({
         id: row.id, name: row.name, coords: [row.lat, row.lng] as Coordinates,
         category: adminTouristKinds[row.kind].category, interest: adminTouristKinds[row.kind].interest,
@@ -103,6 +111,8 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       .map((place): Candidate | null => {
         const mapping: Record<string, { category: RouteStop['category']; interest: Interest }> = {
           museum: { category: 'museu', interest: 'museus' },
+          theatre: { category: 'monumento', interest: 'historico' },
+          scenic_road: { category: 'mirante', interest: 'panoramico' },
           viewpoint: { category: 'mirante', interest: 'panoramico' },
           restaurant: { category: 'restaurante', interest: 'gastronomico' },
           cafe: { category: 'restaurante', interest: 'gastronomico' },
@@ -119,6 +129,9 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       }).filter((place): place is Candidate => !!place);
     const query = `[out:json][timeout:18];(
       nwr(around:${radiusM},${origin[0]},${origin[1]})["tourism"~"^(viewpoint|attraction|museum|gallery|picnic_site)$"]["name"];
+      nwr(around:${radiusM},${origin[0]},${origin[1]})["amenity"="theatre"]["name"];
+      nwr(around:${radiusM},${origin[0]},${origin[1]})["waterway"="waterfall"]["name"];
+      way(around:${radiusM},${origin[0]},${origin[1]})["highway"~"^(secondary|tertiary|unclassified|residential|living_street)$"]["scenic"="yes"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["amenity"~"^(restaurant|cafe)$"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["leisure"~"^(park|nature_reserve)$"]["name"];
       nwr(around:${radiusM},${origin[0]},${origin[1]})["historic"]["name"];

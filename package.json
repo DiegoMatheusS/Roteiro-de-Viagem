@@ -19,7 +19,8 @@
     "android:open": "npx cap open android",
     "android:release": "node scripts/android-release.mjs",
     "check:weather": "node --import tsx scripts/check-weather.ts",
-    "admin:create": "node --import tsx server/create-admin.ts"
+    "admin:create": "node --import tsx server/create-admin.ts",
+    "tourism:import": "node --import tsx scripts/import-tourist-catalog.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

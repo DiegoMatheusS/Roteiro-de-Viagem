@@ -7,7 +7,7 @@ import type { NavigationManeuver } from '../src/types';
 export type Coordinates = [number, number];
 export type MapFetch = typeof fetch;
 
-export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusKm: number) {
+export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusKm: number, excludeFuel = false) {
   const params: number[] = [];
   const boxes = points.map(point => {
     const latDelta = radiusKm / 110, lngDelta = Math.min(180, radiusKm / (110 * Math.max(0.001, Math.cos(point[0] * Math.PI / 180))));
@@ -17,12 +17,25 @@ export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusK
     params.push(low < -180 ? low + 360 : low, high > 180 ? high - 360 : high);
     return `(lat BETWEEN ? AND ? AND ${low < -180 || high > 180 ? '(lng>=? OR lng<=?)' : 'lng BETWEEN ? AND ?'})`;
   });
-  return (db.prepare(`SELECT * FROM stations WHERE active=1 AND (${boxes.join(' OR ')}) ORDER BY managed DESC LIMIT 1000`).all(...params) as any[])
+  // Distinct tourist search must exclude fuels BEFORE SQL LIMIT, or dense cities
+  // can return only fuel stations and hide imported attractions.
+  const filter = excludeFuel ? " AND kind<>'fuel'" : '';
+  const order = excludeFuel ? 'managed DESC, ABS(lat-?) + ABS(lng-?)' : 'managed DESC';
+  const sortParams = excludeFuel ? [points[0][0], points[0][1]] : [];
+  return (db.prepare(`SELECT * FROM stations WHERE active=1${filter} AND (${boxes.join(' OR ')}) ORDER BY ${order} LIMIT 1000`).all(...params, ...sortParams) as any[])
     .filter(place => points.some(point => distanceBetweenKm(point, [place.lat, place.lng]) <= radiusKm));
 }
 
 export function nearbyManagedStations(db: FuelDatabase, points: Coordinates[], radiusKm: number) {
   return nearbyPlaceRows(db, points, radiusKm).filter(place => place.kind === 'fuel' && place.managed).map(place => place.id as string);
+}
+
+function kindOfScenicRoad(tags: Record<string, any>, geometryType: string) {
+  return geometryType === 'way' && tags.scenic === 'yes' &&
+    typeof tags.highway === 'string' &&
+    /^(secondary|tertiary|unclassified|residential|living_street)$/.test(tags.highway) &&
+    tags.access !== 'private' && tags.access !== 'no' &&
+    tags.motor_vehicle !== 'no' && tags.motorcar !== 'no' && tags.motorcycle !== 'no';
 }
 
 export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fetch): Promise<Place> {
@@ -50,7 +63,9 @@ export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fet
     : tags.tourism === 'guest_house' ? 'inn'
     : ['hotel', 'motel', 'hostel', 'camp_site'].includes(tags.tourism) ? 'hotel'
     : tags.tourism === 'viewpoint' ? 'viewpoint'
-    : tags.tourism === 'museum' ? 'museum'
+    : ['museum', 'gallery'].includes(tags.tourism) ? 'museum'
+    : tags.amenity === 'theatre' ? 'theatre'
+    : kindOfScenicRoad(tags, match[1]) ? 'scenic_road'
     : tags.tourism === 'attraction' ? 'attraction'
     : tags.historic ? 'historic'
     : tags.leisure === 'nature_reserve' ? 'nature_reserve'
