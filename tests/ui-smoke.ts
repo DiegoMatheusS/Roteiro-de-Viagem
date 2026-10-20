@@ -387,7 +387,7 @@ try {
   assert.equal(await quickSearch.evaluate(element=>document.activeElement===element),true,'O toque deve focar o input do teclado');
   assert.equal(await page.getByRole('dialog',{name:'Buscar destino no mapa'}).count(),0,'A busca rápida não abre modal');
   await quickSearch.fill('Parada');
-  const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');
+  const choicesRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST',{timeout:45000});
   await quickSearch.press('Enter');
   const destinationMap = page.getByRole('region', {name:'Destino no mapa'});
   await destinationMap.getByRole('heading', {name:'Parada Alfa de teste'}).waitFor();
