@@ -12,6 +12,9 @@ export interface TouristRequest {
   vehicle: Vehicle;
   /** Apenas pontos intermediários já apresentados, para evitar rota repetida. */
   avoidWaypoints?: [number, number][][];
+  visitedWaypoints?: [number,number][][];
+  visitedPlaceIds?: string[];
+  excludePlaceIds?: string[];
 }
 
 interface VerifiedTouristResult {
@@ -120,7 +123,10 @@ export async function generateVerifiedTouristCircuit(request: TouristRequest): P
       tripType: request.tripType,
       originCoords: request.originCoords,
       interests: request.interests,
-      avoidWaypoints: request.avoidWaypoints || []
+      avoidWaypoints: request.avoidWaypoints || [],
+      visitedWaypoints: request.visitedWaypoints || [],
+      visitedPlaceIds: request.visitedPlaceIds || [],
+      excludePlaceIds: request.excludePlaceIds || []
     })
   });
   if (!result.routePath?.length || !Array.isArray(result.stops) || result.routingSource !== 'OSRM') {
