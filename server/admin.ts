@@ -53,8 +53,15 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   };
 
   app.post('/api/places/search', (req, res) => {
-    const points = validate(() => validateCoordinates(req.body.points));
-    const places = nearbyPlaceRows(db, points, 5).filter(place => place.kind !== 'fuel').slice(0, 100).map(placeDto);
+    const radiusKm = req.body.radiusKm === undefined ? 5 : req.body.radiusKm;
+    if (typeof radiusKm !== 'number' || !Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 120)
+      throw new ApiError('O raio de busca deve estar entre 1 e 120 km.');
+    // Catálogo turístico amplo: um único ponto por tela Explorar, limite de resultados.
+    const points = validate(() => validateCoordinates(req.body.points, radiusKm > 10 ? 3 : 25));
+    const places = nearbyPlaceRows(db, points, radiusKm).filter(place => place.kind !== 'fuel')
+      .sort((a,b) => Number(b.managed) - Number(a.managed) ||
+        distanceBetweenKm(points[0],[a.lat,a.lng]) - distanceBetweenKm(points[0],[b.lat,b.lng]))
+      .slice(0, 150).map(placeDto);
     res.json({ places });
   });
   app.get('/api/places/:id', (req, res) => res.json(placeDto(activePlace(req.params.id))));
