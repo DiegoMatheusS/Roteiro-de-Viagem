@@ -17,6 +17,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
   let last:CameraPoint|null=null;
   let centerRequest=0;
   let lastBearing:number|undefined;
+  let lastReducedMotion=false;
   const mode=(next:boolean)=>{
     if(exploring===next)return;
     exploring=next;onMode(next?'exploring':'following');
@@ -30,8 +31,16 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       if(!navigating)return;
       camera.stop();mode(true);
     },
+    /** Auto-follow after seven seconds; preserve MapLibre pitch and current zoom. */
+    resume(){
+      if(!navigating || !last || !last.every(Number.isFinite))return false;
+      mode(false);
+      camera.recenter(last,true,lastReducedMotion);
+      return true;
+    },
     update(input:NavigationCameraInput){
       navigating=input.navigationMode;
+      lastReducedMotion=input.reducedMotion;
       if(!navigating){last=null;lastBearing=undefined;mode(false);}
       const point=input.position;
       if(!point || !point.every(Number.isFinite) || Math.abs(point[0])>90 || Math.abs(point[1])>180)return;
