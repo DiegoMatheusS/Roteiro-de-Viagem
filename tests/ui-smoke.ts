@@ -57,6 +57,32 @@ try {
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
   await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
+  // Tela 6: filtros, métricas reais, estado vazio e CTAs iguais ao PNG do Figma.
+  await page.getByRole('button',{name:'Aba Viagens'}).click();
+  const tripsPage=page.getByRole('region',{name:'Minhas viagens'});
+  await tripsPage.getByRole('heading',{name:'Minhas viagens',exact:true}).waitFor();
+  const stats=tripsPage.getByLabel('Resumo de viagens');
+  await stats.getByText('0 km').waitFor();
+  await tripsPage.getByRole('heading',{name:'Seu primeiro rolê começa aqui'}).waitFor();
+  const tripsBounds=await tripsPage.boundingBox();
+  const artBounds=await tripsPage.locator('.rdv-trips-empty-art').boundingBox();
+  const createBounds=await tripsPage.getByRole('button',{name:'Criar meu primeiro rolê'}).boundingBox();
+  assert.ok(tripsBounds&&artBounds&&createBounds&&
+    tripsBounds.height>=840&&
+    artBounds.y>260&&artBounds.y<410&&
+    createBounds.y>560&&createBounds.y<730,
+    'Tela 6 deve manter ilustração central e CTA abaixo, conforme o Figma');
+  await page.screenshot({path:'test-results/figma-tela-6-viagens.png'});
+  await tripsPage.getByRole('button',{name:'Planejadas'}).click();
+  await tripsPage.getByRole('heading',{name:'Planeje seu próximo rolê'}).waitFor();
+  await tripsPage.getByRole('button',{name:'Salvas'}).click();
+  await tripsPage.getByRole('heading',{name:'Salve os lugares que quer conhecer'}).waitFor();
+  await tripsPage.getByRole('button',{name:'Explorar passeios'}).click();
+  await page.getByRole('heading',{name:'Explorar',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Aba Viagens'}).click();
+  await tripsPage.getByRole('button',{name:/^Criar (meu primeiro )?rolê$/}).click();
+  await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+
   // Tela 5: regressão visual e funcional do novo Explorar em largura Android.
   await page.getByRole('button',{name:'Aba Explorar'}).click();
   const exploring=page.getByRole('region',{name:'Explorar passeios'});
@@ -557,6 +583,9 @@ try {
   });
   const saved = trips.find((trip: any) => trip.fuelPriceSource?.stationId === 'osm:node:123');
   assert.ok(saved.distanceKm > 0); assert.equal(saved.routingSource, 'OSRM'); assert.equal(saved.isCircular, true); assert.equal(saved.fuelPricePerLiter, 5.899);
+  // O Figma abre em Concluídas por padrão; a rota recém-salva aparece em Planejadas.
+  await page.getByRole('region',{name:'Minhas viagens'})
+    .getByRole('button',{name:'Planejadas'}).click();
   await page.getByRole('button', { name: 'Comboio', exact: true }).first().click();
   await page.getByText(/Comboio sincronizado entre celulares/).waitFor();
   await page.getByRole('button', { name: 'Compartilhar Localização', exact: true }).click();

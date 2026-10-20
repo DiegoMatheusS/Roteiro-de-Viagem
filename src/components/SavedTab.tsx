@@ -1,20 +1,7 @@
-import React, { useState } from 'react';
-import { TripPlan, Vehicle } from '../types';
-import { storageService } from '../services/storageService';
-import { 
-  Bookmark, 
-  MapPin, 
-  Play, 
-  Share2, 
-  Trash2, 
-  Users, 
-  CheckCircle, 
-  Calendar, 
-  Clock, 
-  Navigation,
-  ChevronRight,
-  ShieldCheck
-} from 'lucide-react';
+import React, {useMemo,useState} from 'react';
+import {Bookmark,CheckCircle2,ChevronRight,Flag,Info,MapPin,Navigation2,Play,Share2,Trash2,Users} from 'lucide-react';
+import type {TripPlan,Vehicle} from '../types';
+import '../role-trips-figma.css';
 
 interface SavedTabProps {
   trips: TripPlan[];
@@ -23,198 +10,124 @@ interface SavedTabProps {
   onOpenShareModal: (trip: TripPlan) => void;
   onDeleteTrip: (tripId: string) => void;
   onOpenConvoyModal: (trip: TripPlan) => void;
+  onCreateTrip: () => void;
+  onExploreTours: () => void;
 }
+type TripFilter = 'completed'|'planned'|'saved';
+const filters: {id:TripFilter;label:string}[]=[
+  {id:'completed',label:'Concluídas'},
+  {id:'planned',label:'Planejadas'},
+  {id:'saved',label:'Salvas'}
+];
+const savedRoute=(trip:TripPlan)=>trip.status==='planned'&&!trip.departureAt;
+const isPlanned=(trip:TripPlan)=>trip.status==='planned'||trip.status==='in_progress'||trip.status==='cancelled';
 
-export const SavedTab: React.FC<SavedTabProps> = ({
-  trips,
-  vehicles,
-  onStartTrip,
-  onOpenShareModal,
-  onDeleteTrip,
-  onOpenConvoyModal
-}) => {
-  const [filter, setFilter] = useState<'all' | 'planned' | 'completed'>('all');
-
-  const filteredTrips = trips.filter(t => {
-    if (filter === 'planned') return t.status === 'planned';
-    if (filter === 'completed') return t.status === 'completed';
-    return true;
-  });
-
-  const getVehicleName = (vehicleId: string) => {
-    const v = vehicles.find(veh => veh.id === vehicleId);
-    return v ? (v.nickname || `${v.brand} ${v.model}`) : 'Veículo não definido';
+function EmptyRouteArtwork() {
+  return <div className="rdv-trips-empty-art" aria-hidden="true">
+    <svg viewBox="0 0 184 155" className="rdv-trips-empty-route" xmlns="http://www.w3.org/2000/svg">
+      <path d="M35 121 C 15 82 71 83 72 63 C 75 46 65 24 89 18 C 112 12 137 16 146 26"
+        stroke="#2863ed" strokeWidth="3" strokeDasharray="5 5" strokeLinecap="round" fill="none" />
+      <circle cx="35" cy="121" r="10" fill="#fff"/>
+      <circle cx="35" cy="121" r="4.7" fill="#2863ed"/>
+    </svg>
+    <div className="rdv-trips-empty-flag"><Flag size={20} strokeWidth={1.7}/></div>
+  </div>;
+}
+export const SavedTab:React.FC<SavedTabProps>=({
+  trips,vehicles,onStartTrip,onOpenShareModal,onDeleteTrip,onOpenConvoyModal,
+  onCreateTrip,onExploreTours
+})=>{
+  const [filter,setFilter]=useState<TripFilter>('completed');
+  const completed=useMemo(()=>trips.filter(t=>t.status==='completed'),[trips]);
+  const planned=useMemo(()=>trips.filter(isPlanned),[trips]);
+  const saved=useMemo(()=>trips.filter(savedRoute),[trips]);
+  const completedKm=completed.reduce((sum,trip)=>{
+    const km=trip.actualDistanceKm??trip.trackedDistanceKm??0;
+    return sum+(Number.isFinite(km)&&km>0?km:0);
+  },0);
+  const formattedKm=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(completedKm);
+  const matching=filter==='completed'?completed:filter==='planned'?planned:saved;
+  const ordered=useMemo(()=>[...matching].sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)),[matching]);
+  const vehicleName=(id:string)=>{
+    const v=vehicles.find(vehicle=>vehicle.id===id);
+    return v ? v.nickname||`${v.brand} ${v.model}` : 'Veículo não definido';
   };
+  const emptyHeading=filter==='completed'?'Seu primeiro rolê começa aqui':
+    filter==='planned'?'Planeje seu próximo rolê':'Salve os lugares que quer conhecer';
+  const emptyDescription=filter==='completed'
+    ? 'Escolha km ou horas e saia para explorar. Suas viagens concluídas aparecem aqui.'
+    : filter==='planned'
+      ? 'Crie um trajeto e prepare sua próxima viagem. Seus planos aparecem aqui.'
+      : 'Explore passeios e salve seus próximos destinos para visitar depois.';
 
-  return (
-    <div className="min-h-[calc(100vh-4rem)] pb-24 bg-slate-50 overflow-y-auto">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 pl-20 pr-6 py-5">
-        <h1 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-          <Bookmark className="w-5 h-5 text-emerald-600" />
-          <span>Minhas Viagens</span>
-        </h1>
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-          Histórico de viagens realizadas, roteiros planejados e passeios salvos.
-        </p>
-
-        {/* Filter Segmented Controls */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl mt-4 max-w-sm">
-          {[
-            { id: 'all', label: 'Todas' },
-            { id: 'planned', label: 'Planejadas' },
-            { id: 'completed', label: 'Concluídas (Histórico)' }
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id as any)}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                filter === f.id
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+  return <section className="rdv-trips-page" aria-label="Minhas viagens">
+    <div className="rdv-trips-scroll">
+      <header className="rdv-trips-top">
+        <h1>Minhas viagens</h1>
+        <div role="group" aria-label="Filtrar minhas viagens" className="rdv-trips-filters">
+          {filters.map(tab=><button key={tab.id} type="button"
+            aria-pressed={filter===tab.id} onClick={()=>setFilter(tab.id)}
+            className={filter===tab.id?'is-selected':''}>
+            {tab.id==='saved'&&<Bookmark size={16} strokeWidth={1.5}/>}
+            {tab.label}
+          </button>)}
         </div>
-      </div>
-
-      {/* Trips list */}
-      <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-4">
-        {/* Notice on tier km rule (Requirement #2) */}
-        <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 flex items-start gap-2.5 text-xs text-slate-600">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-          <span>
-            <strong>Regra de Pontuação:</strong> Somente viagens efetivamente realizadas e concluídas somam quilometragem ao seu Nível do Viajante. Viagens apenas planejadas não contam pontos.
-          </span>
+        <div className="rdv-trips-statistics" aria-label="Resumo de viagens">
+          <div><strong>{formattedKm} km</strong><span>percorridos</span></div>
+          <div><strong>{completed.length}</strong><span>viagens</span></div>
+          <div><strong>{saved.length}</strong><span>rotas salvas</span></div>
         </div>
+      </header>
 
-        {filteredTrips.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border border-slate-200">
-            <Bookmark className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-            <p className="text-sm font-semibold">Nenhuma viagem encontrada neste filtro.</p>
-            <p className="text-xs text-slate-400 mt-1">Planeje uma nova rota ou conclua um passeio para registrar seu histórico.</p>
-          </div>
-        ) : (
-          filteredTrips.map(trip => {
-            const isCompleted = trip.status === 'completed';
-                const isCancelled = trip.status === 'cancelled';
-            const isGpsVerified = trip.actualTraveledVerifiedGps;
-
-            return (
-              <div
-                key={trip.id}
-                className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs hover:border-slate-300 transition-all space-y-4"
-              >
-                {/* Title & Status badge */}
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {isCompleted ? 'Viagem Realizada' : isCancelled ? 'Encerrada' : trip.status === 'in_progress' ? 'Em andamento' : 'Planejada'}
-                      </span>
-                      {isCompleted && (
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          isGpsVerified ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {isGpsVerified ? '✓ GPS Verificado' : 'Informado manualmente'}
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900 mt-1.5 leading-snug">
-                      {trip.title}
-                    </h3>
-                  </div>
-
-                  <button
-                    onClick={() => onDeleteTrip(trip.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                    title="Excluir"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+      {ordered.length===0?<div className="rdv-trips-empty" role="region" aria-label="Nenhuma viagem neste filtro">
+        <EmptyRouteArtwork/>
+        <h2>{emptyHeading}</h2>
+        <p>{emptyDescription}</p>
+        <button type="button" onClick={onCreateTrip} className="rdv-trips-create">
+          <Navigation2 size={15} fill="white" strokeWidth={1.8}/>
+          <span>{filter==='completed'?'Criar meu primeiro rolê':'Criar um rolê'}</span>
+        </button>
+        <button type="button" onClick={onExploreTours} className="rdv-trips-explore">Explorar passeios</button>
+      </div>:
+        <div className="rdv-trips-results" aria-label="Viagens encontradas">
+          {ordered.map(trip=>{
+            const done=trip.status==='completed';
+            const cancelled=trip.status==='cancelled';
+            const verified=trip.actualTraveledVerifiedGps;
+            return <article className="rdv-trips-trip" key={trip.id}>
+              <div className="rdv-trips-trip-top">
+                <div className="rdv-trips-trip-heading">
+                  <span className={`rdv-trips-status ${done?'is-completed':'is-planned'}`}>
+                    {done?'Concluída':cancelled?'Encerrada':trip.status==='in_progress'?'Em andamento':'Planejada'}
+                  </span>
+                  {done&&verified&&<span className="rdv-trips-gps-verified"><CheckCircle2 size={13}/> GPS verificado</span>}
+                  <h3>{trip.title||trip.destinationName}</h3>
                 </div>
-
-                {/* Trajectory */}
-                <div className="text-xs text-slate-600 flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="truncate">{trip.originName.split('-')[0].trim()}</span>
-                  <span className="text-slate-300">➡️</span>
-                  <span className="truncate font-semibold text-slate-800">{trip.destinationName.split('-')[0].trim()}</span>
-                </div>
-
-                {/* Metrics Row */}
-                <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">DISTÂNCIA</span>
-                    <strong className="text-slate-900 font-bold">{trip.distanceKm} km</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">DURAÇÃO</span>
-                    <strong className="text-slate-900 font-bold">
-                      {Math.floor(trip.durationMinutes / 60)}h{trip.durationMinutes % 60}m
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">VEÍCULO</span>
-                    <strong className="text-slate-900 font-bold truncate block">
-                      {getVehicleName(trip.vehicleId)}
-                    </strong>
-                  </div>
-                </div>
-
-                {trip.fuelPriceSource && <p className="text-[11px] text-slate-500">Combustível: {trip.fuelPriceSource.stationName} · preço visto em {new Date(trip.fuelPriceSource.observedAt).toLocaleString('pt-BR')}{Date.now() - Date.parse(trip.fuelPriceSource.observedAt) > 72 * 3600000 ? ' · Preço desatualizado: confira novamente antes de viajar.' : ''}</p>}
-                {trip.fuelPricePerLiter <= 0 && <p className="text-[11px] text-amber-800">Estimativa parcial: preço do combustível ainda não informado.</p>}
-
-                {trip.tollsStatus !== 'available' && <p className="text-[11px] text-amber-800">Orçamento parcial: tarifas de pedágio não informadas.</p>}
-                {trip.manualStops?.length ? <p className="text-[11px] text-emerald-700">{trip.manualStops.length} paradas obrigatórias preservadas.</p> : null}
-
-                {/* Review if completed */}
-                {trip.userReview && (
-                  <div className="p-3 bg-emerald-50/50 rounded-xl text-xs text-slate-700 italic border border-emerald-100">
-                    "{trip.userReview}"
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onOpenShareModal(trip)}
-                      className="py-2 px-3 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                    >
-                      <Share2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Compartilhar</span>
-                    </button>
-
-                    <button
-                      onClick={() => onOpenConvoyModal(trip)}
-                      className="py-2 px-3 rounded-xl border border-slate-200 hover:border-violet-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                    >
-                      <Users className="w-3.5 h-3.5 text-violet-600" />
-                      <span>Comboio</span>
-                    </button>
-                  </div>
-
-                  {!isCompleted && (
-                    <button
-                      onClick={() => onStartTrip(trip)}
-                      className="py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>{isCancelled ? 'Viajar novamente' : trip.status === 'in_progress' ? 'Retomar mapa' : 'Iniciar Agora'}</span>
-                    </button>
-                  )}
-                </div>
+                <button type="button" aria-label={`Excluir ${trip.title}`} onClick={()=>onDeleteTrip(trip.id)}
+                  className="rdv-trips-delete"><Trash2 size={17}/></button>
               </div>
-            );
-          })
-        )}
-      </div>
+              <p className="rdv-trips-route-names">
+                <MapPin size={15}/><span>{trip.originName}</span><ChevronRight size={13}/><span>{trip.destinationName}</span>
+              </p>
+              <div className="rdv-trips-card-metrics">
+                <div><span>Distância</span><strong>{trip.distanceKm.toLocaleString('pt-BR',{maximumFractionDigits:1})} km</strong></div>
+                <div><span>Duração</span><strong>{Math.round(trip.durationMinutes)} min</strong></div>
+                <div><span>Veículo</span><strong>{vehicleName(trip.vehicleId)}</strong></div>
+              </div>
+              {trip.fuelPricePerLiter<=0&&<p className="rdv-trips-card-note">Estimativa parcial: preço do combustível não informado.</p>}
+              {trip.tollsStatus!=='available'&&<p className="rdv-trips-card-note">Pedágios ainda não confirmados.</p>}
+              {trip.userReview&&<p className="rdv-trips-review">{trip.userReview}</p>}
+              <div className="rdv-trips-actions">
+                <button type="button" onClick={()=>onOpenShareModal(trip)}><Share2 size={15}/> Compartilhar</button>
+                <button type="button" onClick={()=>onOpenConvoyModal(trip)}><Users size={15}/> Comboio</button>
+                {!done&&<button type="button" className="rdv-trips-start" onClick={()=>onStartTrip(trip)}>
+                  <Play size={14} fill="currentColor"/>{cancelled?'Viajar novamente':trip.status==='in_progress'?'Retomar mapa':'Iniciar'}
+                </button>}
+              </div>
+            </article>;
+          })}
+        </div>}
+      <div className="rdv-trips-bottom-hint"><Info size={15}/><span>Só viagens concluídas somam quilômetros.</span></div>
     </div>
-  );
+  </section>;
 };
-
