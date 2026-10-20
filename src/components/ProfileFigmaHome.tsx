@@ -82,7 +82,7 @@ export function ProfileFigmaHome({
             <strong>Cadastre seu veículo</strong>
             <small>Deixe tudo pronto para o próximo rolê.</small>
           </span>
-        </button>
+        </button>:
         <div className="rdv-profile-vehicles" aria-label="Veículos da garagem">
           {vehicles.slice(0,3).map(v=><button type="button" key={v.id}
             className="rdv-profile-vehicle" aria-label={`Selecionar veículo ${v.nickname||v.model}`}
