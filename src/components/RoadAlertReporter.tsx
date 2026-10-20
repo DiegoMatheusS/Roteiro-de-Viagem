@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Cctv, CarFront, Construction, Waves, X } from 'lucide-react';
 import { PoliceOfficerIcon, PotholeIcon, RobberyIcon, TollBoothIcon } from './RoadAlertIcons';
 import { ROAD_ALERT_TYPES, type RoadAlertType } from '../types/roadAlerts';
@@ -77,13 +78,13 @@ export function RoadAlertReporter({
         {menuOpen ? <X size={23}/> : <AlertTriangle size={25} strokeWidth={2.3}/>}
       </button>
     </div>
-    {tollInfo && <div className="fixed inset-0 z-[100] bg-black/65 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Contribuir com pedágio">
+    {tollInfo && createPortal(<div className="fixed inset-0 z-[100] bg-black/65 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Contribuir com pedágio">
       <section className="w-full max-w-md rounded-t-3xl bg-white p-5 space-y-3"><div className="flex justify-between"><h3 className="font-bold text-lg">Informar pedágio</h3><button onClick={()=>setTollInfo(false)} aria-label="Fechar"><X/></button></div>
         <p className="text-sm text-slate-600">Para indicar ou atualizar a tarifa, toque no marcador do pedágio no mapa e escolha a opção de contribuição. As informações passam pela aprovação do administrador.</p>
         <button className="rounded-xl p-3 bg-blue-600 text-white font-bold w-full" onClick={()=>setTollInfo(false)}>Voltar ao mapa</button>
       </section>
-    </div>}
-    {open && <div className="fixed inset-0 z-[100] bg-black/65 flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Reportar ocorrência na via">
+    </div>,document.body)}
+    {open && createPortal(<div className="fixed inset-0 z-[100] bg-black/65 flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Reportar ocorrência na via">
       <form className="bg-white rounded-3xl w-full max-w-md p-5 space-y-4 text-slate-900 max-h-[90dvh] overflow-y-auto" onSubmit={submit}>
         <div className="flex justify-between gap-4 items-center"><h3 className="text-lg font-bold">{selected?.label || 'Informar ocorrência'}</h3><button type="button" aria-label="Fechar ocorrência" onClick={() => setOpen(false)}><X/></button></div>
         <p className="text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3">Não use o celular dirigindo. Pare em segurança. O relato somente aparecerá no mapa depois da aprovação.</p>
@@ -95,6 +96,6 @@ export function RoadAlertReporter({
         {message && <p role="status" className="text-sm text-emerald-800">{message}</p>}
         <button type="submit" className="w-full rounded-xl p-3 bg-blue-700 text-white font-semibold disabled:opacity-50" disabled={busy || moving || !stopped || !location}>{busy ? 'Enviando...' : 'Enviar para análise'}</button>
       </form>
-    </div>}
+    </div>,document.body)}
   </>;
 }
