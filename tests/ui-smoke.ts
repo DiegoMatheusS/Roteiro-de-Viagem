@@ -155,6 +155,7 @@ try {
     const body=route.request().postDataJSON() as {
       mode:string;target:number;tripType:string;
       originCoords:[number,number];interests:string[];
+      avoidWaypoints?:[number,number][][];
     };
     modes.push(body.mode);
     assert.ok(['km','hours'].includes(body.mode));
@@ -162,13 +163,18 @@ try {
     assert.equal(body.tripType,'round_trip');
     assert.deepEqual(body.interests,[], 'default route should not invent sightseeing preferences');
     const origin=body.originCoords;
-    const via:[number,number]=[origin[0]+0.01,origin[1]+0.01];
+    const avoided=body.avoidWaypoints?.length||0;
+    const via:[number,number]=[origin[0]+0.01+avoided*0.01,origin[1]+0.01+avoided*0.01];
     await route.fulfill({json:{
       title:'Passeio rápido para visitante',destinationName:'Seu ponto de partida',
       destinationCoords:origin,isCircular:true,distanceKm:40,durationMinutes:70,
       routePath:[origin,via,origin],routeSteps:[
         {coords:via,distanceFromStartKm:1,type:'turn',modifier:'right',name:'Via verificada'}
-      ],waypoints:[origin,via,origin],stops:[],warnings:[],
+      ],waypoints:[origin,via,origin],stops:[],warnings:[
+        'O roteiro real tem 40 km, diferente da sua preferência. Confira antes de iniciar.',
+        'Não foi possível consultar atrações externas. Roteiro rodoviário verificado, sem atrações sugeridas.',
+        'O roteiro retorna ao ponto inicial. Alguns trechos podem se repetir dependendo das estradas disponíveis.'
+      ],
       routingSource:'OSRM',tollsStatus:'unknown'
     }});
   });
@@ -217,7 +223,18 @@ try {
     await realPreview.getByRole('button',{name:'Expandir mapa'}).click();
     await realPreview.getByRole('button',{name:'Recolher mapa'}).waitFor();
     await realPreview.getByRole('button',{name:'Recolher mapa'}).click();
-    if(choice.mode==='km') await guestPage.screenshot({path:'test-results/figma-tela-3-previa.png'});
+    if(choice.mode==='km'){
+      assert.equal(await realPreview.locator('.rdv-preview-notice').count(),1,
+        'A prévia por KM mostra somente o aviso útil sobre a distância');
+      const rerollRequest=guestPage.waitForRequest(req=>
+        new URL(req.url()).pathname==='/api/routes/tourist' && req.method()==='POST');
+      await realPreview.getByRole('button',{name:'Gerar outra rota'}).click();
+      const reroll=await rerollRequest;
+      assert.equal((reroll.postDataJSON() as any).avoidWaypoints.length,1,
+        'O recarregamento precisa excluir a rota já exibida');
+      await realPreview.getByRole('button',{name:'Gerar outra rota'}).waitFor();
+      await guestPage.screenshot({path:'test-results/figma-tela-3-previa.png'});
+    }
     await realPreview.getByRole('button',{name:'Salvar rota'}).click();
     await realPreview.getByRole('button',{name:'Rota salva'}).waitFor();
     await realPreview.getByRole('button',{name:'Iniciar rolê'}).click();
@@ -267,7 +284,7 @@ try {
     await guestPage.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
   }
-  assert.deepEqual(modes,['km','hours']);
+  assert.deepEqual(modes,['km','km','hours'], 'A opção Outra rota refaz a busca por KM antes do teste por horas');
   assert.deepEqual(guestErrors,[]);
   await guestContext.close();
   // Um único botão Comboio abre a escolha Criar/Entrar sem sair do Início.
