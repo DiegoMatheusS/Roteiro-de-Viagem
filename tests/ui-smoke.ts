@@ -40,34 +40,36 @@ const browser = await chromium.launch({ headless: true, executablePath, args: ex
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'], geolocation: { latitude: -23.551, longitude: -46.629, accuracy: 3 } });
 // Stable GPS fixture confined to the main smoke-test context. Chromium's
 // native mock can time out when a busy CI runner repeatedly mounts the map.
-await context.addInitScript(() => {
+// A JavaScript string avoids tsx/esbuild's __name helper leaking into the
+// browser when Playwright serializes a TypeScript arrow function.
+await context.addInitScript({ content: `(() => {
   let nextId = 0;
-  const timers = new Map<number, number>();
-  const position = (): GeolocationPosition => ({
+  const timers = new Map();
+  const position = () => ({
     coords: { latitude: -23.551, longitude: -46.629, accuracy: 3,
       altitude: null, altitudeAccuracy: null, heading: null, speed: null },
     timestamp: Date.now()
-  } as GeolocationPosition);
+  });
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
     value: {
-      getCurrentPosition(success: PositionCallback) {
+      getCurrentPosition(success) {
         window.setTimeout(() => success(position()), 0);
       },
-      watchPosition(success: PositionCallback) {
+      watchPosition(success) {
         const id = ++nextId;
         timers.set(id, window.setInterval(() => success(position()), 3000));
         window.setTimeout(() => { if (timers.has(id)) success(position()); }, 0);
         return id;
       },
-      clearWatch(id: number) {
+      clearWatch(id) {
         const timer = timers.get(id);
         if (timer !== undefined) window.clearInterval(timer);
         timers.delete(id);
       }
-    } satisfies Geolocation
+    }
   });
-});
+})();` });
 const page = await context.newPage();
 const adminBrowser = executablePath ? await chromium.launch({ headless: true, executablePath, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] }) : browser;
 const adminContext = await adminBrowser.newContext({ viewport: { width: 1365, height: 900 } });
