@@ -151,6 +151,8 @@ export interface TripPlan {
   acceptedSuggestions?: import('./itinerary').SuggestedStop[];
   planningLimits?: import('./itinerary').PlanningLimits;
   waypointOrder?: [number, number][];
+  /** Ponto de ajuste manual do traçado na prévia, sem alterar a origem ou o destino. */
+  editedWaypoint?: [number, number];
   routingSource?: 'OSRM';
   tollsStatus?: 'unknown' | 'partial' | 'available';
   tolls?: import('./tolls').RouteToll[];
