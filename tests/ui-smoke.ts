@@ -257,6 +257,24 @@ try {
   await comboioHome.click();
   await page.getByRole('dialog',{name:'Opções do comboio'}).getByRole('button',{name:'Fechar opções do comboio'}).click();
   const homePanel = page.getByTestId('home-main-sheet');
+  // Controles não sobem junto com o painel e o menu não pode cobrir o toque no mapa.
+  const gpsFixedBefore=await page.getByRole('button',{name:'Atualizar GPS'}).boundingBox();
+  const reportFixedBefore=await page.getByRole('button',{name:'Reportar problema na estrada'}).boundingBox();
+  const speedFixedBefore=await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
+  assert.ok(gpsFixedBefore&&reportFixedBefore&&speedFixedBefore);
+  assert.ok(gpsFixedBefore.y+gpsFixedBefore.height+6<=reportFixedBefore.y,
+    'GPS deve ficar acima do alerta, sem sobreposição');
+  assert.ok(Math.abs(gpsFixedBefore.x-reportFixedBefore.x)<2,
+    'GPS e alerta devem ficar na mesma coluna à direita');
+  assert.ok(speedFixedBefore.x+speedFixedBefore.width<gpsFixedBefore.x,
+    'Velocímetro fica fixo à esquerda, separado dos controles direitos');
+  assert.equal(await page.getByRole('button',{name:'Abrir menu'}).count(),0,
+    'Não deve haver hambúrguer redundante no topo do Início');
+  const modeGroup=page.getByRole('group',{name:'Modalidade de transporte'});
+  await modeGroup.getByRole('button',{name:'Carro'}).waitFor();
+  await modeGroup.getByRole('button',{name:'Moto'}).click();
+  assert.equal(await modeGroup.getByRole('button',{name:'Moto'}).getAttribute('aria-pressed'),'true');
+  await modeGroup.getByRole('button',{name:'Carro'}).click();
   const initialHomeBounds = await homePanel.boundingBox();
   assert.ok(initialHomeBounds && initialHomeBounds.y > 0.56 * 844,
     'O painel Início deve começar mais baixo, deixando a maior parte do mapa visível');
@@ -280,6 +298,14 @@ try {
     const screen=document.querySelector('.rdv-navigation-screen')?.getBoundingClientRect();
     const nav=document.querySelector('.rdv-figma-bottom-nav')?.getBoundingClientRect();return !!panel&&!!nav&&Math.abs(panel.bottom-nav.top)<2&&panel.height>=window.innerHeight*0.8;
   });
+  const gpsFixedAfter=await page.getByRole('button',{name:'Atualizar GPS'}).boundingBox();
+  const reportFixedAfter=await page.getByRole('button',{name:'Reportar problema na estrada'}).boundingBox();
+  const speedFixedAfter=await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
+  assert.ok(gpsFixedAfter&&reportFixedAfter&&speedFixedAfter);
+  for(const [before,after] of [[gpsFixedBefore,gpsFixedAfter],[reportFixedBefore,reportFixedAfter],[speedFixedBefore,speedFixedAfter]]){
+    assert.ok(Math.abs(before.x-after.x)<2 && Math.abs(before.y-after.y)<2,
+      'Controles do mapa não devem acompanhar o movimento do painel');
+  }
   const scrollHome=page.locator('[data-panel-scroll]');
   // O novo painel minimalista não precisa forçar rolagem quando todo o conteúdo cabe.
   const needsScroll=await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight);
@@ -318,23 +344,33 @@ try {
   await homeReport.waitFor();
   const homeGpsBox = await homeGps.boundingBox();
   const homeReportBox = await homeReport.boundingBox();
-  const speedCircleBox = await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
-  const centerY=(bounds:{y:number;height:number})=>bounds.y+bounds.height/2;
-  assert.ok(homeGpsBox && homeReportBox && speedCircleBox &&
-    Math.abs(centerY(homeGpsBox)-centerY(homeReportBox))<8 &&
-    Math.abs(centerY(speedCircleBox)-centerY(homeGpsBox))<16,
-    'GPS e reportar devem ficar na mesma altura do velocímetro');
+  assert.ok(homeGpsBox && homeReportBox &&
+    homeGpsBox.y + homeGpsBox.height + 6 <= homeReportBox.y &&
+    Math.abs(homeGpsBox.x-homeReportBox.x)<2,
+    'GPS precisa ficar acima do alerta, em coluna vertical e sem sobreposição');
   await homeReport.click();
   const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
+  const menuBounds=await homeReportOptions.boundingBox();
+  assert.ok(menuBounds && menuBounds.y<100,
+    'Ícones de alerta precisam aparecer no topo do telefone, não ao lado do botão');
+  const menuAnimation=await homeReportOptions.evaluate(el=>getComputedStyle(el).animationName);
+  assert.ok(menuAnimation.includes('rdv-alert-drop-down'),
+    'Menu de alerta deve descer de cima para baixo');
   await homeReportOptions.getByRole('menuitem', {name:'Veículo parado / quebrado'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Pedágio'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).click();
   const homeReportDialog = page.getByRole('dialog', {name:'Reportar ocorrência na via'});
   await homeReportDialog.getByText(/Pare em segurança/).waitFor();
-  assert.equal(await homeReportDialog.getByRole('button', {name:'Enviar para análise'}).isDisabled(), true);
+  await homeReportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
+  await homeReportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
+  assert.equal(await homeReportDialog.locator('textarea').count(),0,
+    'Não exigir digitação ao informar ocorrência');
+  assert.equal(await homeReportDialog.locator('input[type="checkbox"]').count(),0,
+    'Confirmar por gesto, sem formulário de múltiplas etapas');
   await homeReportDialog.getByRole('button', {name:'Fechar ocorrência'}).click();
-  await page.getByRole('button', {name:'Abrir menu'}).click();
+  if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
+  await page.getByRole('button', { name: 'Abrir menu' }).click();
   const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
   await roleMenu.getByRole('button', {name:'Começar um rolê'}).waitFor();
   assert.ok(parseFloat(await roleMenu.evaluate(el=>getComputedStyle(el).transitionDuration)) > 0, 'O menu deve entrar deslizando de baixo para cima');
@@ -376,6 +412,7 @@ try {
   await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
+  if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   const accountMenu = page.getByRole('dialog', { name: 'Menu do Rolê' });
   await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
@@ -637,6 +674,7 @@ try {
   await adminPage.getByRole('button', { name: 'Salvar cadastro', exact: true }).click();
   await adminPage.getByText('Dados salvos.', { exact: true }).waitFor();
   await page.goto('http://127.0.0.1:3000');
+  if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   const gpsControl = page.getByRole('button', { name: 'Centralizar mapa na minha localização' });
@@ -654,7 +692,9 @@ try {
   await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).click();
   const reportDialog = page.getByRole('dialog', { name: 'Reportar ocorrência na via' });
   await reportDialog.getByText(/Pare em segurança/).waitFor();
-  assert.equal(await reportDialog.getByRole('button', { name: 'Enviar para análise' }).isDisabled(), true);
+  await reportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
+  await reportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
+  assert.equal(await reportDialog.locator('textarea').count(),0);
   await reportDialog.getByRole('button', { name: 'Fechar ocorrência' }).click();
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
   const mapPanel = page.getByTestId('map-explore-sheet');
@@ -755,6 +795,7 @@ try {
   await adminPage.getByText(/Conta excluída/).waitFor();
   assert.ok((db.prepare("SELECT deleted_at FROM users WHERE display_name='Usuário excluído'").get() as any).deleted_at);
   await restaurant.getByRole('button', { name: 'Fechar estabelecimento', exact: true }).click();
+  if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Início', exact: true }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
@@ -845,6 +886,7 @@ try {
     const secondPage = await secondDevice.newPage();
     await secondPage.route('https://**', route => route.abort());
     await secondPage.goto('http://127.0.0.1:3000');
+    await secondPage.getByRole('button',{name:'Aba Perfil'}).click();
     await secondPage.getByRole('button', { name: 'Abrir menu' }).click();
     await secondPage.getByRole('button', { name: 'Minhas viagens', exact: true }).click();
     const restored = await secondPage.evaluate(async () => {
@@ -864,6 +906,7 @@ try {
     assert.ok(restored.trips.some((trip: any) => trip.manualStops?.length === 2));
   } finally { await secondDevice.close(); }
   // Navigation controls preserve the active trip in the menu and can end a planned trip.
+  if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   // Na tela rodoviaria o zoom esta disponivel por gestos, sem controles + / -.
@@ -894,6 +937,7 @@ try {
   await page.locator('.rdv-nav-figma-root').getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
+  if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   await page.getByRole('button', { name: 'Encerrar viagem', exact: true }).click();

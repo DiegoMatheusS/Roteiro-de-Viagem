@@ -21,7 +21,7 @@ import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { fuelApi } from '../services/fuelApi';
 import { DestinationExplorer } from './DestinationExplorer';
-import { draggedHomeSheetHeight, HOME_SHEET_EXPANDED_HEIGHT, type HomeSheetStage } from '../services/homeSheetSizing';
+import { draggedHomeSheetHeight, type HomeSheetStage } from '../services/homeSheetSizing';
 import { destinationExploreKey } from '../services/destinationIdentity';
 import { CreateConvoyModal } from './CreateConvoyModal';
 import { ConvoyActionModal } from './ConvoyActionModal';
@@ -55,6 +55,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
   const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
+  const [travelMode,setTravelMode] = useState<'car'|'motorcycle'>(props.currentVehicle?.type==='motorcycle'?'motorcycle':'car');
+  useEffect(()=>{if(props.currentVehicle)setTravelMode(props.currentVehicle.type);},[props.currentVehicle?.id,props.currentVehicle?.type]);
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [showCreateConvoy, setShowCreateConvoy] = useState(false);
   const [showConvoyActions, setShowConvoyActions] = useState(false);
@@ -169,7 +171,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       // Sem veículo, a rota é real e navegável; consumo não é estimado.
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
         originName:'Sua localização atual',originCoords:coords,
-        interests,vehicle:props.currentVehicle || {...GUEST_NAVIGATION_VEHICLE,type:'motorcycle'} });
+        interests,vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
@@ -233,10 +235,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
-  const sheetHeight=sheetDragHeight || (collapsed?'64px':sheetExpanded?HOME_SHEET_EXPANDED_HEIGHT:'228px');
-  // Buttons follow the top of the sheet, including while the grip is dragged.
-  const controlsBottom=dragOffset?{bottom:`calc(${sheetHeight} + 25px)`,transitionDuration:'0ms'}:undefined;
-  const speedBottom=dragOffset?{bottom:`calc(${sheetHeight} + 12px)`,transitionDuration:'0ms'}:undefined;
+  // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
       <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
@@ -261,18 +260,17 @@ export function NavigationHome(props: NavigationHomeProps) {
           </button>
         </form>
         {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>}
-    <div className="rdv-figma-home-modes" aria-label="Modalidade de transporte">
-      <button type="button" className="rdv-figma-mode is-current" onClick={props.onOpenProfile}>
-        <Navigation size={15}/> {props.currentVehicle?.type==='car'?'Carro':'Moto'}
-      </button>
-      <button type="button" className="rdv-figma-mode" onClick={()=>{setError('Trajetos a pé ainda não estão disponíveis. Use uma rota de carro ou moto.');setCollapsed(false);setSheetExpanded(true);}}>
-        A pé
-      </button>
+    <div className="rdv-figma-home-modes" role="group" aria-label="Modalidade de transporte">
+      <button type="button" aria-pressed={travelMode==='car'}
+        className={`rdv-figma-mode ${travelMode==='car'?'is-current':''}`}
+        onClick={()=>setTravelMode('car')}><Navigation size={15}/> Carro</button>
+      <button type="button" aria-pressed={travelMode==='motorcycle'}
+        className={`rdv-figma-mode ${travelMode==='motorcycle'?'is-current':''}`}
+        onClick={()=>setTravelMode('motorcycle')}><Navigation size={15}/> Moto</button>
     </div>
-        {/* Velocímetro, GPS e reporte alinhados horizontalmente e acompanhando o painel. */}
+        {/* Coluna fixada à área do mapa; o sheet sobe por cima sem deslocá-la. */}
     <div aria-label="Controles de localização e ocorrência no início"
-      style={controlsBottom}
-      className={`absolute right-4 z-40 flex flex-row items-center gap-3 transition-[bottom] duration-300 ${collapsed?'bottom-[calc(140px+env(safe-area-inset-bottom))]':sheetExpanded?'bottom-[calc(82dvh+25px)]':'bottom-[calc(304px+env(safe-area-inset-bottom))]'}`}>
+      className="rdv-home-map-right-controls">
       <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
         className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
         <Crosshair size={22} strokeWidth={2.2}/>
@@ -285,8 +283,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       />
     </div>
     <Speedometer position={gps.status === 'ready' ? gps.position : null}
-      style={speedBottom}
-      className={`absolute left-4 z-40 transition-[bottom] duration-300 ${collapsed?'bottom-[calc(125px+env(safe-area-inset-bottom))]':sheetExpanded?'bottom-[calc(82dvh+12px)]':'bottom-[calc(294px+env(safe-area-inset-bottom))]'}`} />
+      className="rdv-home-map-speedometer" />
     <div data-testid="home-main-sheet"
       onPointerDown={startPanelDrag}
       onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}
@@ -378,14 +375,14 @@ export function NavigationHome(props: NavigationHomeProps) {
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet==='km'||sheet==='hours') && !preview && <CreateTouristCircuitScreen
-      mode={sheet} km={km} hours={hours} vehicle={props.currentVehicle} coords={liveCoords}
+      mode={sheet} km={km} hours={hours} travelMode={travelMode} coords={liveCoords}
       tripType={tripType} preference={preference} busy={busy}
       warning={warning} validation={validation} error={error}
       onClose={closeSheet} onModeChange={setSheet}
       onKmChange={setKm} onHoursChange={setHours} onStep={stepValue}
       onTripTypeChange={()=>setTripType(value=>value==='round_trip'?'one_way':'round_trip')}
       onPreferenceChange={setPreference}
-      onOpenVehicle={()=>{closeSheet();props.onOpenProfile();}}
+      onTravelModeChange={setTravelMode}
       onSubmit={()=>void submitCircuit()}
     />}
 

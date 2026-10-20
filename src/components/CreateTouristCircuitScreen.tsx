@@ -1,6 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Check, Clock3, Crosshair, Footprints, Repeat2, Route } from 'lucide-react';
-import type { Vehicle } from '../types';
+import { ArrowLeft, Check, Clock3, Crosshair, Repeat2, Route } from 'lucide-react';
 import { InteractiveMap } from './InteractiveMap';
 import { parseTouristTarget } from '../services/touristTargetInput';
 
@@ -11,7 +10,7 @@ interface CreateTouristCircuitScreenProps {
   mode: CircuitMode;
   km: string;
   hours: string;
-  vehicle: Vehicle | null;
+  travelMode: 'car' | 'motorcycle';
   coords?: [number,number];
   tripType: 'round_trip' | 'one_way';
   preference: CircuitPreference;
@@ -26,7 +25,7 @@ interface CreateTouristCircuitScreenProps {
   onStep: (increase: boolean) => void;
   onTripTypeChange: () => void;
   onPreferenceChange: (preference: CircuitPreference) => void;
-  onOpenVehicle: () => void;
+  onTravelModeChange: (value: 'car'|'motorcycle') => void;
   onSubmit: () => void;
 }
 
@@ -36,13 +35,12 @@ interface CreateTouristCircuitScreenProps {
  * continua no fluxo já existente do NavigationHome.
  */
 export function CreateTouristCircuitScreen({
-  mode, km, hours, vehicle, coords, tripType, preference, busy, warning,
+  mode, km, hours, travelMode, coords, tripType, preference, busy, warning,
   validation, error, onClose, onModeChange, onKmChange, onHoursChange,
-  onStep, onTripTypeChange, onPreferenceChange, onOpenVehicle, onSubmit
+  onStep, onTripTypeChange, onPreferenceChange, onTravelModeChange, onSubmit
 }: CreateTouristCircuitScreenProps) {
   const value=mode==='km'?km:hours;
   const options=mode==='km'?[10,20,30,50]:[1,2,3,4];
-  const vehicleLabel=vehicle?.type==='car'?'Carro':'Moto';
 
   return <div className="rdv-create-overlay">
     <section role="dialog" aria-modal="true" aria-label="Criar um rolê" className="rdv-create-screen">
@@ -100,12 +98,15 @@ export function CreateTouristCircuitScreen({
         <div className="rdv-create-vehicle-row">
           <strong>Vou de</strong>
           <div className="rdv-create-vehicle-actions">
-            <button type="button" className="is-selected" aria-label={vehicleLabel+' selecionado. Alterar veículo no Perfil'}
-              onClick={onOpenVehicle}>
-              <span className="rdv-create-vehicle-symbol">×</span>{vehicleLabel}
+            <button type="button" aria-pressed={travelMode==='car'}
+              className={travelMode==='car'?'is-selected':''}
+              onClick={()=>onTravelModeChange('car')}>
+              Carro
             </button>
-            <button type="button" disabled title="Rotas a pé ainda não disponíveis" aria-label="A pé — em breve">
-              <Footprints size={17}/> A pé
+            <button type="button" aria-pressed={travelMode==='motorcycle'}
+              className={travelMode==='motorcycle'?'is-selected':''}
+              onClick={()=>onTravelModeChange('motorcycle')}>
+              Moto
             </button>
           </div>
         </div>
