@@ -223,7 +223,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       // Se esgotarem as alternativas, a prévia anterior permanece intacta.
       circuitHistory.current = [...avoided,...(trip.waypointOrder?.length ? [trip.waypointOrder] : [])].slice(-5);
       circuitPlaceHistory.current=[...new Set([...(regenerate?circuitPlaceHistory.current:[]),
-        ...(trip.acceptedSuggestions||[]).map(stop=>stop.location.id)])].slice(-15);
+        ...(trip.acceptedSuggestions||[]).map(stop=>stop.location.id).filter((id):id is string=>typeof id==='string')])].slice(-15);
       setLastCircuitMode(mode);
       setCircuitPreviewId(trip.id);
       setSheet(null);
