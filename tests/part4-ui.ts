@@ -57,7 +57,7 @@ try{
  await owner.screenshot({path:'test-results/convoy-two-phones.png'});
  await rider.getByRole('button',{name:'Parar compartilhamento',exact:true}).click();await owner.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===1);
  // Explicit route publication is shared while meeting-point check-ins are retained.
- await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByRole('dialog',{name:'Entrar no comboio'}).getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByRole('button',{name:'Cheguei',exact:true}).first().click();
+ await rider.getByRole('button',{name:'Configurações'}).click();await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByRole('dialog',{name:'Entrar no comboio'}).getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByRole('button',{name:'Cheguei',exact:true}).first().click();
  await owner.getByRole('button',{name:'Atualizar roteiro do comboio',exact:true}).click();await rider.getByText('1 no local',{exact:true}).last().waitFor();
  await owner.getByRole('button',{name:'Encerrar Comboio',exact:true}).click();await owner.getByRole('button',{name:'Sim, Encerrar',exact:true}).click();await rider.getByText(/Este comboio foi encerrado/).waitFor();
  // The status banner commits before map effects reconcile/remove DOM pins.
