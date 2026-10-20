@@ -351,12 +351,23 @@ try {
   await homeReport.click();
   const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
+  const menuBounds=await homeReportOptions.boundingBox();
+  assert.ok(menuBounds && menuBounds.y<100,
+    'Ícones de alerta precisam aparecer no topo do telefone, não ao lado do botão');
+  const menuAnimation=await homeReportOptions.evaluate(el=>getComputedStyle(el).animationName);
+  assert.ok(menuAnimation.includes('rdv-alert-slide-to-top'),
+    'Menu de alerta deve animar de baixo para cima');
   await homeReportOptions.getByRole('menuitem', {name:'Veículo parado / quebrado'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Pedágio'}).waitFor();
   await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).click();
   const homeReportDialog = page.getByRole('dialog', {name:'Reportar ocorrência na via'});
   await homeReportDialog.getByText(/Pare em segurança/).waitFor();
-  assert.equal(await homeReportDialog.getByRole('button', {name:'Enviar para análise'}).isDisabled(), true);
+  await homeReportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
+  await homeReportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
+  assert.equal(await homeReportDialog.locator('textarea').count(),0,
+    'Não exigir digitação ao informar ocorrência');
+  assert.equal(await homeReportDialog.locator('input[type="checkbox"]').count(),0,
+    'Confirmar por gesto, sem formulário de múltiplas etapas');
   await homeReportDialog.getByRole('button', {name:'Fechar ocorrência'}).click();
   if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
@@ -681,7 +692,9 @@ try {
   await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).click();
   const reportDialog = page.getByRole('dialog', { name: 'Reportar ocorrência na via' });
   await reportDialog.getByText(/Pare em segurança/).waitFor();
-  assert.equal(await reportDialog.getByRole('button', { name: 'Enviar para análise' }).isDisabled(), true);
+  await reportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
+  await reportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
+  assert.equal(await reportDialog.locator('textarea').count(),0);
   await reportDialog.getByRole('button', { name: 'Fechar ocorrência' }).click();
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
   const mapPanel = page.getByTestId('map-explore-sheet');
