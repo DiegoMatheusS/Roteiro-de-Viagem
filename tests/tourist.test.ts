@@ -74,6 +74,18 @@ test('real tourist circuit: OSM evidence, road distance, optional visits and err
       assert.notDeepEqual(res.data.destinationCoords, request.originCoords);
       assert.ok(res.data.stops.every((s: any) => ['museu', 'mirante'].includes(s.category)));
     });
+    await t.test('dragging a blue point recomputes a real road, including the same origin on a loop', async()=>{
+      const changed=await call('/routes/adjust',{
+        waypoints:[[0,0],[0.03,0.04],[0,0]]
+      });
+      assert.equal(changed.status,200,JSON.stringify(changed.data));
+      assert.equal(changed.data.routingSource,'OSRM');
+      assert.ok(changed.data.distanceKm>0);
+      assert.ok(changed.data.drivingMinutes>0);
+      assert.equal(changed.data.routePath.length,3);
+      assert.equal((await call('/routes/adjust',{waypoints:[[0,0],[0,0]]})).status,400);
+      assert.equal((await call('/routes/adjust',{waypoints:[[0,0],[190,0],[0,0]]})).status,400);
+    });
     await t.test('rejects invalid coordinates and unsupported interests', async () => {
       assert.equal((await call('/routes/tourist', { ...request, target: -2 })).status, 400);
       assert.equal((await call('/routes/tourist', { ...request, interests: ['inventar_local'] })).status, 400);
@@ -83,6 +95,31 @@ test('real tourist circuit: OSM evidence, road distance, optional visits and err
     await new Promise<void>(resolve => server.close(() => resolve()));
     db.close();
   }
+});
+
+test('completed trips are deprioritized; same-session reload selects another attraction',async()=>{
+  const db=openDatabase(':memory:');
+  const server=createApi({db,mapFetch:fakeMaps()}).listen(0,'127.0.0.1');
+  await new Promise<void>(resolve=>server.once('listening',resolve));
+  const call=async(body:unknown)=>{
+    const response=await fetch(`http://127.0.0.1:${(server.address() as any).port}/api/routes/tourist`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
+    });
+    return {status:response.status,data:await response.json() as any};
+  };
+  const request={mode:'km',target:30,tripType:'round_trip',originCoords:[0,0],interests:[]};
+  try{
+    const first=await call(request);
+    assert.equal(first.status,200,JSON.stringify(first.data));
+    const ids=first.data.stops.map((stop:any)=>stop.locationId);
+    if(ids.length){
+      const next=await call({...request,excludePlaceIds:ids,visitedPlaceIds:ids,
+        visitedWaypoints:[first.data.waypoints],avoidWaypoints:[first.data.waypoints]});
+      assert.equal(next.status,200,JSON.stringify(next.data));
+      assert.ok(next.data.stops.every((stop:any)=>!ids.includes(stop.locationId)));
+    }
+    assert.equal((await call({...request,visitedPlaceIds:['a'.repeat(200)]})).status,400);
+  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));db.close();}
 });
 
 test('sem atrações, gera apenas percurso rodoviário verificado e sem paradas inventadas', async () => {

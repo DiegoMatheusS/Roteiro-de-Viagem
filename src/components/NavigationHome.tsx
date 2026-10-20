@@ -10,7 +10,8 @@ import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { getTouristTargetError, getTouristTargetWarning, parseTouristTarget } from '../services/touristTargetInput';
-import { createRoadDraft, generateVerifiedTouristCircuit } from '../services/touristCircuit';
+import { createRoadDraft, generateVerifiedTouristCircuit, recalculateDragRoute } from '../services/touristCircuit';
+import {distanceBetweenKm} from '../services/gpsTracking';
 import { GUEST_NAVIGATION_VEHICLE } from '../services/guestNavigationVehicle';
 import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
@@ -54,12 +55,16 @@ export function NavigationHome(props: NavigationHomeProps) {
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
+  const nearbyCircuitPlaces = useNearbyPlaces(liveCoords?[liveCoords]:[],Boolean(liveCoords)&&Boolean(sheet==='km'||sheet==='hours'),120);
   const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
   const [travelMode,setTravelMode] = useState<'car'|'motorcycle'>(props.currentVehicle?.type==='motorcycle'?'motorcycle':'car');
   useEffect(()=>{if(props.currentVehicle)setTravelMode(props.currentVehicle.type);},[props.currentVehicle?.id,props.currentVehicle?.type]);
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [circuitPreviewId,setCircuitPreviewId] = useState<string|null>(null);
   const circuitHistory = React.useRef<[number,number][][]>([]);
+  const circuitPlaceHistory = React.useRef<string[]>([]);
+  const [mapEditing,setMapEditing]=useState(false);
+  const [mapEditError,setMapEditError]=useState('');
   const [showCreateConvoy, setShowCreateConvoy] = useState(false);
   const [showConvoyActions, setShowConvoyActions] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -112,6 +117,34 @@ export function NavigationHome(props: NavigationHomeProps) {
   useEffect(()=>{if(liveCoords && !centeredOnce.current){centeredOnce.current=true;setCenterRequest(value=>value+1);}},[liveCoords?.[0],liveCoords?.[1]]);
   const [km, setKm] = useState('20'), [hours, setHours] = useState('2');
   const [tripType, setTripType] = useState<'round_trip'|'one_way'>('round_trip');
+  // Show real catalog POIs near GPS before generating the selected distance/time.
+  // These distances are straight-line hints only; the selected route uses OSRM.
+  const nearbySuggestions=useMemo(()=>{
+    if(!liveCoords)return [];
+    const mode=sheet==='hours'?'hours':'km';
+    const amount=parseTouristTarget(mode==='km'?km:hours) || 20;
+    const approxKm=mode==='km'?amount:amount*45;
+    const radius=Math.max(3,Math.min(120,approxKm*(tripType==='round_trip'?0.48:0.92)));
+    return nearbyCircuitPlaces
+      .filter(p=>p.active&&touristKinds.includes(p.kind)&&Number.isFinite(p.lat)&&Number.isFinite(p.lng))
+      .map(p=>({id:p.id,name:p.name,kind:p.kind,distanceKm:distanceBetweenKm(liveCoords,[p.lat,p.lng])}))
+      .filter(p=>p.distanceKm<=radius)
+      .sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,3);
+  },[nearbyCircuitPlaces,liveCoords?.[0],liveCoords?.[1],km,hours,tripType,sheet]);
+  const completedTrips=useMemo(()=>[...props.trips]
+    .filter(trip=>trip.status==='completed' && (trip.planningLimits?.mode==='km'||trip.planningLimits?.mode==='hours'))
+    .sort((a,b)=>Date.parse(b.completedAt||b.createdAt)-Date.parse(a.completedAt||a.createdAt)),[props.trips]);
+  const visitedWaypoints=useMemo(()=>completedTrips
+    .map(trip=>trip.waypointOrder)
+    .filter((waypoints):waypoints is [number,number][]=>Array.isArray(waypoints)&&
+      waypoints.length>=2&&waypoints.length<=6).slice(0,5),[completedTrips]);
+  const visitedPlaceIds=useMemo(()=>[...new Set(completedTrips.flatMap(trip=>[
+    ...(trip.acceptedSuggestions||[]).map(s=>s.location?.id).filter((id):id is string=>typeof id==='string'),
+    ...(trip.stops||[]).flatMap(stop=>{
+      const match=stop.sourceUrl?.match(/openstreetmap[.]org[/](node|way|relation)[/]([0-9]+)/);
+      return match?[`osm:${match[1]}:${match[2]}`]:[];
+    })
+  ]))].slice(0,40),[completedTrips]);
   const [preference, setPreference] = useState<'tranquila'|'curvas'|'cidades'>('tranquila');
   const [origin, setOrigin] = useState<LocationSelection>({name:''});
   const [dest, setDest] = useState<LocationSelection>({name:''});
@@ -135,7 +168,10 @@ export function NavigationHome(props: NavigationHomeProps) {
     return () => controller.abort();
   }, [preview?.id, props.currentVehicle?.type]);
 
-  const showSheet = (value:'km'|'hours'|'destination') => {setError('');setSheet(value);};
+  const showSheet = (value:'km'|'hours'|'destination') => {
+    setError('');setSheet(value);
+    if(value==='km'||value==='hours') {circuitHistory.current=[];circuitPlaceHistory.current=[];}
+  };
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
   const currentValue = sheet === 'km' ? km : hours;
   const validation = sheet === 'km' || sheet === 'hours' ? getTouristTargetError(sheet, currentValue) : '';
@@ -177,6 +213,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
         originName:'Sua localização atual',originCoords:coords,
         interests,avoidWaypoints:avoided,
+        visitedWaypoints,visitedPlaceIds,
+        excludePlaceIds:regenerate?circuitPlaceHistory.current:[],
         vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
@@ -184,11 +222,25 @@ export function NavigationHome(props: NavigationHomeProps) {
       // Atualiza o histórico somente após receber uma rota rodoviária válida.
       // Se esgotarem as alternativas, a prévia anterior permanece intacta.
       circuitHistory.current = [...avoided,...(trip.waypointOrder?.length ? [trip.waypointOrder] : [])].slice(-5);
+      circuitPlaceHistory.current=[...new Set([...(regenerate?circuitPlaceHistory.current:[]),
+        ...(trip.acceptedSuggestions||[]).map(stop=>stop.location.id).filter((id):id is string=>typeof id==='string')])].slice(-15);
       setLastCircuitMode(mode);
       setCircuitPreviewId(trip.id);
       setSheet(null);
       setPreview(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
+  };
+  const editPreviewRoute=async(position:[number,number])=>{
+    if(!preview || busy || mapEditing)return;
+    setMapEditError('');setMapEditing(true);
+    const current=preview;
+    try{
+      const vehicle=props.currentVehicle?.type===travelMode
+        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
+      const altered=await recalculateDragRoute(current,position,vehicle);
+      setPreview(existing=>existing?.id===current.id?altered:existing);
+    }catch(err){setMapEditError((err as Error).message);}
+    finally{setMapEditing(false);}
   };
   const submitDestination = async () => {
     if (busy || !dest.coords || (!useGps && !origin.coords) || !requireVehicle()) return;
@@ -386,6 +438,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     {(sheet==='km'||sheet==='hours') && !preview && <CreateTouristCircuitScreen
       mode={sheet} km={km} hours={hours} travelMode={travelMode} coords={liveCoords}
       tripType={tripType} preference={preference} busy={busy}
+      nearbySuggestions={nearbySuggestions}
       warning={warning} validation={validation} error={error}
       onClose={closeSheet} onModeChange={setSheet}
       onKmChange={setKm} onHoursChange={setHours} onStep={stepValue}
@@ -397,11 +450,13 @@ export function NavigationHome(props: NavigationHomeProps) {
 
     {preview && <TripPreviewScreen
       key={preview.id} trip={preview}
-      vehicleType={props.currentVehicle?.type || 'motorcycle'}
+      vehicleType={travelMode}
       isSaved={props.trips.some(savedTrip=>savedTrip.id===preview.id)}
       tollNotice={tollNotice} error={error}
       onRegenerate={preview.id===circuitPreviewId?()=>void submitCircuit(true):undefined}
       regenerating={busy}
+      onDragWaypoint={point=>void editPreviewRoute(point)}
+      mapEditing={mapEditing} mapEditError={mapEditError}
       onClose={()=>setPreview(null)}
       onSave={()=>props.onSaveTrip(preview)}
       onAdjust={()=>{

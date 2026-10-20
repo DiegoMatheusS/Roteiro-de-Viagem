@@ -2,7 +2,7 @@ import {captureMapFallbackViewport,type MapFallbackViewport} from '../services/m
 import React,{useEffect,useRef,useState} from 'react';
 import {Compass,Layers} from 'lucide-react';
 import {updateMapCourse} from '../services/gpsHeading';
-import {Map as GlMap,setWorkerUrl,type MapMouseEvent} from 'maplibre-gl';
+import {Map as GlMap,Marker as GlMarker,setWorkerUrl,type MapMouseEvent} from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type {InteractiveMapProps} from './InteractiveMap';
@@ -84,10 +84,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const origin=latest.current.originCoords;
       map=new GlMap({container:container.current,style:standaloneBaseStyle(activeStyle),
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
-        minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,pitch:0,
+        minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,
+        pitch:latest.current.navigationMode?48:0,maxPitch:65,
         // Preserve native pan, pinch zoom and two-finger rotation while exploring.
         // Camera following pauses on explicit gestures and resumes via GPS.
-        dragRotate:true,pitchWithRotate:false,touchPitch:false,
+        dragRotate:true,pitchWithRotate:true,touchPitch:true,
         attributionControl:{compact:true}});
       map.touchZoomRotate.enableRotation();
     }catch{fail();return;}
@@ -103,6 +104,30 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     captureFallback=()=>loaded?captureMapFallbackViewport(map,{...camera.snapshot(),
       fittedRoute:fitted,focusedCoords:lastFocus},TILE_PROVIDERS[styleRef.current].maxZoom):undefined;
     let drawn:RoleVectorMarker[]=[];
+    let editablePin:GlMarker|null=null;
+    let editedAt:string|null=null;
+    const syncEditablePin=()=>{
+      const p=latest.current;
+      if(!p.editableWaypoint || !p.onDragWaypoint || p.navigationMode){
+        editablePin?.remove();editablePin=null;editedAt=null;return;
+      }
+      const key=p.editableWaypoint.join(',');
+      if(editablePin && editedAt===key)return;
+      editablePin?.remove();
+      const el=document.createElement('button');
+      el.type='button';el.setAttribute('aria-label','Arraste o ponto azul para mudar a rua');
+      el.title='Arraste o ponto azul para mudar a rua';
+      el.style.cssText='width:42px;height:42px;border:3px solid white;border-radius:50%;background:#2563eb;color:white;font-size:20px;box-shadow:0 2px 14px #1e40af66;cursor:grab;touch-action:none';
+      el.textContent='↔';
+      const marker=new GlMarker({element:el,draggable:true,anchor:'center'})
+        .setLngLat([p.editableWaypoint[1],p.editableWaypoint[0]]).addTo(map);
+      marker.on('dragstart',()=>camera.explore());
+      marker.on('dragend',()=>{
+        const position=marker.getLngLat();
+        latest.current.onDragWaypoint?.([position.lat,position.lng]);
+      });
+      editablePin=marker;editedAt=key;
+    };
     let visibleKey='';
     const navigation=createRoleNavigationPins(map);
     const trip=createRoleTripPins(map,{openFuel:(id,section)=>setStation({id,section})});
@@ -140,6 +165,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
           navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
         trip.updateStops(p.stops||[]);trip.updateMeetings(p.meetingPoints||[]);
+        syncEditablePin();
         trip.updateParticipants(p.convoyParticipants||[]);
         weather.update(p.weatherPoints||[],p.showRainLayer??false);
         alerts.update(p.roadAlerts||[]);
@@ -242,6 +268,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     map.on('dragstart',userGesture);
     map.on('zoomstart',userGesture);
     map.on('rotatestart',userGesture);
+    map.on('pitchstart',userGesture);
     const unbindGestures=bindManualMapZoom(map.getContainer(),()=>camera.explore());
     const unbindResume=bindMapResumeRefresh(document,window,()=>{
       if(!disposed){map.resize();map.triggerRepaint();}
@@ -282,7 +309,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     return ()=>{
       disposed=true;clearTimeout(timeout);if(styleTimeout)clearTimeout(styleTimeout);runtime.current=null;
       unbindGestures();unbindResume();resize.disconnect();
-      map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);map.off('rotatestart',userGesture);
+      map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);map.off('rotatestart',userGesture);map.off('pitchstart',userGesture);
+      editablePin?.remove();
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
       navigation.destroy();trip.destroy();weather.destroy();alerts.destroy();markers.destroy();
       map.stop();map.remove();
