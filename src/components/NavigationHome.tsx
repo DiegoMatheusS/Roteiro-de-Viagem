@@ -58,6 +58,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [travelMode,setTravelMode] = useState<'car'|'motorcycle'>(props.currentVehicle?.type==='motorcycle'?'motorcycle':'car');
   useEffect(()=>{if(props.currentVehicle)setTravelMode(props.currentVehicle.type);},[props.currentVehicle?.id,props.currentVehicle?.type]);
   const [preview, setPreview] = useState<TripPlan|null>(null);
+  const [circuitPreviewId,setCircuitPreviewId] = useState<string|null>(null);
+  const circuitHistory = React.useRef<[number,number][][]>([]);
   const [showCreateConvoy, setShowCreateConvoy] = useState(false);
   const [showConvoyActions, setShowConvoyActions] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -154,9 +156,11 @@ export function NavigationHome(props: NavigationHomeProps) {
     if (position.accuracyMeters > 150) throw new Error('O sinal GPS está impreciso. Tente novamente em local aberto.');
     return position.coords;
   };
-  const submitCircuit = async () => {
-    if (busy || (sheet !== 'km' && sheet !== 'hours')) return;
-    const mode = sheet as CircuitMode;
+  const submitCircuit = async (regenerate = false) => {
+    const selectedMode = regenerate ? lastCircuitMode : sheet;
+    if (busy || (selectedMode !== 'km' && selectedMode !== 'hours') ||
+      (regenerate && (!preview || preview.id !== circuitPreviewId))) return;
+    const mode = selectedMode as CircuitMode;
     const value = mode === 'km' ? km : hours;
     const issue = getTouristTargetError(mode,value);
     if (issue) {setError(issue);return;}
@@ -169,14 +173,19 @@ export function NavigationHome(props: NavigationHomeProps) {
         preference === 'cidades' ? ['museus','historico'] : [];
       // A navegação turística é pública: nenhum login ou veículo salvo é exigido.
       // Sem veículo, a rota é real e navegável; consumo não é estimado.
+      const avoided = regenerate ? circuitHistory.current : [];
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
         originName:'Sua localização atual',originCoords:coords,
-        interests,vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
+        interests,avoidWaypoints:avoided,
+        vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
-      // Mostre primeiro a prévia com a rota real, antes de iniciar a navegação.
+      // Atualiza o histórico somente após receber uma rota rodoviária válida.
+      // Se esgotarem as alternativas, a prévia anterior permanece intacta.
+      circuitHistory.current = [...avoided,...(trip.waypointOrder?.length ? [trip.waypointOrder] : [])].slice(-5);
       setLastCircuitMode(mode);
+      setCircuitPreviewId(trip.id);
       setSheet(null);
       setPreview(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
@@ -391,6 +400,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       vehicleType={props.currentVehicle?.type || 'motorcycle'}
       isSaved={props.trips.some(savedTrip=>savedTrip.id===preview.id)}
       tollNotice={tollNotice} error={error}
+      onRegenerate={preview.id===circuitPreviewId?()=>void submitCircuit(true):undefined}
+      regenerating={busy}
       onClose={()=>setPreview(null)}
       onSave={()=>props.onSaveTrip(preview)}
       onAdjust={()=>{
