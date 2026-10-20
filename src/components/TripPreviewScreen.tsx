@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {ArrowLeft, Bookmark, Check, Expand, Minimize2, Navigation2, Play, Route, RotateCcw} from 'lucide-react';
+import {ArrowLeft, Bookmark, Check, Expand, Minimize2, Navigation2, Play, RefreshCw, Route, RotateCcw} from 'lucide-react';
 import type {TripPlan, VehicleType} from '../types';
 import {InteractiveMap} from './InteractiveMap';
 
@@ -13,6 +13,8 @@ interface TripPreviewScreenProps {
   onAdjust: () => void;
   onStart: () => void;
   onSave: () => void;
+  onRegenerate?: () => void;
+  regenerating?: boolean;
 }
 
 function formatDistance(distance:number):string {
@@ -26,7 +28,8 @@ function formatDuration(durationMinutes:number):string {
 
 /** Tela 3/7: visual do Figma, usando dados e geometria da rota verificada. */
 export function TripPreviewScreen({
-  trip, vehicleType, isSaved, tollNotice, error, onClose, onAdjust, onStart, onSave
+  trip, vehicleType, isSaved, tollNotice, error, onClose, onAdjust, onStart, onSave,
+  onRegenerate, regenerating = false
 }:TripPreviewScreenProps) {
   const [mapExpanded,setMapExpanded]=useState(false);
   const distance=formatDistance(trip.distanceKm);
@@ -35,6 +38,13 @@ export function TripPreviewScreen({
   const tolls=trip.tolls?.length||0;
   const tollLabel=tolls>0?`${tolls} ${tolls===1?'pedágio listado':'pedágios listados'}`:
     trip.tollsStatus==='available'?'sem pedágios':'pedágios a confirmar';
+  // Na prévia por KM/horas a ausência de atrações e o retorno já são evidentes
+  // no mapa. Mantemos alertas realmente úteis, como distância diferente ou rota desatualizada.
+  const circuit = trip.planningLimits?.mode === 'km' || trip.planningLimits?.mode === 'hours';
+  const visibleWarnings = (trip.routeWarnings || []).filter(warning =>
+    !circuit || !['Não foi possível consultar atrações externas.',
+      'Roteiro rodoviário verificado. Não foram incluídas atrações',
+      'O roteiro retorna ao ponto inicial.'].some(prefix => warning.startsWith(prefix)));
   const subtitle=trip.isCircular?
     `${trip.originName} → retorno ao início`:
     `${trip.originName} → ${trip.destinationName}`;
@@ -95,8 +105,14 @@ export function TripPreviewScreen({
           <RotateCcw size={15}/>
           {trip.isCircular?'Volta ao início':'Só ida'} · {tollLabel}
         </p>
+        {onRegenerate && <button type="button" aria-label="Gerar outra rota"
+          disabled={regenerating} onClick={onRegenerate}
+          className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-[14px] font-semibold text-blue-700 shadow-sm disabled:opacity-60 w-fit">
+          <RefreshCw size={18} className={regenerating?'animate-spin':''}/>
+          {regenerating?'Buscando outra rota…':'Outra rota'}
+        </button>}
         {tollNotice && <p className="rdv-preview-notice" role="status">{tollNotice}</p>}
-        {trip.routeWarnings?.map((warning,i)=><p className="rdv-preview-notice" key={i}>{warning}</p>)}
+        {visibleWarnings.map((warning,i)=><p className="rdv-preview-notice" key={i}>{warning}</p>)}
         {error && <p className="rdv-preview-notice" role="alert">{error}</p>}
         <div className="rdv-preview-actions">
           <button type="button" onClick={onAdjust} className="rdv-preview-adjust">Ajustar</button>
