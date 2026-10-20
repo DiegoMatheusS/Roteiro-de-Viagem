@@ -74,6 +74,32 @@ test('real tourist circuit: OSM evidence, road distance, optional visits and err
       assert.notDeepEqual(res.data.destinationCoords, request.originCoords);
       assert.ok(res.data.stops.every((s: any) => ['museu', 'mirante'].includes(s.category)));
     });
+    await t.test('dragging a blue point recomputes a real road, including the same origin on a loop', async()=>{
+      const changed=await call('/routes/adjust',{
+        waypoints:[[0,0],[0.03,0.04],[0,0]]
+      });
+      assert.equal(changed.status,200,JSON.stringify(changed.data));
+      assert.equal(changed.data.routingSource,'OSRM');
+      assert.ok(changed.data.distanceKm>0);
+      assert.ok(changed.data.drivingMinutes>0);
+      assert.equal(changed.data.routePath.length,3);
+      assert.equal((await call('/routes/adjust',{waypoints:[[0,0],[0,0]]})).status,400);
+      assert.equal((await call('/routes/adjust',{waypoints:[[0,0],[190,0],[0,0]]})).status,400);
+    });
+    await t.test('previously visited attraction IDs are accepted and rerolls exclude visited stops',async()=>{
+      const first=await call('/routes/tourist',request);
+      assert.equal(first.status,200);
+      const oldIds=first.data.stops.map((stop:any)=>stop.locationId);
+      if(oldIds.length){
+        const next=await call('/routes/tourist',{
+          ...request,excludePlaceIds:oldIds,visitedPlaceIds:oldIds,
+          visitedWaypoints:[first.data.waypoints],avoidWaypoints:[first.data.waypoints]
+        });
+        assert.equal(next.status,200,JSON.stringify(next.data));
+        assert.ok(next.data.stops.every((stop:any)=>!oldIds.includes(stop.locationId)));
+      }
+      assert.equal((await call('/routes/tourist',{...request,visitedPlaceIds:['a'.repeat(200)]})).status,400);
+    });
     await t.test('rejects invalid coordinates and unsupported interests', async () => {
       assert.equal((await call('/routes/tourist', { ...request, target: -2 })).status, 400);
       assert.equal((await call('/routes/tourist', { ...request, interests: ['inventar_local'] })).status, 400);
