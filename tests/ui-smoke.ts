@@ -595,12 +595,18 @@ try {
   await page.mouse.move(previewBox.x+previewBox.width*.75,previewBox.y+previewBox.height*.55-60,{steps:10});
   await page.waitForTimeout(200); // Stop drag velocity before release; no inertial overshoot.
   await page.mouse.up();
-  const fuelMarker = page.locator('.fuel-station-marker').first();
+  const fuelMarker = page.locator('.role-poi-marker[data-poi-category="fuel"], .fuel-station-marker').first();
   // A atribuição MapLibre varia de tamanho conforme a plataforma e os tiles.
   // Afaste o marcador dela com gestos reais até o botão receber toques;
   // não use force:true, que esconderia problemas reais de hit-testing.
   const tapFuelMarker=async(name:string)=>{
-    const button=fuelMarker.getByRole('button', {name,exact:true});
+    const compact=(await fuelMarker.getAttribute('class'))?.includes('role-poi-marker')??false;
+    const actionName=compact?`${name==='Sugerir preço'?'Sugerir preço':'Comentários'}: Posto de teste de interface`:name;
+    // Compact markers must expand before the nested price/comment buttons can be tapped.
+    if(compact && await fuelMarker.getAttribute('data-expanded')!=='true'){
+      await fuelMarker.click();
+    }
+    const button=fuelMarker.getByRole('button', {name:actionName,exact:true});
     for(let attempt=0;attempt<4;attempt++){
       try { await button.click({trial:true,timeout:1200});break; }
       catch {
@@ -672,7 +678,7 @@ try {
   assert.equal((db.prepare("SELECT COUNT(*) AS count FROM prices WHERE status='published'").get() as any).count, 2);
   assert.equal((await fetch(`http://127.0.0.1:3001/api/photos/${photoId}`)).status, 200);
   await station.getByRole('button', { name: 'Fechar posto' }).click();
-  await fuelMarker.getByRole('button', { name: 'Sugerir preço', exact: true }).click();
+  await tapFuelMarker('Sugerir preço');
   await station.getByText('Informação recente · revisada pelo administrador').first().waitFor();
   await station.getByRole('button', { name: 'Fechar posto' }).click();
   await planner.getByRole('button', { name: 'Encontrar combustível mais barato' }).click();
