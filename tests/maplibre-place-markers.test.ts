@@ -113,3 +113,12 @@ test('visualização rápida encerra no tempo, ao sair do zoom, tocar fora e des
  assert.match(controller,/gl\.off\('click',onMapClick\)/);
  assert.match(controller,/clearPreviewTimeout\(\);[\s\S]*for\(const record of markers\.values\(\)\)record\.marker\.remove\(\)/);
 });
+
+test('zoom geral esconde apenas o halo grande, sem reduzir a área tocável dos ícones',()=>{
+ const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/role-map-poi.css',import.meta.url),'utf8');
+ assert.match(controller,/element\.dataset\.poiOverview=String\(gl\.getZoom\(\)<15\)/);
+ assert.match(css,/\.role-poi-marker\[data-poi-overview="true"\]::before\{opacity:0;\}/);
+ assert.match(css,/transform:scale\(\.84\)/);
+ assert.match(css,/\.role-poi-marker\s*\{[^}]*width:38px/s);
+});

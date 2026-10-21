@@ -15,6 +15,12 @@
 .role-poi-marker > .rdv-map-place-icon {position:relative;z-index:1;
   border-color:var(--role-poi-surface)!important;
   box-shadow:0 2px 9px #0f172a44!important;}
+/* City / long-route overview: the pin stays tappable at 38px, but its visual
+ * clutter is reduced until street-level zoom restores the category halo. */
+.role-poi-marker[data-poi-overview="true"]::before{opacity:0;}
+.role-poi-marker[data-poi-overview="true"] > .rdv-map-place-icon{
+  transform:scale(.84);transform-origin:center;}
+.role-poi-marker[data-poi-overview="false"] > .rdv-map-place-icon{transform:none;}
 .role-poi-marker .role-poi-details {position:absolute;z-index:3;left:43px;bottom:1px;
   display:none;flex-direction:column;gap:4px;width:206px;max-width:calc(80vw - 48px);
   padding:10px 11px;border:1px solid color-mix(in srgb,var(--role-poi-accent),white 50%);

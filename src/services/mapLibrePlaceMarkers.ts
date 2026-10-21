@@ -84,6 +84,9 @@ export function createRoleMaplibreMarkerController(
       const visible=poiVisibleAtZoom(record.entry,gl.getZoom()) ||
         (Boolean(context.showRouteServices) && (record.entry.kind==='fuel'||record.entry.kind==='toll'));
       const element=record.marker.getElement();
+      // At city-scale zoom, keep category icons but suppress the large halo
+      // so verified route lines and street labels remain easy to read.
+      element.dataset.poiOverview=String(gl.getZoom()<15);
       element.style.display=visible?'':'none';
       element.dataset.expanded=String(visible && (manualKey===key || (!manualKey&&key===preview.expandedKey)));
       element.setAttribute('aria-expanded',element.dataset.expanded);
