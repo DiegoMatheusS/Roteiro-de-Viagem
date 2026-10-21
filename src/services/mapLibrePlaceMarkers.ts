@@ -71,6 +71,7 @@ export function createRoleMaplibreMarkerController(
     const root=iconElement(mapPlaceIcon(category as Place['kind']),'role-poi-marker managed-place-marker');
     root.style.setProperty('--role-poi-accent',color);
     root.dataset.expanded='false';
+    root.dataset.poiCategory=category;
     root.title=entry.name;
     root.tabIndex=0;
     root.setAttribute('role','button');
