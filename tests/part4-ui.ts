@@ -55,6 +55,16 @@ try{
  await owner.getByRole('button',{name:'Compartilhar Localização',exact:true}).click();await rider.getByRole('button',{name:'Compartilhar Localização',exact:true}).click();
  await owner.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();await rider.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();
  await owner.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===2);
+ // A parked phone can stop emitting GPS fixes: the 6 s stale warning must not
+ // revoke location consent or kill the watch. Fresh fixes must restore readiness.
+ if(gpsRefreshTimer)clearInterval(gpsRefreshTimer);
+ gpsRefreshTimer=undefined;
+ await owner.getByRole('button',{name:'Buscando GPS...',exact:true}).waitFor({timeout:18000});
+ assert.equal(await owner.getByRole('button',{name:'Compartilhar Localização',exact:true}).count(),0,
+   'A stale GPS reading must not revoke consent to share in the convoy');
+ await refreshTestGps();
+ gpsRefreshTimer=setInterval(()=>{void refreshTestGps().catch(error=>errors.push('GPS fixture: '+String(error)));},2000);
+ await owner.getByRole('button',{name:'Localização ativa',exact:true}).waitFor();
  // O mapa nao exibe mais +/-. Testa o zoom por gesto (duplo clique) sem mudar a preferencia do usuario.
  assert.equal(await owner.locator('.leaflet-control-zoom-in, .leaflet-control-zoom-out').count(),0);
  await owner.locator('[data-map-engine="maplibre-standalone"], .leaflet-container').last().dblclick({position:{x:110,y:150}});
