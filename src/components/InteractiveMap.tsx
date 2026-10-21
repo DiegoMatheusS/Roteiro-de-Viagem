@@ -79,6 +79,7 @@ export interface InteractiveMapProps {
   tollVehicleType?: 'car' | 'motorcycle';
   showRainLayer?: boolean;
   userLiveCoords?: [number, number];
+  userGpsAccuracyMeters?:number;
   userHeadingDegrees?: number | null;
   userSpeedMetersPerSecond?: number | null;
   focusedCoords?: [number, number] | null;
@@ -137,6 +138,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   tolls = EMPTY_TOLLS,
   tollVehicleType,
   userLiveCoords,
+  userGpsAccuracyMeters,
   userHeadingDegrees,
   userSpeedMetersPerSecond,
   focusedCoords,
@@ -583,6 +585,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       setVectorMarkersReady(false);
     }
   },[fuel.stations,places,tolls,navigationMode,tollVehicleType]);
+
+  // Location updates may expand a nearby POI; never rebuild map markers or reload tiles.
+  useEffect(()=>{
+    const gl=vectorMapRef.current;
+    if(!gl)return;
+    vectorPlaceControllerRef.current?.setContext({zoom:gl.getZoom(),navigationMode,
+      location:userLiveCoords,accuracyMeters:userGpsAccuracyMeters});
+  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.
