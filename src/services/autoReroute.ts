@@ -198,6 +198,7 @@ interface VerifiedItineraryResponse {
   drivingMinutes:number;
   durationMinutes:number;
   stale?:boolean;
+  warnings?:string[];
   waypoints?:Coordinates[];
 }
 export function verifiedReroute(
@@ -211,6 +212,8 @@ export function verifiedReroute(
     !Number.isFinite(result.distanceKm) || result.distanceKm<=0 ||
     !Number.isFinite(result.drivingMinutes) || result.drivingMinutes<=0 ||
     result.stale===true ||
+    result.warnings?.some(w=>typeof w==='string'&&
+      /rota recuperada do histórico|percurso pode estar desatualizado/i.test(w)) ||
     distanceBetweenKm(result.routePath[0],origin)>.35 ||
     distanceBetweenKm(result.routePath[result.routePath.length-1],destination)>.35 ||
     (expectedWaypoints!==undefined &&
