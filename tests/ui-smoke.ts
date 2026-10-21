@@ -42,7 +42,7 @@ const context = await browser.newContext({ viewport: { width: 390, height: 844 }
 // native mock can time out when a busy CI runner repeatedly mounts the map.
 // A JavaScript string avoids tsx/esbuild's __name helper leaking into the
 // browser when Playwright serializes a TypeScript arrow function.
-await context.addInitScript({ content: `(() => {
+const stableGeolocationScript = `(() => {
   let nextId = 0;
   const timers = new Map();
   const position = () => ({
@@ -69,7 +69,8 @@ await context.addInitScript({ content: `(() => {
       }
     }
   });
-})();` });
+})();`;
+await context.addInitScript({ content:stableGeolocationScript });
 const page = await context.newPage();
 const adminBrowser = executablePath ? await chromium.launch({ headless: true, executablePath, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] }) : browser;
 const adminContext = await adminBrowser.newContext({ viewport: { width: 1365, height: 900 } });
@@ -146,6 +147,9 @@ try {
     viewport:{width:390,height:844},permissions:['geolocation'],
     geolocation:{latitude:-23.551,longitude:-46.629,accuracy:3}
   });
+  // The guest trip also needs continuous fresh GPS updates; a single Chromium fix
+  // becomes stale after six seconds and must not prevent route generation.
+  await guestContext.addInitScript({content:stableGeolocationScript});
   const guestPage=await guestContext.newPage();
   const guestErrors:string[]=[];
   const modes:string[]=[];
