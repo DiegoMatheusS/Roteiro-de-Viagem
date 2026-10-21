@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { watchDeviceLocation, type DeviceLocation } from '../services/locationService';
+import { isFreshGpsFix } from '../services/gpsFreshness';
 
 type LocationStatus = 'idle' | 'loading' | 'ready' | 'error' | 'stale';
 
@@ -20,7 +21,7 @@ export function useDeviceLocation(enabled: boolean, sessionKey = '') {
     }
     let retryTimer: number | undefined;
     const stop = watchDeviceLocation(geolocation, position => {
-      const fresh = Date.now() - position.timestamp <= 6000;
+      const fresh = isFreshGpsFix(position.timestamp);
       setState({ position, error: fresh ? null : 'O sinal do GPS está desatualizado. Tente novamente.', status: fresh ? 'ready' : 'stale', key: sessionKey });
     }, error => {
       setState({ position: null, error, status: 'error', key: sessionKey });
@@ -32,7 +33,7 @@ export function useDeviceLocation(enabled: boolean, sessionKey = '') {
       }
     });
     const timer = window.setInterval(() => setState(current => {
-      if (current.status === 'ready' && current.position && Date.now() - current.position.timestamp > 6000) {
+      if (current.status === 'ready' && current.position && !isFreshGpsFix(current.position.timestamp)) {
         return { ...current, status: 'stale', error: 'O sinal do GPS está desatualizado. Tente novamente.' };
       }
       return current;

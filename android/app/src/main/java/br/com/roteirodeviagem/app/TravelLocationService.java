@@ -74,9 +74,13 @@ public class TravelLocationService extends Service implements LocationListener {
     return START_NOT_STICKY;
   }
   private void persist() { if(!tripId.isEmpty()) pref.edit().putString("tripId",tripId).putLong("distance",Double.doubleToLongBits(distanceKm)).apply(); }
+  /** Discard cached fixes older than 6 s before tracking, distance or convoy upload. */
+  static boolean isFreshGpsFix(long nowMillis,long timestampMillis) {
+    long age=nowMillis-timestampMillis;
+    return age>=-5000 && age<=6000;
+  }
   @Override public void onLocationChanged(Location location) {
-    long age=System.currentTimeMillis()-location.getTime();
-    if(age>60000 || age< -5000 || !location.hasAccuracy() || location.getAccuracy()>50) { previous=null; return; }
+    if(!isFreshGpsFix(System.currentTimeMillis(),location.getTime()) || !location.hasAccuracy() || location.getAccuracy()>50) { previous=null; return; }
     JSObject pos=new JSObject(); JSArray coords=new JSArray(); coords.put((Object)location.getLatitude()); coords.put((Object)location.getLongitude());
     pos.put("coords",coords); pos.put("accuracyMeters",location.getAccuracy()); pos.put("timestamp",location.getTime()); pos.put("speedMetersPerSecond",location.hasSpeed()?location.getSpeed():org.json.JSONObject.NULL); pos.put("headingDegrees",location.hasBearing() && Float.isFinite(location.getBearing()) ? location.getBearing() : org.json.JSONObject.NULL); lastPosition=pos;
     if(!tripId.isEmpty() && previous!=null) {

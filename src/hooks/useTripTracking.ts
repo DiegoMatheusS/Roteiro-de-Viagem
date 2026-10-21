@@ -4,6 +4,7 @@ import { storageService } from '../services/storageService';
 import { isNativeApp, TravelNative } from '../services/nativeApp';
 import type { DeviceLocation } from '../services/locationService';
 import { useDeviceLocation } from './useDeviceLocation';
+import { isFreshGpsFix } from '../services/gpsFreshness';
 export function useTripTracking(tripId?: string) {
   const native = isNativeApp();
   const nativeKey = tripId ? `${storageService.getScope() || 'guest'}:${tripId}` : '';
@@ -20,7 +21,7 @@ export function useTripTracking(tripId?: string) {
     const read = () => { if (!ready) return; void TravelNative.state().then(state => {
       if(disposed)return;
       if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
-      const fresh = state.position && Date.now() - state.position.timestamp < 6000;
+      const fresh = !!state.position && isFreshGpsFix(state.position.timestamp);
       setNativeState({ tripId, distanceKm: state.distanceKm, position: fresh ? state.position! : null, running: state.running,
         error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !fresh ? 'Aguardando sinal GPS recente.' : null });
     }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); }); };
