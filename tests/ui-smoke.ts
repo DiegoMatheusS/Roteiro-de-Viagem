@@ -602,8 +602,18 @@ try {
   const tapFuelMarker=async(name:string)=>{
     const compact=(await fuelMarker.getAttribute('class'))?.includes('role-poi-marker')??false;
     const actionName=compact?`${name==='Sugerir preço'?'Sugerir preço':'Comentários'}: Posto de teste de interface`:name;
-    // Compact markers must expand before the nested price/comment buttons can be tapped.
+    // Compact markers must expand before nested actions, while preserving real hit testing.
     if(compact && await fuelMarker.getAttribute('data-expanded')!=='true'){
+      for(let attempt=0;attempt<4;attempt++){
+        try { await fuelMarker.click({trial:true,timeout:1200});break; }
+        catch {
+          const view=await preview.boundingBox();assert.ok(view);
+          await page.mouse.move(view.x+view.width*.48,view.y+view.height*.7);
+          await page.mouse.down();
+          await page.mouse.move(view.x+view.width*.33,view.y+view.height*.28,{steps:12});
+          await page.mouse.up();
+        }
+      }
       await fuelMarker.click();
     }
     const button=fuelMarker.getByRole('button', {name:actionName,exact:true});
