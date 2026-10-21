@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import type {TripPlan} from '../src/types';
 import type {DeviceLocation} from '../src/services/locationService';
 import {
-  initialOffRouteState,evaluateOffRoute,distanceToRouteMeters,
+  initialOffRouteState,evaluateOffRoute,distanceToRouteMeters,isGpsOutsideRouteCorridor,
   verifiedReroute,eligibleDirectReroute,
   REROUTE_COOLDOWN_MS
 } from '../src/services/autoReroute';
@@ -125,4 +125,15 @@ test('navegação mantém rota restante e progresso relativo, não reseta distâ
  assert.match(service,/roundTrip:false/);
  assert.match(service,/\x27\/routes\/itinerary\x27/);
  assert.doesNotMatch(service,/https:\/\/router\.project-osrm\.org/);
+});
+
+test('mapa não anuncia conversões antigas quando o GPS confiável sai do corredor',()=>{
+ assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.5,-46.495]),path,now),false);
+ assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.4985,-46.495]),path,now),true);
+ assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.4985,-46.495],{accuracyMeters:80}),path,now),false);
+ assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.4985,-46.495]),path,now+9000),false);
+ const hud=readFileSync(new URL('../src/components/ActiveTripModal.tsx',import.meta.url),'utf8');
+ assert.match(hud,/const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor\(tracking\.position,navigationPath\)/);
+ assert.match(hud,/const nextTurn = outsideCorridor\?null:nextNavigationGuidance/);
+ assert.match(hud,/outsideCorridor\?'Fora da rota':'Na rota'/);
 });
