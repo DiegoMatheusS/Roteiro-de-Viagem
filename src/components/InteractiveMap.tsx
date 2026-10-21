@@ -1,4 +1,5 @@
 import {sameMapFocus,type MapFallbackViewport} from '../services/mapFallbackViewport';
+import {useMapAppearance} from '../hooks/useMapAppearance';
 import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
 import type { RouteToll } from '../types/tolls';
 import {TILE_PROVIDERS,type MapStyleType} from '../services/mapStyles';
@@ -156,6 +157,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   centerOnUserRequest = 0,
   className = 'w-full h-full'
 }) => {
+  const {theme:appearanceTheme}=useMapAppearance();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const editorMarkerRef=useRef<L.Marker|null>(null);
@@ -767,7 +769,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         if (disposed) return;
         if (!canRenderVectorMap()) { showRaster(); return; }
         try {
-          const vector = createRoleVectorLayer();
+          const vector = createRoleVectorLayer(appearanceTheme);
           vector.addTo(map);
           currentTileLayerRef.current = vector;
           const gl = vector.getMaplibreMap();
@@ -787,7 +789,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
             if (disposed) return;
             vectorLoaded = true;
             if (vectorTimer) clearTimeout(vectorTimer);
-            applyRoleVectorPalette(gl);
+            if(appearanceTheme==='light')applyRoleVectorPalette(gl);
             vectorMapRef.current = gl;
             setVectorRoutesReady(true);
             setTileError(false);
@@ -823,7 +825,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       clearTimeout(resizeTimer);
       if (attributionAdded) map.attributionControl?.removeAttribution(vectorAttribution);
     };
-  }, [currentStyle, roadStyle, navigationMode, tileRetryCount]);
+  }, [currentStyle, roadStyle, navigationMode, tileRetryCount, appearanceTheme]);
 
 
   // Trajetos do OSRM são desenhados diretamente no MapLibre após carregar o
@@ -1495,7 +1497,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   }, [navigationMode, userLiveCoords, followUser]);
 
   return (
-    <div className={`relative overflow-hidden ${className}`} data-map-engine="leaflet-fallback">
+    <div className={`relative overflow-hidden ${className}`} data-map-engine="leaflet-fallback" data-role-theme={appearanceTheme}>
       {/* MAP CANVAS */}
       {tileError && <div role="alert" className="absolute left-3 right-3 top-[75px] z-[65] mx-auto max-w-[310px] rounded-xl border border-amber-200 bg-white/95 p-3 text-center text-xs text-slate-800 shadow-xl">
         O mapa não conseguiu carregar os blocos de imagem. Verifique sua conexão.
