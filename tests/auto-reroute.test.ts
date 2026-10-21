@@ -88,6 +88,7 @@ test('um ruído, sinal velho, salto GPS e retorno ao traçado nunca iniciam outr
 });
 test('roteiro com paradas ou ajuste manual não pode pular pontos obrigatórios',()=>{
  assert.equal(eligibleDirectReroute(direct),true);
+ assert.equal(eligibleDirectReroute({...direct,isCircular:true}),false);
  assert.equal(eligibleDirectReroute({...direct,waypointOrder:[path[0],[-23.51,-46.51],path[1]]}),false);
  assert.equal(eligibleDirectReroute({...direct,stops:[{id:'stop'}] as TripPlan['stops']}),false);
  assert.equal(eligibleDirectReroute({...direct,editedWaypoint:[-23.505,-46.495]}),false);
