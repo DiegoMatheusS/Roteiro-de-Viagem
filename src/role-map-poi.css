@@ -13,6 +13,10 @@
   background:var(--role-poi-surface);color:var(--role-poi-text);
   box-shadow:0 5px 18px #0f172a3a;white-space:normal;text-align:left;
   font:500 11px/1.4 Inter,system-ui,sans-serif;cursor:pointer;animation:role-poi-enter 220ms ease-out;}
+/* Raised at the marker layer, not just inside its own card: MapLibre pins
+   and route-stop markers are siblings, so a nested z-index alone cannot prevent
+   an overlapping stop from intercepting taps on the expanded card. */
+.role-poi-marker[data-expanded="true"]{z-index:1500!important;}
 .role-poi-marker[data-expanded="true"] .role-poi-details{display:flex;}
 .role-poi-marker .role-poi-name{font-size:12px;line-height:1.3;font-weight:600;overflow-wrap:anywhere;}
 .role-poi-marker .role-poi-description{font-size:11px;line-height:1.35;color:var(--role-poi-muted);
