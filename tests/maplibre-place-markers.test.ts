@@ -93,3 +93,23 @@ test('a fuel/toll update does not recreate all native MapLibre markers',()=>{
  assert.doesNotMatch(install,/\[vectorRoutesReady,\s*fuel\.stations/);
  assert.match(map,/if \(vectorMarkersReady\) return;/);
 });
+
+test('locais cadastrados recebem halo de categoria sem fabricar a geometria dos prédios',()=>{
+ const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/role-map-poi.css',import.meta.url),'utf8');
+ assert.match(controller,/root\.dataset\.poiKind=entry\.kind/);
+ assert.match(css,/\.role-poi-marker\[data-poi-kind="place"\]::before/);
+ assert.match(css,/var\(--role-poi-accent\)/);
+ assert.match(css,/pointer-events:none/);
+ assert.match(controller,/existing\.entry=entry/,
+   'Ícones movidos precisam atualizar a posição usada pelo cálculo da proximidade');
+});
+test('visualização rápida encerra no tempo, ao sair do zoom, tocar fora e desmontar mapa',()=>{
+ const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
+ assert.match(controller,/resolvePoiPreview\(proximityPreview,nearest,performance\.now\(\)\)/);
+ assert.match(controller,/previewTimeout=setTimeout/);
+ assert.match(controller,/if\(!chosenVisible\)manualKey=null/);
+ assert.match(controller,/gl\.on\('click',onMapClick\)/);
+ assert.match(controller,/gl\.off\('click',onMapClick\)/);
+ assert.match(controller,/clearPreviewTimeout\(\);[\s\S]*for\(const record of markers\.values\(\)\)record\.marker\.remove\(\)/);
+});
