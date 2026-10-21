@@ -4,7 +4,8 @@ import { mapPlaceIcon } from '../components/mapPlaceIcon';
 import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSignature,
   type RoleVectorMarker } from './vectorPlaceData';
 import {nearestPoiToExpand,poiAccent,poiCategory,poiVisibleAtZoom,
-  type PoiVisibilityContext} from './mapPoiPresentation';
+  resolvePoiPreview,EMPTY_POI_PREVIEW,POI_AUTO_PREVIEW_MS,
+  type PoiPreviewState,type PoiVisibilityContext} from './mapPoiPresentation';
 import type { Place } from '../types/admin';
 import '../role-map-poi.css';
 
@@ -48,6 +49,11 @@ export function createRoleMaplibreMarkerController(
   let destroyed=false;
   let context:PoiVisibilityContext={zoom:gl.getZoom(),navigationMode:false};
   let manualKey:string|null=null;
+  let proximityPreview:PoiPreviewState=EMPTY_POI_PREVIEW;
+  let previewTimeout:ReturnType<typeof setTimeout>|null=null;
+  const clearPreviewTimeout=()=>{
+    if(previewTimeout!==null){clearTimeout(previewTimeout);previewTimeout=null;}
+  };
   const openDetails=(entry:RoleVectorMarker)=>{
     if(entry.kind==='place')actions.onPlace(entry.id);
     else if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
@@ -57,12 +63,29 @@ export function createRoleMaplibreMarkerController(
     if(destroyed)return;
     const entries=[...markers.values()].map(record=>record.entry);
     const nearest=nearestPoiToExpand(entries,{...context,zoom:gl.getZoom()});
+    const preview=resolvePoiPreview(proximityPreview,nearest,performance.now());
+    // Refreshing GPS or map data must not restart an already-seen preview.
+    if(preview.state.nearbyKey!==proximityPreview.nearbyKey)clearPreviewTimeout();
+    proximityPreview=preview.state;
+    if(preview.remainingMs!==null&&previewTimeout===null){
+      previewTimeout=setTimeout(()=>{
+        previewTimeout=null;
+        applyVisibility();
+      },preview.remainingMs);
+    }
+    if(preview.remainingMs===null)clearPreviewTimeout();
+    if(manualKey){
+      const chosen=markers.get(manualKey);
+      const chosenVisible=chosen&&(poiVisibleAtZoom(chosen.entry,gl.getZoom())||
+        (Boolean(context.showRouteServices)&&(chosen.entry.kind==='fuel'||chosen.entry.kind==='toll')));
+      if(!chosenVisible)manualKey=null;
+    }
     for(const [key,record] of markers){
       const visible=poiVisibleAtZoom(record.entry,gl.getZoom()) ||
         (Boolean(context.showRouteServices) && (record.entry.kind==='fuel'||record.entry.kind==='toll'));
       const element=record.marker.getElement();
       element.style.display=visible?'':'none';
-      element.dataset.expanded=String(visible && (manualKey===key || (!manualKey&&key===nearest)));
+      element.dataset.expanded=String(visible && (manualKey===key || (!manualKey&&key===preview.expandedKey)));
       element.setAttribute('aria-expanded',element.dataset.expanded);
     }
   };
@@ -73,6 +96,7 @@ export function createRoleMaplibreMarkerController(
     root.style.setProperty('--role-poi-accent',color);
     root.dataset.expanded='false';
     root.dataset.poiCategory=category;
+    root.dataset.poiKind=entry.kind;
     root.title=entry.name;
     root.tabIndex=0;
     root.setAttribute('role','button');
@@ -137,7 +161,17 @@ export function createRoleMaplibreMarkerController(
     return marker;
   };
   const onZoom=()=>applyVisibility();
+  const onMapClick=()=>{
+    // Tapping an empty section dismisses both manual and automatic cards.
+    manualKey=null;
+    proximityPreview=proximityPreview.nearbyKey
+      ?{...proximityPreview,sinceMs:performance.now()-POI_AUTO_PREVIEW_MS}
+      :EMPTY_POI_PREVIEW;
+    clearPreviewTimeout();
+    applyVisibility();
+  };
   gl.on('zoomend',onZoom);
+  gl.on('click',onMapClick);
   return {
     update(descriptors,inputs){
       if(destroyed)return;
@@ -173,6 +207,8 @@ export function createRoleMaplibreMarkerController(
       if(destroyed)return;
       destroyed=true;
       gl.off('zoomend',onZoom);
+      gl.off('click',onMapClick);
+      clearPreviewTimeout();
       for(const record of markers.values())record.marker.remove();
       markers.clear();
     }
