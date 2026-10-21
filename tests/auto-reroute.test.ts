@@ -242,7 +242,7 @@ test('rota com parada ausente ou deslocada é rejeitada e a anterior é preserva
  assert.throws(()=>verifiedReroute({...valid,waypoints:stops.slice(1)},origin,path[1],11,new Date(),stops));
  assert.throws(()=>verifiedReroute({...valid,waypoints:[origin,planStops[1].location.coords,planStops[0].location.coords,path[1]]},origin,path[1],11,new Date(),stops));
  assert.throws(()=>verifiedReroute({...valid,
-  routePath:[origin,path[0],path[1]]},origin,path[1],11,new Date(),stops));
+  routePath:[origin,[-23.48,-46.495],path[1]]},origin,path[1],11,new Date(),stops));
 });
 test('chegada persistida e a próxima parada aparecem sem resetar a viagem',()=>{
  const read=(p:string)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
