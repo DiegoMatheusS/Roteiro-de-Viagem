@@ -84,10 +84,13 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const distanceTraveledKm=tracking.distanceKm;
   const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
   const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
-  const routeMinutes=rerouted?.drivingMinutes||trip.durationMinutes;
+  const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id));
+  const drivingMinutes=rerouted?.drivingMinutes||trip.drivingMinutes||trip.durationMinutes;
+  const pendingStopMinutes=outstandingStops.reduce((sum,stop)=>
+    sum+Math.max(0,stop.recommendedMinutes||0),0);
   const remainingKm=Math.max(0,routeDistanceKm-routeTravelledKm);
   const remainingMinutes=Math.max(0,Math.round(
-    remainingKm/Math.max(routeDistanceKm,0.001)*routeMinutes));
+    remainingKm/Math.max(routeDistanceKm,0.001)*drivingMinutes+pendingStopMinutes));
   const roadAlerts = useRoadAlerts(navigationPath);
   const rerouteNotice=useAutoReroute({trip,
     position:isOpen&&tracking.status==='ready'?tracking.position:null,
@@ -105,7 +108,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
-  const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id));
   const nextStop = outstandingStops[0];
   const upcoming = tracking.status === 'ready'
     ? upcomingRoadAlert(roadAlerts.alerts, navigationPath, tracking.position?.coords, routeTravelledKm, routeDistanceKm)
