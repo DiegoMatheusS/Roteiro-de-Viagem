@@ -6,6 +6,7 @@ import { TOURIST_PLACE_KINDS } from '../types/admin';
 import type { LocationSelection } from '../types/itinerary';
 import type { VerifiedRouteChoice } from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import {useMapAppearance} from '../hooks/useMapAppearance';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -48,6 +49,7 @@ type CircuitMode = 'km' | 'hours';
 const touristKinds: readonly string[] = TOURIST_PLACE_KINDS;
 
 export function NavigationHome(props: NavigationHomeProps) {
+  const {theme:appearanceTheme}=useMapAppearance();
   const gps = useDeviceLocation(true, 'role-home');
   const locationAccess = useGpsPermissionAction(gps.retry);
   const liveCoords = gps.status === 'ready' ? gps.position?.coords : undefined;
@@ -297,7 +299,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
-  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" aria-label="Início do Rolê">
+  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
       <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
