@@ -596,6 +596,17 @@ try {
   await page.waitForTimeout(200); // Stop drag velocity before release; no inertial overshoot.
   await page.mouse.up();
   const fuelMarker = page.locator('.role-poi-marker[data-poi-category="fuel"], .fuel-station-marker').first();
+  // Locais comuns só aparecem no zoom de bairro. Aproximar com o gesto real,
+  // como um usuário faria antes de tocar em um posto na prévia do trajeto.
+  const nativePreview=planner.locator('[data-map-engine="maplibre-standalone"]').first();
+  if(await nativePreview.count() && await fuelMarker.getAttribute('data-poi-category')==='fuel'){
+    for(let attempt=0;attempt<10 && !await fuelMarker.isVisible();attempt++){
+      const view=await preview.boundingBox();assert.ok(view);
+      await page.mouse.move(view.x+view.width*.5,view.y+view.height*.5);
+      await page.mouse.wheel(0,-480);
+      await page.waitForTimeout(250);
+    }
+  }
   // A atribuição MapLibre varia de tamanho conforme a plataforma e os tiles.
   // Afaste o marcador dela com gestos reais até o botão receber toques;
   // não use force:true, que esconderia problemas reais de hit-testing.
