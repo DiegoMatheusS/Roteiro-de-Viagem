@@ -58,7 +58,8 @@ export function createRoleMaplibreMarkerController(
     const entries=[...markers.values()].map(record=>record.entry);
     const nearest=nearestPoiToExpand(entries,{...context,zoom:gl.getZoom()});
     for(const [key,record] of markers){
-      const visible=poiVisibleAtZoom(record.entry,gl.getZoom());
+      const visible=poiVisibleAtZoom(record.entry,gl.getZoom()) ||
+        (Boolean(context.showRouteServices) && (record.entry.kind==='fuel'||record.entry.kind==='toll'));
       const element=record.marker.getElement();
       element.style.display=visible?'':'none';
       element.dataset.expanded=String(visible && (manualKey===key || (!manualKey&&key===nearest)));
