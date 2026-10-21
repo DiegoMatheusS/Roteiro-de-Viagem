@@ -35,6 +35,7 @@ import { ActiveTripModal } from './components/ActiveTripModal';
 import { SosModal } from './components/SosModal';
 import { useLiveRouteConditions } from './hooks/useLiveRouteConditions';
 import { useTripTracking } from './hooks/useTripTracking';
+import type { ReroutedNavigation } from './services/autoReroute';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
 import { X, Users, ArrowRight, KeyRound, CornerUpLeft } from 'lucide-react';
@@ -321,6 +322,19 @@ export default function App() {
         tripType: 'round_trip', interests: ['panoramico', 'natureza', 'museus'], originCoords: position.coords, originName: 'Sua localização atual', vehicle: currentVehicle || GUEST_NAVIGATION_VEHICLE });
       handleStartTrip(trip);
     } catch (error) { setAppError((error as Error).message); }
+  };
+
+  // Persist the remaining OSRM route separately from the journey's odometer.
+  // Never let a device that does not own the active GPS session overwrite it.
+  const handleNavigationReroute=(next:ReroutedNavigation)=>{
+    const running=storageService.getActiveTrip();
+    if(!running||running.id!==activeTrip?.id||running.status!=='in_progress'||
+       running.trackingDeviceId!==deviceId)return;
+    const updated:TripPlan={...running,navigationReroute:next};
+    storageService.saveTrip(updated);
+    storageService.setActiveTrip(updated);
+    setActiveTrip(updated);
+    setTrips(storageService.getTrips());
   };
 
   // Return home action ("Quero voltar pra casa" - Requirement #11)
@@ -619,6 +633,7 @@ export default function App() {
           onOpenSos={() => setIsSosOpen(true)}
           onOpenShareModal={(trip)=>setShareTripTarget(trip)}
           onReturnHome={handleReturnHome}
+          onNavigationReroute={handleNavigationReroute}
         />
       )}
 
