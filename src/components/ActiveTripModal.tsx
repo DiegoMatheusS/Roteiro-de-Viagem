@@ -117,6 +117,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           centerOnUserRequest={centerRequest} tolls={trip.tolls||[]}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
+          userGpsAccuracyMeters={isGpsActive?tracking.position?.accuracyMeters:undefined}
           userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
           userSpeedMetersPerSecond={isGpsActive?tracking.position?.speedMetersPerSecond:null}
           showRainLayer={trip.hasRainRisk}
