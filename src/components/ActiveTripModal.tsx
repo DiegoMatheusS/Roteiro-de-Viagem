@@ -131,14 +131,14 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           routePath={navigationPath} navigationMode roadStyle
           onCameraModeChange={setCameraMode}
           travelledDistanceKm={routeTravelledKm} totalRouteKm={routeDistanceKm}
-          stops={trip.stops} weatherPoints={trip.weatherPoints} roadAlerts={roadAlerts.alerts}
-          centerOnUserRequest={centerRequest} tolls={trip.tolls||[]}
+          stops={trip.stops} weatherPoints={rerouted?[]:trip.weatherPoints} roadAlerts={roadAlerts.alerts}
+          centerOnUserRequest={centerRequest} tolls={rerouted?[]:trip.tolls||[]}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
           userGpsAccuracyMeters={isGpsActive?tracking.position?.accuracyMeters:undefined}
           userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
           userSpeedMetersPerSecond={isGpsActive?tracking.position?.speedMetersPerSecond:null}
-          showRainLayer={trip.hasRainRisk}
+          showRainLayer={!rerouted&&trip.hasRainRisk}
           className="w-full h-full"/>
       </div>
 
@@ -173,7 +173,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
-      {(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&
+      {!rerouted&&(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&
         <div className="rdv-nav-rain-warning" role="status">
           <CloudRain size={17}/> Atenção: condições de chuva no percurso.
         </div>}
@@ -199,8 +199,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       <div className="rdv-nav-bottom">
         <div className="rdv-nav-trip-progress">
           <div className="rdv-nav-left-stat">
-            <strong>{Math.max(0,Math.round(
-              remainingMinutes))} min</strong>
+            <strong>{remainingMinutes} min</strong>
             <span>{remainingKm.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} km restantes</span>
           </div>
           <button type="button" aria-label="Detalhes de clima e pedágios"
