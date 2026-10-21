@@ -9,6 +9,7 @@ export function useConvoyGps(accountId:string|undefined,enabled:boolean){
   const session=enabled?convoyService.getLocationSession():null, native=isNativeApp();
   const location=useDeviceLocation(!!session&&!native,session?.locationToken||'');
   const latest=useRef(location);latest.current=location;
+  const lastStaleRestartAt=useRef(0);
   useEffect(()=>{
     if(!enabled||!accountId)return;
     let disposed=false,busy=false,nativeStarted=false;
@@ -30,8 +31,22 @@ export function useConvoyGps(accountId:string|undefined,enabled:boolean){
           setNativeReady(!!state.position&&Date.now()-state.position.timestamp<60000);setError('');
         }else{
           const gps=latest.current;
-          if(gps.error){setError(gps.error);if(gps.status==='stale')gps.retry();return;}
-          if(gps.status==='ready'&&gps.position&&gps.position.accuracyMeters<=50&&Date.now()-gps.position.timestamp<=60000){
+          if(gps.error){
+            setError(gps.error);
+            // Six seconds without a new fix is a warning, not a reason to
+            // tear down a live watch every five seconds. An idle device may
+            // legitimately report no movement. Retry only a long-stalled watch.
+            if(gps.status==='stale'&&gps.position){
+              const now=Date.now();
+              if(now-gps.position.timestamp>=30_000&&now-lastStaleRestartAt.current>=30_000){
+                lastStaleRestartAt.current=now;
+                gps.retry();
+              }
+            }
+            return;
+          }
+          if(gps.status==='ready')lastStaleRestartAt.current=0;
+          if(gps.status==='ready'&&gps.position&&gps.position.accuracyMeters<=50&&Date.now()-gps.position.timestamp<=6000){
             await convoyService.updateParticipantLocation(current.convoyId,accountId,gps.position.coords,gps.position.timestamp,gps.position.accuracyMeters);if(!disposed)setError('');
           }
         }
