@@ -170,7 +170,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         {rerouteNotice==='recalculating'?' · Recalculando rota...':
           rerouteNotice==='updated'?' · Rota atualizada':
           rerouteNotice==='unavailable'?' · Rota anterior mantida':''}
-      </div>}
+      </div>
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
       {!rerouted&&(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&
