@@ -82,7 +82,8 @@ export function applyRoleVectorPalette(map: GlMap): void {
     const paints = roleVectorPaintForLayer(layer);
     for (const [property, color] of Object.entries(paints)) {
       try {
-        map.setPaintProperty(layer.id, property, color);
+        // Os nomes das propriedades são constantes da paleta acima.
+        map.setPaintProperty(layer.id, property as Parameters<GlMap['setPaintProperty']>[1], color);
       } catch {
         // Atualizações do estilo externo podem retirar ou tornar imutável uma camada.
       }
