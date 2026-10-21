@@ -853,8 +853,26 @@ try {
     return rasterPaths>0 || vectorFeatures>0;
   },undefined,{timeout:10000});
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
-  await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').focus();
-  await page.locator('.managed-place-marker[title="Restaurante revisado pela administração"]').press('Enter');
+  // In the new map, ordinary POIs disappear below neighborhood zoom.
+  // Restore a zoom where the restaurant is actually rendered before testing
+  // accessible keyboard activation; hidden pins must not be focus targets.
+  const nativeMap = page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
+  const restaurantPin = (await nativeMap.count() ? nativeMap : page)
+    .locator('.managed-place-marker[title="Restaurante revisado pela administração"]').first();
+  if (await nativeMap.count()) {
+    for (let attempt=0; attempt<9 && !(await restaurantPin.isVisible()); attempt++) {
+      const canvas = await nativeMap.locator('.maplibregl-canvas').boundingBox();
+      assert.ok(canvas, 'O mapa precisa estar disponível antes de escolher o restaurante');
+      await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.45);
+      await page.mouse.wheel(0,-460);
+      await page.waitForTimeout(260);
+    }
+  }
+  await restaurantPin.waitFor({state:'visible',timeout:7000});
+  await restaurantPin.focus();
+  assert.equal(await restaurantPin.evaluate(el=>document.activeElement===el),true,
+    'O marcador visível deve ser acessível pelo teclado');
+  await restaurantPin.press('Enter');
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
   await restaurant.getByRole('heading', { name: /Restaurante revisado pela administração/ }).waitFor();
   await restaurant.getByLabel('Seu comentário', { exact: true }).fill('Comentário de teste da interface.');
