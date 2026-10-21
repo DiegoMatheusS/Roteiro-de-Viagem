@@ -85,9 +85,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
   const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
   const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id));
-  const drivingMinutes=rerouted?.drivingMinutes||trip.drivingMinutes||trip.durationMinutes;
   const pendingStopMinutes=outstandingStops.reduce((sum,stop)=>
     sum+Math.max(0,stop.recommendedMinutes||0),0);
+  const plannedStopMinutes=trip.stops.reduce((sum,stop)=>
+    sum+Math.max(0,stop.recommendedMinutes||0),0);
+  const drivingMinutes=rerouted?.drivingMinutes||trip.drivingMinutes||
+    Math.max(0,trip.durationMinutes-plannedStopMinutes);
   const remainingKm=Math.max(0,routeDistanceKm-routeTravelledKm);
   const remainingMinutes=Math.max(0,Math.round(
     remainingKm/Math.max(routeDistanceKm,0.001)*drivingMinutes+pendingStopMinutes));
