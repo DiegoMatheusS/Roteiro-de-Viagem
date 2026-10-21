@@ -29,6 +29,7 @@ interface MapTabProps {
   onOpenShareModal?: (trip: TripPlan) => void; onOpenConvoyModal?: (trip: TripPlan) => void; onEndConvoy?: () => void;
 }
 export function MapTab(props: MapTabProps) {
+  const {theme:appearanceTheme}=useMapAppearance();
   const trip = props.activeTrip || props.plannedTrip;
   const roadAlerts = useRoadAlerts(trip?.routePath || []);
 
