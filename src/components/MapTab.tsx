@@ -139,6 +139,7 @@ export function MapTab(props: MapTabProps) {
       selectedRouteId={exploreRoute?.selectedId}
       onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
       userLiveCoords={location.status === "ready" ? location.position?.coords : undefined}
+      userGpsAccuracyMeters={location.status === 'ready'?location.position?.accuracyMeters:undefined}
        userHeadingDegrees={location.status === "ready" ? location.position?.headingDegrees : null}
        userSpeedMetersPerSecond={location.status === "ready" ? location.position?.speedMetersPerSecond : null}
       centerOnUserRequest={centerRequest} focusedCoords={focusedCoords}
