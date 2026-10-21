@@ -194,6 +194,9 @@ export function createRoleMaplibreMarkerController(
             existing.marker.setLngLat(toMarkerLngLat(entry.coords));
             existing.coords=[...entry.coords];
           }
+          // The same marker can move without a visual rebuild. Keep the live
+          // coordinates in sync for proximity calculations too.
+          existing.entry=entry;
           continue;
         }
         const marker=buildMarker(entry);
