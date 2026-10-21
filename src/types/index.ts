@@ -147,6 +147,8 @@ export interface TripPlan {
   vehicleId: string;
   routePath: [number, number][]; // coordinates for Leaflet polyline
   routeSteps?: NavigationManeuver[];
+  /** Rota rodoviária restante após desvio, sem redefinir os km já percorridos. */
+  navigationReroute?: import('../services/autoReroute').ReroutedNavigation;
   manualStops?: import('./itinerary').MandatoryStop[];
   acceptedSuggestions?: import('./itinerary').SuggestedStop[];
   planningLimits?: import('./itinerary').PlanningLimits;
