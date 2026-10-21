@@ -62,6 +62,15 @@ export function distanceToRouteMeters(point:Coordinates,path:readonly Coordinate
   return closest;
 }
 
+export function isGpsOutsideRouteCorridor(fix:DeviceLocation|null,
+  path:readonly Coordinates[],now=Date.now()):boolean{
+  if(!fix||!coordsValid(fix.coords)||!isFreshGpsFix(fix.timestamp,now)||
+     !Number.isFinite(fix.accuracyMeters)||fix.accuracyMeters<0||
+     fix.accuracyMeters>40)return false;
+  const tolerance=Math.min(140,Math.max(75,fix.accuracyMeters*2+40));
+  return distanceToRouteMeters(fix.coords,path)>tolerance;
+}
+
 export function evaluateOffRoute(
   state:OffRouteState,fix:DeviceLocation,path:readonly Coordinates[],now=Date.now()
 ):{state:OffRouteState;trigger:boolean;distanceMeters:number|null}{
@@ -81,8 +90,7 @@ export function evaluateOffRoute(
     return {state:{...base,outsideSince:null,outsideCount:0,firstOutside:null},
       trigger:false,distanceMeters:null};
   const distance=distanceToRouteMeters(fix.coords,path);
-  const tolerance=Math.min(140,Math.max(75,fix.accuracyMeters*2+40));
-  if(distance<=tolerance || !Number.isFinite(distance))
+  if(!isGpsOutsideRouteCorridor(fix,path,now) || !Number.isFinite(distance))
     return {state:{...base,outsideSince:null,outsideCount:0,firstOutside:null},
       trigger:false,distanceMeters:distance};
   const since=state.outsideSince??fix.timestamp;
