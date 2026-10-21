@@ -20,7 +20,7 @@ export function useTripTracking(tripId?: string) {
     const read = () => { if (!ready) return; void TravelNative.state().then(state => {
       if(disposed)return;
       if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
-      const fresh = state.position && Date.now() - state.position.timestamp < 60000;
+      const fresh = state.position && Date.now() - state.position.timestamp < 6000;
       setNativeState({ tripId, distanceKm: state.distanceKm, position: fresh ? state.position! : null, running: state.running,
         error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !fresh ? 'Aguardando sinal GPS recente.' : null });
     }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); }); };
