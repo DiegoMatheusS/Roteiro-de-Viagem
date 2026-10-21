@@ -9,6 +9,8 @@ import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import '../role-navigation-figma.css';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
+import { useAutoReroute } from '../hooks/useAutoReroute';
+import type { ReroutedNavigation } from '../services/autoReroute';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
@@ -45,6 +47,7 @@ interface ActiveTripModalProps {
   onOpenSos: () => void;
   onOpenShareModal: (trip:TripPlan) => void;
   onReturnHome: () => void;
+  onNavigationReroute: (next:ReroutedNavigation)=>void;
 }
 
 export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
@@ -59,7 +62,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   onCompleteTrip,
   onOpenSos,
   onOpenShareModal,
-  onReturnHome
+  onReturnHome,
+  onNavigationReroute
 }) => {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
@@ -72,22 +76,34 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [manualCompletion, setManualCompletion] = useState(false);
   const [manualDistance, setManualDistance] = useState('');
   const [unlockedCelebration, setUnlockedCelebration] = useState<Achievement[] | null>(null);
-  const roadAlerts = useRoadAlerts(trip.routePath);
+  const rerouted=trip.navigationReroute;
+  const navigationPath=rerouted?.routePath||trip.routePath;
+  const navigationSteps=rerouted?.routeSteps||trip.routeSteps;
+  const distanceTraveledKm=tracking.distanceKm;
+  const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
+  const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
+  const routeMinutes=rerouted?.drivingMinutes||trip.durationMinutes;
+  const remainingKm=Math.max(0,routeDistanceKm-routeTravelledKm);
+  const remainingMinutes=Math.max(0,Math.round(
+    remainingKm/Math.max(routeDistanceKm,0.001)*routeMinutes));
+  const roadAlerts = useRoadAlerts(navigationPath);
+  const rerouteNotice=useAutoReroute({trip,
+    position:isOpen&&tracking.status==='ready'?tracking.position:null,
+    trackedDistanceKm:distanceTraveledKm,
+    enabled:isOpen,onReroute:onNavigationReroute});
 
   if (!isOpen) return null;
 
   const currentSpeed = tracking.speedKmH;
-  const nextTurn = nextNavigationGuidance(trip.routePath,trip.routeSteps,
-    tracking.status === 'ready' ? tracking.position?.coords : undefined,tracking.distanceKm,trip.distanceKm);
+  const nextTurn = nextNavigationGuidance(navigationPath,navigationSteps,
+    tracking.status === 'ready' ? tracking.position?.coords : undefined,routeTravelledKm,routeDistanceKm);
   const isGpsActive = tracking.status === 'ready';
-  const distanceTraveledKm = tracking.distanceKm;
-  const remainingKm = Math.max(0, trip.distanceKm - distanceTraveledKm);
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
   const nextStop = trip.stops[0];
   const upcoming = tracking.status === 'ready'
-    ? upcomingRoadAlert(roadAlerts.alerts, trip.routePath, tracking.position?.coords, distanceTraveledKm, trip.distanceKm)
+    ? upcomingRoadAlert(roadAlerts.alerts, navigationPath, tracking.position?.coords, routeTravelledKm, routeDistanceKm)
     : null;
 
   const handleFinish = () => {
@@ -111,10 +127,10 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       {/* O mapa continua vivo e ocupando a tela toda; a UI não intercepta os gestos. */}
       <div className="rdv-nav-figma-map rdv-flat-map">
         <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
-          originCoords={trip.originCoords} destinationCoords={trip.destinationCoords}
-          routePath={trip.routePath} navigationMode roadStyle
+          originCoords={rerouted?.originCoords||trip.originCoords} destinationCoords={trip.destinationCoords}
+          routePath={navigationPath} navigationMode roadStyle
           onCameraModeChange={setCameraMode}
-          travelledDistanceKm={distanceTraveledKm} totalRouteKm={trip.distanceKm}
+          travelledDistanceKm={routeTravelledKm} totalRouteKm={routeDistanceKm}
           stops={trip.stops} weatherPoints={trip.weatherPoints} roadAlerts={roadAlerts.alerts}
           centerOnUserRequest={centerRequest} tolls={trip.tolls||[]}
           tollVehicleType={vehicle.type}
@@ -152,6 +168,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         {isGpsActive?'GPS ativo · localização ao vivo':
           tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
       </div>
+      {rerouteNotice!=='idle'&&<div role="status" aria-live="polite"
+        data-reroute-status={rerouteNotice} className="rdv-nav-reroute-status">
+        {rerouteNotice==='recalculating'?'Recalculando rota...':
+          rerouteNotice==='updated'?'Rota rodoviária atualizada':
+          'Sem recálculo disponível · rota anterior mantida'}
+      </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
       {(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&
@@ -181,14 +203,14 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <div className="rdv-nav-trip-progress">
           <div className="rdv-nav-left-stat">
             <strong>{Math.max(0,Math.round(
-              remainingKm/Math.max(trip.distanceKm,0.001)*trip.durationMinutes))} min</strong>
+              remainingMinutes))} min</strong>
             <span>{remainingKm.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} km restantes</span>
           </div>
           <button type="button" aria-label="Detalhes de clima e pedágios"
             aria-expanded={showRouteDetails} onClick={()=>setShowRouteDetails(v=>!v)}
             className="rdv-nav-eta-stat" title="Ver clima, pedágios e opções da viagem">
             <strong>{new Date(Date.now()+
-              Math.max(0,Math.round(remainingKm/Math.max(trip.distanceKm,0.001)*trip.durationMinutes))*60000)
+              remainingMinutes*60000)
               .toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong>
             <span>{trip.isCircular?'de volta ao início':'chegada prevista'}</span>
           </button>
@@ -217,6 +239,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
             onClick={()=>setShowRouteDetails(false)}><ChevronDown size={17}/></button>
         </div>
         <RouteConditionsStatus trip={trip} conditions={conditions}/>
+        {rerouted&&<p className="text-xs text-amber-800">Os dados de clima, combustível e pedágios do roteiro original podem estar desatualizados após o recálculo.</p>}
         {nextStop&&<p className="text-xs text-slate-700">Próxima parada: {nextStop.name}</p>}
         <div className="rdv-nav-extra-buttons">
           <div className="min-w-0"><RoadAlertReporter
