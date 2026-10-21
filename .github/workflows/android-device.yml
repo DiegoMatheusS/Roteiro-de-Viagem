@@ -45,24 +45,24 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android/sdk/ndk
           df -h /home/runner
-      # Occasionally Google returns an incomplete API 35 system image ZIP on CI.
-      # Retry that SDK download before launching the emulator; keep the API 35
-      # test enabled rather than hiding a failed setup.
-      - name: Preparar imagem Android 15 com novas tentativas
-        if: matrix.api == 35
+      # Public Android SDK downloads can be incomplete on any API level.
+      # Verify and retry each system image rather than disabling a device test.
+      - name: Preparar imagem do emulador com novas tentativas
         shell: bash
         run: |
-          image_dir="$ANDROID_HOME/system-images/android-35/google_apis/x86_64"
+          api="${{ matrix.api }}"
+          package="system-images;android-$api;google_apis;x86_64"
+          image_dir="$ANDROID_HOME/system-images/android-$api/google_apis/x86_64"
           for attempt in 1 2 3; do
-            echo "Instalando imagem Android 15 (tentativa $attempt/3)"
-            if sdkmanager --install 'system-images;android-35;google_apis;x86_64' --channel=0 && test -f "$image_dir/source.properties"; then
-              echo "Imagem Android 15 instalada"
+            echo "Instalando imagem Android API $api (tentativa $attempt/3)"
+            if sdkmanager --install "$package" --channel=0 && test -f "$image_dir/source.properties"; then
+              echo "Imagem Android API $api instalada"
               exit 0
             fi
             rm -rf "$image_dir"
             if [ "$attempt" -lt 3 ]; then sleep 10; fi
           done
-          echo "Falha ao instalar imagem Android 15 após três tentativas" >&2
+          echo "Falha ao instalar imagem API $api após três tentativas" >&2
           exit 1
       - uses: reactivecircus/android-emulator-runner@v2
         with:
