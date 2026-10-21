@@ -120,10 +120,15 @@ export function createRoleMaplibreMarkerController(
     };
     root.addEventListener('click',activate);
     root.addEventListener('keydown',event=>{
-      if(event.key==='Enter'||event.key===' '){
+      // Keyboard Enter should open the place in one action, rather than merely
+      // expanding a visual card. Space keeps the explicit expand interaction.
+      if(event.target!==root)return;
+      if(event.key==='Enter'){
+        event.preventDefault();event.stopPropagation();openDetails(entry);
+      }else if(event.key===' '){
         event.preventDefault();activate(event);
       }else if(event.key==='Escape'&&manualKey===key){
-        manualKey=null;applyVisibility();
+        event.preventDefault();manualKey=null;applyVisibility();
       }
     });
     const anchor:'center'='center',offset:[number,number]=[0,0];
