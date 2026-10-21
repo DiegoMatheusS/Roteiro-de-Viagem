@@ -253,4 +253,8 @@ test('chegada persistida e a próxima parada aparecem sem resetar a viagem',()=>
  assert.match(hud,/const outstandingStops=trip\.stops\.filter/);
  assert.match(hud,/onStopVisited\}\);/);
  assert.match(hook,/confirmStopArrival\(stopArrival\.current,options\.trip,fix\)/);
+ assert.match(hook,/plannedVisitKey/);
+ assert.match(hook,/plannedRouteVersion/);
+ assert.match(hud,/pendingStopMinutes/);
+ assert.match(hud,/plannedStopMinutes/);
 });
