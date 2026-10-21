@@ -114,5 +114,5 @@ test('route preview and alternative strokes also scale down at overview zoom',()
   assert.deepEqual(layers.get('role-alternative-outline')?.paint['line-width'],routeZoomStroke(4,6,9));
   assert.deepEqual(layers.get('role-alternative-line')?.paint['line-width'],routeZoomStroke(2,4,5));
   assert.deepEqual(layers.get('role-active-line')?.paint['line-width'],routeZoomStroke(2,4,5));
-  assert.equal(layers.get('role-active-line')?.paint['line-color']?.[0],'get');
+  assert.deepEqual(layers.get('role-active-line')?.paint['line-color'],['get','color']);
 });
