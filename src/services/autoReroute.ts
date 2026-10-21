@@ -1,5 +1,6 @@
 import type { DeviceLocation } from './locationService';
 import type { NavigationManeuver, TripPlan } from '../types';
+import type { MandatoryStop } from '../types/itinerary';
 import { isFreshGpsFix } from './gpsFreshness';
 import { distanceBetweenKm } from './gpsTracking';
 import { fuelApi } from './fuelApi';
@@ -18,6 +19,8 @@ export interface ReroutedNavigation {
   drivingMinutes:number;
   trackedAtKm:number;
   updatedAt:string;
+  /** Every outstanding stop the router confirmed in the new trip geometry. */
+  remainingStopIds?:string[];
 }
 export interface OffRouteState {
   lastTimestamp:number;
@@ -42,6 +45,87 @@ export function eligibleDirectReroute(trip:TripPlan):boolean {
     !trip.editedWaypoint && trip.stops.length===0 &&
     (trip.manualStops?.length||0)===0 &&
     (trip.acceptedSuggestions?.length||0)===0;
+}
+
+
+/** A route is never silently changed into a shortcut to the destination.
+ * Preserve verified, ordered stops; any incomplete/ambiguous stop data is a
+ * reason to keep the original path rather than guess. */
+export const MAX_AUTOMATIC_STOPS=6;
+export function orderedRerouteStops(trip:TripPlan):MandatoryStop[]|null {
+  const mandatory=trip.manualStops||[];
+  const suggested=trip.acceptedSuggestions||[];
+  const total=mandatory.length+suggested.length;
+  if(total===0)return trip.stops.length===0 ? [] : null;
+  if(total>MAX_AUTOMATIC_STOPS || mandatory.length>12 ||
+     suggested.length>8 || trip.editedWaypoint || trip.isCircular)return null;
+  const ordered:MandatoryStop[]=[];
+  const add=(stop:MandatoryStop)=>{
+    if(!stop||typeof stop.id!=='string'||stop.id.length<1||stop.id.length>80||
+       !stop.location||typeof stop.location.id!=='string'||
+       !stop.location.id||!coordsValid(stop.location.coords)||
+       !Number.isInteger(stop.stayMinutes)||stop.stayMinutes<0||
+       stop.stayMinutes>1440)return false;
+    ordered.push({id:stop.id,location:stop.location,stayMinutes:stop.stayMinutes});
+    return true;
+  };
+  const before=suggested.filter(stop=>stop.afterIndex===-1);
+  if(before.some(stop=>!add(stop)))return null;
+  for(let i=0;i<mandatory.length;i++){
+    if(!add(mandatory[i]))return null;
+    if(suggested.filter(stop=>stop.afterIndex===i).some(stop=>!add(stop)))return null;
+  }
+  if(!mandatory.length&&suggested.filter(stop=>stop.afterIndex===0).some(stop=>!add(stop)))return null;
+  if(ordered.length!==total || new Set(ordered.map(stop=>stop.id)).size!==total ||
+     trip.stops.length!==total ||
+     trip.stops.some((stop,index)=>stop.id!==ordered[index].id))return null;
+  // The route may have been manually reshaped independently of the itinerary.
+  if(trip.waypointOrder?.length && trip.waypointOrder.length!==total+2)return null;
+  return ordered;
+}
+export function remainingRerouteStops(trip:TripPlan):MandatoryStop[]|null {
+  const ordered=orderedRerouteStops(trip);
+  if(!ordered)return null;
+  const visited=new Set(trip.navigationVisitedStopIds||[]);
+  return ordered.filter(stop=>!visited.has(stop.id));
+}
+export function eligibleAutomaticReroute(trip:TripPlan):boolean {
+  if(trip.routingSource!=='OSRM'||trip.isCircular||trip.editedWaypoint||
+     trip.routePath.length<2||!coordsValid(trip.destinationCoords))return false;
+  const stops=orderedRerouteStops(trip);
+  return stops!==null && (!stops.length
+    ?(!trip.waypointOrder||trip.waypointOrder.length<=2)
+    :true);
+}
+/** Two or more GPS fixes near the NEXT stop, across at least four seconds,
+ * are required before it can be excluded from a later recalculation. */
+export interface StopArrivalState {
+  candidateId:string|null;sinceMs:number;count:number;lastTimestamp:number;
+}
+export const initialStopArrivalState=():StopArrivalState=>({
+  candidateId:null,sinceMs:0,count:0,lastTimestamp:0
+});
+export function confirmStopArrival(state:StopArrivalState,trip:TripPlan,
+  fix:DeviceLocation|null,now=Date.now()
+):{state:StopArrivalState;visitedId:string|null}{
+  const remaining=remainingRerouteStops(trip);
+  const next=remaining?.[0];
+  if(!next||!fix||!isFreshGpsFix(fix.timestamp,now)||
+    !coordsValid(fix.coords)||!Number.isFinite(fix.accuracyMeters)||
+    fix.accuracyMeters<0||fix.accuracyMeters>25 ||
+    (fix.speedMetersPerSecond!==null && fix.speedMetersPerSecond>10)||
+    distanceBetweenKm(fix.coords,next.location.coords!)*1000>50){
+    return {state:initialStopArrivalState(),visitedId:null};
+  }
+  if(fix.timestamp<=state.lastTimestamp)
+    return {state,visitedId:null};
+  const same=state.candidateId===next.id;
+  const sinceMs=same?state.sinceMs:fix.timestamp;
+  const count=same?state.count+1:1;
+  const updated={candidateId:next.id,sinceMs,count,lastTimestamp:fix.timestamp};
+  if(count>=3 && fix.timestamp-sinceMs>=4000)
+    return {state:initialStopArrivalState(),visitedId:next.id};
+  return {state:updated,visitedId:null};
 }
 
 /** True minimum to every *road segment*, not the nearest route vertex:
