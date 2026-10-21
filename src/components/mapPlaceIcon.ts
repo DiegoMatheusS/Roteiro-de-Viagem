@@ -3,6 +3,10 @@ import type { Place } from '../types/admin';
 
 // Pictogramas vetoriais. Nada de nomes interpolados em innerHTML ou emojis do sistema.
 const paths: Record<string, string> = {
+  fuel: '<path d="M3 22V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v18M1 22h15M3 9h11M14 12h2a2 2 0 0 1 2 2v4a2 2 0 0 0 4 0V9l-3-3"/>',
+  toll: '<path d="M5 20 8 4M19 20 16 4M12 4v4m0 4v4m0 4v2M3 21h18"/>',
+  theatre: '<path d="M3 4h18v12H3zM8 20h8M12 16v4"/>',
+  scenic_road: '<path d="M3 21 9 3m12 18L15 3M12 3v3m0 4v4m0 4v3"/>',
   restaurant: '<path d="M4 3v7a3 3 0 0 0 6 0V3M7 3v18M17 3v18M17 3a5 5 0 0 1 5 5v4h-5"/>',
   cafe: '<path d="M4 7h14v7a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V7ZM18 8h2a2 2 0 0 1 0 4h-2M3 21h17"/>',
   supermarket: '<path d="M3 3h2l2 12h12l2-9H6M8 20h.01M18 20h.01"/>',
@@ -20,11 +24,15 @@ const paths: Record<string, string> = {
   nature_reserve: '<path d="M12 22V9M12 15C4 15 3 8 5 3c7 0 12 3 12 10M12 18c6 0 9-5 8-10-3 0-6 1-8 4"/>',
   attraction: '<path d="M12 22s8-6 8-13a8 8 0 1 0-16 0c0 7 8 13 8 13ZM12 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>'
 };
-const tourist = new Set(['waterfall', 'viewpoint', 'park', 'museum', 'landmark', 'historic', 'beach', 'trail', 'nature_reserve', 'attraction']);
+const tourist = new Set(['waterfall', 'viewpoint', 'park', 'museum', 'landmark', 'historic', 'beach', 'trail', 'nature_reserve', 'attraction', 'theatre','scenic_road']);
 
 export function mapPlaceIcon(kind: Place['kind']): L.DivIcon {
   const isTourist = tourist.has(kind);
-  const bg = isTourist ? '#047857' : '#1d4ed8';
+  const bg = isTourist ? '#15803d' :
+    kind==='fuel'?'#2563eb':kind==='toll'?'#b7791f':
+    kind==='restaurant'||kind==='cafe'?'#ea580c':
+    kind==='hotel'||kind==='inn'?'#7c3aed':
+    kind==='shopping'||kind==='supermarket'?'#db2777':'#0369a1';
   const root = document.createElement('div');
   root.className = 'rdv-map-place-icon';
   root.setAttribute('aria-hidden', 'true');

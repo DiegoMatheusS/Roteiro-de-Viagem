@@ -20,7 +20,7 @@ export function useDeviceLocation(enabled: boolean, sessionKey = '') {
     }
     let retryTimer: number | undefined;
     const stop = watchDeviceLocation(geolocation, position => {
-      const fresh = Date.now() - position.timestamp <= 60000;
+      const fresh = Date.now() - position.timestamp <= 6000;
       setState({ position, error: fresh ? null : 'O sinal do GPS está desatualizado. Tente novamente.', status: fresh ? 'ready' : 'stale', key: sessionKey });
     }, error => {
       setState({ position: null, error, status: 'error', key: sessionKey });
@@ -32,7 +32,7 @@ export function useDeviceLocation(enabled: boolean, sessionKey = '') {
       }
     });
     const timer = window.setInterval(() => setState(current => {
-      if (current.status === 'ready' && current.position && Date.now() - current.position.timestamp > 60000) {
+      if (current.status === 'ready' && current.position && Date.now() - current.position.timestamp > 6000) {
         return { ...current, status: 'stale', error: 'O sinal do GPS está desatualizado. Tente novamente.' };
       }
       return current;

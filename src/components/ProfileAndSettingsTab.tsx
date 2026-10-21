@@ -2,6 +2,8 @@ import { AndroidStatus } from './AndroidStatus';
 import { EmergencyContactsEditor } from './EmergencyContactsEditor';
 import { ProfileFigmaHome } from './ProfileFigmaHome';
 import React, { useState } from 'react';
+import {useMapAppearance} from '../hooks/useMapAppearance';
+import type {MapAppearanceMode} from '../services/mapAppearance';
 import { 
   TravelerProfile, 
   Vehicle, 
@@ -75,6 +77,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   const [editingProfile,setEditingProfile]=useState(false),[profileName,setProfileName]=useState(''),[profileBio,setProfileBio]=useState('');
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'garagem' | 'seguranca' | 'privacidade'>('perfil');
   const [showDetails,setShowDetails]=useState(false);
+  const {mode:appearanceMode,setMode:setAppearanceMode}=useMapAppearance();
   const openDetails=(tab:'perfil'|'garagem'|'seguranca'|'privacidade')=>{
     setActiveSubTab(tab);setShowDetails(true);
   };
@@ -664,6 +667,21 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
         {/* ================================================= */}
         {activeSubTab === 'privacidade' && (
           <div className="bg-white rounded-3xl p-6 border border-slate-200 space-y-5 animate-in fade-in">
+            <section className="rounded-2xl border border-blue-100 bg-slate-50 p-4 space-y-2">
+              <h3 className="text-sm font-semibold text-slate-900">Aparência do mapa</h3>
+              <label htmlFor="role-map-theme" className="block text-xs font-medium text-slate-700">
+                Tema do Rolê
+              </label>
+              <select id="role-map-theme" value={appearanceMode}
+                onChange={event=>setAppearanceMode(event.target.value as MapAppearanceMode)}
+                className="w-full min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800">
+                <option value="light">Claro (padrão)</option>
+                <option value="dark">Escuro</option>
+                <option value="system">Seguir sistema</option>
+                <option value="automatic">Automático (18h às 6h)</option>
+              </select>
+              <p className="text-xs text-slate-500">Salvo neste aparelho. O modo automático segue o horário local, sem precisar de internet.</p>
+            </section>
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-emerald-600" />

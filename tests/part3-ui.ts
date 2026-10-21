@@ -63,10 +63,30 @@ try {
   await page.getByRole('button',{name:'Mostrar previsão de chuva',exact:true}).click();
   await page.locator('.weather-forecast-marker').first().waitFor();
   assert.ok(await page.locator('.weather-forecast-marker').count()>=2);
-  await page.locator('.toll-marker').first().getByRole('button',{name:/^Comentários de /}).click();
+  const tollMarker=page.locator('.role-poi-marker[data-poi-category="toll"], .toll-marker').first();
+  const openTollMarker=async(section:'prices'|'comments')=>{
+    const compact=await tollMarker.getAttribute('data-poi-category')==='toll';
+    if(compact){
+      if(section==='prices'){
+        // Enter opens details directly from a keyboard-accessible compact POI.
+        await tollMarker.focus();await tollMarker.press('Enter');
+      }else{
+        if(await tollMarker.getAttribute('data-expanded')!=='true'){
+          await tollMarker.focus();await tollMarker.press('Space');
+        }
+        await tollMarker.getByRole('button',{name:/^Comentários:/}).click();
+      }
+    }else{
+      const button=tollMarker.getByRole('button',section==='prices'
+        ?{name:'Sugerir preço',exact:true}:{name:/^Comentários de /});
+      if(section==='prices'){await button.focus();await button.press('Enter');}
+      else await button.click();
+    }
+  };
+  await openTollMarker('comments');
   await page.getByRole('heading',{name:'Comentários do pedágio',exact:true}).waitFor();
   await page.getByRole('button',{name:'Fechar pedágio',exact:true}).click();
-  await page.locator('.toll-marker').first().getByRole('button',{name:'Sugerir preço',exact:true}).focus();await page.locator('.toll-marker').first().getByRole('button',{name:'Sugerir preço',exact:true}).press('Enter');
+  await openTollMarker('prices');
   const toll=page.getByRole('dialog',{name:'Tarifas do pedágio',exact:true});
   await toll.getByText('Sem tarifa aprovada',{exact:true}).waitFor();
   await toll.getByLabel('Tarifa do pedágio',{exact:true}).fill('6,50');
@@ -99,7 +119,7 @@ try {
   assert.equal(updated.totalEstimatedCost,96);assert.equal(updated.costPerPerson,24);
   assert.equal(updated.tolls.length,1);assert.equal(updated.tolls[0].passages,2);assert.equal(updated.tolls[0].knownCost,13);
   await page.getByText('Pedágios: R$ 26.00 verificados',{exact:true}).waitFor();
-  await page.locator('.toll-marker').first().getByRole('button',{name:'Sugerir preço',exact:true}).focus();await page.locator('.toll-marker').first().getByRole('button',{name:'Sugerir preço',exact:true}).press('Enter');
+  await openTollMarker('prices');
   await toll.getByText('R$ 13.00 conhecidos',{exact:true}).waitFor();
   assert.equal(await toll.getByText('R$ 6.50',{exact:true}).count(),2);
   await toll.getByRole('button',{name:'Fechar pedágio',exact:true}).click();

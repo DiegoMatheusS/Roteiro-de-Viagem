@@ -1,6 +1,7 @@
 import type { Map as GlMap } from 'maplibre-gl';
 
 export const ROLE_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+export const ROLE_DARK_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/dark';
 
 /**
  * Paleta clara do Rolê. Mantém as camadas, as larguras de vias e os níveis

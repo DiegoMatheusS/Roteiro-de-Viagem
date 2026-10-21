@@ -1,5 +1,4 @@
 import type { Place } from '../types/admin';
-import { TOURIST_PLACE_KINDS } from '../types/admin';
 import type { FuelStation } from '../types/fuel';
 import type { RouteToll } from '../types/tolls';
 import { fuelPriceLabel, tollPriceLabel } from './mapPriceLabels';
@@ -7,7 +6,7 @@ import { fuelPriceLabel, tollPriceLabel } from './mapPriceLabels';
 export type RoleVectorMarker =
   | { kind:'fuel'; id:string; coords:[number,number]; name:string; priceLabel:string|null }
   | { kind:'toll'; id:string; coords:[number,number]; name:string; priceLabel:string|null; place:Place|null }
-  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind'] };
+  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string };
 
 /** Stable identity and visual metadata used by the incremental vector renderer.
  * Moving a place should only call Marker.setLngLat, never recreate its buttons.
@@ -48,7 +47,7 @@ export function selectRoleVectorMarkers(options: {
       entries.push(entry);
     }
   };
-  if (!options.navigationMode) {
+  {
     for (const station of options.stations) {
       add({ kind:'fuel',id:station.id,coords:[station.lat,station.lng],
         name:station.name,priceLabel:fuelPriceLabel(station) });
@@ -62,14 +61,14 @@ export function selectRoleVectorMarkers(options: {
   }
   const knownTollIds = new Set(options.tolls.map(toll=>toll.id));
   for (const place of options.places) {
-    if (options.navigationMode && !(TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind)) continue;
+    // Navigation uses zoom/proximity filtering instead of hiding registered POIs entirely.
     const coords: [number,number] = [place.lat,place.lng];
     if (place.kind === 'toll') {
       if (!options.navigationMode && !knownTollIds.has(place.id)) {
         add({kind:'toll',id:place.id,coords,name:place.name,priceLabel:null,place});
       }
     } else {
-      add({kind:'place',id:place.id,coords,name:place.name,category:place.kind});
+      add({kind:'place',id:place.id,coords,name:place.name,category:place.kind,description:place.description});
     }
   }
   return entries;
