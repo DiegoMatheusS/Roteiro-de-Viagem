@@ -167,12 +167,9 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <span aria-hidden="true">ⓘ</span>
         {isGpsActive?'GPS ativo · localização ao vivo':
           tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
-      </div>
-      {rerouteNotice!=='idle'&&<div role="status" aria-live="polite"
-        data-reroute-status={rerouteNotice} className="rdv-nav-reroute-status">
-        {rerouteNotice==='recalculating'?'Recalculando rota...':
-          rerouteNotice==='updated'?'Rota rodoviária atualizada':
-          'Sem recálculo disponível · rota anterior mantida'}
+        {rerouteNotice==='recalculating'?' · Recalculando rota...':
+          rerouteNotice==='updated'?' · Rota atualizada':
+          rerouteNotice==='unavailable'?' · Rota anterior mantida':''}
       </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
