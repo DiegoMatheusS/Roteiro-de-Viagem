@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {poiAccent,poiVisibleAtZoom,poiDistanceMeters,nearestPoiToExpand} from '../src/services/mapPoiPresentation';
+import {poiAccent,poiVisibleAtZoom,poiDistanceMeters,nearestPoiToExpand,
+ resolvePoiPreview,EMPTY_POI_PREVIEW,POI_AUTO_PREVIEW_MS} from '../src/services/mapPoiPresentation';
 import type {RoleVectorMarker} from '../src/services/vectorPlaceData';
 
 const place=(id:string,coords:[number,number],category:'restaurant'|'waterfall'='restaurant'):RoleVectorMarker=>
@@ -23,4 +24,29 @@ test('apenas o local mais perto abre quando o GPS é confiável',()=>{
  assert.equal(nearestPoiToExpand(pins,{...input,navigationMode:false}),null);
  assert.equal(nearestPoiToExpand(pins,{...input,location:[-24,-47]}),null);
  assert.ok(poiDistanceMeters([-23,-46],[-23.0005,-46])>50);
+});
+
+test('cartão por aproximação expande uma vez por seis segundos sem reiniciar a cada GPS',()=>{
+ const opened=resolvePoiPreview(EMPTY_POI_PREVIEW,'place:resto',1000);
+ assert.equal(POI_AUTO_PREVIEW_MS,6000);
+ assert.equal(opened.expandedKey,'place:resto');
+ assert.equal(opened.remainingMs,6000);
+ const refreshed=resolvePoiPreview(opened.state,'place:resto',4500);
+ assert.equal(refreshed.expandedKey,'place:resto');
+ assert.equal(refreshed.remainingMs,2500);
+ const finished=resolvePoiPreview(refreshed.state,'place:resto',7000);
+ assert.equal(finished.expandedKey,null);
+ assert.equal(finished.remainingMs,null);
+ assert.equal(resolvePoiPreview(finished.state,'place:resto',15000).expandedKey,null,
+  'Parado ao lado do local não deve reabrir um cartão continuamente');
+ const away=resolvePoiPreview(finished.state,null,16000);
+ assert.equal(away.state.nearbyKey,null);
+ assert.equal(resolvePoiPreview(away.state,'place:resto',17000).expandedKey,'place:resto',
+  'Sair e se aproximar novamente pode apresentar o local outra vez');
+});
+test('cartão mais próximo pode substituir o anterior, e contexto inválido não abre popups',()=>{
+ const first=resolvePoiPreview(EMPTY_POI_PREVIEW,'place:a',1000);
+ assert.equal(resolvePoiPreview(first.state,'place:b',2000).expandedKey,'place:b');
+ assert.equal(resolvePoiPreview(first.state,null,2200).expandedKey,null);
+ assert.equal(resolvePoiPreview(first.state,'place:a',NaN).expandedKey,null);
 });

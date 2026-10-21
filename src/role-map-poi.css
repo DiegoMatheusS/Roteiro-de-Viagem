@@ -4,7 +4,16 @@
   width:38px;max-width:none!important;min-height:38px;pointer-events:auto;
   --role-poi-surface:#fff;--role-poi-text:#233244;--role-poi-muted:#607184;
   transition:opacity 180ms ease;}
-.role-poi-marker > .rdv-map-place-icon {border-color:var(--role-poi-surface)!important;
+/* API-confirmed coordinates get a category-colored footprint *indicator*.
+ * It is intentionally a halo around the point, NOT a fabricated building shape. */
+.role-poi-marker[data-poi-kind="place"]::before{
+  content:"";position:absolute;z-index:0;width:51px;height:51px;
+  border-radius:16px;border:1px solid var(--role-poi-accent);
+  background:color-mix(in srgb,var(--role-poi-accent) 20%,transparent);
+  pointer-events:none;
+}
+.role-poi-marker > .rdv-map-place-icon {position:relative;z-index:1;
+  border-color:var(--role-poi-surface)!important;
   box-shadow:0 2px 9px #0f172a44!important;}
 .role-poi-marker .role-poi-details {position:absolute;z-index:3;left:43px;bottom:1px;
   display:none;flex-direction:column;gap:4px;width:206px;max-width:calc(80vw - 48px);

@@ -55,3 +55,22 @@ export function nearestPoiToExpand(
   }
   return closest;
 }
+
+/** Nearby cards are previews, not persistent driving overlays. One POI is
+ * shown for six seconds per approach. It may reappear only after leaving the
+ * proximity area (or after returning to a suitable zoom). */
+export const POI_AUTO_PREVIEW_MS=6000;
+export interface PoiPreviewState { nearbyKey:string|null; sinceMs:number }
+export const EMPTY_POI_PREVIEW: PoiPreviewState={nearbyKey:null,sinceMs:0};
+
+export function resolvePoiPreview(
+  previous:PoiPreviewState,nearbyKey:string|null,nowMs:number
+):{state:PoiPreviewState;expandedKey:string|null;remainingMs:number|null}{
+  if(!nearbyKey||!Number.isFinite(nowMs))
+    return {state:EMPTY_POI_PREVIEW,expandedKey:null,remainingMs:null};
+  const state=previous.nearbyKey===nearbyKey
+    ?previous:{nearbyKey,sinceMs:nowMs};
+  const elapsed=Math.max(0,nowMs-state.sinceMs);
+  const remaining=Math.max(0,POI_AUTO_PREVIEW_MS-elapsed);
+  return {state,expandedKey:remaining>0?nearbyKey:null,remainingMs:remaining>0?remaining:null};
+}
