@@ -198,10 +198,11 @@ interface VerifiedItineraryResponse {
   drivingMinutes:number;
   durationMinutes:number;
   stale?:boolean;
+  waypoints?:Coordinates[];
 }
 export function verifiedReroute(
   result:VerifiedItineraryResponse,origin:Coordinates,destination:Coordinates,
-  trackedAtKm:number,now=new Date()
+  trackedAtKm:number,now=new Date(),expectedWaypoints?:Coordinates[]
 ):ReroutedNavigation{
   if(!result || !Array.isArray(result.routePath) || result.routePath.length<2 ||
     result.routePath.length>8000 || !result.routePath.every(coordsValid) ||
@@ -211,7 +212,13 @@ export function verifiedReroute(
     !Number.isFinite(result.drivingMinutes) || result.drivingMinutes<=0 ||
     result.stale===true ||
     distanceBetweenKm(result.routePath[0],origin)>.35 ||
-    distanceBetweenKm(result.routePath[result.routePath.length-1],destination)>.35)
+    distanceBetweenKm(result.routePath[result.routePath.length-1],destination)>.35 ||
+    (expectedWaypoints!==undefined &&
+      (!Array.isArray(result.waypoints) ||
+        result.waypoints.length!==expectedWaypoints.length ||
+        result.waypoints.some((point,i)=>!coordsValid(point)||
+          distanceBetweenKm(point,expectedWaypoints[i])>.08) ||
+        expectedWaypoints.slice(1,-1).some(point=>distanceToRouteMeters(point,result.routePath)>160))))
     throw new Error('O roteador não confirmou um novo percurso rodoviário válido.');
   if(!Number.isFinite(trackedAtKm)||trackedAtKm<0)
     throw new Error('Distância do GPS inválida para atualizar a rota.');
@@ -224,13 +231,21 @@ export function verifiedReroute(
  * No server changes and no straight lines when routing is unreachable. */
 export async function requestAutomaticReroute(trip:TripPlan,origin:Coordinates,
   trackedAtKm:number,signal?:AbortSignal):Promise<ReroutedNavigation>{
-  if(!eligibleDirectReroute(trip)||!coordsValid(origin))
-    throw new Error('Este roteiro possui paradas; a rota original será preservada.');
+  if(!eligibleAutomaticReroute(trip)||!coordsValid(origin))
+    throw new Error('As paradas não puderam ser verificadas; a rota original será preservada.');
+  const remaining=remainingRerouteStops(trip);
+  if(!remaining)throw new Error('As paradas do roteiro estão incompletas.');
+  const expectedWaypoints:Coordinates[]=[
+    origin,...remaining.map(stop=>stop.location.coords!),trip.destinationCoords];
   const response=await fuelApi<VerifiedItineraryResponse>('/routes/itinerary',{
     method:'POST',signal,body:JSON.stringify({
       originCoords:origin,destinationCoords:trip.destinationCoords,roundTrip:false,
-      manualStops:[],acceptedSuggestions:[],limits:{mode:'destination'}
+      manualStops:remaining.map(stop=>({
+        id:stop.id,locationId:stop.location.id,stayMinutes:stop.stayMinutes
+      })),
+      acceptedSuggestions:[],limits:{mode:'destination'}
     })
   });
-  return verifiedReroute(response,origin,trip.destinationCoords,trackedAtKm);
+  return {...verifiedReroute(response,origin,trip.destinationCoords,trackedAtKm,
+    new Date(),expectedWaypoints),remainingStopIds:remaining.map(stop=>stop.id)};
 }
