@@ -7,6 +7,7 @@ import { InteractiveMap } from './InteractiveMap';
 import { Speedometer } from './Speedometer';
 import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import '../role-navigation-figma.css';
+import {useMapAppearance} from '../hooks/useMapAppearance';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
@@ -64,6 +65,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showRouteDetails,setShowRouteDetails] = useState(false);
+  const {theme:appearanceTheme}=useMapAppearance();
   const [centerRequest,setCenterRequest] = useState(0);
   const [cameraMode,setCameraMode]=useState<CameraMode>('following');
   useEffect(()=>{if(!isOpen)setCameraMode('following');},[isOpen,trip.id]);
@@ -105,7 +107,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   };
 
   return (
-    <div className="rdv-nav-figma-root" aria-label="Navegação GPS ativa">
+    <div className="rdv-nav-figma-root" data-role-theme={appearanceTheme} aria-label="Navegação GPS ativa">
       {/* O mapa continua vivo e ocupando a tela toda; a UI não intercepta os gestos. */}
       <div className="rdv-nav-figma-map rdv-flat-map">
         <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
