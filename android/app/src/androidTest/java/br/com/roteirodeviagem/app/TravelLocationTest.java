@@ -96,6 +96,16 @@ public class TravelLocationTest {
    js("window.Capacitor.Plugins.TravelNative.startTracking({tripId:'"+trip+"',distanceKm:5,resume:true});true");await(()->TravelLocationService.running&&trip.equals(TravelLocationService.activeTripId));
   }finally{context.stopService(new Intent(context,TravelLocationService.class));await(()->!TravelLocationService.running);server.shutdown();HttpsURLConnection.setDefaultSSLSocketFactory(previous);}
  }
+ @Test public void nativeGpsRejectsStaleOrFutureFixesWithoutStoppingTracking() {
+  long now=System.currentTimeMillis();
+  assertTrue(TravelLocationService.isFreshGpsFix(now,now));
+  assertTrue(TravelLocationService.isFreshGpsFix(now,now-6000));
+  assertFalse("Uma leitura com mais de 6 segundos nao pode mover o usuario nem enviar comboio",
+    TravelLocationService.isFreshGpsFix(now,now-6001));
+  assertTrue("Pequena diferenca de relogio deve ser tolerada",TravelLocationService.isFreshGpsFix(now,now+5000));
+  assertFalse(TravelLocationService.isFreshGpsFix(now,now+5001));
+  assertFalse(TravelLocationService.isFreshGpsFix(now,0));
+ }
  @Test public void approximatePermissionDoesNotAuthorizePreciseTracking(){Context approximate=new ContextWrapper(context){@Override public int checkSelfPermission(String permission){return Manifest.permission.ACCESS_FINE_LOCATION.equals(permission)?PackageManager.PERMISSION_DENIED:PackageManager.PERMISSION_GRANTED;}};assertFalse(TravelNativePlugin.preciseLocationGranted(approximate));assertTrue(TravelNativePlugin.preciseLocationGranted(context));}
  @Test public void sosUsesDialAndComposeWithoutCallingOrSending(){assertEquals(Intent.ACTION_DIAL,ExternalActions.intentFor("tel:190").getAction());assertEquals("tel:+5511999999999",ExternalActions.intentFor("tel:+5511999999999").getDataString());assertEquals(Intent.ACTION_VIEW,ExternalActions.intentFor("https://api.whatsapp.com/send?phone=5511999999999&text=fixture").getAction());for(String invalid:new String[]{"javascript:alert(1)","file:///private","https://api.whatsapp.com.evil.example/send","tel:190;123"}){try{ExternalActions.intentFor(invalid);fail("Link não autorizado");}catch(IllegalArgumentException expected){}}}
 }
