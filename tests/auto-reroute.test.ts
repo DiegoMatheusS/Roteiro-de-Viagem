@@ -239,6 +239,7 @@ test('rota com parada ausente ou deslocada é rejeitada e a anterior é preserva
   distanceKm:2,drivingMinutes:7,durationMinutes:22,waypoints:stops
  };
  assert.doesNotThrow(()=>verifiedReroute(valid,origin,path[1],11,new Date(),stops));
+ assert.throws(()=>verifiedReroute({...valid,warnings:['Rota recuperada do histórico da sua conta porque o serviço de mapas está indisponível. O percurso pode estar desatualizado.']},origin,path[1],11,new Date(),stops));
  assert.throws(()=>verifiedReroute({...valid,waypoints:stops.slice(1)},origin,path[1],11,new Date(),stops));
  assert.throws(()=>verifiedReroute({...valid,waypoints:[origin,planStops[1].location.coords,planStops[0].location.coords,path[1]]},origin,path[1],11,new Date(),stops));
  assert.throws(()=>verifiedReroute({...valid,
