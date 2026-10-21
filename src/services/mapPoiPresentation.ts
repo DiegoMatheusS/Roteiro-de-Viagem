@@ -4,6 +4,8 @@ export type Coordinates=[number,number];
 export interface PoiVisibilityContext {
   zoom:number;
   navigationMode:boolean;
+  /** Route planning keeps route-scoped fuel and toll pins tappable in overview. */
+  showRouteServices?:boolean;
   location?:Coordinates;
   accuracyMeters?:number;
 }
