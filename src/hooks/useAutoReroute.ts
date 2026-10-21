@@ -71,12 +71,20 @@ export function useAutoReroute(options:{
     state.current=decision.state;
     if(!decision.trigger)return;
     const controller=new AbortController();
+    const plannedVisitKey=(options.trip.navigationVisitedStopIds||[]).join('|');
+    const plannedRouteVersion=options.trip.navigationReroute?.updatedAt||'original';
     inflight.current=controller;
     clearNotice();setNotice('recalculating');
     void requestAutomaticReroute(options.trip,fix.coords,options.trackedDistanceKm,controller.signal)
       .then(next=>{
         if(controller.signal.aborted || !current.current.enabled ||
           current.current.trip.id!==options.trip.id)return;
+        // A stop can be confirmed by GPS while OSRM is responding. Never
+        // overwrite the newly-updated stop list with an obsolete request.
+        if((current.current.trip.navigationVisitedStopIds||[]).join('|')!==plannedVisitKey ||
+           (current.current.trip.navigationReroute?.updatedAt||'original')!==plannedRouteVersion){
+          setNotice('idle');return;
+        }
         const live=current.current.position;
         // Do not install a route whose start is now far behind the driver.
         if(!live || distanceBetweenKm(live.coords,next.originCoords)>.35){
