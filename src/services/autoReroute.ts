@@ -113,6 +113,7 @@ export function verifiedReroute(
 ):ReroutedNavigation{
   if(!result || !Array.isArray(result.routePath) || result.routePath.length<2 ||
     result.routePath.length>8000 || !result.routePath.every(coordsValid) ||
+    result.routePath.some((point,i)=>i>0&&distanceBetweenKm(result.routePath[i-1],point)>100) ||
     !Array.isArray(result.routeSteps) || !result.routeSteps.length ||
     !Number.isFinite(result.distanceKm) || result.distanceKm<=0 ||
     !Number.isFinite(result.drivingMinutes) || result.drivingMinutes<=0 ||
