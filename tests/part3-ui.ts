@@ -126,7 +126,10 @@ try {
   await page.screenshot({path:'test-results/weather-tolls-mobile.png'});
   // Mobile acceptance: changing the appearance in Settings immediately updates
   // the real map. The preference is local and survives a page reload.
-  await page.getByRole('button',{name:'Aba Perfil'}).click();
+  // The map deliberately hides the bottom navigation; profile is reached
+  // through the floating menu while the full-screen map is displayed.
+  await page.getByRole('button',{name:'Abrir menu'}).click();
+  await page.getByRole('button',{name:'Abrir meu perfil'}).click();
   await page.getByRole('button',{name:'Configurações'}).click();
   const themeSelect=page.getByLabel('Tema do Rolê',{exact:true});
   await themeSelect.selectOption('dark');
