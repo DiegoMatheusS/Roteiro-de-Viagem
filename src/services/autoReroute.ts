@@ -36,7 +36,7 @@ const coordsValid=(coords:unknown):coords is Coordinates=>
   Math.abs(coords[0])<=90&&Math.abs(coords[1])<=180;
 
 export function eligibleDirectReroute(trip:TripPlan):boolean {
-  return trip.routingSource==='OSRM' && trip.routePath.length>=2 &&
+  return trip.routingSource==='OSRM' && !trip.isCircular && trip.routePath.length>=2 &&
     coordsValid(trip.destinationCoords) &&
     (!trip.waypointOrder||trip.waypointOrder.length<=2) &&
     !trip.editedWaypoint && trip.stops.length===0 &&
