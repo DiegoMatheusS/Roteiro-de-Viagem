@@ -36,14 +36,14 @@ test('pins MapLibre só incluem entidades reais e não duplicam praça com tarif
  assert.match(entries.find(entry=>entry.kind==='toll')?.priceLabel||'',/12,50/);
  assert.deepEqual(toMarkerLngLat([-23.55,-46.63]),[-46.63,-23.55]);
 });
-test('sem preço aprovado não fabrica valor e modo navegação mantém apenas pontos turísticos',()=>{
+test('sem preço aprovado não fabrica valor e navegação permite cartões por categoria',()=>{
  const entries=selectRoleVectorMarkers({stations:[{...station,prices:[{...price,stale:true}]}],
   places:[place,managedToll,{...place,id:'restaurant',kind:'restaurant'}],
   tolls:[toll],tollVehicleType:'car',navigationMode:false});
  assert.equal(entries.find(entry=>entry.kind==='fuel')?.priceLabel,null);
  const nav=selectRoleVectorMarkers({stations:[station],places:[place,managedToll],
   tolls:[toll],tollVehicleType:'car',navigationMode:true});
- assert.deepEqual(nav.map(entry=>entry.kind),['place']);
+ assert.deepEqual(nav.map(entry=>entry.kind),['fuel','toll','place']);
 });
 test('marcadores com coordenadas inválidas não são exibidos',()=>{
  const entries=selectRoleVectorMarkers({stations:[{...station,lat:Infinity}],places:[{...place,lng:190}],
