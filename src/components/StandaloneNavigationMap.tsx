@@ -186,7 +186,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
           navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
         markers.update(descriptors,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
-          location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters});drawn=descriptors;
+          location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
+          showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});drawn=descriptors;
         const nextInputs=[p.originCoords,p.destinationCoords,p.routePath,p.routeAlternatives];
         if(nextInputs.some((value,index)=>value!==fitInputs[index])){
           fitInputs=nextInputs;
