@@ -37,7 +37,7 @@ function Fixture(){
     conditions={{busy:false,weatherError:'',tollError:'',refresh:()=>{}}}
     onClose={()=>{}} onEndTrip={()=>{}} onCompleteTrip={()=>({newAchievements:[],leveledUp:false})}
     onOpenSos={()=>{}} onOpenShareModal={()=>{}} onReturnHome={()=>{}}
-    onNavigationReroute={()=>{}}/>
+    onNavigationReroute={()=>{}} onStopVisited={()=>{}}/>
     <div style={{position:'fixed',bottom:4,left:4,zIndex:1000,background:'white'}}>
       <button onClick={()=>setScenario('return')}>Simular volta ao início</button>
       <button onClick={()=>setScenario('crossing-out')}>Simular cruzamento na ida</button>
