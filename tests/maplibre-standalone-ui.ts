@@ -305,7 +305,7 @@ try{
   await guidance.getByText('À esquerda',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Simular fora da rota',exact:true}).click();
   await guidance.getByText('Fora da rota',{exact:true}).waitFor();
-  await guidance.getByText('Aguardando recálculo rodoviário',{exact:true}).waitFor();
+  await guidance.getByText('Siga com atenção · recálculo indisponível',{exact:true}).waitFor();
   assert.equal(await guidance.getByText('Siga a rota',{exact:true}).count(),0);
   assert.equal(await guidance.locator('.rdv-nav-guidance-copy > strong').getByText(/^[0-9]+ m$/).count(),0);
   // Refreshing a different area must not momentarily show stations or places

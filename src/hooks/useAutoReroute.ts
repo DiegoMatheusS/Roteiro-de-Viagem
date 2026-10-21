@@ -3,8 +3,9 @@ import type { TripPlan } from '../types';
 import type { DeviceLocation } from '../services/locationService';
 import { distanceBetweenKm } from '../services/gpsTracking';
 import {
-  eligibleDirectReroute,evaluateOffRoute,initialOffRouteState,
-  requestAutomaticReroute,type ReroutedNavigation
+  eligibleAutomaticReroute,evaluateOffRoute,initialOffRouteState,
+  requestAutomaticReroute,confirmStopArrival,initialStopArrivalState,
+  type ReroutedNavigation
 } from '../services/autoReroute';
 
 export type AutoRerouteNotice='idle'|'recalculating'|'updated'|'unavailable';
@@ -14,9 +15,11 @@ export type AutoRerouteNotice='idle'|'recalculating'|'updated'|'unavailable';
 export function useAutoReroute(options:{
   trip:TripPlan;position:DeviceLocation|null;trackedDistanceKm:number;
   enabled:boolean;onReroute:(next:ReroutedNavigation)=>void;
+  onStopVisited:(stopId:string)=>void;
 }):AutoRerouteNotice{
   const [notice,setNotice]=useState<AutoRerouteNotice>('idle');
   const state=useRef(initialOffRouteState());
+  const stopArrival=useRef(initialStopArrivalState());
   const lastRouteKey=useRef('');
   const current=useRef(options);current.current=options;
   const inflight=useRef<AbortController|null>(null);
@@ -30,6 +33,7 @@ export function useAutoReroute(options:{
     // Preserve the 60-second throttle when a request replaces the route.
     const lastAttemptAt=oldTrip===options.trip.id?state.current.lastAttemptAt:0;
     state.current={...initialOffRouteState(),lastAttemptAt};
+    stopArrival.current=initialStopArrivalState();
     lastRouteKey.current=routeKey;
   },[routeKey,options.trip.id]);
 
@@ -37,6 +41,7 @@ export function useAutoReroute(options:{
     if(!options.enabled){
       inflight.current?.abort();inflight.current=null;
       state.current={...state.current,outsideSince:null,outsideCount:0,firstOutside:null};
+      stopArrival.current=initialStopArrivalState();
       clearNotice();setNotice('idle');
     }
     return ()=>{
@@ -46,23 +51,40 @@ export function useAutoReroute(options:{
   },[options.enabled,options.trip.id]);
 
   useEffect(()=>{
-    if(!options.enabled || !eligibleDirectReroute(options.trip) || inflight.current)return;
+    if(!options.enabled || !eligibleAutomaticReroute(options.trip))return;
     const fix=options.position;
     if(!fix){
       state.current={...state.current,outsideSince:null,outsideCount:0,firstOutside:null};
+      stopArrival.current=initialStopArrivalState();
       return;
     }
+    const arrival=confirmStopArrival(stopArrival.current,options.trip,fix);
+    stopArrival.current=arrival.state;
+    if(arrival.visitedId){
+      options.onStopVisited(arrival.visitedId);
+      // Await the updated list before asking for a road-network route.
+      return;
+    }
+    if(inflight.current)return;
     const route=options.trip.navigationReroute?.routePath||options.trip.routePath;
     const decision=evaluateOffRoute(state.current,fix,route);
     state.current=decision.state;
     if(!decision.trigger)return;
     const controller=new AbortController();
+    const plannedVisitKey=(options.trip.navigationVisitedStopIds||[]).join('|');
+    const plannedRouteVersion=options.trip.navigationReroute?.updatedAt||'original';
     inflight.current=controller;
     clearNotice();setNotice('recalculating');
     void requestAutomaticReroute(options.trip,fix.coords,options.trackedDistanceKm,controller.signal)
       .then(next=>{
         if(controller.signal.aborted || !current.current.enabled ||
           current.current.trip.id!==options.trip.id)return;
+        // A stop can be confirmed by GPS while OSRM is responding. Never
+        // overwrite the newly-updated stop list with an obsolete request.
+        if((current.current.trip.navigationVisitedStopIds||[]).join('|')!==plannedVisitKey ||
+           (current.current.trip.navigationReroute?.updatedAt||'original')!==plannedRouteVersion){
+          setNotice('idle');return;
+        }
         const live=current.current.position;
         // Do not install a route whose start is now far behind the driver.
         if(!live || distanceBetweenKm(live.coords,next.originCoords)>.35){
@@ -80,6 +102,7 @@ export function useAutoReroute(options:{
       })
       .finally(()=>{if(inflight.current===controller)inflight.current=null;});
   },[options.enabled,options.trip.id,options.trip.navigationReroute?.updatedAt,
-      options.position?.timestamp,options.trackedDistanceKm,options.trip.routePath]);
+      options.position?.timestamp,options.trackedDistanceKm,options.trip.routePath,
+      options.trip.navigationVisitedStopIds]);
   return notice;
 }

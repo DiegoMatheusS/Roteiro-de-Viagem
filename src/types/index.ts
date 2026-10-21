@@ -149,6 +149,8 @@ export interface TripPlan {
   routeSteps?: NavigationManeuver[];
   /** Rota rodoviária restante após desvio, sem redefinir os km já percorridos. */
   navigationReroute?: import('../services/autoReroute').ReroutedNavigation;
+  /** Paradas confirmadas pelo GPS nesta viagem, sem depender do servidor. */
+  navigationVisitedStopIds?: string[];
   manualStops?: import('./itinerary').MandatoryStop[];
   acceptedSuggestions?: import('./itinerary').SuggestedStop[];
   planningLimits?: import('./itinerary').PlanningLimits;

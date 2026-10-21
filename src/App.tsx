@@ -262,8 +262,8 @@ export default function App() {
     if (trip.routingSource !== 'OSRM') { setAppError('Recalcule esta rota antiga antes de iniciar: ela ainda não possui um percurso rodoviário verificado.'); return; }
     setIsPlanningOpen(false);
     const startedTrip: TripPlan = ['completed', 'cancelled'].includes(trip.status)
-      ? { ...trip, navigationReroute:undefined, id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
-      : { ...trip, navigationReroute:undefined, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId };
+      ? { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
+      : { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId };
     storageService.saveTrip(startedTrip);
     storageService.setActiveTrip(startedTrip);
     setActiveTrip(startedTrip);
@@ -322,6 +322,19 @@ export default function App() {
         tripType: 'round_trip', interests: ['panoramico', 'natureza', 'museus'], originCoords: position.coords, originName: 'Sua localização atual', vehicle: currentVehicle || GUEST_NAVIGATION_VEHICLE });
       handleStartTrip(trip);
     } catch (error) { setAppError((error as Error).message); }
+  };
+
+  const handleNavigationStopVisited=(stopId:string)=>{
+    const running=storageService.getActiveTrip();
+    if(!running||running.id!==activeTrip?.id||running.status!=='in_progress'||
+      running.trackingDeviceId!==deviceId || !running.stops.some(stop=>stop.id===stopId) ||
+      running.navigationVisitedStopIds?.includes(stopId))return;
+    const updated:TripPlan={...running,
+      navigationVisitedStopIds:[...(running.navigationVisitedStopIds||[]),stopId]};
+    storageService.saveTrip(updated);
+    storageService.setActiveTrip(updated);
+    setActiveTrip(updated);
+    setTrips(storageService.getTrips());
   };
 
   // Persist the remaining OSRM route separately from the journey's odometer.
@@ -634,6 +647,7 @@ export default function App() {
           onOpenShareModal={(trip)=>setShareTripTarget(trip)}
           onReturnHome={handleReturnHome}
           onNavigationReroute={handleNavigationReroute}
+          onStopVisited={handleNavigationStopVisited}
         />
       )}
 

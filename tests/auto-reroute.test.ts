@@ -5,8 +5,9 @@ import type {TripPlan} from '../src/types';
 import type {DeviceLocation} from '../src/services/locationService';
 import {
   initialOffRouteState,evaluateOffRoute,distanceToRouteMeters,isGpsOutsideRouteCorridor,
-  verifiedReroute,eligibleDirectReroute,
-  REROUTE_COOLDOWN_MS
+  verifiedReroute,eligibleDirectReroute,eligibleAutomaticReroute,
+  orderedRerouteStops,remainingRerouteStops,confirmStopArrival,initialStopArrivalState,
+  requestAutomaticReroute,REROUTE_COOLDOWN_MS
 } from '../src/services/autoReroute';
 
 type Point=[number,number];
@@ -137,4 +138,123 @@ test('mapa não anuncia conversões antigas quando o GPS confiável sai do corre
  assert.match(hud,/const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor\(tracking\.position,navigationPath\)/);
  assert.match(hud,/const nextTurn = outsideCorridor\?null:nextNavigationGuidance/);
  assert.match(hud,/outsideCorridor\?'Fora da rota':'Na rota'/);
+});
+
+const planStops=[
+ {id:'stop-a',location:{id:'catalog-a',name:'Posto A',coords:[-23.5,-46.498] as Point},stayMinutes:5},
+ {id:'stop-b',location:{id:'catalog-b',name:'Parque B',coords:[-23.5,-46.494] as Point},stayMinutes:10}
+];
+const plan={...direct,
+  manualStops:planStops,
+  acceptedSuggestions:[],
+  stops:planStops.map(stop=>({
+    id:stop.id,name:stop.location.name,category:'posto' as const,
+    lat:stop.location.coords[0],lng:stop.location.coords[1],
+    description:'',recommendedMinutes:stop.stayMinutes
+  })),
+  waypointOrder:[path[0],planStops[0].location.coords,planStops[1].location.coords,path[1]],
+  navigationVisitedStopIds:[]
+};
+test('viagem com paradas cadastradas passa a recalcular, sem descartar ou trocar a ordem',()=>{
+ assert.equal(eligibleDirectReroute(plan),false);
+ assert.equal(eligibleAutomaticReroute(plan),true);
+ assert.deepEqual(orderedRerouteStops(plan)?.map(stop=>stop.id),['stop-a','stop-b']);
+ assert.deepEqual(remainingRerouteStops(plan)?.map(stop=>stop.id),['stop-a','stop-b']);
+ assert.deepEqual(remainingRerouteStops({...plan,navigationVisitedStopIds:['stop-a']})?.map(stop=>stop.id),['stop-b']);
+ assert.equal(eligibleAutomaticReroute({...plan,isCircular:true}),false);
+ assert.equal(eligibleAutomaticReroute({...plan,editedWaypoint:[-23.51,-46.51]}),false);
+ assert.equal(eligibleAutomaticReroute({...plan,stops:plan.stops.slice(1)}),false);
+ assert.equal(eligibleAutomaticReroute({...plan,manualStops:[{...planStops[0],location:{name:'Sem ID'}}]}),false);
+ assert.equal(eligibleAutomaticReroute({...plan,waypointOrder:[path[0],path[1]]}),false);
+ assert.equal(eligibleAutomaticReroute({...plan,stops:[{id:'unverified'}] as TripPlan['stops']}),false);
+});
+test('duas sugestões entre paradas preservam a ordem do itinerário',()=>{
+ const suggestion={
+  id:'suggest-a',location:{id:'catalog-c',name:'Mirante',coords:[-23.5,-46.496] as Point},
+  stayMinutes:3,afterIndex:0
+ };
+ const withSuggestion={...plan,acceptedSuggestions:[suggestion],
+   stops:[plan.stops[0],{...plan.stops[0],id:'suggest-a',name:'Mirante'},plan.stops[1]],
+   waypointOrder:[path[0],planStops[0].location.coords,suggestion.location.coords,
+    planStops[1].location.coords,path[1]]};
+ assert.deepEqual(orderedRerouteStops(withSuggestion)?.map(s=>s.id),
+  ['stop-a','suggest-a','stop-b']);
+ assert.equal(eligibleAutomaticReroute(withSuggestion),true);
+ assert.equal(orderedRerouteStops({...withSuggestion,acceptedSuggestions:[{...suggestion,afterIndex:8}]}),null);
+});
+test('chegada à próxima parada requer 3 leituras GPS, 4 s e boa precisão',()=>{
+ let progress=initialStopArrivalState();
+ let visited:string|null=null;
+ for(const time of [0,2100,4500]){
+  const result=confirmStopArrival(progress,plan,
+    fix(time,planStops[0].location.coords,{accuracyMeters:7,speedMetersPerSecond:0}),now+time);
+  progress=result.state;visited=result.visitedId;
+ }
+ assert.equal(visited,'stop-a');
+ const after={...plan,navigationVisitedStopIds:['stop-a']};
+ const next=confirmStopArrival(progress,after,
+   fix(8500,planStops[1].location.coords,{speedMetersPerSecond:0}),now+8500);
+ assert.equal(next.visitedId,null);
+ assert.equal(next.state.candidateId,'stop-b');
+ const poor=confirmStopArrival(next.state,after,
+   fix(10000,planStops[1].location.coords,{accuracyMeters:90}),now+10000);
+ assert.equal(poor.visitedId,null);
+ assert.equal(poor.state.candidateId,null);
+});
+test('API só fornece novo trajeto quando devolve todas as paradas na ordem correta',async()=>{
+ const originalFetch=globalThis.fetch;
+ const origin:Point=[-23.5004,-46.5004];
+ const expected=[origin,planStops[0].location.coords,planStops[1].location.coords,path[1]];
+ const payloads:unknown[]=[];
+ globalThis.fetch=async(input,init)=>{
+  assert.equal(input,'/api/routes/itinerary');
+  const body=JSON.parse(String(init?.body)) as {manualStops:{id:string;locationId:string}[]};
+  payloads.push(body);
+  const waypoints=body.manualStops.length===2?expected:
+    [origin,planStops[1].location.coords,path[1]];
+  return new Response(JSON.stringify({
+    routePath:[origin,path[0],...waypoints.slice(1)],
+    routeSteps:[{coords:origin,distanceFromStartKm:0,type:'depart',name:''}],
+    distanceKm:1.98,drivingMinutes:6,durationMinutes:21,
+    waypoints
+  }),{status:200,headers:{'Content-Type':'application/json'}});
+ };
+ try{
+  const updated=await requestAutomaticReroute(plan,origin,23.1);
+  assert.deepEqual(updated.remainingStopIds,['stop-a','stop-b']);
+  assert.equal(updated.trackedAtKm,23.1);
+  assert.deepEqual((payloads[0] as any).manualStops.map((x:{id:string})=>x.id),['stop-a','stop-b']);
+  assert.deepEqual((payloads[0] as any).manualStops.map((x:{locationId:string})=>x.locationId),['catalog-a','catalog-b']);
+  const after=await requestAutomaticReroute({...plan,navigationVisitedStopIds:['stop-a']},origin,23.4);
+  assert.deepEqual(after.remainingStopIds,['stop-b']);
+  assert.deepEqual((payloads[1] as any).manualStops.map((x:{id:string})=>x.id),['stop-b']);
+ }finally{globalThis.fetch=originalFetch;}
+});
+test('rota com parada ausente ou deslocada é rejeitada e a anterior é preservada',()=>{
+ const origin:Point=[-23.5004,-46.5004];
+ const stops=[origin,planStops[0].location.coords,planStops[1].location.coords,path[1]];
+ const valid={
+  routePath:[origin,path[0],planStops[0].location.coords,planStops[1].location.coords,path[1]],
+  routeSteps:[{coords:origin,distanceFromStartKm:0,type:'depart',name:''}],
+  distanceKm:2,drivingMinutes:7,durationMinutes:22,waypoints:stops
+ };
+ assert.doesNotThrow(()=>verifiedReroute(valid,origin,path[1],11,new Date(),stops));
+ assert.throws(()=>verifiedReroute({...valid,waypoints:stops.slice(1)},origin,path[1],11,new Date(),stops));
+ assert.throws(()=>verifiedReroute({...valid,waypoints:[origin,planStops[1].location.coords,planStops[0].location.coords,path[1]]},origin,path[1],11,new Date(),stops));
+ assert.throws(()=>verifiedReroute({...valid,
+  routePath:[origin,[-23.48,-46.495],path[1]]},origin,path[1],11,new Date(),stops));
+});
+test('chegada persistida e a próxima parada aparecem sem resetar a viagem',()=>{
+ const read=(p:string)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+ const app=read('src/App.tsx'),hud=read('src/components/ActiveTripModal.tsx');
+ const hook=read('src/hooks/useAutoReroute.ts');
+ assert.match(app,/navigationVisitedStopIds:\[\.\.\.\(running\.navigationVisitedStopIds\|\|\[\]\),stopId\]/);
+ assert.match(app,/onStopVisited=\{handleNavigationStopVisited\}/);
+ assert.match(hud,/const outstandingStops=trip\.stops\.filter/);
+ assert.match(hud,/onStopVisited\}\);/);
+ assert.match(hook,/confirmStopArrival\(stopArrival\.current,options\.trip,fix\)/);
+ assert.match(hook,/plannedVisitKey/);
+ assert.match(hook,/plannedRouteVersion/);
+ assert.match(hud,/pendingStopMinutes/);
+ assert.match(hud,/plannedStopMinutes/);
 });

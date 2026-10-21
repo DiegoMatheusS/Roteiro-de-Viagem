@@ -10,7 +10,7 @@ import '../role-navigation-figma.css';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { useAutoReroute } from '../hooks/useAutoReroute';
-import { isGpsOutsideRouteCorridor,type ReroutedNavigation } from '../services/autoReroute';
+import { isGpsOutsideRouteCorridor,eligibleAutomaticReroute,type ReroutedNavigation } from '../services/autoReroute';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
@@ -48,6 +48,7 @@ interface ActiveTripModalProps {
   onOpenShareModal: (trip:TripPlan) => void;
   onReturnHome: () => void;
   onNavigationReroute: (next:ReroutedNavigation)=>void;
+  onStopVisited: (id:string)=>void;
 }
 
 export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
@@ -63,7 +64,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   onOpenSos,
   onOpenShareModal,
   onReturnHome,
-  onNavigationReroute
+  onNavigationReroute,
+  onStopVisited
 }) => {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
@@ -82,15 +84,21 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const distanceTraveledKm=tracking.distanceKm;
   const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
   const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
-  const routeMinutes=rerouted?.drivingMinutes||trip.durationMinutes;
+  const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id));
+  const pendingStopMinutes=outstandingStops.reduce((sum,stop)=>
+    sum+Math.max(0,stop.recommendedMinutes||0),0);
+  const plannedStopMinutes=trip.stops.reduce((sum,stop)=>
+    sum+Math.max(0,stop.recommendedMinutes||0),0);
+  const drivingMinutes=rerouted?.drivingMinutes||trip.drivingMinutes||
+    Math.max(0,trip.durationMinutes-plannedStopMinutes);
   const remainingKm=Math.max(0,routeDistanceKm-routeTravelledKm);
   const remainingMinutes=Math.max(0,Math.round(
-    remainingKm/Math.max(routeDistanceKm,0.001)*routeMinutes));
+    remainingKm/Math.max(routeDistanceKm,0.001)*drivingMinutes+pendingStopMinutes));
   const roadAlerts = useRoadAlerts(navigationPath);
   const rerouteNotice=useAutoReroute({trip,
     position:isOpen&&tracking.status==='ready'?tracking.position:null,
     trackedDistanceKm:distanceTraveledKm,
-    enabled:isOpen,onReroute:onNavigationReroute});
+    enabled:isOpen,onReroute:onNavigationReroute,onStopVisited});
 
   if (!isOpen) return null;
 
@@ -103,7 +111,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
-  const nextStop = trip.stops[0];
+  const nextStop = outstandingStops[0];
   const upcoming = tracking.status === 'ready'
     ? upcomingRoadAlert(roadAlerts.alerts, navigationPath, tracking.position?.coords, routeTravelledKm, routeDistanceKm)
     : null;
@@ -133,7 +141,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           routePath={navigationPath} navigationMode roadStyle
           onCameraModeChange={setCameraMode}
           travelledDistanceKm={routeTravelledKm} totalRouteKm={routeDistanceKm}
-          stops={trip.stops} weatherPoints={rerouted?[]:trip.weatherPoints} roadAlerts={roadAlerts.alerts}
+          stops={outstandingStops} weatherPoints={rerouted?[]:trip.weatherPoints} roadAlerts={roadAlerts.alerts}
           centerOnUserRequest={centerRequest} tolls={rerouted?[]:trip.tolls||[]}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
@@ -162,7 +170,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
               nextTurn.direction==='roundabout'?'Na rotatória':
               nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente'}</span>
             {nextTurn.road&&<> na <span>{nextTurn.road}</span></>}
-          </>:isGpsActive?(outsideCorridor?'Aguardando recálculo rodoviário':'Siga a rota'):'Ative a localização para receber instruções'}</span>
+          </>:isGpsActive?(outsideCorridor?(eligibleAutomaticReroute(trip)?'Aguardando recálculo rodoviário':'Siga com atenção · recálculo indisponível'):'Siga a rota'):'Ative a localização para receber instruções'}</span>
         </span>
       </div>
       <div className="rdv-nav-gps-status" aria-live="polite">
@@ -239,6 +247,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <RouteConditionsStatus trip={trip} conditions={conditions}/>
         {rerouted&&<p className="text-xs text-amber-800">Os dados de clima, combustível e pedágios do roteiro original podem estar desatualizados após o recálculo.</p>}
         {nextStop&&<p className="text-xs text-slate-700">Próxima parada: {nextStop.name}</p>}
+        {!!trip.navigationVisitedStopIds?.length&&<p className="text-xs text-emerald-800">{trip.navigationVisitedStopIds.length} parada(s) confirmada(s) pelo GPS</p>}
         <div className="rdv-nav-extra-buttons">
           <div className="min-w-0"><RoadAlertReporter
             location={isGpsActive?tracking.position:null} speedKmH={currentSpeed}
