@@ -251,6 +251,17 @@
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-map-button span {color:#cbd5e1;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-guidance {background:#1e40af;}
 .rdv-navigation-screen[data-role-theme="dark"] {background:#111827;}
-.rdv-navigation-screen[data-role-theme="dark"] .rdv-home-sheet,
-.rdv-navigation-screen[data-role-theme="dark"] .rdv-route-sheet {color:#f1f5f9;}
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-route-sheet {background:#1e293b;color:#f1f5f9;}
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet .rdv-figma-card,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet .bg-white,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-search {background:#334155;color:#f1f5f9;border-color:#475569;}
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet h2,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet .text-slate-950,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet .text-slate-900,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-search input {color:#f8fafc;}
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet .text-slate-500 {color:#cbd5e1;}
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-search input::placeholder {color:#cbd5e1;}
+.rdv-flat-map[data-role-theme="dark"] .leaflet-tile-pane {filter:brightness(.74) contrast(1.08);}
+
 @media(prefers-reduced-motion:reduce){.rdv-nav-figma-root * {scroll-behavior:auto;}}
