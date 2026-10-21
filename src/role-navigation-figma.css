@@ -233,4 +233,24 @@
   .rdv-nav-guidance {left:12px;right:12px;}
   .rdv-nav-guidance-icon {flex-basis:34px;}
 }
+/* Low-glare navigation UI follows explicit map appearance; light remains default. */
+.rdv-nav-figma-root[data-role-theme="dark"] {background:#111827;color:#f1f5f9;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-panel,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-gps-status,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-map-button,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-voice-note,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-retry {background:#1e293b;color:#e2e8f0;border-color:#334155;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom-button,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-heading button,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-action {background:#334155;color:#e2e8f0;border-color:#475569;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-controls .rdv-speedometer {background:#1e293b;border-color:#475569;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-eta-stat {color:#f1f5f9;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-eta-stat span,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-stat span,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-map-button span {color:#cbd5e1;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-guidance {background:#1e40af;}
+.rdv-navigation-screen[data-role-theme="dark"] {background:#111827;}
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-home-sheet,
+.rdv-navigation-screen[data-role-theme="dark"] .rdv-route-sheet {color:#f1f5f9;}
 @media(prefers-reduced-motion:reduce){.rdv-nav-figma-root * {scroll-behavior:auto;}}
