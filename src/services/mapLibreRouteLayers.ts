@@ -27,6 +27,14 @@ export interface RoleRouteOptions {
 
 const SOURCE = 'role-verified-routes';
 
+/** Zoom-responsive strokes keep a long route readable in overview without
+ * hiding road names. MapLibre evaluates this paint expression on zoom itself:
+ * no JS zoom listener and no repeated GeoJSON uploads or invented geometry. */
+export type RouteZoomStroke=['interpolate',['linear'],['zoom'],number,number,number,number,number,number];
+export function routeZoomStroke(overview:number,city:number,street:number):RouteZoomStroke {
+  return ['interpolate',['linear'],['zoom'],5,overview,11,city,16,street];
+}
+
 // Long itineraries must not be serialized and resent to MapLibre's worker for
 // every GPS tick, weather update or convoy movement. Compare the real OSRM
 // progress vertex (not a rounded/drawn synthetic geometry) and stable inputs.
@@ -174,7 +182,7 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
   }
 
   const addLine = (id: string, role: Role, color: string | ['get', 'color'],
-    width: number, opacity: number): void => {
+    width: number | RouteZoomStroke, opacity: number): void => {
     if (gl.getLayer(id)) return;
     gl.addLayer({
       id, type:'line', source:SOURCE,
@@ -183,18 +191,18 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
       paint:{'line-color':color,'line-width':width,'line-opacity':opacity}
     });
   };
-  addLine(layers[0], 'alternative', '#ffffff', 9, 0.86);
-  addLine(layers[1], 'alternative', '#64748b', 5, 0.78);
-  addLine(layers[2], 'active', '#ffffff', 10, 0.96);
+  addLine(layers[0], 'alternative', '#ffffff', routeZoomStroke(4,6,9), 0.86);
+  addLine(layers[1], 'alternative', '#64748b', routeZoomStroke(2,4,5), 0.78);
+  addLine(layers[2], 'active', '#ffffff', routeZoomStroke(5,7.5,10), 0.96);
   if (!(options.navigationMode || options.blueRoute)) {
-    addLine(layers[3], 'active', ['get','color'], 7, 0.6);
-    addLine(layers[4], 'active', ['get','color'], 5, 1);
+    addLine(layers[3], 'active', ['get','color'], routeZoomStroke(3,5,7), 0.6);
+    addLine(layers[4], 'active', ['get','color'], routeZoomStroke(2,4,5), 1);
   } else {
     // Styles persist across GPS updates, so remove the inactive preview lines.
     for (const id of [layers[3],layers[4]]) if (gl.getLayer(id)) gl.removeLayer(id);
   }
-  addLine(layers[5], 'remaining', '#67c7ff', 7, 1);
-  addLine(layers[6], 'travelled', '#17479b', 7, 1);
+  addLine(layers[5], 'remaining', '#67c7ff', routeZoomStroke(3,5,7), 1);
+  addLine(layers[6], 'travelled', '#17479b', routeZoomStroke(3,5,7), 1);
   lastRender.set(gl,{routePath:options.routePath,
     alternatives:options.alternatives.map(route=>({id:route.id,routePath:route.routePath})),
     selectedRouteId:options.selectedRouteId,modalityColor:options.modalityColor,
