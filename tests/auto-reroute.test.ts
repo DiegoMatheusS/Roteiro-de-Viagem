@@ -47,7 +47,7 @@ test('recalcula somente após 3 posições boas e seis segundos longe da rua',()
 });
 test('sem rede não reenvia antes de 60 s e permite nova tentativa após confirmação',()=>{
  let state=initialOffRouteState();
- const positions=[0,3500,7000,10500,14000,18000,64000,67500,71000].map(
+ const positions=[0,3500,7000,10500,14000,18000,64000,67500,71000,74500].map(
    (ms,i)=>fix(ms,[-23.4984,-46.4995+i*0.00026]));
  const hits:number[]=[];
  for(const gps of positions){
