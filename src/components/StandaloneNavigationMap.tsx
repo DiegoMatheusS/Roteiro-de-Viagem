@@ -7,6 +7,8 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type {InteractiveMapProps} from './InteractiveMap';
 import {canRenderVectorMap,applyRoleVectorPalette} from '../services/mapVectorStyle';
+import {useMapAppearance} from '../hooks/useMapAppearance';
+import type {MapTheme} from '../services/mapAppearance';
 import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
 import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
@@ -45,6 +47,8 @@ const reducedMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?
  * keep the same actions, data validation and incremental updates. */
 export default function StandaloneNavigationMap(props:InteractiveMapProps & {onUnavailable:(style?:MapStyleType,viewport?:MapFallbackViewport)=>void}){
   const container=useRef<HTMLDivElement>(null);
+  const {theme:appearanceTheme}=useMapAppearance();
+  const appearanceRef=useRef(appearanceTheme);appearanceRef.current=appearanceTheme;
   const latest=useRef(props);latest.current=props;
   const [ready,setReady]=useState(false);
   const [baseStyle,setBaseStyle]=useState<MapStyleType>(props.initialStyle||'light');
@@ -67,7 +71,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
   const places=useNearbyPlaces(discovery,(props.showFuelStations??true)&&discovery.length>0);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
-  const runtime=useRef<{render:()=>void;orient:()=>void;setBaseStyle:(style:MapStyleType)=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
+  const runtime=useRef<{render:()=>void;orient:()=>void;setBaseStyle:(style:MapStyleType)=>void;setTheme:(theme:MapTheme)=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
 
   useEffect(()=>{
     if(!container.current)return;
@@ -75,7 +79,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let disposed=false,loaded=false,failed=false;
     let map:GlMap;
     let captureFallback:(()=>MapFallbackViewport|undefined)|undefined;
-    let activeStyle=styleRef.current,changingStyle=false,tileErrors=0;
+    let activeStyle=styleRef.current,activeTheme=appearanceRef.current,changingStyle=false,tileErrors=0;
     let styleTimeout:ReturnType<typeof setTimeout>|null=null;
     const fail=()=>{
       if(disposed||failed)return;
@@ -83,7 +87,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     try{
       const origin=latest.current.originCoords;
-      map=new GlMap({container:container.current,style:standaloneBaseStyle(activeStyle),
+      map=new GlMap({container:container.current,style:standaloneBaseStyle(activeStyle,activeTheme),
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
         minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,
         pitch:latest.current.navigationMode?48:0,maxPitch:65,
@@ -224,19 +228,19 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
     const retry=()=>{waitingForIdle=false;render();};
-    const setBase=(style:MapStyleType)=>{
-      if(disposed||failed||style===activeStyle)return;
-      activeStyle=style;changingStyle=true;tileErrors=0;
+    const setBase=(style:MapStyleType,theme:MapTheme=appearanceRef.current)=>{
+      if(disposed||failed||(style===activeStyle&&theme===activeTheme))return;
+      activeStyle=style;activeTheme=theme;changingStyle=true;tileErrors=0;
       const root=container.current?.parentElement;
       if(root){root.dataset.mapIdle='false';root.dataset.mapStyleReady='';}
       if(styleTimeout)clearTimeout(styleTimeout);
       styleTimeout=setTimeout(fail,12000);
       try{
         map.setMaxZoom(TILE_PROVIDERS[style].maxZoom);
-        map.setStyle(standaloneBaseStyle(style),{diff:false});
+        map.setStyle(standaloneBaseStyle(style,activeTheme),{diff:false});
       }catch{fail();}
     };
-    runtime.current={render,camera,setBaseStyle:setBase,orient:()=>{
+    runtime.current={render,camera,setBaseStyle:style=>setBase(style),setTheme:theme=>setBase(activeStyle,theme),orient:()=>{
       if(disposed||failed||!loaded||!latest.current.navigationMode||camera.snapshot().mode!=='exploring')return;
       // Explicit orientation must also work while route tiles are loading.
       const p=latest.current;
@@ -330,7 +334,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       changingStyle=false;tileErrors=0;
       const root=container.current?.parentElement;
       if(root)root.dataset.mapStyleReady=activeStyle;
-      if(activeStyle==='light')applyRoleVectorPalette(map);
+      if(activeStyle==='light'&&activeTheme==='light')applyRoleVectorPalette(map);
       render();
     };
     map.on('style.load',styleLoaded);
@@ -361,6 +365,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   useEffect(()=>{runtime.current?.render();},[props,fuel.stations,places,ready,courseMode]);
   useEffect(()=>{runtime.current?.orient();},[courseMode]);
   useEffect(()=>{runtime.current?.setBaseStyle(effectiveStyle);},[effectiveStyle,ready]);
+  useEffect(()=>{runtime.current?.setTheme(appearanceTheme);},[appearanceTheme,ready]);
 
   const check=async(present:boolean)=>{
     if(!alert||checking)return;
@@ -376,7 +381,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const selectedToll=props.tolls?.find(entry=>entry.id===toll?.id) || (toll?.place?{
     id:toll.id,name:toll.place.name,coords:[toll.place.lat,toll.place.lng] as [number,number],
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
-  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle}>
+  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle} data-role-theme={appearanceTheme}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
