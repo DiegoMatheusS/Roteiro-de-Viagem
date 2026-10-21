@@ -1,9 +1,12 @@
 import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
 import L from 'leaflet';
-import { mapContributionIcon } from '../components/mapContributionIcon';
 import { mapPlaceIcon } from '../components/mapPlaceIcon';
-import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSignature,type RoleVectorMarker } from './vectorPlaceData';
+import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSignature,
+  type RoleVectorMarker } from './vectorPlaceData';
+import {nearestPoiToExpand,poiAccent,poiCategory,poiVisibleAtZoom,
+  type PoiVisibilityContext} from './mapPoiPresentation';
 import type { Place } from '../types/admin';
+import '../role-map-poi.css';
 
 export interface RoleMarkerActions {
   onStation: (id:string,section:'prices'|'comments')=>void;
@@ -11,14 +14,14 @@ export interface RoleMarkerActions {
   onPlace: (placeId:string)=>void;
 }
 
-/** Preserves the same buttons, labels and accessibility semantics as Leaflet icons. */
+/** Leaflet-generated SVG glyphs are DOM nodes, never HTML derived from user data. */
 function iconElement(icon: L.DivIcon, className: string): HTMLDivElement {
   const root=document.createElement('div');
   root.className=className;
   root.style.cssText='width:max-content;max-width:165px;cursor:pointer;pointer-events:auto;';
   const html=icon.options.html;
   if (html instanceof HTMLElement) root.append(html);
-  else if (typeof html === 'string') root.textContent = html; // Never parse untrusted HTML.
+  else if (typeof html === 'string') root.textContent = html;
   L.DomEvent.disableClickPropagation(root);
   L.DomEvent.disableScrollPropagation(root);
   root.addEventListener('pointerdown',event=>event.stopPropagation());
@@ -27,13 +30,15 @@ function iconElement(icon: L.DivIcon, className: string): HTMLDivElement {
 }
 
 export interface RoleMarkerController {
-  update(descriptors: readonly RoleVectorMarker[]):void;
+  update(descriptors: readonly RoleVectorMarker[],context?:PoiVisibilityContext):void;
+  setContext(context:PoiVisibilityContext):void;
   destroy():void;
 }
 interface TrackedRoleMarker {
   marker:Marker;
   visualSignature:string;
   coords: [number,number];
+  entry:RoleVectorMarker;
 }
 export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
@@ -41,60 +46,105 @@ export function createRoleMaplibreMarkerController(
 ):RoleMarkerController {
   const markers=new Map<string,TrackedRoleMarker>();
   let destroyed=false;
-  const buildMarker=(entry:RoleVectorMarker):Marker=>{
-    let root: HTMLDivElement;
-    let anchor: 'top'|'center'='top';
-    let offset: [number,number]=[0,-22];
-    if (entry.kind === 'place') {
-      root = iconElement(mapPlaceIcon(entry.category),'managed-place-marker');
-      root.title=entry.name;
-      root.tabIndex=0;
-      root.setAttribute('role','button');
-      root.setAttribute('aria-label',`Ver ${entry.name}`);
-      root.addEventListener('click',event=>{event.stopPropagation();actions.onPlace(entry.id);});
-      root.addEventListener('keydown',event=>{
-        if (event.key==='Enter' || event.key===' ') {
-          event.preventDefault();event.stopPropagation();actions.onPlace(entry.id);
-        }
-      });
-      anchor='center';offset=[0,0];
-    } else {
-      const isFuel=entry.kind==='fuel';
-      const icon=mapContributionIcon({
-        className:isFuel?'fuel-station-marker':'toll-marker',
-        name:entry.name,emoji:isFuel?'⛽':'🛣️',
-        color:isFuel?'#047857':'#0e7490',priceLabel:entry.priceLabel,
-        onPrices:()=>isFuel?actions.onStation(entry.id,'prices'):actions.onToll(entry.id,'prices',entry.kind==='toll'?entry.place:null),
-        onComments:()=>isFuel?actions.onStation(entry.id,'comments'):actions.onToll(entry.id,'comments',entry.kind==='toll'?entry.place:null)
-      });
-      root=iconElement(icon,isFuel?'fuel-station-marker':'toll-marker');
-      // Clicking the name or approved price also opens the details; inner
-      // action buttons have their own handlers and must not trigger twice.
-      root.addEventListener('click',event=>{
-        if ((event.target as HTMLElement).closest('button')) return;
-        event.stopPropagation();
-        if (isFuel) actions.onStation(entry.id,'prices');
-        else actions.onToll(entry.id,'prices',entry.kind==='toll'?entry.place:null);
-      });
+  let context:PoiVisibilityContext={zoom:gl.getZoom(),navigationMode:false};
+  let manualKey:string|null=null;
+  const openDetails=(entry:RoleVectorMarker)=>{
+    if(entry.kind==='place')actions.onPlace(entry.id);
+    else if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
+    else actions.onToll(entry.id,'prices',entry.place);
+  };
+  const applyVisibility=()=>{
+    if(destroyed)return;
+    const entries=[...markers.values()].map(record=>record.entry);
+    const nearest=nearestPoiToExpand(entries,{...context,zoom:gl.getZoom()});
+    for(const [key,record] of markers){
+      const visible=poiVisibleAtZoom(record.entry,gl.getZoom());
+      const element=record.marker.getElement();
+      element.style.display=visible?'':'none';
+      element.dataset.expanded=String(visible && (manualKey===key || (!manualKey&&key===nearest)));
+      element.setAttribute('aria-expanded',element.dataset.expanded);
     }
+  };
+  const buildMarker=(entry:RoleVectorMarker):Marker=>{
+    const category=poiCategory(entry);
+    const color=poiAccent(category);
+    const root=iconElement(mapPlaceIcon(category as Place['kind']),'role-poi-marker managed-place-marker');
+    root.style.setProperty('--role-poi-accent',color);
+    root.dataset.expanded='false';
+    root.title=entry.name;
+    root.tabIndex=0;
+    root.setAttribute('role','button');
+    root.setAttribute('aria-label',`Ver ${entry.name}`);
+
+    const details=document.createElement('div');
+    details.className='role-poi-details';
+    const heading=document.createElement('strong');
+    heading.className='role-poi-name';heading.textContent=entry.name;
+    details.append(heading);
+    if(entry.kind==='place' && entry.description){
+      const desc=document.createElement('span');
+      desc.className='role-poi-description';
+      desc.textContent=entry.description;details.append(desc);
+    }
+    if(entry.kind!=='place' && entry.priceLabel){
+      const price=document.createElement('span');price.className='role-poi-price';
+      price.textContent=entry.priceLabel;details.append(price);
+    }
+    if(entry.kind==='fuel'||entry.kind==='toll'){
+      const actionsRow=document.createElement('div');actionsRow.className='role-poi-actions';
+      const action=(label:string,run:()=>void)=>{
+        const button=document.createElement('button');
+        button.type='button';button.className='role-poi-action';
+        button.textContent=label;button.setAttribute('aria-label',`${label}: ${entry.name}`);
+        button.addEventListener('click',event=>{event.stopPropagation();run();});
+        actionsRow.append(button);
+      };
+      action('Sugerir preço',()=>openDetails(entry));
+      action('Comentários',()=>entry.kind==='fuel'
+        ?actions.onStation(entry.id,'comments')
+        :actions.onToll(entry.id,'comments',entry.kind==='toll'?entry.place:null));
+      details.append(actionsRow);
+    }
+    root.append(details);
+    const key=rolePlaceMarkerKey(entry);
+    const activate=(event:Event)=>{
+      if((event.target as HTMLElement).closest('button'))return;
+      event.stopPropagation();
+      if(root.dataset.expanded==='true'){
+        openDetails(entry);
+      }else{
+        manualKey=key;applyVisibility();
+      }
+    };
+    root.addEventListener('click',activate);
+    root.addEventListener('keydown',event=>{
+      if(event.key==='Enter'||event.key===' '){
+        event.preventDefault();activate(event);
+      }else if(event.key==='Escape'&&manualKey===key){
+        manualKey=null;applyVisibility();
+      }
+    });
+    const anchor:'center'='center',offset:[number,number]=[0,0];
     const marker=new Marker({element:root,anchor,offset})
-      .setLngLat(toMarkerLngLat(entry.coords))
-      .addTo(gl);
+      .setLngLat(toMarkerLngLat(entry.coords)).addTo(gl);
     return marker;
   };
+  const onZoom=()=>applyVisibility();
+  gl.on('zoomend',onZoom);
   return {
-    update(descriptors){
+    update(descriptors,inputs){
       if(destroyed)return;
+      if(inputs)context=inputs;
       const wanted=new Map<string,RoleVectorMarker>();
       for(const entry of descriptors){
-        if(!entry.id || !validMarkerPosition(entry.coords))continue;
+        if(!entry.id||!validMarkerPosition(entry.coords))continue;
         const key=rolePlaceMarkerKey(entry);
         if(!wanted.has(key))wanted.set(key,entry);
       }
-      // First remove stale IDs, then update only changed individual markers.
       for(const [key,record] of markers){
         if(!wanted.has(key)){record.marker.remove();markers.delete(key);}
       }
+      if(manualKey&&!wanted.has(manualKey))manualKey=null;
       for(const [key,entry] of wanted){
         const signature=rolePlaceMarkerSignature(entry);
         const existing=markers.get(key);
@@ -105,16 +155,17 @@ export function createRoleMaplibreMarkerController(
           }
           continue;
         }
-        // Replace only the marker whose label, price or details changed.
-        // Build before removing an existing element to avoid a blank frame.
         const marker=buildMarker(entry);
         existing?.marker.remove();
-        markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords]});
+        markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords],entry});
       }
+      applyVisibility();
     },
+    setContext(inputs){context=inputs;applyVisibility();},
     destroy(){
       if(destroyed)return;
       destroyed=true;
+      gl.off('zoomend',onZoom);
       for(const record of markers.values())record.marker.remove();
       markers.clear();
     }
