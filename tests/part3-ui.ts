@@ -124,8 +124,41 @@ try {
   assert.equal(await toll.getByText('R$ 6.50',{exact:true}).count(),2);
   await toll.getByRole('button',{name:'Fechar pedágio',exact:true}).click();
   await page.screenshot({path:'test-results/weather-tolls-mobile.png'});
+  // Mobile acceptance: changing the appearance in Settings immediately updates
+  // the real map. The preference is local and survives a page reload.
+  await page.getByRole('button',{name:'Aba Perfil'}).click();
+  await page.getByRole('button',{name:'Configurações'}).click();
+  const themeSelect=page.getByLabel('Tema do Rolê',{exact:true});
+  await themeSelect.selectOption('dark');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-appearance:v1')),'dark');
+  await page.getByRole('button',{name:'Abrir menu'}).click();
+  await page.getByRole('button',{name:'Mapa',exact:true}).click();
+  await page.locator('[data-map-engine][data-role-theme="dark"]').first().waitFor();
+  await page.screenshot({path:'test-results/map-dark-mobile.png'});
+  await page.reload();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-appearance:v1')),'dark');
+  // System mode switches without a reload when the operating system changes.
+  await page.emulateMedia({colorScheme:'dark'});
+  await page.evaluate(()=>{
+    localStorage.setItem('role:map-appearance:v1','system');
+    window.dispatchEvent(new Event('role-map-appearance-change'));
+  });
+  await page.locator('[data-role-theme="dark"]').first().waitFor();
+  await page.emulateMedia({colorScheme:'light'});
+  await page.locator('[data-role-theme="light"]').first().waitFor();
+  // Automatic mode uses the phone's local clock (18:00–06:00).
+  await page.evaluate(()=>{
+    localStorage.setItem('role:map-appearance:v1','automatic');
+    window.dispatchEvent(new Event('role-map-appearance-change'));
+  });
+  await page.waitForFunction(()=>{
+    const hour=new Date().getHours();
+    const expected=hour>=18||hour<6?'dark':'light';
+    return [...document.querySelectorAll('[data-role-theme]')]
+      .some(element=>element.getAttribute('data-role-theme')===expected);
+  });
   assert.deepEqual(errors,[]);
-  console.log('PASS: previsão no mapa, foto de pedágio, status privado, aprovação e orçamento por passagem/veículos.');
+  console.log('PASS: previsão, pedágios, orçamento e aparência responsiva do mapa no celular.');
 } catch(error) {
   await page.screenshot({path:'test-results/part3-failure-mobile.png',fullPage:true}).catch(()=>{});
   await admin.screenshot({path:'test-results/part3-failure-admin.png',fullPage:true}).catch(()=>{});
