@@ -10,7 +10,7 @@ import '../role-navigation-figma.css';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { useAutoReroute } from '../hooks/useAutoReroute';
-import type { ReroutedNavigation } from '../services/autoReroute';
+import { isGpsOutsideRouteCorridor,type ReroutedNavigation } from '../services/autoReroute';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
@@ -95,9 +95,11 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   if (!isOpen) return null;
 
   const currentSpeed = tracking.speedKmH;
-  const nextTurn = nextNavigationGuidance(navigationPath,navigationSteps,
-    tracking.status === 'ready' ? tracking.position?.coords : undefined,routeTravelledKm,routeDistanceKm);
   const isGpsActive = tracking.status === 'ready';
+  const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor(tracking.position,navigationPath);
+  // Don't announce a turn from an obsolete route while the vehicle is off it.
+  const nextTurn = outsideCorridor?null:nextNavigationGuidance(navigationPath,navigationSteps,
+    isGpsActive ? tracking.position?.coords : undefined,routeTravelledKm,routeDistanceKm);
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
@@ -154,13 +156,13 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <span className="rdv-nav-guidance-copy">
           <strong>{nextTurn?
             (nextTurn.meters>=1000?`${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km`:`${nextTurn.meters} m`):
-            isGpsActive?'Na rota':'Aguardando GPS'}</strong>
+            isGpsActive?(outsideCorridor?'Fora da rota':'Na rota'):'Aguardando GPS'}</strong>
           <span>{nextTurn?<>
             <span>{nextTurn.direction==='right'?'À direita':nextTurn.direction==='left'?'À esquerda':
               nextTurn.direction==='roundabout'?'Na rotatória':
               nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente'}</span>
             {nextTurn.road&&<> na <span>{nextTurn.road}</span></>}
-          </>:isGpsActive?'Siga a rota':'Ative a localização para receber instruções'}</span>
+          </>:isGpsActive?(outsideCorridor?'Aguardando recálculo rodoviário':'Siga a rota'):'Ative a localização para receber instruções'}</span>
         </span>
       </div>
       <div className="rdv-nav-gps-status" aria-live="polite">
