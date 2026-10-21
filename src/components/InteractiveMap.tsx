@@ -591,7 +591,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const gl=vectorMapRef.current;
     if(!gl)return;
     vectorPlaceControllerRef.current?.setContext({zoom:gl.getZoom(),navigationMode,
-      location:userLiveCoords,accuracyMeters:userGpsAccuracyMeters});
+      location:userLiveCoords,accuracyMeters:userGpsAccuracyMeters,
+      showRouteServices:!navigationMode&&routePath.length>1});
   },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
