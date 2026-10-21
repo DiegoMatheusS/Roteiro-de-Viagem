@@ -10,13 +10,11 @@ import {InteractiveMap} from './InteractiveMap';
 import {TripPreviewScreen} from './TripPreviewScreen';
 import {fetchRouteChoices,choiceToTrip} from '../services/routeChoices';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
-import ibirapueraPhoto from '../assets/figma-ibirapuera.svg';
-import romeirosPhoto from '../assets/figma-romeiros.svg';
 import '../role-explore-figma.css';
 
 type Coords=[number,number];
 type ExploreFilter='near'|'nature'|'road';
-type ExplorePlace={id:string;name:string;coords:Coords;kind:string;address:string;category:string;photo:string;city:string;curated?:boolean};
+type ExplorePlace={id:string;name:string;coords:Coords;kind:string;address:string;category:string;photo?:string;photoCredit?:string;photoPage?:string;city:string;curated?:boolean};
 interface ToursTabProps {
   currentVehicle:Vehicle|null;
   onStartTrip:(trip:TripPlan)=>void;
@@ -28,9 +26,17 @@ const roadKinds=new Set<string>(['viewpoint','historic','landmark','scenic_road'
 const touristKinds=new Set<string>(TOURIST_PLACE_KINDS);
 const saoPauloExamples:ExplorePlace[]=[
   {id:'figma-ibirapuera',name:'Volta no Ibirapuera',coords:[-23.5874,-46.6576],
-    kind:'park',address:'Parque Ibirapuera',category:'Urbano',photo:ibirapueraPhoto,city:'São Paulo',curated:true},
+    kind:'park',address:'Parque Ibirapuera',category:'Urbano',
+    photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Ibirapuera_Park_panorama.jpg?width=640',
+    photoCredit:'Wilfredor · CC0 1.0',
+    photoPage:'https://commons.wikimedia.org/wiki/File:Ibirapuera_Park_panorama.jpg',
+    city:'São Paulo',curated:true},
   {id:'figma-romeiros',name:'Estrada dos Romeiros',coords:[-23.457,-46.873],
-    kind:'viewpoint',address:'Trecho próximo a Barueri, SP',category:'Estrada',photo:romeirosPhoto,city:'Barueri',curated:true}
+    kind:'viewpoint',address:'Trecho próximo a Barueri, SP',category:'Estrada',
+    photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Estrada_dos_Romeiros._-_panoramio_(1).jpg?width=640',
+    photoCredit:'João Batista Shimoto · CC BY-SA 3.0',
+    photoPage:'https://commons.wikimedia.org/wiki/File:Estrada_dos_Romeiros._-_panoramio_(1).jpg',
+    city:'Barueri',curated:true}
 ];
 function haversineKm(from:Coords,to:Coords){
   const rad=Math.PI/180;
@@ -49,9 +55,10 @@ function sourceToExplore(place:Place):ExplorePlace{
   const category=['scenic_road','viewpoint','trail'].includes(place.kind)?'Estrada':
     ['museum','theatre','historic','landmark'].includes(place.kind)?'Cultura':
     place.kind==='park'?'Urbano':'Natureza';
-  const photo=category==='Estrada'?romeirosPhoto:ibirapueraPhoto;
+  // Imported places have no verified photo metadata yet. Do not reuse a
+  // generic illustration and misleadingly present it as this location.
   return {id:place.id,name:place.name,coords:[place.lat,place.lng],kind:place.kind,
-    address:place.address,category,photo,city:placeCity(place.address)};
+    address:place.address,category,city:placeCity(place.address)};
 }
 export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:ToursTabProps){
   const gps=useDeviceLocation(true,'role-explore-figma');
@@ -176,9 +183,20 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           const distance=origin?haversineKm(origin,place.coords):null;
           const preparing=busyId===place.id;
           return <article key={place.id} className="rdv-explore-route-row">
-            <img src={place.photo} alt="Imagem ilustrativa do tipo de passeio" loading="lazy"/>
+            <div className="rdv-explore-route-photo" aria-label={place.photo?'Fotografia do passeio':'Local sem fotografia verificada'}>
+              <Compass size={32} strokeWidth={1.5} aria-hidden="true"/>
+              {place.photo && <img src={place.photo} alt={`Fotografia de ${place.name}`}
+                loading="lazy" decoding="async"
+                onError={event=>{event.currentTarget.hidden=true;}}/>}
+            </div>
             <div className="rdv-explore-route-copy">
               <span className="rdv-explore-route-category">{place.category}</span>
+              {place.photoPage && place.photoCredit && <a href={place.photoPage}
+                target="_blank" rel="noopener noreferrer"
+                className="rdv-explore-photo-credit"
+                title="Fotografia e licença no Wikimedia Commons">
+                Foto: {place.photoCredit}
+              </a>}
               <h3>{place.name}</h3>
               <p>{place.city||place.address}{distance!==null?` · a ${Math.round(distance)} km`:''}</p>
               <button type="button" aria-label={`Ver rota para ${place.name}`}

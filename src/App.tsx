@@ -23,6 +23,7 @@ import { convoyService } from './services/convoyService';
 import { NavigationTabBar, MainTabType } from './components/NavigationTabBar';
 import { HomeTab } from './components/HomeTab';
 import { NavigationHome } from './components/NavigationHome';
+import {StartupMap} from './components/StartupMap';
 import { MapTab } from './components/MapTab';
 import { ToursTab } from './components/ToursTab';
 import { SavedTab } from './components/SavedTab';
@@ -336,16 +337,19 @@ export default function App() {
     }
   };
 
-  if (auth.loading || !accountReady) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-5">
-      <div className="bg-white border rounded-2xl p-6 max-w-md w-full text-center space-y-3">
-        <h1 className="font-bold text-slate-900">Rolê</h1>
-        <p className="text-sm text-slate-600">{syncState === 'conflict' ? syncMessage : syncState === 'error' ? (syncMessage || 'Não foi possível carregar a conta.') : 'Carregando seus dados de viagem...'}</p>
-        {syncState === 'error' && <button type="button" onClick={() => void cloudState.retry()} className="px-4 py-2 bg-emerald-700 text-white rounded-xl">Tentar novamente</button>}
-        {syncState === 'conflict' && <SyncConflictPanel conflicts={syncConflicts} onChoose={choice=>void cloudState.resolveConflict(choice)} />}
-      </div>
-    </div>
-  );
+  // The map opens immediately, including with slow/offline authentication.
+  // Keep account actions disabled until the correct storage scope is hydrated:
+  // never write a signed-in person's trips into the temporary guest namespace.
+  if (auth.loading || !accountReady) return <StartupMap notice={
+    syncState==='error' || syncState==='conflict'
+      ? <div className="space-y-2">
+          <p>{syncMessage || 'Não foi possível carregar os dados da conta.'}</p>
+          {syncState==='error' && <button type="button" onClick={()=>void cloudState.retry()}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white font-semibold">Tentar novamente</button>}
+          {syncState==='conflict' && <SyncConflictPanel conflicts={syncConflicts}
+            onChoose={choice=>void cloudState.resolveConflict(choice)}/>}
+        </div> : undefined
+  }/>;
 
   return (
     <div className={`bg-slate-50 text-slate-900 flex flex-col font-sans ${(activeTab==='inicio'||activeTab==='mapa')&&!advancedHome?'h-[100dvh] overflow-hidden':'min-h-screen'}`}>

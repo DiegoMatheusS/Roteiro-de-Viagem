@@ -1,5 +1,5 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import { splitRouteAtPosition } from './routeProgress';
+import { splitRouteAtPosition,routeProgressIndex } from './routeProgress';
 
 type Coordinates = [number, number]; // latitude, longitude (Leaflet/OSRM contract)
 type Role = 'alternative' | 'active' | 'remaining' | 'travelled';
@@ -26,6 +26,26 @@ export interface RoleRouteOptions {
 }
 
 const SOURCE = 'role-verified-routes';
+
+// Long itineraries must not be serialized and resent to MapLibre's worker for
+// every GPS tick, weather update or convoy movement. Compare the real OSRM
+// progress vertex (not a rounded/drawn synthetic geometry) and stable inputs.
+interface RouteRenderSnapshot {
+  routePath:Coordinates[];
+  alternatives:RoleRouteOptions['alternatives'];
+  selectedRouteId?:string;
+  modalityColor:string;
+  navigationMode:boolean;
+  blueRoute:boolean;
+  progressIndex:number|null;
+  featureCount:number;
+}
+const lastRender=new WeakMap<MapLibreMap,RouteRenderSnapshot>();
+function sameRouteOptions(a:RoleRouteOptions['alternatives'],b:RoleRouteOptions['alternatives']){
+  return a.length===b.length && a.every((route,i)=>
+    route.id===b[i].id && route.routePath===b[i].routePath);
+}
+
 const layers = [
   'role-alternative-outline', 'role-alternative-line', 'role-active-outline',
   'role-active-glow', 'role-active-line', 'role-remaining-line', 'role-travelled-line'
@@ -133,8 +153,20 @@ export function queryRoleVectorAlternative(
  */
 export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOptions): number {
   if (!gl.isStyleLoaded()) return 0;
-  const data = buildRoleRouteCollection(options);
   const existing = gl.getSource(SOURCE) as GeoJSONSource | undefined;
+  const progressIndex=(options.navigationMode||options.blueRoute)
+    ?routeProgressIndex(options.routePath,options.userLocation,
+      options.travelledDistanceKm,options.totalRouteKm):null;
+  const old=lastRender.get(gl);
+  if(existing && old && gl.getLayer(layers[2]) &&
+    old.routePath===options.routePath && old.selectedRouteId===options.selectedRouteId &&
+    old.modalityColor===options.modalityColor &&
+    old.navigationMode===options.navigationMode && old.blueRoute===options.blueRoute &&
+    old.progressIndex===progressIndex &&
+    sameRouteOptions(old.alternatives,options.alternatives)){
+    return old.featureCount;
+  }
+  const data = buildRoleRouteCollection(options);
   if (existing) {
     existing.setData(data);
   } else {
@@ -163,11 +195,17 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
   }
   addLine(layers[5], 'remaining', '#67c7ff', 7, 1);
   addLine(layers[6], 'travelled', '#17479b', 7, 1);
+  lastRender.set(gl,{routePath:options.routePath,
+    alternatives:options.alternatives.map(route=>({id:route.id,routePath:route.routePath})),
+    selectedRouteId:options.selectedRouteId,modalityColor:options.modalityColor,
+    navigationMode:options.navigationMode,blueRoute:options.blueRoute,
+    progressIndex,featureCount:data.features.length});
   // Report features successfully supplied to the vector source for UI diagnostics.
   return data.features.length;
 }
 
 export function clearRoleVectorRoutes(gl: MapLibreMap): void {
+  lastRender.delete(gl);
   if (!gl.isStyleLoaded()) return;
   for (const id of [...layers].reverse()) if (gl.getLayer(id)) gl.removeLayer(id);
   if (gl.getSource(SOURCE)) gl.removeSource(SOURCE);

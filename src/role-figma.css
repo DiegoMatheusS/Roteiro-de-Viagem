@@ -674,3 +674,52 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   .rdv-home-map-right-controls {bottom:calc(265px + env(safe-area-inset-bottom,0px));}
   .rdv-home-map-speedometer {bottom:calc(280px + env(safe-area-inset-bottom,0px)) !important;}
 }
+
+
+/* Brief, non-blocking logo cue as the live map initializes. Keep original logo. */
+.rdv-start-brand {
+  position:absolute;
+  left:50%;top:47%;
+  transform:translate(-50%,-50%);
+  z-index:45;
+  width:110px;height:110px;
+  display:grid;place-items:center;
+  pointer-events:none;
+  isolation:isolate;
+}
+.rdv-start-brand-logo {
+  width:80px;height:80px;
+  display:grid;place-items:center;
+  border-radius:50%;
+  border:3px solid #fff;
+  background:#fff;
+  box-shadow:0 4px 20px rgba(16,66,113,.23);
+  z-index:1;
+  animation:rdv-start-brand-breathe 1.7s ease-in-out infinite;
+}
+.rdv-start-brand-logo img {
+  display:block;width:68px;height:68px;
+  max-width:100%;object-fit:contain;
+  border-radius:50%;
+}
+.rdv-start-brand-wave {
+  position:absolute;
+  width:80px;height:80px;
+  border:2px solid rgba(32,130,210,.48);
+  background:rgba(30,135,215,.065);
+  border-radius:50%;
+  animation:rdv-start-brand-wave 1.7s ease-out infinite;
+}
+.rdv-start-brand-wave-second{animation-delay:.85s;}
+@keyframes rdv-start-brand-wave {
+  0%{transform:scale(.96);opacity:.8;}
+  100%{transform:scale(1.78);opacity:0;}
+}
+@keyframes rdv-start-brand-breathe {
+  0%,100%{transform:scale(1);}
+  50%{transform:scale(1.035);}
+}
+@media(prefers-reduced-motion:reduce){
+  .rdv-start-brand-wave,.rdv-start-brand-logo{animation:none;}
+  .rdv-start-brand-wave{display:none;}
+}
