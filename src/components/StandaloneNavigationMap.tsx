@@ -262,7 +262,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(disposed||failed)return;
       setOffline(false);
       tileErrors=0;
-      const reload=shouldReloadAfterReconnect(offlineDuringSession,failedOfflineTiles,map.isStyleLoaded());
+      const reload=shouldReloadAfterReconnect(offlineDuringSession,failedOfflineTiles,map.isStyleLoaded()===true);
       offlineDuringSession=false;failedOfflineTiles=false;
       if(reload)setBase(activeStyle,activeTheme,true);
       else map.triggerRepaint();
