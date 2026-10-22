@@ -115,6 +115,16 @@ export function isReliableStopRefreshFix(fix:DeviceLocation|null,now=Date.now())
     Number.isFinite(fix.accuracyMeters)&&fix.accuracyMeters>=0&&fix.accuracyMeters<=40;
 }
 
+/** An OSRM response can arrive after the driver has lost GPS signal. Do not
+ * replace the visible route unless the latest fix is still fresh, accurate
+ * and reasonably close to the coordinates used for the request. */
+export function canApplyRerouteFromLatestGps(
+  latest:DeviceLocation|null,origin:Coordinates,now=Date.now()
+):boolean{
+  if(!isReliableStopRefreshFix(latest,now)||!coordsValid(origin))return false;
+  return distanceBetweenKm(latest!.coords,origin)<=.35;
+}
+
 /** Skip/confirm controls are designed for parked, precise GPS only. Do not
  * enable an interactive navigation change on unreliable speed/location. */
 export function canEditStopsWhileStationary(fix:DeviceLocation|null,now=Date.now()):boolean{
