@@ -124,7 +124,12 @@ export default function App() {
     setActiveTrip(active);
     setIsNavigationOpen(open => active ? open : false);
     // Keep navigation on the current screen when remote account data arrives.
-    setActiveConvoyId(open=>open&&convoyService.getConvoys().some(c=>c.id===open)?open:null);
+    // A transient empty cache during reconnection is not leaving a convoy.
+    // Only a confirmed end or successful membership refresh may close its view.
+    setActiveConvoyId(open=>{
+      const cached=open&&convoyService.getConvoys().find(c=>c.id===open);
+      return cached&&cached.status!=='active'?null:open;
+    });
   };
 
   useEffect(() => {
@@ -154,10 +159,34 @@ export default function App() {
 
   useEffect(() => {
     if (!auth.user || !accountReady) return;
-    let disposed = false;
-    const refresh = () => { convoyService.expireLocations(); void convoyService.refresh().then(() => { if (!disposed) setConvoyVersion(v => v + 1); }).catch(() => {}); };
-    refresh(); const timer = window.setInterval(refresh, 15000);
-    return () => { disposed = true; clearInterval(timer); };
+    let disposed = false,busy = false,pending = false;
+    const refresh = () => {
+      if(disposed)return;
+      if(busy){pending=true;return;}
+      busy=true;
+      convoyService.expireLocations();
+      void convoyService.refresh().then(convoys=>{
+        if(disposed)return;
+        // Only a successful authoritative response may confirm departure.
+        // Network failures keep the previous membership and on-screen convoy.
+        setActiveConvoyId(open=>open&&!convoys.some(c=>c.id===open&&c.status==='active')?null:open);
+        setConvoyVersion(v=>v+1);
+      }).catch(()=>{/* Keep convoy membership while temporarily offline. */})
+        .finally(()=>{
+          busy=false;
+          if(pending&&!disposed){pending=false;refresh();}
+        });
+    };
+    const onVisible=()=>{if(!document.hidden)refresh();};
+    refresh();
+    const timer=window.setInterval(refresh,15000);
+    window.addEventListener('online',refresh);
+    document.addEventListener('visibilitychange',onVisible);
+    return ()=>{
+      disposed=true;clearInterval(timer);
+      window.removeEventListener('online',refresh);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
   }, [auth.user?.id, accountReady]);
 
   useEffect(()=>{const changed=()=>setConvoyVersion(v=>v+1);window.addEventListener('rdv:convoys-changed',changed);return()=>window.removeEventListener('rdv:convoys-changed',changed);},[]);
