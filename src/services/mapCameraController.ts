@@ -28,6 +28,8 @@ export interface CameraPort {
   fitRoute(points:readonly CameraPoint[],padding:CameraFitPadding):void;
   recenter(point:CameraPoint,navigation:boolean,reducedMotion:boolean):void;
   follow(point:CameraPoint,reducedMotion:boolean):void;
+  /** Optional: native turn zoom, never invoked by the raster/Leaflet fallback. */
+  zoomToTurn?(point:CameraPoint,zoom:number,reducedMotion:boolean):void;
 }
 interface LeafletCamera {
   getZoom():number;
@@ -124,6 +126,11 @@ export function createStandaloneMapLibreCameraPort(
     follow(point,reducedMotion){
       if(reducedMotion)map.jumpTo({center:lngLat(point),...orientation()});
       else map.easeTo({center:lngLat(point),duration:450,...orientation()});
+    },
+    zoomToTurn(point,zoom,reducedMotion){
+      // One owner, one camera move: keep the vehicle centered through zoom.
+      if(reducedMotion)map.jumpTo({center:lngLat(point),zoom,...orientation()});
+      else map.easeTo({center:lngLat(point),zoom,duration:440,...orientation()});
     }
   };
 }
