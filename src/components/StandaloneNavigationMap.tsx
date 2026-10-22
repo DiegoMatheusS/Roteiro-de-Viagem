@@ -24,6 +24,7 @@ import {createRoleTripPins} from '../services/mapLibreTripPins';
 import {createRoleWeatherPins} from '../services/mapLibreWeatherPins';
 import {createRoleMaplibreRoadAlertController} from '../services/mapLibreRoadAlertMarkers';
 import {createRoleMaplibreMarkerController} from '../services/mapLibrePlaceMarkers';
+import {createRegisteredBuildingController} from '../services/mapRegisteredBuildings';
 import {selectRoleVectorMarkers,type RoleVectorMarker} from '../services/vectorPlaceData';
 import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
@@ -154,6 +155,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const alerts=createRoleMaplibreRoadAlertController(map,entry=>{
       setAlert(entry);setCheckError('');setCheckMessage('');
     });
+    const registeredBuildings=createRegisteredBuildingController(map);
     const markers=createRoleMaplibreMarkerController(map,{
       onStation:(id,section)=>setStation({id,section}),
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
@@ -191,6 +193,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         const descriptors=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
           places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
           navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
+        registeredBuildings.update(descriptors);
         markers.update(descriptors,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
           location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
           showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});drawn=descriptors;
@@ -402,6 +405,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       editablePin?.remove();
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
       navigation.destroy();trip.destroy();weather.destroy();alerts.destroy();markers.destroy();
+      registeredBuildings.destroy();
       map.stop();map.remove();
     };
   },[]);
