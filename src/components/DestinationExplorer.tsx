@@ -39,7 +39,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   // Confere os pedágios da opção selecionada sem afirmar ausência de cobrança quando os dados faltam.
   useEffect(() => {
     const choice=routes[selected];
-    if(!vehicle || !origin || !target.coords || !choice || tollChecks[choice.id])return;
+    if(!vehicle || !origin || !target.coords || !choice || choice.source==='offline-graph' || tollChecks[choice.id])return;
     const controller=new AbortController();
     const trip=choiceToTrip(choice,vehicle,origin,{name:target.name,coords:target.coords});
     void requestTolls(trip,vehicle.type,controller.signal).then(result=>{
@@ -109,6 +109,12 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
         className="w-full min-h-14 rounded-2xl bg-[#2167e8] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60">
         <Navigation size={21}/>{busy?'Preparando sua navegação...':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
       </button>
+      {routes.some(route=>route.source==='offline-graph')&&
+        <p role="status" className="text-xs text-amber-900 bg-amber-50 rounded-xl p-3">
+          Rota local calculada sem internet. Não há instruções de conversão,
+          trânsito em tempo real ou pedágios confirmados; siga a sinalização das vias.
+          O GPS deve estar dentro da rede de ruas armazenada.
+        </p>}
       {error && <p role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl p-3">{error}</p>}
 
       <section aria-label="Fazer viagem" className="space-y-2">
