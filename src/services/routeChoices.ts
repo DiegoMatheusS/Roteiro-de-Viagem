@@ -34,12 +34,17 @@ export async function fetchOfflineRouteChoice(originCoords:[number,number],desti
   const graph=await findOfflineRoadGraph([originCoords,destinationCoords]);
   if(signal?.aborted)throw new Error('Cálculo cancelado.');
   if(!graph)throw new Error('Nenhuma rede viária offline instalada cobre origem e destino.');
+  return [offlineChoiceFromGraph(graph,originCoords,destinationCoords)];
+}
+/** Pure converter for tests and for a previously verified licensed road graph. */
+export function offlineChoiceFromGraph(graph:import('./offlineRoadGraph').OfflineRoadGraph,
+  originCoords:[number,number],destinationCoords:[number,number]):VerifiedRouteChoice{
   const path=calculateOfflineRoadRoute(graph,originCoords,destinationCoords);
   if(!path||path.routePath.length<2 ||
     roadDistanceMeters(path.routePath[0],originCoords)>75 ||
     roadDistanceMeters(path.routePath[path.routePath.length-1],destinationCoords)>75)
     throw new Error('Não há um percurso offline conectado para esse destino.');
-  return [{
+  return {
     id:'offline-'+graph.regionId,kind:'fast',
     source:'offline-graph',
     distanceKm:Number(path.distanceKm.toFixed(3)),
@@ -51,7 +56,7 @@ export async function fetchOfflineRouteChoice(originCoords:[number,number],desti
         type:'arrive',name:'Destino'}
     ],
     trafficStatus:'unavailable',tollStatus:'unchecked'
-  }];
+  };
 }
 export async function fetchRouteChoices(originCoords: [number, number], destinationCoords: [number, number], signal?: AbortSignal) {
   if(typeof navigator!=='undefined' && navigator.onLine===false)
