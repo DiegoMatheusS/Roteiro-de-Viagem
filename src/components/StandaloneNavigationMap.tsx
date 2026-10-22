@@ -258,7 +258,9 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         const descriptors=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
           places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
           navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
-        registeredBuildings.update(descriptors);
+        // During active guidance the building-fill overlay is decorative.
+        // Avoid up to 32 rendered-polygon queries on initial navigation render.
+        registeredBuildings.update(p.navigationMode?[]:descriptors);
         markers.update(descriptors,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
           location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
           showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});drawn=descriptors;
