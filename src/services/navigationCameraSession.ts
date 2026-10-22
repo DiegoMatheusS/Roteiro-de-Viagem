@@ -95,6 +95,8 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         if(!lastCameraPoint){
           camera.firstGpsFix(point);
           lastCameraPoint=[...point];lastBearing=input.bearing;
+          // First fix has no previous camera movement to supersede.
+          turnZoom(input,point);
         }else{
           // MapLibre easing belongs to one camera owner. A turn zoom already
           // includes the updated center, so avoid issuing follow()+zoomToTurn()
