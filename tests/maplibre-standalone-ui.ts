@@ -261,7 +261,21 @@ try{
     window.dispatchEvent(new Event('role-offline-regions-changed'));
   },tile.toString('base64'));
   await page.getByTitle('Alterar visual do mapa').click();
-  await page.getByRole('button',{name:/Região local de teste · zoom 12/}).waitFor();
+  await page.waitForTimeout(350);
+  console.log('OFFLINE SELECTION DIAG',JSON.stringify(await page.evaluate(async()=>{
+    const db=await new Promise<IDBDatabase>((resolve,reject)=>{
+      const req=indexedDB.open('role-offline-map-regions-v1',1);
+      req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+    });
+    const items=await new Promise<unknown[]>((resolve,reject)=>{
+      const req=db.transaction('regions','readonly').objectStore('regions').getAll();
+      req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+    });db.close();
+    return {items,htmlButtons:[...document.querySelectorAll('button')].map(x=>x.textContent?.trim()).filter(x=>/Mapa|Região|Camadas/.test(x||'')),
+      mapRegionCount:document.querySelector('[data-map-engine="maplibre-standalone"]')?.getAttribute('data-map-offline-available'),
+      error:document.querySelector('[role="alert"]')?.textContent};
+  })));
+  await page.getByRole('button',{name:/Região local de teste · zoom 12/}).waitFor({timeout:8000});
   await page.context().setOffline(true);
   await page.getByRole('button',{name:/Região local de teste · zoom 12/}).click();
   await page.waitForFunction(()=>{
