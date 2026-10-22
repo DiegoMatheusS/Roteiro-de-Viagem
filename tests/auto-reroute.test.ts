@@ -138,7 +138,7 @@ test('mapa não anuncia conversões antigas quando o GPS confiável sai do corre
  assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.4985,-46.495]),path,now+9000),false);
  const hud=readFileSync(new URL('../src/components/ActiveTripModal.tsx',import.meta.url),'utf8');
  assert.match(hud,/const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor\(tracking\.position,navigationPath\)/);
- assert.match(hud,/const nextTurn = outsideCorridor\?null:nextNavigationGuidance/);
+ assert.match(hud,/const nextTurn = \(outsideCorridor\|\|refreshingStopRoute\)\?null:nextNavigationGuidance/);
  assert.match(hud,/outsideCorridor\?'Fora da rota':'Na rota'/);
 });
 
