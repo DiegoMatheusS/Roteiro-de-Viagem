@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {createNavigationCameraSession} from '../src/services/navigationCameraSession';
 import type {CameraPort,CameraMode} from '../src/services/mapCameraController';
 
@@ -156,4 +157,52 @@ test('sem GPS válido ou durante a exploração, zoom de conversão não movimen
   assert.deepEqual(zooms,[]);
   session.update({...input,navigationMode:false,maneuverMeters:100});
   assert.deepEqual(zooms,[]);
+});
+
+
+test('GPS a 0 km/h não arrasta nem amplia o mapa a cada amostra de localização',()=>{
+  const calls:string[]=[];
+  const port:CameraPort={
+    zoom:()=>16,stop:()=>calls.push('stop'),firstGpsFix:()=>calls.push('first'),
+    recenter:()=>calls.push('recenter'),follow:()=>calls.push('follow'),
+    zoomToTurn:()=>calls.push('turnZoom'),focus:()=>{},fitRoute:()=>{}
+  };
+  const session=createNavigationCameraSession(port,()=>{});
+  const stopped={...input,speedMetersPerSecond:0,maneuverMeters:10,bearing:0};
+  session.update(stopped);
+  for(let i=1;i<=8;i++)session.update({...stopped,
+    position:[-23.5+i*0.00006,-46.6-i*0.00007],bearing:i*12});
+  assert.deepEqual(calls,['first'],
+    'drift and unstable heading at 0 km/h must not restart navigation camera animations');
+  assert.deepEqual(session.snapshot().position,
+    [-23.5+8*0.00006,-46.6-8*0.00007],
+    'GPS continues updating even when the camera stays stable');
+  session.update({...stopped,speedMetersPerSecond:5,
+    position:[-23.5+9*0.00006,-46.6-9*0.00007],bearing:65});
+  assert.deepEqual(calls,['first','follow','turnZoom'],
+    'camera follows real motion and applies turn zoom after movement resumes');
+  session.update({...stopped,speedMetersPerSecond:0,position:[-23.4994,-46.6006]});
+  assert.deepEqual(calls,['first','follow','turnZoom'],
+    'stopping again suppresses repeated camera moves');
+});
+
+test('GPS button overrides stationary hold and centers on the newest valid fix',()=>{
+  const destinations:Array<[number,number]>=[];
+  const port:CameraPort={
+    zoom:()=>16,stop:()=>{},firstGpsFix:()=>{},
+    follow:()=>{},recenter:p=>{destinations.push(p);},
+    focus:()=>{},fitRoute:()=>{}
+  };
+  const session=createNavigationCameraSession(port,()=>{});
+  session.update({...input,speedMetersPerSecond:0});
+  session.update({...input,speedMetersPerSecond:0,
+    position:[-23.502,-46.602]});
+  session.update({...input,speedMetersPerSecond:0,
+    position:[-23.502,-46.602],centerRequest:1});
+  assert.deepEqual(destinations,[[-23.502,-46.602]]);
+});
+
+test('during navigation decorative building queries are not generated from each GPS update',()=>{
+  const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+  assert.match(source,/registeredBuildings.update\(p.navigationMode\?\[\]:descriptors\)/);
 });
