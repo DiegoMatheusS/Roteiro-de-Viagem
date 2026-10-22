@@ -332,6 +332,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(disposed||failed)return;
       setOffline(false);
       tileErrors=0;
+      if(appliedOfflineRegion){
+        offlineDuringSession=false;failedOfflineTiles=false;
+        map.triggerRepaint();
+        return; // An offline tile source never needs a network reconnect.
+      }
       const reload=shouldReloadAfterReconnect(offlineDuringSession,failedOfflineTiles,map.isStyleLoaded()===true);
       offlineDuringSession=false;failedOfflineTiles=false;
       if(reload)setBase(activeStyle,activeTheme,true);
@@ -451,6 +456,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     map.on('click',select);
     const onError=()=>{
+      if(appliedOfflineRegion){
+        // Missing local tiles must never force online Leaflet/OSM fallback.
+        if(!changingStyle&&++tileErrors>=3)fail();
+        return;
+      }
       const decision=assessMapLoadFailure({
         loaded,changingStyle,online:navigator.onLine,consecutiveErrors:tileErrors
       });
