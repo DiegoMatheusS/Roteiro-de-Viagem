@@ -5,6 +5,7 @@ import { distanceBetweenKm } from '../services/gpsTracking';
 import {
   eligibleAutomaticReroute,evaluateOffRoute,initialOffRouteState,
   requestAutomaticReroute,confirmStopArrival,initialStopArrivalState,
+  routeNeedsRefreshAfterStop,isReliableStopRefreshFix,REROUTE_COOLDOWN_MS,
   type ReroutedNavigation
 } from '../services/autoReroute';
 
@@ -67,9 +68,19 @@ export function useAutoReroute(options:{
     }
     if(inflight.current)return;
     const route=options.trip.navigationReroute?.routePath||options.trip.routePath;
-    const decision=evaluateOffRoute(state.current,fix,route);
+    const now=Date.now();
+    const needsStopRefresh=routeNeedsRefreshAfterStop(options.trip);
+    const canRefresh=needsStopRefresh&&isReliableStopRefreshFix(fix,now)&&
+      now-state.current.lastAttemptAt>=REROUTE_COOLDOWN_MS;
+    const decision=evaluateOffRoute(state.current,fix,route,now);
     state.current=decision.state;
-    if(!decision.trigger)return;
+    if(!canRefresh&&!decision.trigger)return;
+    if(canRefresh){
+      // A confirmed arrival changes the waypoint list; refresh once even if
+      // the driver remains exactly on the original geometry.
+      state.current={...state.current,lastAttemptAt:now,
+        outsideSince:null,outsideCount:0,firstOutside:null};
+    }
     const controller=new AbortController();
     const plannedVisitKey=(options.trip.navigationVisitedStopIds||[]).join('|');
     const plannedSkipKey=(options.trip.navigationSkippedStopIds||[]).join('|');
