@@ -46,8 +46,8 @@ try{
  await second.unroute('**/api/**');await second.evaluate(()=>window.dispatchEvent(new Event('online')));
  await second.waitForFunction(async()=>{const r=await (await fetch('/api/me/state')).json();return r.state?.profile.bio==='Bio feita offline'&&r.state?.profile.homeAddress==='Casa sincronizada';});
  await owner.getByRole('button',{name:'Abrir menu'}).click();await owner.getByRole('button',{name:'Mapa',exact:true}).click();await owner.getByRole('button',{name:'Comboio',exact:true}).first().click();
- await owner.getByText(/Comboio sincronizado entre celulares/).waitFor();const group=db.prepare('SELECT id,code FROM convoys').get() as any;
- await rider.getByRole('button',{name:'Configurações'}).click();await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByRole('dialog',{name:'Entrar no comboio'}).getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByText(/Comboio sincronizado entre celulares/).waitFor();
+ await owner.getByText(/Comboio conectado · atualizações automáticas/).waitFor();const group=db.prepare('SELECT id,code FROM convoys').get() as any;
+ await rider.getByRole('button',{name:'Configurações'}).click();await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByRole('dialog',{name:'Entrar no comboio'}).getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByText(/Comboio conectado · atualizações automáticas/).waitFor();
  assert.equal(await rider.getByRole('button',{name:'Adicionar Ponto',exact:true}).count(),0);assert.equal(await rider.getByRole('button',{name:'Encerrar este Comboio de Viagem',exact:true}).count(),0);
  // The app now marks readings older than 6 s as stale; an idle mock must keep its fix fresh.
  await refreshTestGps();
