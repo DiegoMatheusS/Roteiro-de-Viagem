@@ -10,7 +10,7 @@ import '../role-navigation-figma.css';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { useAutoReroute } from '../hooks/useAutoReroute';
-import { isGpsOutsideRouteCorridor,eligibleAutomaticReroute,remainingRerouteStops,canEditStopsWhileStationary,canConfirmStopManually,requestAutomaticReroute,type ReroutedNavigation } from '../services/autoReroute';
+import { isGpsOutsideRouteCorridor,eligibleAutomaticReroute,remainingRerouteStops,routeNeedsRefreshAfterStop,canEditStopsWhileStationary,canConfirmStopManually,requestAutomaticReroute,type ReroutedNavigation } from '../services/autoReroute';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
@@ -121,8 +121,10 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const currentSpeed = tracking.speedKmH;
   const isGpsActive = tracking.status === 'ready';
   const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor(tracking.position,navigationPath);
-  // Don't announce a turn from an obsolete route while the vehicle is off it.
-  const nextTurn = outsideCorridor?null:nextNavigationGuidance(navigationPath,navigationSteps,
+  const refreshingStopRoute=routeNeedsRefreshAfterStop(trip);
+  // The last verified line remains on screen while a newly attended stop
+  // changes the itinerary. Never voice turns based on its old waypoint list.
+  const nextTurn = (outsideCorridor||refreshingStopRoute)?null:nextNavigationGuidance(navigationPath,navigationSteps,
     isGpsActive ? tracking.position?.coords : undefined,routeTravelledKm,routeDistanceKm);
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
@@ -236,19 +238,20 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <span className="rdv-nav-guidance-copy">
           <strong>{nextTurn?
             (nextTurn.meters>=1000?`${(nextTurn.meters/1000).toFixed(1).replace('.',',')} km`:`${nextTurn.meters} m`):
-            isGpsActive?(outsideCorridor?'Fora da rota':'Na rota'):'Aguardando GPS'}</strong>
+            isGpsActive?(outsideCorridor?'Fora da rota':refreshingStopRoute?'Parada atendida':'Na rota'):'Aguardando GPS'}</strong>
           <span>{nextTurn?<>
             <span>{nextTurn.direction==='right'?'À direita':nextTurn.direction==='left'?'À esquerda':
               nextTurn.direction==='roundabout'?'Na rotatória':
               nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente'}</span>
             {nextTurn.road&&<> na <span>{nextTurn.road}</span></>}
-          </>:isGpsActive?(outsideCorridor?(eligibleAutomaticReroute(trip)?'Aguardando recálculo rodoviário':'Siga com atenção · recálculo indisponível'):'Siga a rota'):'Ative a localização para receber instruções'}</span>
+          </>:isGpsActive?(refreshingStopRoute?'Atualizando trajeto para as paradas restantes':outsideCorridor?(eligibleAutomaticReroute(trip)?'Aguardando recálculo rodoviário':'Siga com atenção · recálculo indisponível'):'Siga a rota'):'Ative a localização para receber instruções'}</span>
         </span>
       </div>
       <div className="rdv-nav-gps-status" aria-live="polite">
         <span aria-hidden="true">ⓘ</span>
         {isGpsActive?'GPS ativo · localização ao vivo':
           tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
+        {refreshingStopRoute?' · Rota anterior mantida até atualizar':''}
         {rerouteNotice==='recalculating'?' · Recalculando rota...':
           rerouteNotice==='updated'?' · Rota atualizada':
           rerouteNotice==='unavailable'?' · Rota anterior mantida':''}
@@ -282,7 +285,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <div className="rdv-nav-trip-progress">
           <div className="rdv-nav-left-stat">
             <strong>{remainingMinutes} min</strong>
-            <span>{remainingKm.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} km restantes</span>
+            <span>{remainingKm.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} km {refreshingStopRoute?'estimados · atualizando rota':'restantes'}</span>
           </div>
           <button type="button" aria-label="Detalhes de clima e pedágios"
             aria-expanded={showRouteDetails} onClick={()=>setShowRouteDetails(v=>!v)}

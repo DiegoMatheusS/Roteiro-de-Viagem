@@ -97,6 +97,24 @@ export function eligibleAutomaticReroute(trip:TripPlan):boolean {
     ?(!trip.waypointOrder||trip.waypointOrder.length<=2)
     :true);
 }
+/** A new arrival changes the mandatory waypoint list. The previous line
+ * stays visible for orientation, but must not supply turn-by-turn guidance
+ * until a new OSRM route confirms every remaining stop. */
+export function routeNeedsRefreshAfterStop(trip:TripPlan):boolean{
+  if(!eligibleAutomaticReroute(trip) || !(trip.navigationVisitedStopIds?.length))return false;
+  const remaining=remainingRerouteStops(trip);
+  if(!remaining)return false;
+  const current=trip.navigationReroute?.remainingStopIds;
+  const expected=remaining.map(stop=>stop.id);
+  return !current || current.length!==expected.length ||
+    current.some((id,i)=>id!==expected[i]);
+}
+
+export function isReliableStopRefreshFix(fix:DeviceLocation|null,now=Date.now()):boolean{
+  return !!fix&&isFreshGpsFix(fix.timestamp,now)&&coordsValid(fix.coords)&&
+    Number.isFinite(fix.accuracyMeters)&&fix.accuracyMeters>=0&&fix.accuracyMeters<=40;
+}
+
 /** Skip/confirm controls are designed for parked, precise GPS only. Do not
  * enable an interactive navigation change on unreliable speed/location. */
 export function canEditStopsWhileStationary(fix:DeviceLocation|null,now=Date.now()):boolean{
@@ -114,8 +132,8 @@ export function canConfirmStopManually(trip:TripPlan,stopId:string,
     distanceBetweenKm(fix!.coords,next.location.coords!)*1000<=60;
 }
 
-/** Two or more GPS fixes near the NEXT stop, across at least four seconds,
- * are required before it can be excluded from a later recalculation. */
+/** At least three stationary, accurate GPS fixes across four seconds are
+ * required: simply driving past a place cannot complete a planned stop. */
 export interface StopArrivalState {
   candidateId:string|null;sinceMs:number;count:number;lastTimestamp:number;
 }
@@ -130,7 +148,9 @@ export function confirmStopArrival(state:StopArrivalState,trip:TripPlan,
   if(!next||!fix||!isFreshGpsFix(fix.timestamp,now)||
     !coordsValid(fix.coords)||!Number.isFinite(fix.accuracyMeters)||
     fix.accuracyMeters<0||fix.accuracyMeters>25 ||
-    (fix.speedMetersPerSecond!==null && fix.speedMetersPerSecond>10)||
+    typeof fix.speedMetersPerSecond!=='number'||
+    !Number.isFinite(fix.speedMetersPerSecond)||
+    fix.speedMetersPerSecond<0||fix.speedMetersPerSecond>1.4||
     distanceBetweenKm(fix.coords,next.location.coords!)*1000>50){
     return {state:initialStopArrivalState(),visitedId:null};
   }
