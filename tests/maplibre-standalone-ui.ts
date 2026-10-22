@@ -260,9 +260,9 @@ try{
     db.close();
     window.dispatchEvent(new Event('role-offline-regions-changed'));
   },tile.toString('base64'));
-  await page.waitForFunction(()=>document.querySelector<HTMLElement>(
-    '[data-map-engine="maplibre-standalone"]' )?.dataset.mapOfflineAvailable==='1',null,{timeout:15000});
   await page.getByTitle('Alterar visual do mapa').click();
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>(
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapOfflineAvailable==='1',null,{timeout:15000});
   await page.waitForTimeout(350);
   console.log('OFFLINE SELECTION DIAG',JSON.stringify(await page.evaluate(async()=>{
     const db=await new Promise<IDBDatabase>((resolve,reject)=>{
