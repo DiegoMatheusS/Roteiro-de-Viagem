@@ -96,7 +96,7 @@ test('camada é incremental: GPS não envia GeoJSON novo, zoom e estilo reconstr
 test('mapa integra contornos antes das rotas sem alterar README',()=>{
  const component=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
  assert.match(component,/createRegisteredBuildingController\(map\)/);
- assert.match(component,/registeredBuildings.update\(descriptors\)/);
+ assert.match(component,/registeredBuildings.update\(p.navigationMode\?\[\]:descriptors\)/);
  assert.match(component,/registeredBuildings.destroy\(\)/);
  const readme=readFileSync(new URL('../README.md',import.meta.url),'utf8');
  assert.doesNotMatch(readme,/\bPR\s*#?\d+\b/i);
