@@ -9,7 +9,7 @@ import {
   orderedRerouteStops,remainingRerouteStops,confirmStopArrival,initialStopArrivalState,
   requestAutomaticReroute,REROUTE_COOLDOWN_MS,
   canEditStopsWhileStationary,canConfirmStopManually,
-  routeNeedsRefreshAfterStop,isReliableStopRefreshFix
+  routeNeedsRefreshAfterStop,isReliableStopRefreshFix,canApplyRerouteFromLatestGps
 } from '../src/services/autoReroute';
 
 type Point=[number,number];
@@ -23,6 +23,19 @@ const direct={
   destinationCoords:path[1],stops:[],waypointOrder:[...path],
   navigationReroute:undefined
 } as unknown as TripPlan;
+test('resposta tardia de rota exige GPS ainda recente, preciso e próximo da origem',()=>{
+ const origin:Point=[-23.5,-46.5];
+ assert.equal(canApplyRerouteFromLatestGps(fix(0,origin),origin,now),true);
+ assert.equal(canApplyRerouteFromLatestGps(null,origin,now),false);
+ assert.equal(canApplyRerouteFromLatestGps(fix(0,origin),origin,now+7000),false,
+   'O sinal vencido durante a espera de rede não deve substituir a rota');
+ assert.equal(canApplyRerouteFromLatestGps(fix(0,origin,{accuracyMeters:65}),origin,now),false);
+ assert.equal(canApplyRerouteFromLatestGps(fix(0,[-23.495,-46.5]),origin,now),false,
+   'Não instalar resposta quando o motorista se afastou da origem');
+ assert.equal(canApplyRerouteFromLatestGps(fix(0,[NaN,-46.5]),origin,now),false);
+ assert.equal(canApplyRerouteFromLatestGps(fix(0,origin),[NaN,-46.5],now),false);
+});
+
 test('projeção usa segmentos, não vértices isolados de uma rota longa',()=>{
   const midpoint:Point=[-23.5,-46.495];
   assert.ok(distanceToRouteMeters(midpoint,path)<1);
@@ -125,7 +138,7 @@ test('navegação mantém rota restante e progresso relativo, não reseta distâ
  assert.match(app,/storageService\.setActiveTrip\(updated\)/);
  assert.match(app,/onNavigationReroute=\{handleNavigationReroute\}/);
  assert.match(hook,/inflight\.current\?\.abort\(\)/);
- assert.match(hook,/if\(!live \|\| distanceBetweenKm\(live\.coords,next\.originCoords\)>\.35\)/);
+ assert.match(hook,/if\(!canApplyRerouteFromLatestGps\(live,next\.originCoords\)\)/);
  assert.match(service,/roundTrip:false/);
  assert.match(service,/\x27\/routes\/itinerary\x27/);
  assert.doesNotMatch(service,/https:\/\/router\.project-osrm\.org/);
