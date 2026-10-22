@@ -25,6 +25,11 @@ import {createRoleWeatherPins} from '../services/mapLibreWeatherPins';
 import {createRoleMaplibreRoadAlertController} from '../services/mapLibreRoadAlertMarkers';
 import {createRoleMaplibreMarkerController} from '../services/mapLibrePlaceMarkers';
 import {createRegisteredBuildingController} from '../services/mapRegisteredBuildings';
+import {listOfflineRegions} from '../services/offlineMapStorage';
+import {offlineRegionReady,type OfflineRegion} from '../services/offlineMapRegions';
+import {offlineRasterStyle,registerOfflineMapProtocol} from '../services/offlineMapLibre';
+import {OFFLINE_REGIONS_CHANGED,readSelectedOfflineRegionId,writeSelectedOfflineRegionId,
+  usableOfflineRegion,offlineRegionContains} from '../services/offlineMapSelection';
 import {selectRoleVectorMarkers,type RoleVectorMarker} from '../services/vectorPlaceData';
 import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
@@ -56,6 +61,12 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const [offline,setOffline]=useState(()=>typeof navigator!=='undefined'&&!navigator.onLine);
   const [baseStyle,setBaseStyle]=useState<MapStyleType>(props.initialStyle||'light');
   const [styleMenu,setStyleMenu]=useState(false);
+  const [storedRegions,setStoredRegions]=useState<OfflineRegion[]>([]);
+  const [regionId,setRegionId]=useState<string|null>(readSelectedOfflineRegionId);
+  const [regionError,setRegionError]=useState('');
+  const selectedRegion=usableOfflineRegion(storedRegions,regionId);
+  const selectedRegionRef=useRef(selectedRegion);selectedRegionRef.current=selectedRegion;
+  const initialChoice=useRef(regionId!==null);
   const showBaseSelector=!props.navigationMode&&!props.roadStyle;
   const effectiveStyle:MapStyleType=props.navigationMode||props.roadStyle?'light':baseStyle;
   const styleRef=useRef(effectiveStyle);styleRef.current=effectiveStyle;
@@ -74,24 +85,78 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
   const places=useNearbyPlaces(discovery,(props.showFuelStations??true)&&discovery.length>0);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
-  const runtime=useRef<{render:()=>void;orient:()=>void;setBaseStyle:(style:MapStyleType)=>void;setTheme:(theme:MapTheme)=>void;camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
+  const runtime=useRef<{render:()=>void;orient:()=>void;
+    setBaseStyle:(style:MapStyleType)=>void;
+    setOfflineRegion:(region:OfflineRegion|null)=>void;
+    setTheme:(theme:MapTheme)=>void;
+    camera:ReturnType<typeof createNavigationCameraSession>}|null>(null);
+  useEffect(()=>{
+    let disposed=false;
+    const refresh=()=>{
+      void listOfflineRegions().then(items=>{
+        if(disposed)return;
+        setStoredRegions(items);
+        const selected=readSelectedOfflineRegionId();
+        if(selected&&!usableOfflineRegion(items,selected)){
+          writeSelectedOfflineRegionId(null);
+          setRegionId(null);
+        }
+      }).catch(error=>{if(!disposed)setRegionError((error as Error).message);});
+    };
+    const onVisible=()=>{if(!document.hidden)refresh();};
+    refresh();
+    window.addEventListener('focus',refresh);
+    window.addEventListener(OFFLINE_REGIONS_CHANGED,refresh);
+    document.addEventListener('visibilitychange',onVisible);
+    return ()=>{
+      disposed=true;
+      window.removeEventListener('focus',refresh);
+      window.removeEventListener(OFFLINE_REGIONS_CHANGED,refresh);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
+  },[]);
+  const toggleStyleMenu=()=>{
+    setStyleMenu(open=>!open);
+    // The menu also refreshes storage independently: a browser may suppress
+    // focus/custom events while the WebView is paused.
+    void listOfflineRegions().then(items=>setStoredRegions(items))
+      .catch(error=>setRegionError((error as Error).message));
+  };
+  const chooseRegion=(region:OfflineRegion|null)=>{
+    writeSelectedOfflineRegionId(region?.id??null);
+    setRegionId(region?.id??null);
+    setRegionError('');
+    setStyleMenu(false);
+  };
+  const availableRegions=storedRegions.filter(region=>region.offlinePermissionConfirmed&&offlineRegionReady(region));
 
   useEffect(()=>{
     if(!container.current)return;
     if(!canRenderVectorMap()){latest.current.onUnavailable(styleRef.current);return;}
+    registerOfflineMapProtocol();
     let disposed=false,loaded=false,failed=false;
     let map:GlMap;
     let captureFallback:(()=>MapFallbackViewport|undefined)|undefined;
     let activeStyle=styleRef.current,activeTheme=appearanceRef.current,changingStyle=false,tileErrors=0;
+    let appliedOfflineRegion:OfflineRegion|null=null;
+    let needsInitialStyleRecovery=initialChoice.current;
     let offlineDuringSession=!navigator.onLine,failedOfflineTiles=false;
     let styleTimeout:ReturnType<typeof setTimeout>|null=null;
     const fail=()=>{
       if(disposed||failed)return;
+      if(appliedOfflineRegion){
+        setRegionError('Não foi possível carregar o mapa local. Selecione outra região ou volte ao mapa online.');
+        return;
+      }
       failed=true;latest.current.onUnavailable(styleRef.current,captureFallback?.());
     };
     try{
       const origin=latest.current.originCoords;
-      map=new GlMap({container:container.current,style:standaloneBaseStyle(activeStyle,activeTheme),
+      map=new GlMap({container:container.current,
+        style:needsInitialStyleRecovery
+          ?{version:8,sources:{},layers:[{id:'role-local-loading',type:'background',
+            paint:{'background-color':'#e5e7eb'}}]}
+          :standaloneBaseStyle(activeStyle,activeTheme),
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
         minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,
         pitch:latest.current.navigationMode?48:0,maxPitch:65,
@@ -240,19 +305,28 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
     const retry=()=>{waitingForIdle=false;render();};
-    const setBase=(style:MapStyleType,theme:MapTheme=appearanceRef.current,force=false)=>{
-      if(disposed||failed||(!force&&style===activeStyle&&theme===activeTheme))return;
+    const setBase=(style:MapStyleType,theme:MapTheme=appearanceRef.current,
+      force=false,region:OfflineRegion|null=appliedOfflineRegion)=>{
+      if(disposed||failed)return;
+      if(region&&style===activeStyle&&theme!==activeTheme&&!force){
+        activeTheme=theme;return;
+      }
+      if(!force&&!needsInitialStyleRecovery&&style===activeStyle&&
+        theme===activeTheme&&region?.id===appliedOfflineRegion?.id)return;
+      needsInitialStyleRecovery=false;
+      appliedOfflineRegion=region;
+      setRegionError('');
       activeStyle=style;activeTheme=theme;changingStyle=true;tileErrors=0;
       const root=container.current?.parentElement;
       if(root){root.dataset.mapIdle='false';root.dataset.mapStyleReady='';}
       if(styleTimeout)clearTimeout(styleTimeout);
       styleTimeout=setTimeout(()=>{
-        if(navigator.onLine)fail();
+        if(appliedOfflineRegion||navigator.onLine)fail();
         else failedOfflineTiles=true;
       },12000);
       try{
-        map.setMaxZoom(TILE_PROVIDERS[style].maxZoom);
-        map.setStyle(standaloneBaseStyle(style,activeTheme),{diff:false});
+        map.setMaxZoom(region?19:TILE_PROVIDERS[style].maxZoom);
+        map.setStyle(region?offlineRasterStyle(region):standaloneBaseStyle(style,activeTheme),{diff:false});
       }catch{fail();}
     };
     const onNetworkOffline=()=>{
@@ -265,6 +339,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(disposed||failed)return;
       setOffline(false);
       tileErrors=0;
+      if(appliedOfflineRegion){
+        offlineDuringSession=false;failedOfflineTiles=false;
+        map.triggerRepaint();
+        return; // An offline tile source never needs a network reconnect.
+      }
       const reload=shouldReloadAfterReconnect(offlineDuringSession,failedOfflineTiles,map.isStyleLoaded()===true);
       offlineDuringSession=false;failedOfflineTiles=false;
       if(reload)setBase(activeStyle,activeTheme,true);
@@ -272,7 +351,28 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     window.addEventListener('offline',onNetworkOffline);
     window.addEventListener('online',onNetworkOnline);
-    runtime.current={render,camera,setBaseStyle:style=>setBase(style),setTheme:theme=>setBase(activeStyle,theme),orient:()=>{
+    runtime.current={render,camera,
+      // Persisted offline choice starts on a blank local canvas. Never load the
+      // remote base before checking that a complete stored package exists.
+      setBaseStyle:style=>{
+        if(needsInitialStyleRecovery&&readSelectedOfflineRegionId())return;
+        setBase(style);
+      },
+      setOfflineRegion:region=>{
+        if(needsInitialStyleRecovery&&!region&&readSelectedOfflineRegionId())return;
+        const previous=appliedOfflineRegion;
+        setBase(activeStyle,activeTheme,false,region);
+        if(region&&previous?.id!==region.id&&!latest.current.navigationMode){
+          map.fitBounds([[region.bounds.west,region.bounds.south],
+            [region.bounds.east,region.bounds.north]],
+            {padding:45,maxZoom:region.maxZoom,duration:reducedMotion()?0:380});
+        }
+      },
+      setTheme:theme=>{
+        if(needsInitialStyleRecovery&&readSelectedOfflineRegionId())return;
+        setBase(activeStyle,theme);
+      },
+      orient:()=>{
       if(disposed||failed||!loaded||!latest.current.navigationMode||camera.snapshot().mode!=='exploring')return;
       // Explicit orientation must also work while route tiles are loading.
       const p=latest.current;
@@ -363,6 +463,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     map.on('click',select);
     const onError=()=>{
+      if(appliedOfflineRegion){
+        // Missing local tiles must never force online Leaflet/OSM fallback.
+        if(!changingStyle&&++tileErrors>=3)fail();
+        return;
+      }
       const decision=assessMapLoadFailure({
         loaded,changingStyle,online:navigator.onLine,consecutiveErrors:tileErrors
       });
@@ -378,8 +483,9 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(disposed||failed)return;
       changingStyle=false;tileErrors=0;
       const root=container.current?.parentElement;
-      if(root)root.dataset.mapStyleReady=activeStyle;
-      if(activeStyle==='light'&&activeTheme==='light')applyRoleVectorPalette(map);
+      if(root)root.dataset.mapStyleReady=appliedOfflineRegion?'offline':activeStyle;
+      if(!appliedOfflineRegion&&activeStyle==='light'&&activeTheme==='light')
+        applyRoleVectorPalette(map);
       render();
     };
     map.on('style.load',styleLoaded);
@@ -414,6 +520,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   useEffect(()=>{runtime.current?.orient();},[courseMode]);
   useEffect(()=>{runtime.current?.setBaseStyle(effectiveStyle);},[effectiveStyle,ready]);
   useEffect(()=>{runtime.current?.setTheme(appearanceTheme);},[appearanceTheme,ready]);
+  useEffect(()=>{runtime.current?.setOfflineRegion(selectedRegion);},[selectedRegion,ready]);
 
   const check=async(present:boolean)=>{
     if(!alert||checking)return;
@@ -429,11 +536,45 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const selectedToll=props.tolls?.find(entry=>entry.id===toll?.id) || (toll?.place?{
     id:toll.id,name:toll.place.name,coords:[toll.place.lat,toll.place.lng] as [number,number],
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
-  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle} data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
+  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={selectedRegion?'offline':effectiveStyle}
+    data-map-offline-region={selectedRegion?.id||''}
+    data-map-offline-available={availableRegions.length}
+    data-map-style-menu={styleMenu?'open':'closed'}
+    data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
-    {offline&&<div role="status" aria-live="polite"
+    {selectedRegion&&<div role="status" aria-live="polite"
+      className="pointer-events-none absolute left-3 top-3 z-30 max-w-[220px] rounded-xl bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800 shadow-lg">
+      Mapa local: {selectedRegion.name} · zoom {selectedRegion.minZoom}–{selectedRegion.maxZoom}
+      <span className="block font-normal text-[10px]">Base armazenada neste aparelho; rotas novas ainda exigem conexão.</span>
+      {props.userLiveCoords&&!offlineRegionContains(selectedRegion,props.userLiveCoords)&&
+        <span className="block mt-1 text-amber-800">Seu GPS está fora da região armazenada.</span>}
+    </div>}
+    {regionError&&<div role="alert"
+      className="absolute left-3 top-24 z-40 max-w-[270px] rounded-xl border border-rose-200 bg-white p-3 text-xs text-rose-800 shadow-lg">
+      {regionError}
+    </div>}
+    {offline&&!selectedRegion&&<div role="status" aria-live="polite"
       className="pointer-events-none absolute right-3 top-3 z-30 max-w-[240px] rounded-xl bg-slate-900/90 px-3 py-2 text-xs font-semibold text-white shadow-lg">
       Sem internet · novas áreas do mapa e rotas podem não carregar
+    </div>}
+    {!showBaseSelector&&availableRegions.length>0&&<div className="absolute bottom-20 left-3 z-40">
+      <button type="button" aria-label="Selecionar mapa offline armazenado"
+        onClick={toggleStyleMenu}
+        className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs font-semibold text-blue-800 shadow-lg">
+        {selectedRegion?'Mapa local ativo':'Mapas locais'}
+      </button>
+      {styleMenu&&<div className="absolute bottom-11 left-0 max-h-52 w-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+        <button type="button" onClick={()=>chooseRegion(null)} className="block w-full rounded-lg p-2 text-left text-xs">
+          Usar mapa online
+        </button>
+        {availableRegions.map(region=><button type="button" key={region.id}
+          onClick={()=>chooseRegion(region)}
+          aria-pressed={selectedRegion?.id===region.id}
+          className="block w-full rounded-lg p-2 text-left text-xs text-slate-800">
+          {region.name} · zoom {region.minZoom}–{region.maxZoom}
+        </button>)}
+
+      </div>}
     </div>}
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
@@ -442,17 +583,28 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       <Compass size={22}/>
     </button>}
     {showBaseSelector&&<div className="pointer-events-none relative z-30 flex h-16 items-center border-t border-slate-200 bg-white px-4">
-      <button type="button" title="Alterar visual do mapa" onClick={()=>setStyleMenu(value=>!value)}
+      <button type="button" title="Alterar visual do mapa" onClick={toggleStyleMenu}
         className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xl">
-        <span>{TILE_PROVIDERS[baseStyle].icon}</span><span>{TILE_PROVIDERS[baseStyle].name}</span><Layers size={16}/>
+        <span>{selectedRegion?'🗺️':TILE_PROVIDERS[baseStyle].icon}</span>
+        <span>{selectedRegion?('Mapa local: '+selectedRegion.name):TILE_PROVIDERS[baseStyle].name}</span><Layers size={16}/>
       </button>
       {styleMenu&&<div className="pointer-events-auto absolute bottom-16 left-4 w-52 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
         <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Camadas do Mapa</span>
         {(Object.keys(TILE_PROVIDERS) as MapStyleType[]).map(style=><button key={style} type="button"
-          aria-pressed={baseStyle===style} onClick={()=>{setBaseStyle(style);setStyleMenu(false);}}
+          aria-pressed={!selectedRegion&&baseStyle===style}
+          onClick={()=>{chooseRegion(null);setBaseStyle(style);}}
           className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold ${baseStyle===style?'bg-emerald-50 text-emerald-800':'text-slate-700'}`}>
           <span>{TILE_PROVIDERS[style].icon}</span><span>{TILE_PROVIDERS[style].name}</span>
         </button>)}
+        {availableRegions.length>0&&<div className="mt-2 border-t border-slate-200 pt-2">
+          <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Mapas armazenados</span>
+          {availableRegions.map(region=><button type="button" key={region.id}
+            aria-pressed={selectedRegion?.id===region.id}
+            onClick={()=>chooseRegion(region)}
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-blue-800 hover:bg-blue-50">
+            {region.name} · zoom {region.minZoom}–{region.maxZoom}
+          </button>)}
+        </div>}
       </div>}
     </div>}
     {station&&<FuelStationModal key={`${station.id}:${station.section}`} stationId={station.id} initialSection={station.section} onClose={()=>setStation(null)}/>}

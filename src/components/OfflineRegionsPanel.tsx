@@ -3,6 +3,7 @@ import {HardDriveDownload,Trash2,RefreshCw} from 'lucide-react';
 import {deleteOfflineRegion,listOfflineRegions} from '../services/offlineMapStorage';
 import {offlineRegionReady,type OfflineRegion} from '../services/offlineMapRegions';
 import {importOfflineMapPackage} from '../services/offlineMapPackageImport';
+import {OFFLINE_REGIONS_CHANGED} from '../services/offlineMapSelection';
 
 const formatBytes=(n:number)=>n<1_000_000
   ?`${Math.round(n/1000)} KB`
@@ -30,8 +31,9 @@ export function OfflineRegionsPanel(){
       const result=await importOfflineMapPackage(file,(done,total)=>{
         if(mounted.current&&(done===total||done%5===0))setProgress({done,total});
       });
-      if(mounted.current)setSuccess(`Pacote "${result.name}" salvo neste aparelho. A exibição offline no mapa será habilitada em uma atualização posterior.`);
+      if(mounted.current)setSuccess(`Pacote "${result.name}" salvo neste aparelho. Abra o mapa e selecione esta região nas camadas para visualizá-la sem internet.`);
       await refresh();
+      window.dispatchEvent(new Event(OFFLINE_REGIONS_CHANGED));
     }catch(e){if(mounted.current){setError((e as Error).message);await refresh();}}
     finally{
       if(mounted.current){setBusy(false);setProgress(null);}
@@ -43,6 +45,7 @@ export function OfflineRegionsPanel(){
     setBusy(true);setError('');setSuccess('');
     try{
       await deleteOfflineRegion(item.id);
+      window.dispatchEvent(new Event(OFFLINE_REGIONS_CHANGED));
       if(mounted.current)setSuccess(`Pacote "${item.name}" excluído do aparelho.`);
       await refresh();
     }catch(e){if(mounted.current)setError((e as Error).message);}
@@ -55,7 +58,7 @@ export function OfflineRegionsPanel(){
         <h3 className="text-sm font-semibold text-slate-900">Mapas por região</h3>
         <p className="text-xs text-slate-600 mt-1">
           Armazene pacotes locais fornecidos com licença para uso offline. Ainda não é possível
-          baixar regiões diretamente pelo Rolê, exibi-las como mapa offline ou recalcular rotas sem internet.
+          baixar regiões diretamente pelo Rolê nem recalcular rotas sem internet. Pacotes completos podem ser visualizados no MapLibre após selecionados.
         </p>
       </div>
     </div>

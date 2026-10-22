@@ -2,7 +2,7 @@
 
 ## Estado desta etapa
 
-O Rolê agora dispõe de um modelo de regiões e de uma camada de persistência IndexedDB para tiles **fornecidos por uma fonte com direito de armazenamento offline**. O app possui agora, em **Perfil → Privacidade → Mapas por região**, importação experimental de pacotes raster JSON locais, listagem de espaço ocupado e exclusão. **Não** possui download direto de regiões, suporte a MBTiles/ZIP, renderização da base armazenada no MapLibre ou roteamento offline. Não apresentar esta etapa como "mapa offline disponível".
+O Rolê agora dispõe de um modelo de regiões e de uma camada de persistência IndexedDB para tiles **fornecidos por uma fonte com direito de armazenamento offline**. O app possui agora, em **Perfil → Privacidade → Mapas por região**, importação experimental de pacotes raster JSON locais, listagem de espaço ocupado e exclusão. Pacotes completos agora podem ser **selecionados e exibidos no MapLibre sem internet**, a partir do menu de camadas do mapa. **Não** inclui download direto de regiões, suporte a MBTiles/ZIP nem cálculo de trajetos ou recálculo de rotas sem internet.
 
 Os arquivos `src/services/offlineMapRegions.ts` e `src/services/offlineMapStorage.ts` oferecem:
 
@@ -25,6 +25,14 @@ Consultar políticas atualizadas antes de ativar:
 - https://operations.osmfoundation.org/policies/tiles/
 
 Não estender permissões do OpenFreeMap automaticamente aos provedores de **satélite (Esri)** ou **relevo (OpenTopoMap)**. Cada um exige autorização independente.
+
+## Exibição local no MapLibre
+
+Depois de importar um pacote completo em **Perfil → Privacidade → Mapas por região**, abra o mapa e toque em **Camadas → Mapas armazenados**. Escolha uma região para visualizar os tiles locais. No modo de navegação, o botão **Mapas locais** permite alternar entre a região e o mapa online. A escolha é mantida neste aparelho.
+
+O renderizador registra o protocolo `role-offline://`, cujas leituras vêm exclusivamente do IndexedDB; não há fallback silencioso para provedores externos quando um tile local falta. A atribuição declarada no pacote é preservada. O mapa avisa se o GPS está fora da área da região armazenada; fora da cobertura ou de seus níveis de zoom, partes do mapa podem ficar vazias. Se a região for removida, a preferência local é desativada.
+
+**Limites:** a base raster pode ser visualizada sem internet quando já estiver instalada e o aplicativo Android estiver aberto/disponível; o modo web só inicia sem conexão se os arquivos do próprio site tiverem sido disponibilizados por outro mecanismo. Ícones, posições previamente conhecidas e o traçado já existente podem continuar na tela, mas novas rotas, desvio com recálculo, dados de trânsito, clima, busca de locais e sincronização de comboios continuam dependendo dos respectivos serviços online.
 
 ## Integração a realizar
 
@@ -57,9 +65,9 @@ O importador valida a cobertura/quantidade de tiles, verifica duplicações, for
 
 ### Próximas etapas
 
-1. Vincular os pacotes completos à renderização do MapLibre sem recorrer à rede, com a atribuição da fonte e enquadramento da região.
+1. Verificar a leitura e o desempenho real da base local no Android físico, inclusive reinstalação/reabertura do app e troca entre regiões.
 2. Disponibilizar pacotes em formato apropriado para distribuição (por exemplo, ZIP/MBTiles) somente quando licenças e parser seguro estiverem definidos.
 3. Definir provedor/licença para download de áreas, identificação e limites do cliente Android e cancelamento/progresso.
-4. Validar no Android físico a leitura de pacote, reinício do app e mapa sem internet; recálculo de rota exigirá motor de roteamento offline separado.
+4. Implementar motor de roteamento offline separado para criar e recalcular trajetos sem rede.
 
 O backend Railway não é necessário para a estrutura local implementada aqui.

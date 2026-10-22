@@ -222,6 +222,64 @@ try{
   assert.equal(await organizerElement.evaluate(element=>element.isConnected),true);
   assert.equal(await map.getAttribute('data-map-center'),detailCenter);
   assert.equal(await map.getAttribute('data-map-zoom'),detailZoom);
+  // A complete, licensed raster package draws with MapLibre even when browser
+  // network access is disabled. This test seeds *only* the local test database.
+  await page.evaluate(async base64=>{
+    const req=indexedDB.open('role-offline-map-regions-v1',1);
+    const db=await new Promise<IDBDatabase>((resolve,reject)=>{
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains('regions'))db.createObjectStore('regions',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('tiles')){
+          const tiles=db.createObjectStore('tiles',{keyPath:'key'});
+          tiles.createIndex('regionId','regionId');
+        }
+      };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+    const bytes=Uint8Array.from(atob(base64),char=>char.charCodeAt(0));
+    const id='regiao-playwright';
+    const tx=db.transaction(['regions','tiles'],'readwrite');
+    tx.objectStore('regions').put({
+      id,name:'Região local de teste',sourceId:'licensed-ui-test',
+      attribution:'© Dados de teste licenciados',offlinePermissionConfirmed:true,
+      bounds:{south:-23.5501,west:-46.6331,north:-23.55,east:-46.633},
+      minZoom:12,maxZoom:12,expectedTiles:1,savedTiles:1,
+      sizeBytes:bytes.byteLength,createdAt:Date.now()
+    });
+    tx.objectStore('tiles').put({
+      key:id+'/12/1517/2323',regionId:id,z:12,x:1517,y:2323,
+      mime:'image/png',data:new Blob([bytes],{type:'image/png'}),sizeBytes:bytes.byteLength
+    });
+    await new Promise<void>((resolve,reject)=>{
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error);
+    });
+    db.close();
+    window.dispatchEvent(new Event('role-offline-regions-changed'));
+  },tile.toString('base64'));
+  await page.getByTitle('Alterar visual do mapa').click();
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>(
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapOfflineAvailable==='1',null,{timeout:15000});
+  await page.getByRole('button',{name:/Região local de teste · zoom 12/}).waitFor({timeout:8000});
+  await page.context().setOffline(true);
+  await page.getByRole('button',{name:/Região local de teste · zoom 12/}).click();
+  await page.waitForFunction(()=>{
+    const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
+    return root?.dataset.mapStyleReady==='offline' &&
+      root.dataset.mapOfflineRegion==='regiao-playwright'&&root.dataset.mapIdle==='true';
+  },null,{timeout:20000});
+  assert.equal(await page.locator('.maplibregl-canvas').count(),1,
+    'offline mode reuses the original MapLibre canvas');
+  assert.ok((await page.getByRole('status').allTextContents()).some(v=>v.includes('Mapa local: Região local de teste')));
+  await page.context().setOffline(false);
+  await page.getByTitle('Alterar visual do mapa').click();
+  await page.getByRole('button',{name:/Claro \(MapLibre\)/}).click();
+  await page.evaluate(()=>localStorage.removeItem('role:offline-map-selected:v1'));
+  await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-detail.html');
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
   // A raster provider failure retains that chosen style in the hybrid fallback.
   await page.unroute('https://server.arcgisonline.com/**');
   await page.route('https://server.arcgisonline.com/**',route=>route.abort());
