@@ -211,7 +211,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           }
         }
         camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,position:p.userLiveCoords,
-          centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing});
+          centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing,
+          maneuverMeters:p.maneuverMeters,speedMetersPerSecond:p.userSpeedMetersPerSecond});
         if(p.focusedCoords && p.focusedCoords!==lastFocus){
           camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
         }
@@ -299,7 +300,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       idleFollow?.hold();
     };
     map.on('dragstart',userGesture);
-    map.on('zoomstart',userGesture);
+    const userZoomGesture=(event:{originalEvent?:unknown})=>{
+      if(event.originalEvent)camera.overrideZoom();
+      userGesture(event);
+    };
+    map.on('zoomstart',userZoomGesture);
     map.on('rotatestart',userGesture);
     map.on('pitchstart',userGesture);
     for(const event of ['dragend','zoomend','rotateend','pitchend'] as const)
@@ -308,7 +313,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     document.addEventListener('pointerup',pointerUp,{passive:true});
     document.addEventListener('pointercancel',pointerUp,{passive:true});
     const unbindGestures=bindManualMapZoom(map.getContainer(),()=>{
-      camera.explore();
+      camera.overrideZoom();camera.explore();
       idleFollow?.activity();
     });
     const unbindResume=bindMapResumeRefresh(document,window,()=>{
@@ -356,7 +361,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       document.removeEventListener('pointercancel',pointerUp);
       for(const event of ['dragend','zoomend','rotateend','pitchend'] as const)
         map.off(event,gestureEnd);
-      map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userGesture);map.off('rotatestart',userGesture);map.off('pitchstart',userGesture);
+      map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userZoomGesture);map.off('rotatestart',userGesture);map.off('pitchstart',userGesture);
       editablePin?.remove();
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
       navigation.destroy();trip.destroy();weather.destroy();alerts.destroy();markers.destroy();
