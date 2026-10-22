@@ -723,7 +723,7 @@ try {
   await page.getByRole('region',{name:'Minhas viagens'})
     .getByRole('button',{name:'Planejadas'}).click();
   await page.getByRole('button', { name: 'Comboio', exact: true }).first().click();
-  await page.getByText(/Comboio sincronizado entre celulares/).waitFor();
+  await page.getByRole('status').getByText(/Comboio conectado · atualizações automáticas/).waitFor();
   await page.getByRole('button', { name: 'Compartilhar Localização', exact: true }).click();
   await page.getByRole('button', { name: 'Localização ativa', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Localização ativa', exact: true }).click();

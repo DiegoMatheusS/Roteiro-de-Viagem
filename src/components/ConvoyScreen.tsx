@@ -48,6 +48,8 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   onEndConvoy
 }) => {
   const [convoy, setConvoy] = useState<ConvoySession | null>(null);
+  const [connection,setConnection]=useState<'syncing'|'connected'|'offline'|'error'>(
+    typeof navigator!=='undefined'&&!navigator.onLine?'offline':'syncing');
   const [copiedCode, setCopiedCode] = useState(false);
   const [showAddMeetingPoint, setShowAddMeetingPoint] = useState(false);
   const [newMeetingPointTitle, setNewMeetingPointTitle] = useState('');
@@ -67,18 +69,46 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
   const [refreshing,setRefreshing]=useState(false),[pendingPoint,setPendingPoint]=useState<MeetingPoint|null>(null),[actionBusy,setActionBusy]=useState(false);
   useEffect(()=>{
     let disposed=false,busy=false;
-    const load=async()=>{if(busy)return;busy=true;setRefreshing(true);try{const session=await convoyService.getConvoy(convoyId);if(!disposed){setConvoy(session);setLocationError(null);}}catch(error){if(!disposed)setLocationError((error as Error).message);}finally{convoyService.expireLocations();busy=false;if(!disposed)setRefreshing(false);}};
+    let pending=false;
+    const load=async()=>{
+      if(busy){pending=true;return;}
+      busy=true;setRefreshing(true);
+      try{
+        const session=await convoyService.getConvoy(convoyId);
+        if(!disposed){setConvoy(session);setLocationError(null);setConnection('connected');}
+      }catch(error){
+        if(!disposed){
+          setLocationError((error as Error).message);
+          setConnection(navigator.onLine?'error':'offline');
+        }
+      }finally{
+        convoyService.expireLocations();busy=false;
+        if(!disposed){setRefreshing(false);if(pending){pending=false;void load();}}
+      }
+    };
     const changed=()=>{const cached=convoyService.getConvoys().find(c=>c.id===convoyId);if(!disposed&&cached)setConvoy(cached);};
-    const resume=()=>{if(!document.hidden)void load();};
-    window.addEventListener('rdv:convoys-changed',changed);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+    const resume=()=>{if(!document.hidden){setConnection('syncing');void load();}};
+    const offline=()=>setConnection('offline');
+    window.addEventListener('rdv:convoys-changed',changed);
+    window.addEventListener('online',resume);
+    window.addEventListener('offline',offline);
+    document.addEventListener('visibilitychange',resume);
     void load();const timer=window.setInterval(()=>void load(),5000);
-    return()=>{disposed=true;clearInterval(timer);window.removeEventListener('rdv:convoys-changed',changed);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
+    return()=>{
+      disposed=true;clearInterval(timer);
+      window.removeEventListener('rdv:convoys-changed',changed);
+      window.removeEventListener('online',resume);
+      window.removeEventListener('offline',offline);
+      document.removeEventListener('visibilitychange',resume);
+    };
   },[convoyId]);
 
   if (!convoy) {
     return (
       <div className="p-8 text-center text-slate-500">
-        <p>Comboio não encontrado ou já finalizado.</p>
+        <p>{connection==='offline'?'Sem internet. O Rolê tentará reconectar ao comboio automaticamente.':
+          connection==='syncing'?'Reconectando ao comboio...':
+          'Não foi possível carregar o comboio. Uma nova tentativa será feita automaticamente.'}</p>
         <button onClick={onBack} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold">
           Voltar
         </button>
@@ -207,7 +237,15 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
 
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-50 overflow-hidden">
-      <p className="px-4 py-2 text-xs bg-amber-50 text-amber-900">Comboio sincronizado entre celulares. Atualização automática a cada 5 segundos; o GPS continua ao voltar ao menu enquanto o compartilhamento estiver ativo.</p>
+      <p role="status" aria-live="polite" className="px-4 py-2 text-xs bg-amber-50 text-amber-900">
+        {connection==='connected'
+          ?'Comboio conectado · atualizações automáticas a cada 5 segundos.'
+          :connection==='offline'
+            ?'Sem internet · sua sessão de comboio está preservada neste aparelho. Vamos confirmar a participação ao reconectar.'
+            :connection==='syncing'
+              ?'Reconectando ao comboio · mantendo os últimos dados disponíveis.'
+              :'Sem comunicação com o comboio · tentando restabelecer a sincronização.'}
+      </p>
       {(locationError||locationState.error) && <p role="alert" className="px-4 py-2 text-xs text-rose-700">{locationError||locationState.error}</p>}
       {convoy.status !== 'active' && <p className="p-3 bg-slate-200 text-sm">Este comboio foi encerrado. A localização de todos foi ocultada.<button onClick={onBack} className="ml-3 underline">Voltar ao menu</button></p>}
       {/* Top Header */}
