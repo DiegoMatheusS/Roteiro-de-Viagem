@@ -1,5 +1,5 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CameraMode } from '../services/mapCameraController';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
@@ -10,7 +10,7 @@ import '../role-navigation-figma.css';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { nextNavigationGuidance } from '../services/navigationGuidance';
 import { useAutoReroute } from '../hooks/useAutoReroute';
-import { isGpsOutsideRouteCorridor,eligibleAutomaticReroute,type ReroutedNavigation } from '../services/autoReroute';
+import { isGpsOutsideRouteCorridor,eligibleAutomaticReroute,remainingRerouteStops,canEditStopsWhileStationary,canConfirmStopManually,requestAutomaticReroute,type ReroutedNavigation } from '../services/autoReroute';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
@@ -49,6 +49,8 @@ interface ActiveTripModalProps {
   onReturnHome: () => void;
   onNavigationReroute: (next:ReroutedNavigation)=>void;
   onStopVisited: (id:string)=>void;
+  onManualStopComplete: (id:string)=>boolean;
+  onSkipStop: (id:string,next:ReroutedNavigation,expectedVersion:string)=>boolean;
 }
 
 export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
@@ -65,12 +67,25 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   onOpenShareModal,
   onReturnHome,
   onNavigationReroute,
-  onStopVisited
+  onStopVisited,
+  onManualStopComplete,
+  onSkipStop
 }) => {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showRouteDetails,setShowRouteDetails] = useState(false);
+  const [stopDecision,setStopDecision]=useState<'complete'|'skip'|null>(null);
+  const [stopBusy,setStopBusy]=useState(false);
+  const [stopError,setStopError]=useState<string|null>(null);
+  const [stopNotice,setStopNotice]=useState<string|null>(null);
+  const stopController=useRef<AbortController|null>(null);
+  useEffect(()=>{
+    return ()=>{
+      stopController.current?.abort();
+      stopController.current=null;
+    };
+  },[isOpen,trip.id]);
   const {theme:appearanceTheme}=useMapAppearance();
   const [centerRequest,setCenterRequest] = useState(0);
   const [cameraMode,setCameraMode]=useState<CameraMode>('following');
@@ -84,7 +99,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const distanceTraveledKm=tracking.distanceKm;
   const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
   const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
-  const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id));
+  const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id)&&
+    !trip.navigationSkippedStopIds?.includes(stop.id));
   const pendingStopMinutes=outstandingStops.reduce((sum,stop)=>
     sum+Math.max(0,stop.recommendedMinutes||0),0);
   const plannedStopMinutes=trip.stops.reduce((sum,stop)=>
