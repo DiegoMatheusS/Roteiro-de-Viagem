@@ -29,15 +29,16 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
     if(exploring===next)return;
     exploring=next;onMode(next?'exploring':'following');
   };
-  const turnZoom=(input:NavigationCameraInput,point:CameraPoint)=>{
+  const turnZoom=(input:NavigationCameraInput,point:CameraPoint):boolean=>{
     // A GPS receiver at 0 km/h jitters within its accuracy radius. Zooming
     // again for a turn only 10 m ahead keeps animating the stationary map.
     if(exploring||manualZoom||!input.followUser||!camera.zoomToTurn||
-      (Number.isFinite(input.speedMetersPerSecond)&&input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4))return;
+      (Number.isFinite(input.speedMetersPerSecond)&&input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4))return false;
     const zoom=nextTurnCameraZoom(input.maneuverMeters,input.speedMetersPerSecond,nearTurnZoom);
-    if(zoom===null)return;
+    if(zoom===null)return false;
     camera.zoomToTurn(point,zoom,input.reducedMotion);
     nearTurnZoom=zoom!==16;
+    return true;
   };
   return {
     snapshot(){
@@ -94,11 +95,18 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         if(!lastCameraPoint){
           camera.firstGpsFix(point);
           lastCameraPoint=[...point];lastBearing=input.bearing;
-        }else if(!stopped&&changed&&input.followUser){
-          camera.follow(point,input.reducedMotion);
-          lastCameraPoint=[...point];lastBearing=input.bearing;
+        }else{
+          // MapLibre easing belongs to one camera owner. A turn zoom already
+          // includes the updated center, so avoid issuing follow()+zoomToTurn()
+          // as competing animations on the same GPS sample.
+          const zoomed=turnZoom(input,point);
+          if(zoomed){
+            lastCameraPoint=[...point];lastBearing=input.bearing;
+          }else if(!stopped&&changed&&input.followUser){
+            camera.follow(point,input.reducedMotion);
+            lastCameraPoint=[...point];lastBearing=input.bearing;
+          }
         }
-        turnZoom(input,point);
       }
       last=[...point];
     }
