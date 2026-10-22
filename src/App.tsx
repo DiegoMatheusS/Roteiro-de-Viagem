@@ -20,6 +20,7 @@ import { storageService } from './services/storageService';
 import { generateVerifiedTouristCircuit } from './services/touristCircuit';
 import { cloudState } from './services/cloudState';
 import { convoyService } from './services/convoyService';
+import { viewedConvoyAfterRefresh } from './services/convoyReconnect';
 import { NavigationTabBar, MainTabType } from './components/NavigationTabBar';
 import { HomeTab } from './components/HomeTab';
 import { NavigationHome } from './components/NavigationHome';
@@ -126,10 +127,7 @@ export default function App() {
     // Keep navigation on the current screen when remote account data arrives.
     // A transient empty cache during reconnection is not leaving a convoy.
     // Only a confirmed end or successful membership refresh may close its view.
-    setActiveConvoyId(open=>{
-      const cached=open&&convoyService.getConvoys().find(c=>c.id===open);
-      return cached&&cached.status!=='active'?null:open;
-    });
+    setActiveConvoyId(open=>viewedConvoyAfterRefresh(open,convoyService.getConvoys(),false));
   };
 
   useEffect(() => {
@@ -169,7 +167,7 @@ export default function App() {
         if(disposed)return;
         // Only a successful authoritative response may confirm departure.
         // Network failures keep the previous membership and on-screen convoy.
-        setActiveConvoyId(open=>open&&!convoys.some(c=>c.id===open&&c.status==='active')?null:open);
+        setActiveConvoyId(open=>viewedConvoyAfterRefresh(open,convoys,true));
         setConvoyVersion(v=>v+1);
       }).catch(()=>{/* Keep convoy membership while temporarily offline. */})
         .finally(()=>{
