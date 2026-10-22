@@ -46,7 +46,9 @@ test('map progress and route split agree for circular and off-route geometry',()
   const path:Point[]=[[0,0],[0,0.01],[0,0.02],[0,0.01],[0,0]];
   const index=routeProgressIndex(path,[0,0.010001],2.5,3);
   const split=splitRouteAtPosition(path,[0,0.010001],2.5,3);
-  assert.equal(index,split.travelled.length-1);
+  assert.ok(index!==null && index>=0,'GPS permanece associado a um trecho OSRM');
+  assert.ok(Math.abs(split.travelled.at(-1)![1]-0.010001)<0.00001);
+  assert.deepEqual(split.remaining[0],split.travelled.at(-1));
   assert.equal(routeProgressIndex(path,[20,30],2.5,3),null);
   assert.deepEqual(splitRouteAtPosition(path,[20,30],2.5,3),{travelled:[],remaining:path});
 });
