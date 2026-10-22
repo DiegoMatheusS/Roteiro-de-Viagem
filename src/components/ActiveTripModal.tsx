@@ -253,10 +253,15 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         {isGpsActive?'GPS ativo · localização ao vivo':
           tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
         {refreshingStopRoute?' · Rota anterior mantida até atualizar':''}
+        {rerouted?.source==='offline-graph'?' · Trajeto calculado com ruas locais; tempo estimado':''}
         {rerouteNotice==='recalculating'?' · Recalculando rota...':
           rerouteNotice==='updated'?' · Rota atualizada':
           rerouteNotice==='unavailable'?' · Rota anterior mantida':''}
       </div>
+      {rerouted?.source==='offline-graph'&&<div role="status" className="rdv-nav-rain-warning">
+        Trajeto offline sem orientações de conversão. Siga a sinalização das ruas e não manuseie o aparelho enquanto dirige.
+        O tempo é estimado e não considera trânsito ao vivo ou restrições ausentes no pacote.
+      </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
       {!rerouted&&(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&

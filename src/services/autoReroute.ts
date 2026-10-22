@@ -21,6 +21,8 @@ export interface ReroutedNavigation {
   updatedAt:string;
   /** Every outstanding stop the router confirmed in the new trip geometry. */
   remainingStopIds?:string[];
+  /** An imported local road graph supplied the geometry; no live traffic/turn directions. */
+  source?:'offline-graph';
 }
 export interface OffRouteState {
   lastTimestamp:number;
@@ -287,15 +289,33 @@ export async function requestAutomaticReroute(trip:TripPlan,origin:Coordinates,
   if(!remaining)throw new Error('As paradas do roteiro estão incompletas.');
   const expectedWaypoints:Coordinates[]=[
     origin,...remaining.map(stop=>stop.location.coords!),trip.destinationCoords];
-  const response=await fuelApi<VerifiedItineraryResponse>('/routes/itinerary',{
-    method:'POST',signal,body:JSON.stringify({
-      originCoords:origin,destinationCoords:trip.destinationCoords,roundTrip:false,
-      manualStops:remaining.map(stop=>({
-        id:stop.id,locationId:stop.location.id,stayMinutes:stop.stayMinutes
-      })),
-      acceptedSuggestions:[],limits:{mode:'destination'}
-    })
-  });
-  return {...verifiedReroute(response,origin,trip.destinationCoords,trackedAtKm,
-    new Date(),expectedWaypoints),remainingStopIds:remaining.map(stop=>stop.id)};
+  const local=async()=>{
+    const {requestOfflineRoadReroute}=await import('./offlineRoadReroute');
+    return requestOfflineRoadReroute({
+      points:expectedWaypoints,trackedAtKm,
+      remainingStopIds:remaining.map(stop=>stop.id),signal
+    });
+  };
+  if(typeof navigator!=='undefined'&&navigator.onLine===false&&
+    typeof indexedDB!=='undefined')return local();
+  try{
+    const response=await fuelApi<VerifiedItineraryResponse>('/routes/itinerary',{
+      method:'POST',signal,body:JSON.stringify({
+        originCoords:origin,destinationCoords:trip.destinationCoords,roundTrip:false,
+        manualStops:remaining.map(stop=>({
+          id:stop.id,locationId:stop.location.id,stayMinutes:stop.stayMinutes
+        })),
+        acceptedSuggestions:[],limits:{mode:'destination'}
+      })
+    });
+    return {...verifiedReroute(response,origin,trip.destinationCoords,trackedAtKm,
+      new Date(),expectedWaypoints),remainingStopIds:remaining.map(stop=>stop.id)};
+  }catch(error){
+    if(signal?.aborted)throw error;
+    // The existing online route remains the first choice. A *real* imported
+    // local street network may rescue navigation if the server is unreachable.
+    // Never draw a guessed straight line if neither source can route.
+    try{return await local();}
+    catch{throw error;}
+  }
 }

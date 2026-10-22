@@ -52,7 +52,7 @@ test('não suporta pacotes não autorizados nem URLs remotas de prefetch',()=>{
   assert.match(importer,/await storeOfflineTile/);
   const panel=readFileSync(new URL('../src/components/OfflineRegionsPanel.tsx',import.meta.url),'utf8');
   assert.match(panel,/Confirmo que o pacote foi obtido legalmente/);
-  assert.match(panel,/visualização ainda indisponível/);
+  assert.match(panel,/Mapa local completo \(disponível nas camadas\)/);
   assert.match(panel,/deleteOfflineRegion\(item.id\)/);
   const settings=readFileSync(new URL('../src/components/ProfileAndSettingsTab.tsx',import.meta.url),'utf8');
   assert.match(settings,/<OfflineRegionsPanel \/>/);
