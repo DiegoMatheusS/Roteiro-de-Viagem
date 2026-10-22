@@ -82,6 +82,8 @@ export interface InteractiveMapProps {
   userGpsAccuracyMeters?:number;
   userHeadingDegrees?: number | null;
   userSpeedMetersPerSecond?: number | null;
+  /** Verified distance to a turn/roundabout/arrival, for native camera assist only. */
+  maneuverMeters?: number | null;
   focusedCoords?: [number, number] | null;
   convoyParticipants?: ConvoyParticipant[];
   meetingPoints?: MeetingPoint[];
