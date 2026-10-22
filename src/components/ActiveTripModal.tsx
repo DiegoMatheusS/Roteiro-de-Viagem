@@ -128,6 +128,62 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
   const nextStop = outstandingStops[0];
+  const canEditStopped=canEditStopsWhileStationary(isGpsActive?tracking.position:null);
+  const pendingVerified=remainingRerouteStops(trip);
+  const nextVerified=pendingVerified?.[0];
+  const canManageNext=!!nextStop&&nextVerified?.id===nextStop.id&&
+    eligibleAutomaticReroute(trip);
+  const canMarkNext=canManageNext&&canConfirmStopManually(trip,nextStop.id,
+    isGpsActive?tracking.position:null);
+  const canSkipNext=canManageNext&&canEditStopped;
+  const cancelStopDecision=()=>{
+    stopController.current?.abort();
+    stopController.current=null;
+    setStopBusy(false);
+    setStopDecision(null);
+    setStopError(null);
+  };
+  const confirmStopDecision=async()=>{
+    if(!stopDecision||!nextStop)return;
+    const targetId=nextStop.id;
+    setStopError(null);
+    if(stopDecision==='complete'){
+      if(!canMarkNext||!onManualStopComplete(targetId)){
+        setStopError('Aproxime-se da parada com GPS preciso e veículo parado.');
+        return;
+      }
+      setStopNotice('Parada concluída manualmente. O restante do roteiro foi preservado.');
+      setStopDecision(null);
+      return;
+    }
+    if(!canSkipNext||!tracking.position||stopController.current)return;
+    const controller=new AbortController();
+    stopController.current=controller;
+    setStopBusy(true);
+    const routeVersion=trip.navigationReroute?.updatedAt||'original';
+    try{
+      const proposal={...trip,navigationSkippedStopIds:[
+        ...(trip.navigationSkippedStopIds||[]),targetId]};
+      const next=await requestAutomaticReroute(proposal,tracking.position.coords,
+        tracking.distanceKm,controller.signal);
+      if(controller.signal.aborted)return;
+      if(!onSkipStop(targetId,next,routeVersion)){
+        setStopError('A viagem mudou durante o cálculo. Confira a parada e tente novamente.');
+        return;
+      }
+      setStopDecision(null);
+      setStopNotice('Parada ignorada. O novo trajeto foi confirmado com as demais paradas.');
+    }catch(error){
+      if(!controller.signal.aborted){
+        setStopError('Não foi possível confirmar uma nova rota. A parada e o trajeto anterior foram mantidos.');
+        void error;
+      }
+    }finally{
+      if(stopController.current===controller)stopController.current=null;
+      if(!controller.signal.aborted)setStopBusy(false);
+    }
+  };
+
   const upcoming = tracking.status === 'ready'
     ? upcomingRoadAlert(roadAlerts.alerts, navigationPath, tracking.position?.coords, routeTravelledKm, routeDistanceKm)
     : null;
