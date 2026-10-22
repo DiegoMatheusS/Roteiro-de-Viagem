@@ -125,7 +125,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const refreshingStopRoute=routeNeedsRefreshAfterStop(trip);
   // The last verified line remains on screen while a newly attended stop
   // changes the itinerary. Never voice turns based on its old waypoint list.
-  const nextTurn = (outsideCorridor||refreshingStopRoute)?null:nextNavigationGuidance(navigationPath,navigationSteps,
+  const nextTurn = (outsideCorridor||refreshingStopRoute||usingLocalRoadGraph)?null:nextNavigationGuidance(navigationPath,navigationSteps,
     isGpsActive ? tracking.position?.coords : undefined,routeTravelledKm,routeDistanceKm);
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
@@ -246,7 +246,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
               nextTurn.direction==='roundabout'?'Na rotatória':
               nextTurn.direction==='arrive'?'Chegando ao destino':'Siga em frente'}</span>
             {nextTurn.road&&<> na <span>{nextTurn.road}</span></>}
-          </>:isGpsActive?(refreshingStopRoute?'Atualizando trajeto para as paradas restantes':outsideCorridor?(eligibleAutomaticReroute(trip)?'Aguardando recálculo rodoviário':'Siga com atenção · recálculo indisponível'):'Siga a rota'):'Ative a localização para receber instruções'}</span>
+          </>:isGpsActive?(refreshingStopRoute?'Atualizando trajeto para as paradas restantes':outsideCorridor?(eligibleAutomaticReroute(trip)?'Aguardando recálculo rodoviário':'Siga com atenção · recálculo indisponível'):usingLocalRoadGraph?'Acompanhe o traçado e a sinalização':'Siga a rota'):'Ative a localização para receber instruções'}</span>
         </span>
       </div>
       <div className="rdv-nav-gps-status" aria-live="polite">
