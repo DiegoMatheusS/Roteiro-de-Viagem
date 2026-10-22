@@ -82,5 +82,5 @@ test('roteamento offline jamais chama API externa e preserva paradas obrigatóri
  assert.match(auto,/if\(signal\?\.aborted\)throw error/);
  const settings=readFileSync(new URL('../src/components/OfflineRegionsPanel.tsx',import.meta.url),'utf8');
  assert.match(settings,/importOfflineRoadGraph\(file\)/);
- assert.match(settings,/rede viária licenciada/i);
+ assert.match(settings,/Importar rede de ruas licenciada/i);
 });
