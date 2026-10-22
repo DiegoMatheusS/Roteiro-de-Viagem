@@ -35,7 +35,8 @@ import { ActiveTripModal } from './components/ActiveTripModal';
 import { SosModal } from './components/SosModal';
 import { useLiveRouteConditions } from './hooks/useLiveRouteConditions';
 import { useTripTracking } from './hooks/useTripTracking';
-import type { ReroutedNavigation } from './services/autoReroute';
+import {canEditStopsWhileStationary,canConfirmStopManually,remainingRerouteStops,type ReroutedNavigation} from './services/autoReroute';
+import {distanceBetweenKm} from './services/gpsTracking';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
 import { X, Users, ArrowRight, KeyRound, CornerUpLeft } from 'lucide-react';
@@ -262,8 +263,8 @@ export default function App() {
     if (trip.routingSource !== 'OSRM') { setAppError('Recalcule esta rota antiga antes de iniciar: ela ainda não possui um percurso rodoviário verificado.'); return; }
     setIsPlanningOpen(false);
     const startedTrip: TripPlan = ['completed', 'cancelled'].includes(trip.status)
-      ? { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
-      : { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId };
+      ? { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], navigationSkippedStopIds:[], navigationManualStopIds:[], id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
+      : { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], navigationSkippedStopIds:[], navigationManualStopIds:[], status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId };
     storageService.saveTrip(startedTrip);
     storageService.setActiveTrip(startedTrip);
     setActiveTrip(startedTrip);
@@ -327,7 +328,8 @@ export default function App() {
   const handleNavigationStopVisited=(stopId:string)=>{
     const running=storageService.getActiveTrip();
     if(!running||running.id!==activeTrip?.id||running.status!=='in_progress'||
-      running.trackingDeviceId!==deviceId || !running.stops.some(stop=>stop.id===stopId) ||
+      running.trackingDeviceId!==deviceId ||
+      remainingRerouteStops(running)?.[0]?.id!==stopId ||
       running.navigationVisitedStopIds?.includes(stopId))return;
     const updated:TripPlan={...running,
       navigationVisitedStopIds:[...(running.navigationVisitedStopIds||[]),stopId]};
@@ -335,6 +337,46 @@ export default function App() {
     storageService.setActiveTrip(updated);
     setActiveTrip(updated);
     setTrips(storageService.getTrips());
+  };
+
+  const handleManualStopComplete=(stopId:string):boolean=>{
+    const running=storageService.getActiveTrip();
+    if(!running||running.id!==activeTrip?.id||running.status!=='in_progress'||
+       running.trackingDeviceId!==deviceId ||
+       !canConfirmStopManually(running,stopId,tracking.position))return false;
+    const updated:TripPlan={...running,
+      navigationVisitedStopIds:[...(running.navigationVisitedStopIds||[]),stopId],
+      navigationManualStopIds:[...(running.navigationManualStopIds||[]),stopId]};
+    storageService.saveTrip(updated);
+    storageService.setActiveTrip(updated);
+    setActiveTrip(updated);
+    setTrips(storageService.getTrips());
+    return true;
+  };
+
+  /** An explicit skip is atomic: unless OSRM returned the complete updated
+   * remaining itinerary, the saved stop and prior geometry stay unchanged. */
+  const handleSkipNavigationStop=(stopId:string,next:ReroutedNavigation,
+    expectedVersion:string):boolean=>{
+    const running=storageService.getActiveTrip();
+    const currentFix=tracking.position;
+    if(!running||running.id!==activeTrip?.id||running.status!=='in_progress'||
+       running.trackingDeviceId!==deviceId ||
+       (running.navigationReroute?.updatedAt||'original')!==expectedVersion ||
+       !canEditStopsWhileStationary(currentFix) ||
+       distanceBetweenKm(currentFix!.coords,next.originCoords)>.2 ||
+       remainingRerouteStops(running)?.[0]?.id!==stopId)return false;
+    const skipped=[...(running.navigationSkippedStopIds||[]),stopId];
+    const remaining=remainingRerouteStops({...running,navigationSkippedStopIds:skipped});
+    if(!remaining || JSON.stringify(next.remainingStopIds)!==
+       JSON.stringify(remaining.map(stop=>stop.id)))return false;
+    const updated:TripPlan={...running,navigationSkippedStopIds:skipped,
+      navigationReroute:next};
+    storageService.saveTrip(updated);
+    storageService.setActiveTrip(updated);
+    setActiveTrip(updated);
+    setTrips(storageService.getTrips());
+    return true;
   };
 
   // Persist the remaining OSRM route separately from the journey's odometer.
@@ -648,6 +690,8 @@ export default function App() {
           onReturnHome={handleReturnHome}
           onNavigationReroute={handleNavigationReroute}
           onStopVisited={handleNavigationStopVisited}
+          onManualStopComplete={handleManualStopComplete}
+          onSkipStop={handleSkipNavigationStop}
         />
       )}
 

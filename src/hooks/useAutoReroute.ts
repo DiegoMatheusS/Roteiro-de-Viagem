@@ -72,6 +72,7 @@ export function useAutoReroute(options:{
     if(!decision.trigger)return;
     const controller=new AbortController();
     const plannedVisitKey=(options.trip.navigationVisitedStopIds||[]).join('|');
+    const plannedSkipKey=(options.trip.navigationSkippedStopIds||[]).join('|');
     const plannedRouteVersion=options.trip.navigationReroute?.updatedAt||'original';
     inflight.current=controller;
     clearNotice();setNotice('recalculating');
@@ -82,6 +83,7 @@ export function useAutoReroute(options:{
         // A stop can be confirmed by GPS while OSRM is responding. Never
         // overwrite the newly-updated stop list with an obsolete request.
         if((current.current.trip.navigationVisitedStopIds||[]).join('|')!==plannedVisitKey ||
+           (current.current.trip.navigationSkippedStopIds||[]).join('|')!==plannedSkipKey ||
            (current.current.trip.navigationReroute?.updatedAt||'original')!==plannedRouteVersion){
           setNotice('idle');return;
         }
@@ -103,6 +105,6 @@ export function useAutoReroute(options:{
       .finally(()=>{if(inflight.current===controller)inflight.current=null;});
   },[options.enabled,options.trip.id,options.trip.navigationReroute?.updatedAt,
       options.position?.timestamp,options.trackedDistanceKm,options.trip.routePath,
-      options.trip.navigationVisitedStopIds]);
+      options.trip.navigationVisitedStopIds,options.trip.navigationSkippedStopIds]);
   return notice;
 }

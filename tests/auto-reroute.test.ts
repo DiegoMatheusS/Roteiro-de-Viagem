@@ -7,7 +7,8 @@ import {
   initialOffRouteState,evaluateOffRoute,distanceToRouteMeters,isGpsOutsideRouteCorridor,
   verifiedReroute,eligibleDirectReroute,eligibleAutomaticReroute,
   orderedRerouteStops,remainingRerouteStops,confirmStopArrival,initialStopArrivalState,
-  requestAutomaticReroute,REROUTE_COOLDOWN_MS
+  requestAutomaticReroute,REROUTE_COOLDOWN_MS,
+  canEditStopsWhileStationary,canConfirmStopManually
 } from '../src/services/autoReroute';
 
 type Point=[number,number];
@@ -258,4 +259,63 @@ test('chegada persistida e a próxima parada aparecem sem resetar a viagem',()=>
  assert.match(hook,/plannedRouteVersion/);
  assert.match(hud,/pendingStopMinutes/);
  assert.match(hud,/plannedStopMinutes/);
+});
+
+test('manual stop controls require stopped vehicle and fresh accurate GPS',()=>{
+ const position=fix(0,planStops[0].location.coords,{speedMetersPerSecond:0,accuracyMeters:8});
+ assert.equal(canEditStopsWhileStationary(position,now),true);
+ assert.equal(canConfirmStopManually(plan,'stop-a',position,now),true);
+ assert.equal(canConfirmStopManually(plan,'stop-b',position,now),false);
+ assert.equal(canConfirmStopManually(plan,'stop-a',fix(0,[-23.51,-46.51],{speedMetersPerSecond:0}),now),false);
+ assert.equal(canConfirmStopManually(plan,'stop-a',fix(0,planStops[0].location.coords,{speedMetersPerSecond:2}),now),false);
+ assert.equal(canEditStopsWhileStationary(fix(0,planStops[0].location.coords,{speedMetersPerSecond:null}),now),false);
+ assert.equal(canEditStopsWhileStationary(fix(0,planStops[0].location.coords,{accuracyMeters:45,speedMetersPerSecond:0}),now),false);
+ assert.equal(canEditStopsWhileStationary(position,now+9000),false);
+ assert.equal(canConfirmStopManually({...plan,navigationSkippedStopIds:['stop-a']},'stop-a',position,now),false);
+ assert.equal(canConfirmStopManually({...plan,navigationVisitedStopIds:['stop-a']},'stop-a',position,now),false);
+});
+test('skipped stops are recorded independently, other stops keep their original order',()=>{
+ const skipped={...plan,navigationSkippedStopIds:['stop-a'],navigationVisitedStopIds:[]};
+ assert.deepEqual(remainingRerouteStops(skipped)?.map(stop=>stop.id),['stop-b']);
+ assert.deepEqual(orderedRerouteStops(skipped)?.map(stop=>stop.id),['stop-a','stop-b']);
+ assert.deepEqual(remainingRerouteStops({...skipped,navigationVisitedStopIds:['stop-b']})?.map(stop=>stop.id),[]);
+ assert.equal(eligibleAutomaticReroute(skipped),true);
+});
+test('explicit skip only requests road geometry for the still pending stops',async()=>{
+ const originalFetch=globalThis.fetch;
+ const origin:Point=[-23.5004,-46.5004];
+ const expected=[origin,planStops[1].location.coords,path[1]];
+ const captures:string[][]=[];
+ globalThis.fetch=async (_input,options)=>{
+  const body=JSON.parse(String(options?.body)) as {manualStops:Array<{id:string}>};
+  captures.push(body.manualStops.map(x=>x.id));
+  return new Response(JSON.stringify({
+    routePath:[origin,path[0],planStops[1].location.coords,path[1]],
+    routeSteps:[{coords:origin,distanceFromStartKm:0,type:'depart',name:''}],
+    distanceKm:1.82,drivingMinutes:6,durationMinutes:16,waypoints:expected
+  }),{status:200,headers:{'Content-Type':'application/json'}});
+ };
+ try{
+  const reroute=await requestAutomaticReroute({...plan,navigationSkippedStopIds:['stop-a']},origin,22.4);
+  assert.deepEqual(captures,[['stop-b']]);
+  assert.deepEqual(reroute.remainingStopIds,['stop-b']);
+  assert.equal(reroute.trackedAtKm,22.4);
+ }finally{globalThis.fetch=originalFetch;}
+});
+test('UI and persistence cannot hide skipped stop without a confirmed reroute',()=>{
+ const read=(p:string)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+ const app=read('src/App.tsx'),hud=read('src/components/ActiveTripModal.tsx');
+ const hook=read('src/hooks/useAutoReroute.ts');
+ const fixture=read('tests/fixtures/circular-guidance.tsx');
+ assert.match(app,/handleSkipNavigationStop=/);
+ assert.match(app,/remainingRerouteStops\(\{\.\.\.running,navigationSkippedStopIds:skipped\}\)/);
+ assert.match(app,/navigationReroute:next/);
+ assert.match(app,/canConfirmStopManually\(running,stopId,tracking\.position\)/);
+ assert.match(hud,/const next=await requestAutomaticReroute\(proposal,tracking\.position\.coords,/);
+ assert.match(hud,/if\(!onSkipStop\(targetId,next,routeVersion\)\)/);
+ assert.match(hud,/disabled=\{!canSkipNext\}/);
+ assert.match(hud,/disabled=\{!canMarkNext\}/);
+ assert.match(hook,/plannedSkipKey/);
+ assert.match(fixture,/onManualStopComplete=/);
+ assert.match(fixture,/onSkipStop=/);
 });

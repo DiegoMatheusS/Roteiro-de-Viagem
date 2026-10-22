@@ -216,6 +216,14 @@
 }
 .rdv-nav-extra-heading {display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:14px;}
 .rdv-nav-extra-heading button {padding:4px;border-radius:10px;background:#f3f6fa;}
+.rdv-nav-stop-actions {
+  display:flex;flex-wrap:wrap;align-items:center;gap:9px;
+  padding:12px 0;margin-top:8px;border-top:1px solid #e2e8f0;
+}
+.rdv-nav-stop-actions p {width:100%;margin:0;}
+.rdv-nav-stop-actions button:disabled {
+  opacity:.48;cursor:not-allowed;
+}
 .rdv-nav-extra-buttons {display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding-top:11px;}
 .rdv-nav-extra-action {display:flex;align-items:center;gap:6px;min-height:40px;padding:6px 10px;border:1px solid #dce4ed;border-radius:11px;color:#245ee6;background:#fff;font-size:12px;font-weight:600;}
 @media(max-height:680px) {

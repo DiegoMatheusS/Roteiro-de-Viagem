@@ -151,6 +151,10 @@ export interface TripPlan {
   navigationReroute?: import('../services/autoReroute').ReroutedNavigation;
   /** Paradas confirmadas pelo GPS nesta viagem, sem depender do servidor. */
   navigationVisitedStopIds?: string[];
+  /** Paradas removidas explicitamente pelo usuário após novo percurso OSRM validado. */
+  navigationSkippedStopIds?: string[];
+  /** Subconjunto de visitas confirmadas por toque do usuário (próximo à parada). */
+  navigationManualStopIds?: string[];
   manualStops?: import('./itinerary').MandatoryStop[];
   acceptedSuggestions?: import('./itinerary').SuggestedStop[];
   planningLimits?: import('./itinerary').PlanningLimits;
