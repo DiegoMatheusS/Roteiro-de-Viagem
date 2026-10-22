@@ -25,7 +25,7 @@ test('retorno da conexão atualiza o comboio sem pedir código ou consentimento 
   assert.match(app,/viewedConvoyAfterRefresh\(open,convoyService.getConvoys\(\),false\)/);
   assert.match(screen,/window.addEventListener\('online',resume\)/);
   assert.match(screen,/window.addEventListener\('offline',offline\)/);
-  assert.match(screen,/Sem internet · você continua no comboio/);
+  assert.match(screen,/Sem internet · sua sessão de comboio está preservada neste aparelho/);
   assert.match(gps,/window.addEventListener\('online',resume\)/);
   assert.match(gps,/getLocationSession\(\)/);
   assert.doesNotMatch(gps,/joinConvoyByCode/);
