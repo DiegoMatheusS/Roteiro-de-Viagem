@@ -173,7 +173,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 
 **Permissão de localização:** os modos Por Km e Por Horas pedem a posição GPS. Caso o acesso seja negado, uma mensagem explica como permitir e, no Android, abre as configurações do aplicativo. No modo Com destino é possível escolher origem e destino manualmente sem localização.
 
-## Mapa e confiabilidade dos dados (PR #43)
+## Mapa e confiabilidade dos dados
 
 - Marcadores de postos exibem apenas preços publicados, não vencidos e não contestados retornados pela API. Quando não há valor aprovado, o mapa não inventa um preço.
 - Pedágios exibem o valor unitário quando fornecido para o sentido/veículo consultado, nunca o custo total do trajeto.
@@ -183,7 +183,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - **MapLibre:** a migração do renderizador Leaflet depende de um estilo vetorial e de provedor de tiles adequado para produção. Não usar estilos demonstrativos sem licenciamento nem quebrar os controles de GPS, alertas ou de rotas.
 - **Trânsito em tempo real:** ainda indisponível no OSRM. Não apresentar a duração como previsão com tráfego.
 
-## Mapa vetorial (PR #44)
+## Mapa vetorial
 
 - O estilo claro agora carrega MapLibre GL JS + OpenFreeMap Positron (sem chave), com ruas neutras, água azul, vegetação verde e construções claras. A base vetorial é carregada sob demanda.
 - Nesta etapa, **MapLibre já desenha as linhas de rotas calculadas, alternativas e trechos percorridos por GPS**. Leaflet continua cuidando de gestos, áreas de toque das alternativas, marcadores de postos/preços e alertas por meio do adaptador `@maplibre/maplibre-gl-leaflet`. A migração desses overlays e da câmera (incluindo rotação) será posterior.
@@ -192,7 +192,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Tiles e estilo são serviços de terceiros fornecidos conforme sua disponibilidade; respeite atribuição, termos e licenças de OpenFreeMap/OpenStreetMap. Consulte [OpenFreeMap](https://openfreemap.org/) e [MapLibre](https://maplibre.org/).
 - O estilo vetorial não fornece dados de trânsito ou limites legais de velocidade: a aplicação mantém a indicação neutra quando não houver fonte válida.
 
-## Atualização de rotas vetoriais (PR #45)
+## Atualização de rotas vetoriais
 
 - Todas as linhas usam os percursos efetivos retornados pelo OSRM; nenhuma geometria artificial é criada.
 - O trecho a percorrer é azul-claro e o percorrido é azul-escuro **somente quando a posição GPS corresponde ao trajeto**. Fora do percurso, não se declara uma parte da viagem como concluída.
@@ -200,7 +200,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O fallback raster usa as mesmas geometrias e interações implementadas no Leaflet.
 - O app continua sem API de tráfego em tempo real; não exibir esse dado como disponível.
 
-## Marcadores no MapLibre (PR #46)
+## Marcadores no MapLibre
 
 - A camada vetorial agora também usa marcadores DOM do **MapLibre** para postos, pedágios e atrações verificadas no backend. Com o mapa raster, o Leaflet mantém os mesmos locais e ações.
 - Valores de combustível aparecem no marcador apenas se a API tiver preço aprovado e não contestado nem vencido; as tarifas unitárias de pedágio precisam estar verificadas. Nada de preços fictícios.
@@ -208,14 +208,14 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Botões de preços e comentários, identificação por categoria, ações de toque e rótulos para acessibilidade permanecem. O mapa não exige login para pesquisar rotas; contribuir com preços continua sujeito à autenticação.
 - O controle de gestos e os alertas colaborativos ainda são responsabilidade do Leaflet nesta fase, evitando mudança simultânea de todos os recursos. A migração completa para um único renderizador pode ser feita com testes próprios.
 
-## Alertas comunitários vetoriais (PR #47)
+## Alertas comunitários vetoriais
 
 - O mapa claro já exibe **alertas aprovados e não vencidos** como marcadores MapLibre acessíveis por teclado, com ícones SVG e visual compacto (sem emojis do dispositivo).
 - Ao tocar ou clicar no marcador, o aplicativo mantém o diálogo **“Ainda continua lá?”**, as confirmações e as regras atuais de moderação. Notas e textos enviados pela comunidade não são inseridos como HTML.
 - Caso a base vetorial esteja indisponível, o Leaflet renderiza os mesmos alertas usando a mesma seleção de dados confiáveis. A troca entre renderizadores remove os marcadores anteriores antes de permitir novas interações, evitando duplicações.
 - Nesta fase o Leaflet ainda controla os gestos e parte dos overlays da navegação, SOS e comboio. Não foi ativado trânsito em tempo real ou um sistema de multas/limites presumidos.
 
-## Pinos de navegação no MapLibre (PR #48)
+## Pinos de navegação no MapLibre
 
 - Origem, destino e localização do GPS agora usam marcadores MapLibre nativos na camada vetorial. Os ícones são leves e têm textos acessíveis e balões de informação.
 - Atualizações sucessivas do GPS apenas movimentam o marcador existente (`setLngLat`), preservando zoom e câmera, sem recriar o mapa.
@@ -223,14 +223,14 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Coordenadas inválidas não são desenhadas. Durante a navegação, não exibimos marcador estático de origem que possa confundir a posição atual.
 - Ainda restam marcadores de paradas, comboios, pontos de encontro e amostras de previsão meteorológica no Leaflet. A remoção da dependência será feita em fase posterior após testes de gestos/câmera.
 
-## Acesso ao comboio pelo Início (PR #50)
+## Acesso ao comboio pelo Início
 
 - Abaixo dos cartões KM e Horas há um único botão **Comboio**. O toque abre um pop-up minimalista com **Criar comboio** e **Entrar no comboio**.
 - **Criar** abre o formulário de seleção da viagem e nome do grupo já existente; **Entrar** abre diretamente a entrada por código de convite. Não há botões separados ocupando espaço na página inicial.
 - Ambos os pop-ups mantêm o mapa em segundo plano. Botão fechar, toque no fundo, tecla Escape e Voltar do Android descartam o pop-up de seleção.
 - Criação utiliza a mesma API autenticada, sem inventar trajetos, e o compartilhamento de GPS segue desativado por padrão. Backend e painel administrativo permanecem intactos.
 
-## Navegação mais fluida e leve (PR #51)
+## Navegação mais fluida e leve
 
 - Zoom por gesto e transições de blocos de mapa são animados **nas telas de navegação e no mapa principal**, com incrementos de meio nível. No mapa do comboio e nas prévias, o zoom Leaflet permanece imediato para que atualizações de participantes não alterem a posição visual de outros marcadores.
 - A atualização GPS não desmonta mais o conjunto completo de trajetos, paradas, pontos de encontro e demais marcadores do fallback Leaflet. O marcador ao vivo é movido com `setLatLng` e o progresso restante/percorrido tem camada independente; no MapLibre, o marcador nativo continua usando `setLngLat`.
@@ -239,7 +239,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Sem animação de rotação por bússola nesta fase: o Leaflet ainda é responsável pelos gestos. A remoção integral do adaptador e a rotação controlada pelo rumo precisam de uma etapa posterior e de testes físicos.
 - Efeitos da câmera e da pinça precisam ser confirmados em aparelho Android real; os testes automatizados cobrem as regressões de código, UI, build e emulador, não medem FPS de dispositivos diferentes.
 
-## Paradas e comboios vetoriais — PR #52
+## Paradas e comboios vetoriais
 
 - Paradas turísticas verificadas, pontos de encontro e participantes **com GPS compartilhado voluntariamente** são exibidos como marcadores DOM nativos do MapLibre. São exibidos apenas pontos com coordenadas válidas; locais e posições não são inventados.
 - Participantes sem compartilhamento de localização ativo, localização vencida há mais de 3 minutos ou coordenadas inválidas não aparecem. Identificações e detalhes são inseridos com `textContent`, sem interpretar HTML fornecido pelo usuário.
@@ -247,14 +247,14 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Os pontos de encontro continuam mostrando quantos participantes confirmaram chegada. Paradas com referência OSM de posto preservam os comandos de preços e comentários. No fallback raster, os mesmos marcadores e pop-ups permanecem.
 - O renderizador MapLibre ainda usa a ponte de câmera/gestos Leaflet. Remover a dependência do Leaflet exige migrar os gestos e os overlays meteorológicos e validar o Android físico.
 
-## Seta do GPS orientada pelo deslocamento (PR #53)
+## Seta do GPS orientada pelo deslocamento
 
 - Quando o GPS fornece um rumo real de deslocamento (`heading` no navegador/Capacitor e `Location.getBearing()` no Android nativo), a seta azul passa a apontar na direção de movimento, tanto no MapLibre quanto no fallback Leaflet.
 - Direções inválidas, ausentes ou com velocidade conhecida inferior a 1,4 m/s não fazem a seta girar. A última direção válida é mantida para reduzir oscilações em paradas. A interpolação angular escolhe o caminho mais curto ao cruzar 0°/360°.
 - A animação da seta respeita `prefers-reduced-motion`; não há novas permissões nem telemetria de GPS. O código não calcula rumo a partir de posições incertas nem inventa valores.
 - **Nesta fase a câmera continua apontada para o norte:** a base MapLibre ainda usa gestos e viewport controlados pelo Leaflet. Girar apenas a câmera MapLibre causaria dessincronização das rotas e pinos. Rotação do mapa e gestos MapLibre independentes exigem uma próxima etapa que substitua o adaptador por um controlador único e seja testada em aparelhos reais.
 
-## Controle de câmera da navegação — PR #54
+## Controle de câmera da navegação
 
 - Durante uma viagem ativa, **arrastar o mapa suspende o acompanhamento automático**. O botão GPS passa a mostrar **Seguir GPS**, deixando explícito como voltar a acompanhar o veículo.
 - Ao tocar em Seguir GPS, a câmera se recentraliza e volta a acompanhar as próximas posições. O zoom escolhido pela pessoa é preservado quando já está em escala útil de navegação, evitando saltos para um zoom fixo. Usuários que preferem movimento reduzido não recebem animação forçada.
@@ -262,7 +262,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Um adaptador de câmera MapLibre para modo **standalone futuro** está definido e testado, mas **não é ativado na ponte híbrida**. Gestos nativos de rotação, inclinação e orientação do mapa pelo rumo continuam pendentes de uma migração conjunta de câmera e interações.
 - Não muda permissões de GPS, não faz alterações no backend e não altera o painel administrativo. 
 
-## Gestos de zoom sem disputa com GPS (PR #55)
+## Gestos de zoom sem disputa com GPS
 
 - Na navegação ativa, **pinça com dois dedos, zoom pelo mouse/trackpad, duplo toque, gesto do Safari e teclas de zoom** suspendem o acompanhamento automático do GPS, assim como arrastar o mapa já fazia.
 - O mapa não bloqueia os eventos de toque: os listeners são passivos e apenas mudam o modo de câmera para **Explorando**. O botão **Seguir GPS** permanece disponível para recentralizar e voltar ao acompanhamento mantendo o zoom útil escolhido.
@@ -270,7 +270,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Os listeners de zoom são removidos quando o mapa é desmontado. Testes unitários exercitam eventos de pinça, rolagem, teclado e remoção, além de validar que o controlador híbrido continua único.
 - **Ainda não habilita gestos MapLibre independentes, rotação automática do mapa ou inclinação 3D**. O Leaflet continua controlando a câmera para que linhas, alertas e hit areas não se desalinhem. O trabalho para removê-lo será feito com migração conjunta e testes físicos de Android.
 
-## Camada de previsão meteorológica MapLibre — PR #56
+## Camada de previsão meteorológica MapLibre
 
 - As amostras reais da previsão de chuva e vento são desenhadas com marcadores nativos MapLibre na base vetorial, contendo temperatura, probabilidade de chuva, vento, horário e eventuais avisos.
 - Cada ponto possui botão acessível e balão com fonte explícita **Open-Meteo — previsão, não radar ao vivo**. Informações de terceiros são exibidas como texto, sem HTML arbitrário. Coordenadas e valores inválidos não geram marcadores.
@@ -278,7 +278,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - A camada Leaflet permanece disponível em modo raster e se desliga quando os marcadores MapLibre são instalados; em fallback, usa as mesmas amostras válidas e evita horário `Invalid Date`.
 - Esta PR reduz mais uma dependência visual de Leaflet, mas os gestos e a câmera ainda pertencem à ponte Leaflet–MapLibre. A substituição segura do adaptador ainda exige migração dos hitboxes de rotas alternativas e da interação do mapa.
 
-## Seleção de rotas alternativas no MapLibre — PR #57
+## Seleção de rotas alternativas no MapLibre
 
 - As rotas rodoviárias alternativas verificadas pelo OSRM continuam aparecendo juntas, mas cada linha MapLibre contém agora o **ID correspondente ao trajeto**. Ao tocar numa rota, a interface consulta diretamente a geometria renderizada pelo MapLibre e seleciona somente um ID que realmente conste das alternativas recebidas.
 - Na base vetorial, o mapa não precisa mais das polylines invisíveis Leaflet por cima das rotas. A posição tocada é projetada em pixels no canvas MapLibre e consultada com tolerância de 12 px, adequada ao toque.
@@ -286,7 +286,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - No fallback raster, as alternativas continuam visíveis e selecionáveis pelas mesmas polylines Leaflet. Um toque sobre uma linha vetorial que seleciona rota não dispara também a ação de definir coordenadas do mapa.
 - Esta etapa não inventa rotas, não muda a geometria de origem, não faz merge automático e não altera backend nem admin.
 
-## Melhor desempenho nas rotas longas — PR #58
+## Melhor desempenho nas rotas longas
 
 - Os pequenos marcadores decorativos do percurso (pontos intermediários) passam a usar **uma camada de círculos do MapLibre**, em vez de vários elementos Leaflet quando há WebGL disponível. Isso mantém zoom, rotas alternativas e acompanhamento GPS desacoplados da atualização dessas decorações.
 - Tanto no MapLibre quanto no fallback Leaflet, a quantidade de pontos decorativos é limitada a **160 por trajeto**, escolhidos exclusivamente dentre as coordenadas reais devolvidas pelo roteador OSRM. Nenhum trecho de estrada ou localização é inventado, e a geometria da rota não é simplificada: a mudança afeta só as decorações visuais.
@@ -294,7 +294,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O fallback raster continua usando os mesmos pontos reais, sem criar um marcador DOM a cada 3 vértices em viagens longas. A camada vetorial é removida corretamente ao trocar de estilo.
 - Esta etapa **não habilita rotação/inclinação do mapa**: a câmera do mapa híbrido continua controlada pelo Leaflet até a migração conjunta de gestos e overlays.
 
-## Marcadores de estabelecimentos sem piscadas — PR #59
+## Marcadores de estabelecimentos sem piscadas
 
 - Na base vetorial MapLibre, marcadores de postos, pedágios e estabelecimentos deixam de ser **recriados em conjunto** a cada atualização de dados. Um controlador incremental identifica cada local pelo ID e categoria.
 - A atualização isolada de coordenadas usa `Marker.setLngLat`; mudanças de preço aprovado, nome e dados visuais substituem somente o marcador correspondente. Os demais permanecem em tela, com o mesmo foco, estado de toque e sem comandar a câmera.
@@ -302,7 +302,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Botões **Sugerir preço**, comentários e acessibilidade continuam usando ações existentes. Valores são exibidos apenas com as regras atuais de preços aprovados; nenhum preço é inventado.
 - Esta atualização melhora a fluidez dos marcadores durante a navegação e busca. **Não altera o backend, o painel administrativo, o contrato GPS ou o controle híbrido da câmera**. Rotação nativa do mapa continua condicionada à migração conjunta dos gestos e dos overlays.
 
-## Trocar de rota sem perder os marcadores — PR #60
+## Trocar de rota sem perder os marcadores
 
 - Selecionar uma alternativa de percurso deixa de limpar/recriar todas as camadas de paradas turísticas, origem/destino, pontos de encontro e previsão do tempo no fallback Leaflet. As linhas do trajeto continuam atualizando normalmente.
 - As camadas estáticas mantêm assinaturas independentes baseadas em seus próprios dados; quando um local muda, só a camada correspondente é atualizada.
@@ -310,7 +310,7 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Evita fechar balões/pop-ups de paradas e pontos de encontro ao escolher outro roteiro, com o intuito de melhorar a percepção de fluidez.
 - Os testes cobrem troca de rota, atualização real de conteúdo, navegação e alternância vetor/raster. Backend e painel administrativo não são alterados.
 
-## Alertas colaborativos sem piscadas — PR #61
+## Alertas colaborativos sem piscadas
 
 - Alertas aprovados (buraco, veículo quebrado, radar, obstáculo, alagamento, policiamento e roubo) agora são reconciliados individualmente por ID no mapa MapLibre: atualizar uma ocorrência não recria os outros botões.
 - O fallback Leaflet usa a mesma estratégia de atualização: uma nova ocorrência, a expiração de um alerta ou uma mudança de posição afetam somente os ícones envolvidos.
@@ -319,14 +319,14 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - O controlador MapLibre é instalado uma vez por ciclo do mapa vetorial. Em falta de WebGL, os alertas continuam visíveis e interativos pelo fallback raster.
 - Não altera API, moderação, backend, painel admin, regras de validade nem controle híbrido Leaflet–MapLibre da câmera.
 
-## Câmera estável ao comparar rotas — PR #62
+## Câmera estável ao comparar rotas
 
 - Ao escolher entre rotas alternativas de um mesmo percurso OSRM, o mapa não altera o centro ou o zoom escolhido com pinça/arrasto. A rota selecionada é atualizada, mas o usuário mantém o enquadramento.
 - O enquadramento automático permanece ao abrir um percurso novo, mudar origem/destino ou receber um conjunto realmente diferente de rotas. A ordem dos cards não redefine a câmera.
 - Paradas turísticas, participantes, pontos de encontro e previsões atualizadas não forçam `fitBounds` nem anulam a exploração manual.
 - A câmera segue pertencendo ao Leaflet no mapa híbrido, com MapLibre sincronizado, evitando giros de uma base separados de marcadores e linhas. Não altera GPS, backend, moderação ou painel administrativo.
 
-## Controlador único para enquadramento e GPS — PR #63
+## Controlador único para enquadramento e GPS
 
 - A primeira posição GPS, o enquadramento de uma rota nova e o foco em um único destino agora passam pela mesma interface de câmera utilizada para recentralização e acompanhamento.
 - **Na versão em produção, o Leaflet continua como único dono da câmera**, com o MapLibre seguindo sua viewport. A mudança não ativa rotação nem câmera nativa independente: evita comandos paralelos que poderiam desalinhar rotas, ícones e áreas clicáveis.
