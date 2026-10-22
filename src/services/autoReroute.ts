@@ -41,7 +41,7 @@ const coordsValid=(coords:unknown):coords is Coordinates=>
   Math.abs(coords[0])<=90&&Math.abs(coords[1])<=180;
 
 export function eligibleDirectReroute(trip:TripPlan):boolean {
-  return trip.routingSource==='OSRM' && !trip.isCircular && trip.routePath.length>=2 &&
+  return (trip.routingSource==='OSRM'||trip.routingSource==='offline-graph') && !trip.isCircular && trip.routePath.length>=2 &&
     coordsValid(trip.destinationCoords) &&
     (!trip.waypointOrder||trip.waypointOrder.length<=2) &&
     !trip.editedWaypoint && trip.stops.length===0 &&
@@ -92,7 +92,7 @@ export function remainingRerouteStops(trip:TripPlan):MandatoryStop[]|null {
   return ordered.filter(stop=>!visited.has(stop.id));
 }
 export function eligibleAutomaticReroute(trip:TripPlan):boolean {
-  if(trip.routingSource!=='OSRM'||trip.isCircular||trip.editedWaypoint||
+  if(!['OSRM','offline-graph'].includes(trip.routingSource||'')||trip.isCircular||trip.editedWaypoint||
      trip.routePath.length<2||!coordsValid(trip.destinationCoords))return false;
   const stops=orderedRerouteStops(trip);
   return stops!==null && (!stops.length
@@ -296,6 +296,7 @@ export async function requestAutomaticReroute(trip:TripPlan,origin:Coordinates,
       remainingStopIds:remaining.map(stop=>stop.id),signal
     });
   };
+  if(trip.routingSource==='offline-graph')return local();
   if(typeof navigator!=='undefined'&&navigator.onLine===false&&
     typeof indexedDB!=='undefined')return local();
   try{

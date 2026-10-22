@@ -69,6 +69,14 @@ Por segurança, o resultado offline oferece a **linha do trajeto**, mas **não**
 
 Não inclui planejamento offline de uma viagem nova, download automático de ruas, orientação por voz offline ou a cobertura de todas as cidades. A funcionalidade só atende regiões efetivamente instaladas e compatíveis. A base online continua sendo a opção preferencial.
 
+## Iniciar uma viagem nova a partir da rede de ruas local
+
+Com uma rede viária licenciada instalada, a tela **Mapa → destino já localizado → Mostrar rotas** pode agora calcular uma rota **sem rede** do GPS até as coordenadas conhecidas desse destino. O roteador consulta o mesmo grafo direcionado usado no recálculo e apresenta a opção como **Trajeto offline · ruas locais**. Quando o servidor de rotas está disponível, ele continua sendo usado primeiro.
+
+O modo local requer que as coordenadas da origem e do destino estejam cobertas pela **mesma** rede importada, próximas de nós viários (até 75 m) e ligadas por arestas direcionadas. Não gera alternativas turísticas, estradas inventadas ou um trecho em linha reta quando falta cobertura. A busca de um **nome de endereço novo**, sem rede, ainda não está disponível; é necessário um destino já identificado com coordenadas.
+
+A viagem criada pelo motor local recebe `routingSource: 'offline-graph'` — nunca é rotulada falsamente como OSRM. Os preços de pedágio e o trânsito não são verificados; o tempo segue as velocidades declaradas no pacote. O mapa apresenta o traçado para acompanhamento, mas os avisos de curva e a orientação por voz são desativados enquanto o trajeto for de uma fonte que não oferece manobras confiáveis. O cálculo offline é experimental e deve ser testado em Android físico antes de ser usado como navegação principal.
+
 ## Integração a realizar
 
 ### Formato de pacote já importável
@@ -103,6 +111,6 @@ O importador valida a cobertura/quantidade de tiles, verifica duplicações, for
 1. Verificar a leitura e o desempenho real da base local no Android físico, inclusive reinstalação/reabertura do app e troca entre regiões.
 2. Disponibilizar pacotes em formato apropriado para distribuição (por exemplo, ZIP/MBTiles) somente quando licenças e parser seguro estiverem definidos.
 3. Definir provedor/licença para download de áreas, identificação e limites do cliente Android e cancelamento/progresso.
-4. Evoluir o grafo v1 para modelo de manobras, restrições de veículo e planejador de novas viagens offline; validar a qualidade e cobertura dos dados em navegação física. A primeira etapa de recálculo local já está implementada.
+4. Evoluir o grafo v1 com restrições de veículo, manobras e a busca de destinos sem internet; validar a qualidade e cobertura dos dados em navegação física. O recálculo e o planejamento básico por coordenadas já estão implementados.
 
 O backend Railway não é necessário para a estrutura local implementada aqui.
