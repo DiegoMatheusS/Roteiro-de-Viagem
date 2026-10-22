@@ -1,11 +1,10 @@
 import { useEffect,useRef,useState } from 'react';
 import type { TripPlan } from '../types';
 import type { DeviceLocation } from '../services/locationService';
-import { distanceBetweenKm } from '../services/gpsTracking';
 import {
   eligibleAutomaticReroute,evaluateOffRoute,initialOffRouteState,
   requestAutomaticReroute,confirmStopArrival,initialStopArrivalState,
-  routeNeedsRefreshAfterStop,isReliableStopRefreshFix,REROUTE_COOLDOWN_MS,
+  routeNeedsRefreshAfterStop,isReliableStopRefreshFix,canApplyRerouteFromLatestGps,REROUTE_COOLDOWN_MS,
   type ReroutedNavigation
 } from '../services/autoReroute';
 
@@ -100,7 +99,7 @@ export function useAutoReroute(options:{
         }
         const live=current.current.position;
         // Do not install a route whose start is now far behind the driver.
-        if(!live || distanceBetweenKm(live.coords,next.originCoords)>.35){
+        if(!canApplyRerouteFromLatestGps(live,next.originCoords)){
           setNotice('unavailable');return;
         }
         current.current.onReroute(next);
