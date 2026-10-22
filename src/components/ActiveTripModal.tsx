@@ -319,7 +319,31 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <RouteConditionsStatus trip={trip} conditions={conditions}/>
         {rerouted&&<p className="text-xs text-amber-800">Os dados de clima, combustível e pedágios do roteiro original podem estar desatualizados após o recálculo.</p>}
         {nextStop&&<p className="text-xs text-slate-700">Próxima parada: {nextStop.name}</p>}
-        {!!trip.navigationVisitedStopIds?.length&&<p className="text-xs text-emerald-800">{trip.navigationVisitedStopIds.length} parada(s) confirmada(s) pelo GPS</p>}
+        {!!trip.navigationVisitedStopIds?.length&&<p className="text-xs text-emerald-800">
+          {trip.navigationVisitedStopIds.length} parada(s) concluída(s)
+          {trip.navigationManualStopIds?.length?' (inclui conclusão manual)':''}
+        </p>}
+        {!!trip.navigationSkippedStopIds?.length&&<p className="text-xs text-amber-800">
+          {trip.navigationSkippedStopIds.length} parada(s) ignorada(s)
+        </p>}
+        {stopNotice&&<p role="status" className="text-xs text-emerald-800">{stopNotice}</p>}
+        {!!nextStop&&<div className="rdv-nav-stop-actions" aria-label="Gerenciar próxima parada">
+          <p className="text-xs text-slate-700">Alterações somente com veículo parado e GPS recente.</p>
+          <button type="button" className="rdv-nav-extra-action" disabled={!canMarkNext}
+            onClick={()=>{setStopNotice(null);setStopError(null);setStopDecision('complete');}}>
+            Concluir parada
+          </button>
+          <button type="button" className="rdv-nav-extra-action" disabled={!canSkipNext}
+            onClick={()=>{setStopNotice(null);setStopError(null);setStopDecision('skip');}}>
+            Pular parada
+          </button>
+          {!canEditStopped&&<p className="text-xs text-amber-800">
+            Pare em local seguro para habilitar as alterações.
+          </p>}
+          {canEditStopped&&!canManageNext&&<p className="text-xs text-amber-800">
+            Este roteiro não permite alterar paradas automaticamente.
+          </p>}
+        </div>}
         <div className="rdv-nav-extra-buttons">
           <div className="min-w-0"><RoadAlertReporter
             location={isGpsActive?tracking.position:null} speedKmH={currentSpeed}
@@ -328,6 +352,29 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
             className="rdv-nav-extra-action"><Home size={17}/> Traçar rota para casa</button>
           <button type="button" onClick={()=>setShowCompletionDialog(true)}
             className="rdv-nav-extra-action"><CheckCircle size={17}/> Concluir Viagem</button>
+        </div>
+      </div>}
+      {stopDecision&&nextStop&&<div role="dialog" aria-modal="true"
+        aria-label={stopDecision==='skip'?'Pular parada':'Concluir parada'}
+        className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4">
+        <div className="bg-white text-slate-900 rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-xl">
+          <h3 className="font-bold">{stopDecision==='skip'?'Pular esta parada?':'Confirmar parada concluída?'}</h3>
+          <p className="text-sm text-slate-700">{nextStop.name}</p>
+          <p className="text-xs text-slate-600">
+            {stopDecision==='skip'
+              ?'O Rolê calculará uma rota rodoviária sem esta parada, mantendo as demais. Se não conseguir confirmar, o trajeto e as paradas continuarão como estão.'
+              :'Registra a conclusão manual. Você precisa estar próximo da parada, com GPS preciso e veículo parado.'}
+          </p>
+          {stopError&&<p role="alert" className="text-xs text-red-700">{stopError}</p>}
+          <div className="flex gap-3">
+            <button type="button" className="p-3 border rounded-xl flex-1"
+              onClick={cancelStopDecision}>Cancelar</button>
+            <button type="button" className="p-3 bg-blue-700 text-white rounded-xl flex-1"
+              disabled={stopBusy||!(stopDecision==='skip'?canSkipNext:canMarkNext)}
+              onClick={()=>void confirmStopDecision()}>
+              {stopBusy?'Recalculando...':stopDecision==='skip'?'Recalcular sem parada':'Confirmar chegada'}
+            </button>
+          </div>
         </div>
       </div>}
       {showEndConfirm && <div role="dialog" aria-modal="true" aria-label="Encerrar viagem" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-5 max-w-sm space-y-4"><h3 className="font-bold">Encerrar esta viagem?</h3><p className="text-sm text-slate-600">A navegação será interrompida e a viagem ficará no histórico como encerrada, sem contabilizar uma conclusão ou medalhas.</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="p-3 border rounded-xl">Continuar viagem</button><button onClick={onEndTrip} className="p-3 bg-rose-700 text-white rounded-xl">Sim, encerrar</button></div></div></div>}
