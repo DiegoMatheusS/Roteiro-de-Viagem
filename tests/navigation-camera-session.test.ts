@@ -179,10 +179,10 @@ test('GPS a 0 km/h não arrasta nem amplia o mapa a cada amostra de localizaçã
     'GPS continues updating even when the camera stays stable');
   session.update({...stopped,speedMetersPerSecond:5,
     position:[-23.5+9*0.00006,-46.6-9*0.00007],bearing:65});
-  assert.deepEqual(calls,['first','follow','turnZoom'],
-    'camera follows real motion and applies turn zoom after movement resumes');
+  assert.deepEqual(calls,['first','turnZoom'],
+    'one turn-zoom command both centers and zooms after motion resumes');
   session.update({...stopped,speedMetersPerSecond:0,position:[-23.4994,-46.6006]});
-  assert.deepEqual(calls,['first','follow','turnZoom'],
+  assert.deepEqual(calls,['first','turnZoom'],
     'stopping again suppresses repeated camera moves');
 });
 
@@ -205,4 +205,19 @@ test('GPS button overrides stationary hold and centers on the newest valid fix',
 test('during navigation decorative building queries are not generated from each GPS update',()=>{
   const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
   assert.match(source,/registeredBuildings.update\(p.navigationMode\?\[\]:descriptors\)/);
+});
+
+
+test('uma atualização GPS não dispara follow e zoom de conversão simultaneamente',()=>{
+  const events:string[]=[];
+  const port:CameraPort={
+    zoom:()=>16,stop:()=>{},firstGpsFix:()=>events.push('first'),
+    follow:()=>events.push('follow'),recenter:()=>{},focus:()=>{},fitRoute:()=>{},
+    zoomToTurn:()=>events.push('turnZoom')
+  };
+  const session=createNavigationCameraSession(port,()=>{});
+  session.update({...input,maneuverMeters:600,speedMetersPerSecond:6});
+  session.update({...input,position:[-23.5001,-46.6],maneuverMeters:200,speedMetersPerSecond:6});
+  assert.deepEqual(events,['first','turnZoom'],
+    'turn zoom includes camera centering; do not queue a second easeTo');
 });
