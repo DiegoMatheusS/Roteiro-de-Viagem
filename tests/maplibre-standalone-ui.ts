@@ -260,6 +260,8 @@ try{
     db.close();
     window.dispatchEvent(new Event('role-offline-regions-changed'));
   },tile.toString('base64'));
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>(
+    '[data-map-engine="maplibre-standalone"]' )?.dataset.mapOfflineAvailable==='1',null,{timeout:15000});
   await page.getByTitle('Alterar visual do mapa').click();
   await page.waitForTimeout(350);
   console.log('OFFLINE SELECTION DIAG',JSON.stringify(await page.evaluate(async()=>{
@@ -271,7 +273,7 @@ try{
       const req=db.transaction('regions','readonly').objectStore('regions').getAll();
       req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
     });db.close();
-    return {items,htmlButtons:[...document.querySelectorAll('button')].map(x=>x.textContent?.trim()).filter(x=>/Mapa|Região|Camadas/.test(x||'')),
+    return {items,htmlButtons:[...document.querySelectorAll('button')].map(x=>x.textContent?.trim()).slice(0,20),
       mapRegionCount:document.querySelector('[data-map-engine="maplibre-standalone"]')?.getAttribute('data-map-offline-available'),
       error:document.querySelector('[role="alert"]')?.textContent};
   })));
