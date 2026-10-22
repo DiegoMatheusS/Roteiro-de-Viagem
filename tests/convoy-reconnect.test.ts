@@ -12,7 +12,7 @@ test('queda de internet não remove participante nem fecha comboio aberto',()=>{
 test('ao reconectar com resposta confirmada mantém membro ativo, encerra somente se saiu',()=>{
   assert.equal(viewedConvoyAfterRefresh(convoy.id,[convoy],true),convoy.id);
   assert.equal(viewedConvoyAfterRefresh(convoy.id,[],true),null);
-  assert.equal(viewedConvoyAfterRefresh(convoy.id,[{...convoy,status:'ended' as const}],true),null);
+  assert.equal(viewedConvoyAfterRefresh(convoy.id,[{...convoy,status:'completed' as const}],true),null);
   assert.equal(viewedConvoyAfterRefresh(null,[convoy],true),null,
     'não entrar em comboio novo sem ação do usuário');
 });
