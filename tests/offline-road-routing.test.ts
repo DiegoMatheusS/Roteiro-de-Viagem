@@ -78,7 +78,7 @@ test('roteamento offline jamais chama API externa e preserva paradas obrigatóri
  assert.match(offline,/sem instruções de conversão/);
  const auto=readFileSync(new URL('../src/services/autoReroute.ts',import.meta.url),'utf8');
  assert.match(auto,/import\('\.\/offlineRoadReroute'\)/);
- assert.match(auto,/!navigator\.onLine/);
+ assert.match(auto,/navigator\.onLine===false/);
  assert.match(auto,/if\(signal\?\.aborted\)throw error/);
  const settings=readFileSync(new URL('../src/components/OfflineRegionsPanel.tsx',import.meta.url),'utf8');
  assert.match(settings,/importOfflineRoadGraph\(file\)/);
