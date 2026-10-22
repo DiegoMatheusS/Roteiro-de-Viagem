@@ -241,7 +241,7 @@ export const ConvoyScreen: React.FC<ConvoyScreenProps> = ({
         {connection==='connected'
           ?'Comboio conectado · atualizações automáticas a cada 5 segundos.'
           :connection==='offline'
-            ?'Sem internet · você continua no comboio. A sincronização volta automaticamente ao reconectar.'
+            ?'Sem internet · sua sessão de comboio está preservada neste aparelho. Vamos confirmar a participação ao reconectar.'
             :connection==='syncing'
               ?'Reconectando ao comboio · mantendo os últimos dados disponíveis.'
               :'Sem comunicação com o comboio · tentando restabelecer a sincronização.'}
