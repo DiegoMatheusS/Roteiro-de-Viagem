@@ -30,7 +30,7 @@ test('conta tiles somente na área autorizada e nos níveis selecionados',()=>{
  assert.equal(count,calculated);
  assert.equal(offlineRegionTileCount(small.bounds,small.minZoom,small.maxZoom),count);
  assert.equal(OFFLINE_REGION_MAX_CONCURRENCY,4);
- assert.equal(OFFLINE_REGION_MAX_BYTES,52428800);
+ assert.equal(OFFLINE_REGION_MAX_BYTES,50000000);
 });
 
 test('recusa regiões amplas, coordenadas inválidas e permissão ausente',()=>{
