@@ -8,7 +8,8 @@ import {
   verifiedReroute,eligibleDirectReroute,eligibleAutomaticReroute,
   orderedRerouteStops,remainingRerouteStops,confirmStopArrival,initialStopArrivalState,
   requestAutomaticReroute,REROUTE_COOLDOWN_MS,
-  canEditStopsWhileStationary,canConfirmStopManually
+  canEditStopsWhileStationary,canConfirmStopManually,
+  routeNeedsRefreshAfterStop,isReliableStopRefreshFix
 } from '../src/services/autoReroute';
 
 type Point=[number,number];
@@ -318,4 +319,80 @@ test('UI and persistence cannot hide skipped stop without a confirmed reroute',(
  assert.match(hook,/plannedSkipKey/);
  assert.match(fixture,/onManualStopComplete=/);
  assert.match(fixture,/onSkipStop=/);
+});
+
+test('passar próximo da parada em movimento não contabiliza chegada',()=>{
+ let state=initialStopArrivalState();
+ const readings=[0,2300,4700,7100].map(t=>
+   fix(t,planStops[0].location.coords,{speedMetersPerSecond:8,accuracyMeters:6}));
+ for(const gps of readings){
+  const result=confirmStopArrival(state,plan,gps,gps.timestamp);
+  state=result.state;
+  assert.equal(result.visitedId,null,'A passagem sem parada não pode ser concluída');
+  assert.equal(result.state.count,0);
+ }
+ for(const speed of [null,-1,Infinity,1.6]){
+  const result=confirmStopArrival(state,plan,
+    fix(8500,planStops[0].location.coords,{speedMetersPerSecond:speed}),now+8500);
+  assert.equal(result.visitedId,null);
+  assert.equal(result.state.count,0);
+ }
+ let last:string|null=null;
+ for(const t of [10_000,12_200,14_500]){
+  const result=confirmStopArrival(state,plan,
+   fix(t,planStops[0].location.coords,{speedMetersPerSecond:0.3}),now+t);
+  state=result.state;last=result.visitedId;
+ }
+ assert.equal(last,'stop-a','Três leituras parado por quatro segundos confirmam chegada');
+});
+
+test('concluir parada exige atualização do itinerário enquanto a rota antiga ainda está visível',()=>{
+ assert.equal(routeNeedsRefreshAfterStop(plan),false);
+ const arrived={...plan,navigationVisitedStopIds:['stop-a']};
+ assert.equal(routeNeedsRefreshAfterStop(arrived),true);
+ assert.equal(routeNeedsRefreshAfterStop({
+  ...arrived,navigationReroute:{
+   originCoords:path[0],routePath:path,routeSteps:[],distanceKm:4,
+   drivingMinutes:5,trackedAtKm:10,updatedAt:'2026-10-21T21:00:00Z',
+   remainingStopIds:['stop-a','stop-b']
+  }
+ }),true,'Não aceitar geometria recalculada ainda incluindo a parada concluída');
+ assert.equal(routeNeedsRefreshAfterStop({
+  ...arrived,navigationReroute:{
+   originCoords:path[0],routePath:path,routeSteps:[],distanceKm:4,
+   drivingMinutes:5,trackedAtKm:10,updatedAt:'2026-10-21T21:01:00Z',
+   remainingStopIds:['stop-b']
+  }
+ }),false,'A rota verificada que preserva os pontos pendentes encerra o aviso');
+ assert.equal(routeNeedsRefreshAfterStop({...plan,isCircular:true,navigationVisitedStopIds:['stop-a']}),false);
+ assert.equal(routeNeedsRefreshAfterStop({
+  ...arrived,navigationSkippedStopIds:['stop-b'],
+  navigationReroute:{
+   originCoords:path[0],routePath:path,routeSteps:[],distanceKm:4,
+   drivingMinutes:5,trackedAtKm:10,updatedAt:'2026-10-21T21:02:00Z',remainingStopIds:[]
+  }
+ }),false);
+});
+
+test('solicitação de atualização após a parada exige GPS recente e confiável',()=>{
+ const gps=fix(0,planStops[0].location.coords,{accuracyMeters:8,speedMetersPerSecond:0});
+ assert.equal(isReliableStopRefreshFix(gps,now),true);
+ assert.equal(isReliableStopRefreshFix(null,now),false);
+ assert.equal(isReliableStopRefreshFix(fix(0,planStops[0].location.coords,{accuracyMeters:75}),now),false);
+ assert.equal(isReliableStopRefreshFix(gps,now+8000),false);
+ assert.equal(isReliableStopRefreshFix(fix(0,[NaN,-46.498]),now),false);
+});
+
+test('o GPS solicita rota após parada mesmo sem desvio e oculta conversões antigas até confirmação',()=>{
+ const read=(file:string)=>readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const hook=read('src/hooks/useAutoReroute.ts');
+ const hud=read('src/components/ActiveTripModal.tsx');
+ assert.match(hook,/const needsStopRefresh=routeNeedsRefreshAfterStop\(options\.trip\)/);
+ assert.match(hook,/const canRefresh=needsStopRefresh&&isReliableStopRefreshFix\(fix,now\)&&/);
+ assert.match(hook,/now-state\.current\.lastAttemptAt>=REROUTE_COOLDOWN_MS/);
+ assert.match(hook,/if\(!canRefresh&&!decision\.trigger\)return/);
+ assert.match(hud,/const refreshingStopRoute=routeNeedsRefreshAfterStop\(trip\)/);
+ assert.match(hud,/const nextTurn = \(outsideCorridor\|\|refreshingStopRoute\)\?null/);
+ assert.match(hud,/Atualizando trajeto para as paradas restantes/);
+ assert.match(hud,/Rota anterior mantida até atualizar/);
 });
