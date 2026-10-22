@@ -8,7 +8,7 @@ Os arquivos `src/services/offlineMapRegions.ts` e `src/services/offlineMapStorag
 
 - Definir regiões por limites geográficos, zoom, origem e atribuição obrigatória.
 - Validar se a origem declara autorização específica para armazenamento offline.
-- Limitar cada região a 3.000 tiles e 50 MiB de dados e cada aparelho a quatro regiões.
+- Limitar cada região a 3.000 tiles e 50 MB de dados e cada aparelho a quatro regiões.
 - Armazenar imagem PNG/JPEG/WEBP por zoom, x, y, com contagem e bytes atualizados atomicamente no IndexedDB.
 - Ler tiles sem internet quando efetivamente gravados, verificar se um pacote está completo e excluir uma região liberando espaço.
 - Rejeitar imagem de erro HTML, tile fora dos limites, zoom fora do pacote ou região sem permissão.
