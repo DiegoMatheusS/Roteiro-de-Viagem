@@ -340,9 +340,26 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     window.addEventListener('offline',onNetworkOffline);
     window.addEventListener('online',onNetworkOnline);
     runtime.current={render,camera,
-      setBaseStyle:style=>setBase(style),
-      setOfflineRegion:region=>setBase(activeStyle,activeTheme,false,region),
-      setTheme:theme=>setBase(activeStyle,theme),
+      // Persisted offline choice starts on a blank local canvas. Never load the
+      // remote base before checking that a complete stored package exists.
+      setBaseStyle:style=>{
+        if(needsInitialStyleRecovery&&readSelectedOfflineRegionId())return;
+        setBase(style);
+      },
+      setOfflineRegion:region=>{
+        if(needsInitialStyleRecovery&&!region&&readSelectedOfflineRegionId())return;
+        const previous=appliedOfflineRegion;
+        setBase(activeStyle,activeTheme,false,region);
+        if(region&&previous?.id!==region.id&&!latest.current.navigationMode){
+          map.fitBounds([[region.bounds.west,region.bounds.south],
+            [region.bounds.east,region.bounds.north]],
+            {padding:45,maxZoom:region.maxZoom,duration:reducedMotion()?0:380});
+        }
+      },
+      setTheme:theme=>{
+        if(needsInitialStyleRecovery&&readSelectedOfflineRegionId())return;
+        setBase(activeStyle,theme);
+      },
       orient:()=>{
       if(disposed||failed||!loaded||!latest.current.navigationMode||camera.snapshot().mode!=='exploring')return;
       // Explicit orientation must also work while route tiles are loading.
