@@ -213,6 +213,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
           originCoords={rerouted?.originCoords||trip.originCoords} destinationCoords={trip.destinationCoords}
           routePath={navigationPath} navigationMode roadStyle
+          maneuverMeters={nextTurn&&nextTurn.direction!=='straight'?nextTurn.meters:null}
           onCameraModeChange={setCameraMode}
           travelledDistanceKm={routeTravelledKm} totalRouteKm={routeDistanceKm}
           stops={outstandingStops} weatherPoints={rerouted?[]:trip.weatherPoints} roadAlerts={roadAlerts.alerts}
