@@ -531,6 +531,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
   return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={selectedRegion?'offline':effectiveStyle}
     data-map-offline-region={selectedRegion?.id||''}
+    data-map-offline-available={availableRegions.length}
+    data-map-style-menu={styleMenu?'open':'closed'}
     data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
     {selectedRegion&&<div role="status" aria-live="polite"
