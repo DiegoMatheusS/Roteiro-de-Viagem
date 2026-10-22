@@ -4,21 +4,25 @@ import {deleteOfflineRegion,listOfflineRegions} from '../services/offlineMapStor
 import {offlineRegionReady,type OfflineRegion} from '../services/offlineMapRegions';
 import {importOfflineMapPackage} from '../services/offlineMapPackageImport';
 import {OFFLINE_REGIONS_CHANGED} from '../services/offlineMapSelection';
+import {importOfflineRoadGraph,deleteOfflineRoadGraph,listOfflineRoadGraphs} from '../services/offlineRoadStorage';
 
 const formatBytes=(n:number)=>n<1_000_000
   ?`${Math.round(n/1000)} KB`
   :`${(n/1_000_000).toFixed(1)} MB`;
 export function OfflineRegionsPanel(){
   const [regions,setRegions]=useState<OfflineRegion[]>([]);
+  const [roadGraphIds,setRoadGraphIds]=useState<string[]>([]);
   const [busy,setBusy]=useState(false);
   const [consent,setConsent]=useState(false);
   const [error,setError]=useState('');
   const [success,setSuccess]=useState('');
   const [progress,setProgress]=useState<{done:number;total:number}|null>(null);
   const fileRef=useRef<HTMLInputElement>(null);
+  const roadsRef=useRef<HTMLInputElement>(null);
   const mounted=useRef(true);
   const refresh=async()=>{
-    try{const items=await listOfflineRegions();if(mounted.current)setRegions(items);}
+    try{const [items,roads]=await Promise.all([listOfflineRegions(),listOfflineRoadGraphs()]);
+      if(mounted.current){setRegions(items);setRoadGraphIds(roads.map(graph=>graph.regionId));}}
     catch(e){if(mounted.current)setError((e as Error).message);}
   };
   useEffect(()=>{mounted.current=true;void refresh();return()=>{mounted.current=false;};},[]);
@@ -40,10 +44,26 @@ export function OfflineRegionsPanel(){
       if(fileRef.current)fileRef.current.value='';
     }
   };
+  const importRoads=async(event:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=event.target.files?.[0];
+    if(!file)return;
+    if(!consent){setError('Confirme a autorização offline da rede de ruas.');event.target.value='';return;}
+    setBusy(true);setError('');setSuccess('');
+    try{
+      const graph=await importOfflineRoadGraph(file);
+      await refresh();
+      if(mounted.current)setSuccess(`Ruas licenciadas de ${graph.regionId} importadas. Recálculo local disponível apenas dentro dessa rede, sem instruções detalhadas de conversão.`);
+    }catch(error){if(mounted.current)setError((error as Error).message);}
+    finally{
+      if(mounted.current)setBusy(false);
+      if(roadsRef.current)roadsRef.current.value='';
+    }
+  };
   const remove=async(item:OfflineRegion)=>{
     if(!window.confirm(`Excluir o pacote "${item.name}" deste aparelho?`))return;
     setBusy(true);setError('');setSuccess('');
     try{
+      await deleteOfflineRoadGraph(item.id);
       await deleteOfflineRegion(item.id);
       window.dispatchEvent(new Event(OFFLINE_REGIONS_CHANGED));
       if(mounted.current)setSuccess(`Pacote "${item.name}" excluído do aparelho.`);
@@ -58,7 +78,8 @@ export function OfflineRegionsPanel(){
         <h3 className="text-sm font-semibold text-slate-900">Mapas por região</h3>
         <p className="text-xs text-slate-600 mt-1">
           Armazene pacotes locais fornecidos com licença para uso offline. Ainda não é possível
-          baixar regiões diretamente pelo Rolê nem recalcular rotas sem internet. Pacotes completos podem ser visualizados no MapLibre após selecionados.
+          baixar regiões diretamente pelo Rolê. Pacotes completos podem ser visualizados no MapLibre.
+          Para recálculo offline, também é preciso importar uma rede viária licenciada da mesma região.
         </p>
       </div>
     </div>
@@ -79,8 +100,9 @@ export function OfflineRegionsPanel(){
           </p>
           <p className="text-[11px] text-slate-500 break-words">{item.attribution}</p>
           <span className="text-[11px] font-semibold text-blue-800">
-            {offlineRegionReady(item)?'Armazenado (visualização ainda indisponível)':'Armazenamento incompleto'}
+            {offlineRegionReady(item)?'Mapa local completo (disponível nas camadas)':'Armazenamento incompleto'}
           </span>
+          <p className="text-[11px] text-slate-700">{roadGraphIds.includes(item.id)?'Rede viária local instalada · recálculo offline limitado':'Rede viária offline não instalada'}</p>
         </div>
         <button type="button" aria-label={`Excluir mapa ${item.name}`} disabled={busy}
           onClick={()=>void remove(item)} className="p-3 rounded-xl border border-rose-200 text-rose-700 disabled:opacity-50">
@@ -102,6 +124,20 @@ export function OfflineRegionsPanel(){
         aria-label="Selecionar pacote de mapa offline licenciado"
         disabled={!consent||busy||regions.length>=4} onChange={event=>void importFile(event)}
         className="block w-full text-xs text-slate-800 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-white disabled:opacity-50"/>
+      <div className="border-t border-slate-200 pt-3 space-y-2">
+        <strong className="text-xs text-slate-800">Rede de ruas para recálculo offline</strong>
+        <p className="text-xs text-slate-600">
+          Importe um JSON <code>role-road-graph-v1</code> correspondente a um mapa salvo.
+          Deve incluir ruas direcionadas e geometrias reais, fornecidas com licença.
+          Somente rotas cobertas pela rede podem ser recalculadas; não há instruções
+          de conversão, dados de trânsito ou garantia de restrições não incluídas pelo fornecedor.
+          Para sua segurança, use como apoio e siga a sinalização das vias.
+        </p>
+        <input ref={roadsRef} type="file" accept=".json,application/json"
+          aria-label="Importar rede de ruas licenciada para rotas offline"
+          disabled={!consent||busy||regions.length===0} onChange={event=>void importRoads(event)}
+          className="block w-full text-xs text-slate-800 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-white disabled:opacity-50"/>
+      </div>
       {busy&&<p role="status" className="text-xs text-blue-800">
         {progress?`Importando tiles: ${progress.done}/${progress.total}`:'Processando pacote local…'}
       </p>}
