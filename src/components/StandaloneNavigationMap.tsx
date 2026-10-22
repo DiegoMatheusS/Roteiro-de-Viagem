@@ -115,6 +115,13 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       document.removeEventListener('visibilitychange',onVisible);
     };
   },[]);
+  const toggleStyleMenu=()=>{
+    setStyleMenu(open=>!open);
+    // The menu also refreshes storage independently: a browser may suppress
+    // focus/custom events while the WebView is paused.
+    void listOfflineRegions().then(items=>setStoredRegions(items))
+      .catch(error=>setRegionError((error as Error).message));
+  };
   const chooseRegion=(region:OfflineRegion|null)=>{
     writeSelectedOfflineRegionId(region?.id??null);
     setRegionId(region?.id??null);
@@ -552,7 +559,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     </div>}
     {!showBaseSelector&&availableRegions.length>0&&<div className="absolute bottom-20 left-3 z-40">
       <button type="button" aria-label="Selecionar mapa offline armazenado"
-        onClick={()=>setStyleMenu(open=>!open)}
+        onClick={toggleStyleMenu}
         className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs font-semibold text-blue-800 shadow-lg">
         {selectedRegion?'Mapa local ativo':'Mapas locais'}
       </button>
@@ -584,7 +591,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       <Compass size={22}/>
     </button>}
     {showBaseSelector&&<div className="pointer-events-none relative z-30 flex h-16 items-center border-t border-slate-200 bg-white px-4">
-      <button type="button" title="Alterar visual do mapa" onClick={()=>setStyleMenu(value=>!value)}
+      <button type="button" title="Alterar visual do mapa" onClick={toggleStyleMenu}
         className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xl">
         <span>{selectedRegion?'🗺️':TILE_PROVIDERS[baseStyle].icon}</span>
         <span>{selectedRegion?('Mapa local: '+selectedRegion.name):TILE_PROVIDERS[baseStyle].name}</span><Layers size={16}/>
