@@ -96,6 +96,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const rerouted=trip.navigationReroute;
   const navigationPath=rerouted?.routePath||trip.routePath;
   const navigationSteps=rerouted?.routeSteps||trip.routeSteps;
+  const usingLocalRoadGraph=rerouted?.source==='offline-graph'||(!rerouted&&trip.routingSource==='offline-graph');
   const distanceTraveledKm=tracking.distanceKm;
   const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
   const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
@@ -253,12 +254,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
         {isGpsActive?'GPS ativo · localização ao vivo':
           tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
         {refreshingStopRoute?' · Rota anterior mantida até atualizar':''}
-        {rerouted?.source==='offline-graph'?' · Trajeto calculado com ruas locais; tempo estimado':''}
+        {usingLocalRoadGraph?' · Trajeto calculado com ruas locais; tempo estimado':''}
         {rerouteNotice==='recalculating'?' · Recalculando rota...':
           rerouteNotice==='updated'?' · Rota atualizada':
           rerouteNotice==='unavailable'?' · Rota anterior mantida':''}
       </div>
-      {rerouted?.source==='offline-graph'&&<div role="status" className="rdv-nav-rain-warning">
+      {usingLocalRoadGraph&&<div role="status" className="rdv-nav-rain-warning">
         Trajeto offline sem orientações de conversão. Siga a sinalização das ruas e não manuseie o aparelho enquanto dirige.
         O tempo é estimado e não considera trânsito ao vivo ou restrições ausentes no pacote.
       </div>}
