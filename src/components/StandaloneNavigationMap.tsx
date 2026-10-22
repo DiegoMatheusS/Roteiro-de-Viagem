@@ -573,15 +573,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           className="block w-full rounded-lg p-2 text-left text-xs text-slate-800">
           {region.name} · zoom {region.minZoom}–{region.maxZoom}
         </button>)}
-        {availableRegions.length>0&&<div className="mt-2 border-t border-slate-200 pt-2">
-          <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Mapas armazenados</span>
-          {availableRegions.map(region=><button type="button" key={region.id}
-            aria-pressed={selectedRegion?.id===region.id}
-            onClick={()=>chooseRegion(region)}
-            className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-blue-800 hover:bg-blue-50">
-            {region.name} · zoom {region.minZoom}–{region.maxZoom}
-          </button>)}
-        </div>}
+
       </div>}
     </div>}
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
@@ -604,6 +596,15 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold ${baseStyle===style?'bg-emerald-50 text-emerald-800':'text-slate-700'}`}>
           <span>{TILE_PROVIDERS[style].icon}</span><span>{TILE_PROVIDERS[style].name}</span>
         </button>)}
+        {availableRegions.length>0&&<div className="mt-2 border-t border-slate-200 pt-2">
+          <span className="block px-2 py-1 text-[10px] font-bold uppercase text-slate-500">Mapas armazenados</span>
+          {availableRegions.map(region=><button type="button" key={region.id}
+            aria-pressed={selectedRegion?.id===region.id}
+            onClick={()=>chooseRegion(region)}
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-blue-800 hover:bg-blue-50">
+            {region.name} · zoom {region.minZoom}–{region.maxZoom}
+          </button>)}
+        </div>}
       </div>}
     </div>}
     {station&&<FuelStationModal key={`${station.id}:${station.section}`} stationId={station.id} initialSection={station.section} onClose={()=>setStation(null)}/>}
