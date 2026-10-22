@@ -60,7 +60,7 @@ test('não aceita conexão fictícia, geometrias quebradas, pontos fora da área
   {...base,offlinePermissionConfirmed:false},
   {...base,nodes:[...base.nodes,base.nodes[0]]},
   {...base,nodes:[...base.nodes.slice(0,2),{id:'c',coords:[-23.6,-46.6]},base.nodes[3]]},
-  {...base,edges:[{from:'a',to:'c',path:[a,c],speedKmh:50}]},
+  {...base,edges:[{from:'a',to:'c',path:[a,[-23.58,-46.60],c],speedKmh:50}]},
   {...base,edges:[{from:'a',to:'b',path:[c,b],speedKmh:50}]},
   {...base,edges:[{from:'a',to:'b',path:[a,b],speedKmh:0}]},
   {...base,edges:[{from:'a',to:'b',path:[a,b],speedKmh:200}]},
