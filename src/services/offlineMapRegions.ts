@@ -2,7 +2,7 @@
  * This module NEVER downloads tiles from public map providers.
  * A provider's permission must be verified independently before ingestion. */
 export const OFFLINE_REGION_MAX_TILES=3000;
-export const OFFLINE_REGION_MAX_BYTES=50*1024*1024;
+export const OFFLINE_REGION_MAX_BYTES=50_000_000;
 export const OFFLINE_REGION_MAX_CONCURRENCY=4;
 const MAX_LAT=85.05112878;
 export type OfflineTileFormat='image/png'|'image/jpeg'|'image/webp';
