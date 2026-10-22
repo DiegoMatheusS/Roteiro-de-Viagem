@@ -296,7 +296,8 @@ export async function requestAutomaticReroute(trip:TripPlan,origin:Coordinates,
       remainingStopIds:remaining.map(stop=>stop.id),signal
     });
   };
-  if(typeof navigator!=='undefined'&&!navigator.onLine)return local();
+  if(typeof navigator!=='undefined'&&navigator.onLine===false&&
+    typeof indexedDB!=='undefined')return local();
   try{
     const response=await fuelApi<VerifiedItineraryResponse>('/routes/itinerary',{
       method:'POST',signal,body:JSON.stringify({
