@@ -1,5 +1,5 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import { splitRouteAtPosition,routeProgressIndex } from './routeProgress';
+import { splitRouteAtPosition,routeProgressRenderKey } from './routeProgress';
 
 type Coordinates = [number, number]; // latitude, longitude (Leaflet/OSRM contract)
 type Role = 'alternative' | 'active' | 'remaining' | 'travelled';
@@ -45,7 +45,7 @@ interface RouteRenderSnapshot {
   modalityColor:string;
   navigationMode:boolean;
   blueRoute:boolean;
-  progressIndex:number|null;
+  progressKey:string|null;
   featureCount:number;
 }
 const lastRender=new WeakMap<MapLibreMap,RouteRenderSnapshot>();
@@ -162,15 +162,15 @@ export function queryRoleVectorAlternative(
 export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOptions): number {
   if (!gl.isStyleLoaded()) return 0;
   const existing = gl.getSource(SOURCE) as GeoJSONSource | undefined;
-  const progressIndex=(options.navigationMode||options.blueRoute)
-    ?routeProgressIndex(options.routePath,options.userLocation,
+  const progressKey=(options.navigationMode||options.blueRoute)
+    ?routeProgressRenderKey(options.routePath,options.userLocation,
       options.travelledDistanceKm,options.totalRouteKm):null;
   const old=lastRender.get(gl);
   if(existing && old && gl.getLayer(layers[2]) &&
     old.routePath===options.routePath && old.selectedRouteId===options.selectedRouteId &&
     old.modalityColor===options.modalityColor &&
     old.navigationMode===options.navigationMode && old.blueRoute===options.blueRoute &&
-    old.progressIndex===progressIndex &&
+    old.progressKey===progressKey &&
     sameRouteOptions(old.alternatives,options.alternatives)){
     return old.featureCount;
   }
@@ -207,7 +207,7 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
     alternatives:options.alternatives.map(route=>({id:route.id,routePath:route.routePath})),
     selectedRouteId:options.selectedRouteId,modalityColor:options.modalityColor,
     navigationMode:options.navigationMode,blueRoute:options.blueRoute,
-    progressIndex,featureCount:data.features.length});
+    progressKey,featureCount:data.features.length});
   // Report features successfully supplied to the vector source for UI diagnostics.
   return data.features.length;
 }
