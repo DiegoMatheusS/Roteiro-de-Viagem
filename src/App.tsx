@@ -287,7 +287,7 @@ export default function App() {
   const handleStartTrip = (trip: TripPlan) => {
     if (activeTrip && activeTrip.id !== trip.id) { setAppError('Encerre a viagem em andamento antes de iniciar outra.'); return; }
     if (activeTrip?.id === trip.id) { const updated = { ...trip, status: 'in_progress' as const, startedAt: activeTrip.startedAt, trackedDistanceKm: storageService.getActiveTrip()?.trackedDistanceKm || activeTrip.trackedDistanceKm, trackingDeviceId:deviceId }; storageService.saveTrip(updated); storageService.setActiveTrip(updated); setActiveTrip(updated); setTrips(storageService.getTrips()); setIsPlanningOpen(false); setIsNavigationOpen(true); return; }
-    if (trip.routingSource !== 'OSRM') { setAppError('Recalcule esta rota antiga antes de iniciar: ela ainda não possui um percurso rodoviário verificado.'); return; }
+    if (trip.routingSource !== 'OSRM' && trip.routingSource !== 'offline-graph') { setAppError('Recalcule esta rota antiga antes de iniciar: ela ainda não possui um percurso rodoviário verificado.'); return; }
     setIsPlanningOpen(false);
     const startedTrip: TripPlan = ['completed', 'cancelled'].includes(trip.status)
       ? { ...trip, navigationReroute:undefined, navigationVisitedStopIds:[], navigationSkippedStopIds:[], navigationManualStopIds:[], id: `trip-${Date.now()}`, status: 'in_progress', startedAt: new Date().toISOString(), trackedDistanceKm: 0, trackingDeviceId:deviceId, endedAt: undefined, createdAt: new Date().toISOString(), completedAt: undefined, actualDistanceKm: undefined, actualTraveledVerifiedGps: undefined }
