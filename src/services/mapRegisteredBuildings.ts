@@ -102,7 +102,7 @@ export interface RegisteredBuildingController {
  * every live GPS coordinate/heading update. Source updates are deduplicated. */
 export function createRegisteredBuildingController(map:MapLibreMap):RegisteredBuildingController {
   let destroyed=false,entries:readonly RoleVectorMarker[]=[];
-  let descriptorsKey='',lastViewKey='',lastDataKey='';
+  let descriptorsKey='',lastViewKey='',lastDataKey='',pendingTileRetry=false;
   const empty:RegisteredBuildingCollection={type:'FeatureCollection',features:[]};
   const sync=(allowTileRetry=false)=>{
     if(destroyed||map.isStyleLoaded()!==true)return;
@@ -118,6 +118,11 @@ export function createRegisteredBuildingController(map:MapLibreMap):RegisteredBu
       return map.queryRenderedFeatures([pixel.x,pixel.y],{layers:['building']});
     },zoom,point=>map.getBounds().contains([point[1],point[0]])):empty;
     const signature=JSON.stringify(data.features);
+    // Tiles may arrive after style.load: retry once on the next idle, not
+    // on every GPS-driven camera idle with no building geometries available.
+    if(allowTileRetry)pendingTileRetry=false;
+    else if(signature==='[]'&&layerPresent&&zoom>=REGISTERED_BUILDING_MIN_ZOOM &&
+      entries.some(entry=>entry.kind==='place'))pendingTileRetry=true;
     let source=map.getSource(REGISTERED_BUILDINGS_SOURCE) as GeoJSONSource|undefined;
     if(!source){
       map.addSource(REGISTERED_BUILDINGS_SOURCE,{type:'geojson',data});
@@ -142,9 +147,9 @@ export function createRegisteredBuildingController(map:MapLibreMap):RegisteredBu
   };
   const safeSync=(tileRetry=false)=>{try{sync(tileRetry);}catch{/* Map style can be replaced during loading. */}};
   // idle also covers the first arrival of remote vector building tiles.
-  const onIdle=()=>safeSync(lastDataKey==='[]');
+  const onIdle=()=>{if(pendingTileRetry){pendingTileRetry=false;safeSync(true);}};
   const onMoveEnd=()=>safeSync();
-  const onStyleLoad=()=>{lastViewKey='';lastDataKey='';safeSync();};
+  const onStyleLoad=()=>{lastViewKey='';lastDataKey='';pendingTileRetry=false;safeSync();};
   map.on('idle',onIdle);
   map.on('moveend',onMoveEnd);
   map.on('style.load',onStyleLoad);
