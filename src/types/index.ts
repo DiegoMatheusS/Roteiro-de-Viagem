@@ -161,7 +161,7 @@ export interface TripPlan {
   waypointOrder?: [number, number][];
   /** Ponto de ajuste manual do traçado na prévia, sem alterar a origem ou o destino. */
   editedWaypoint?: [number, number];
-  routingSource?: 'OSRM';
+  routingSource?: 'OSRM' | 'offline-graph';
   tollsStatus?: 'unknown' | 'partial' | 'available';
   tolls?: import('./tolls').RouteToll[];
   weatherSource?: string;
