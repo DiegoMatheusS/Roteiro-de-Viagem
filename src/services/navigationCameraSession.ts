@@ -18,6 +18,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
   let exploring=false;
   let navigating=false;
   let last:CameraPoint|null=null;
+  let lastCameraPoint:CameraPoint|null=null;
   let currentFixAvailable=false;
   let centerRequest=0;
   let lastBearing:number|undefined;
@@ -29,7 +30,10 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
     exploring=next;onMode(next?'exploring':'following');
   };
   const turnZoom=(input:NavigationCameraInput,point:CameraPoint)=>{
-    if(exploring||manualZoom||!input.followUser||!camera.zoomToTurn)return;
+    // A GPS receiver at 0 km/h jitters within its accuracy radius. Zooming
+    // again for a turn only 10 m ahead keeps animating the stationary map.
+    if(exploring||manualZoom||!input.followUser||!camera.zoomToTurn||
+      (Number.isFinite(input.speedMetersPerSecond)&&input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4))return;
     const zoom=nextTurnCameraZoom(input.maneuverMeters,input.speedMetersPerSecond,nearTurnZoom);
     if(zoom===null)return;
     camera.zoomToTurn(point,zoom,input.reducedMotion);
@@ -56,13 +60,14 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         !last.every(Number.isFinite))return false;
       mode(false);
       camera.recenter(last,true,lastReducedMotion);
+      lastCameraPoint=[...last];
       return true;
     },
     update(input:NavigationCameraInput){
       navigating=input.navigationMode;
       lastReducedMotion=input.reducedMotion;
       if(!navigating){
-        last=null;lastBearing=undefined;currentFixAvailable=false;
+        last=null;lastCameraPoint=null;lastBearing=undefined;currentFixAvailable=false;
         manualZoom=false;nearTurnZoom=false;mode(false);
       }
       const point=input.position;
@@ -72,15 +77,27 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       if(input.centerRequest>centerRequest){
         centerRequest=input.centerRequest;mode(false);
         camera.recenter(point,navigating,input.reducedMotion);
-        last=[...point];lastBearing=input.bearing;
+        last=[...point];lastCameraPoint=[...point];lastBearing=input.bearing;
         manualZoom=false;nearTurnZoom=false;
         return;
       }
       if(!navigating)return;
-      const changed=!last || Math.abs(last[0]-point[0])+Math.abs(last[1]-point[1])>0.00004 || input.bearing!==lastBearing;
+      // A stationary GPS fix can drift several meters every 2 seconds, even
+      // though the speedometer remains at 0 km/h. Keep the live marker fresh,
+      // but do not restart MapLibre's 450 ms easing on each noisy fix.
+      const stopped=Number.isFinite(input.speedMetersPerSecond)&&
+        input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4;
+      const changed=!lastCameraPoint||
+        Math.abs(lastCameraPoint[0]-point[0])+Math.abs(lastCameraPoint[1]-point[1])>0.00004 ||
+        (!stopped&&input.bearing!==lastBearing);
       if(!exploring){
-        if(!last){camera.firstGpsFix(point);lastBearing=input.bearing;}
-        else if(changed&&input.followUser){camera.follow(point,input.reducedMotion);lastBearing=input.bearing;}
+        if(!lastCameraPoint){
+          camera.firstGpsFix(point);
+          lastCameraPoint=[...point];lastBearing=input.bearing;
+        }else if(!stopped&&changed&&input.followUser){
+          camera.follow(point,input.reducedMotion);
+          lastCameraPoint=[...point];lastBearing=input.bearing;
+        }
         turnZoom(input,point);
       }
       last=[...point];
