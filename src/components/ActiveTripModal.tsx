@@ -133,7 +133,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const nextVerified=pendingVerified?.[0];
   const canManageNext=!!nextStop&&nextVerified?.id===nextStop.id&&
     eligibleAutomaticReroute(trip);
-  const canMarkNext=canManageNext&&canConfirmStopManually(trip,nextStop.id,
+  const canMarkNext=canManageNext&&!!nextStop&&canConfirmStopManually(trip,nextStop.id,
     isGpsActive?tracking.position:null);
   const canSkipNext=canManageNext&&canEditStopped;
   const cancelStopDecision=()=>{
