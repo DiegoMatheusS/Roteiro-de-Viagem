@@ -1,4 +1,5 @@
 import { AndroidStatus } from './AndroidStatus';
+import {OfflineRegionsPanel} from './OfflineRegionsPanel';
 import { EmergencyContactsEditor } from './EmergencyContactsEditor';
 import { ProfileFigmaHome } from './ProfileFigmaHome';
 import React, { useState } from 'react';
@@ -682,6 +683,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
               </select>
               <p className="text-xs text-slate-500">Salvo neste aparelho. O modo automático segue o horário local, sem precisar de internet.</p>
             </section>
+            <OfflineRegionsPanel />
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-emerald-600" />
