@@ -12,6 +12,7 @@ import type {MapTheme} from '../services/mapAppearance';
 import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
 import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
+import {assessMapLoadFailure,shouldReloadAfterReconnect} from '../services/mapNetworkRecovery';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
@@ -51,6 +52,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const appearanceRef=useRef(appearanceTheme);appearanceRef.current=appearanceTheme;
   const latest=useRef(props);latest.current=props;
   const [ready,setReady]=useState(false);
+  const [offline,setOffline]=useState(()=>typeof navigator!=='undefined'&&!navigator.onLine);
   const [baseStyle,setBaseStyle]=useState<MapStyleType>(props.initialStyle||'light');
   const [styleMenu,setStyleMenu]=useState(false);
   const showBaseSelector=!props.navigationMode&&!props.roadStyle;
@@ -80,6 +82,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let map:GlMap;
     let captureFallback:(()=>MapFallbackViewport|undefined)|undefined;
     let activeStyle=styleRef.current,activeTheme=appearanceRef.current,changingStyle=false,tileErrors=0;
+    let offlineDuringSession=!navigator.onLine,failedOfflineTiles=false;
     let styleTimeout:ReturnType<typeof setTimeout>|null=null;
     const fail=()=>{
       if(disposed||failed)return;
@@ -97,7 +100,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         attributionControl:{compact:true}});
       map.touchZoomRotate.enableRotation();
     }catch{fail();return;}
-    const timeout=setTimeout(fail,12000);
+    const timeout=setTimeout(()=>{
+      if(navigator.onLine)fail();
+      else failedOfflineTiles=true;
+    },12000);
     let course:number|null=null;
     let bearing=0;
     const cameraPort=createStandaloneMapLibreCameraPort(map,()=>bearing);
@@ -231,18 +237,38 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
     const retry=()=>{waitingForIdle=false;render();};
-    const setBase=(style:MapStyleType,theme:MapTheme=appearanceRef.current)=>{
-      if(disposed||failed||(style===activeStyle&&theme===activeTheme))return;
+    const setBase=(style:MapStyleType,theme:MapTheme=appearanceRef.current,force=false)=>{
+      if(disposed||failed||(!force&&style===activeStyle&&theme===activeTheme))return;
       activeStyle=style;activeTheme=theme;changingStyle=true;tileErrors=0;
       const root=container.current?.parentElement;
       if(root){root.dataset.mapIdle='false';root.dataset.mapStyleReady='';}
       if(styleTimeout)clearTimeout(styleTimeout);
-      styleTimeout=setTimeout(fail,12000);
+      styleTimeout=setTimeout(()=>{
+        if(navigator.onLine)fail();
+        else failedOfflineTiles=true;
+      },12000);
       try{
         map.setMaxZoom(TILE_PROVIDERS[style].maxZoom);
         map.setStyle(standaloneBaseStyle(style,activeTheme),{diff:false});
       }catch{fail();}
     };
+    const onNetworkOffline=()=>{
+      if(disposed)return;
+      offlineDuringSession=true;
+      tileErrors=0;
+      setOffline(true);
+    };
+    const onNetworkOnline=()=>{
+      if(disposed||failed)return;
+      setOffline(false);
+      tileErrors=0;
+      const reload=shouldReloadAfterReconnect(offlineDuringSession,failedOfflineTiles,map.isStyleLoaded());
+      offlineDuringSession=false;failedOfflineTiles=false;
+      if(reload)setBase(activeStyle,activeTheme,true);
+      else map.triggerRepaint();
+    };
+    window.addEventListener('offline',onNetworkOffline);
+    window.addEventListener('online',onNetworkOnline);
     runtime.current={render,camera,setBaseStyle:style=>setBase(style),setTheme:theme=>setBase(activeStyle,theme),orient:()=>{
       if(disposed||failed||!loaded||!latest.current.navigationMode||camera.snapshot().mode!=='exploring')return;
       // Explicit orientation must also work while route tiles are loading.
@@ -333,7 +359,16 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       p.onSelectCoordinates?.([event.lngLat.lat,event.lngLat.lng]);
     };
     map.on('click',select);
-    const onError=()=>{if(!loaded||changingStyle||++tileErrors>=3)fail();};
+    const onError=()=>{
+      const decision=assessMapLoadFailure({
+        loaded,changingStyle,online:navigator.onLine,consecutiveErrors:tileErrors
+      });
+      tileErrors=decision.consecutiveErrors;
+      if(decision.retryOnReconnect){
+        failedOfflineTiles=true;offlineDuringSession=true;setOffline(true);
+      }
+      if(decision.fallback)fail();
+    };
     map.on('error',onError);
     map.on('webglcontextlost',fail);
     const styleLoaded=()=>{
@@ -355,6 +390,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     return ()=>{
       disposed=true;clearTimeout(timeout);if(styleTimeout)clearTimeout(styleTimeout);runtime.current=null;
       idleFollow?.dispose();
+      window.removeEventListener('offline',onNetworkOffline);
+      window.removeEventListener('online',onNetworkOnline);
       unbindGestures();unbindResume();resize.disconnect();
       map.getContainer().removeEventListener('pointerdown',pointerDown);
       document.removeEventListener('pointerup',pointerUp);
@@ -388,8 +425,12 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const selectedToll=props.tolls?.find(entry=>entry.id===toll?.id) || (toll?.place?{
     id:toll.id,name:toll.place.name,coords:[toll.place.lat,toll.place.lng] as [number,number],
     sourceUrl:toll.place.sourceUrl,passages:1,price:null}:undefined);
-  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle} data-role-theme={appearanceTheme}>
+  return <div className={`relative overflow-hidden ${props.className||'w-full h-full'}`} data-map-engine="maplibre-standalone" data-map-ready={ready} data-map-style={effectiveStyle} data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
+    {offline&&<div role="status" aria-live="polite"
+      className="pointer-events-none absolute right-3 top-3 z-30 max-w-[240px] rounded-xl bg-slate-900/90 px-3 py-2 text-xs font-semibold text-white shadow-lg">
+      Sem internet · novas áreas do mapa e rotas podem não carregar
+    </div>}
     {props.navigationMode&&<button type="button" aria-label={courseMode?'Manter o mapa apontado para o norte':'Orientar mapa na direção da viagem'}
       aria-pressed={courseMode} onClick={()=>setCourseMode(value=>!value)}
       title={courseMode?'Orientar pela direção da viagem':'Apontar mapa para o norte'}
