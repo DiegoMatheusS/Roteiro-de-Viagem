@@ -311,7 +311,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
         }
         lastFocus=p.focusedCoords;
-        publishPlaces();
+        // GPS/speed renders do not change which POIs the viewport contains.
+        // moveend publishes visibility after pan/zoom; changed overlays
+        // publish immediately even if the camera stays still.
+        if(overlaysChanged)publishPlaces();
       }catch{fail();}
     };
     const publishPlaces=()=>{
