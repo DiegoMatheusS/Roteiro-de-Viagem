@@ -189,6 +189,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     captureFallback=()=>loaded?captureMapFallbackViewport(map,{...camera.snapshot(),
       fittedRoute:fitted,focusedCoords:lastFocus},TILE_PROVIDERS[styleRef.current].maxZoom):undefined;
     let drawn:RoleVectorMarker[]=[];
+    let lastOverlayInputs:unknown[]=[];
+    let lastMarkerInputs:unknown[]=[];
     let editablePin:GlMarker|null=null;
     let editedAt:string|null=null;
     const syncEditablePin=()=>{
@@ -250,20 +252,36 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           headingDegrees:p.userHeadingDegrees,speedMetersPerSecond:p.userSpeedMetersPerSecond,
           originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
           navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
-        trip.updateStops(p.stops||[]);trip.updateMeetings(p.meetingPoints||[]);
-        syncEditablePin();
-        trip.updateParticipants(p.convoyParticipants||[]);
-        weather.update(p.weatherPoints||[],p.showRainLayer??false);
-        alerts.update(p.roadAlerts||[]);
-        const descriptors=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
-          places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
-          navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
-        // During active guidance the building-fill overlay is decorative.
-        // Avoid up to 32 rendered-polygon queries on initial navigation render.
-        registeredBuildings.update(p.navigationMode?[]:descriptors);
-        markers.update(descriptors,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
-          location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
-          showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});drawn=descriptors;
+        // GPS can trigger many renders while driving. Keep the live navigation
+        // marker responsive, but do not rebuild static overlays on each fix.
+        const overlayInputs=[p.stops,p.meetingPoints,p.convoyParticipants,
+          p.weatherPoints,p.showRainLayer,p.roadAlerts,p.editableWaypoint,
+          p.navigationMode,p.showFuelStations,p.tolls,p.tollVehicleType,
+          data.current.stations,data.current.places,p.routePath];
+        const overlaysChanged=overlayInputs.some((value,index)=>value!==lastOverlayInputs[index]);
+        if(overlaysChanged){
+          lastOverlayInputs=overlayInputs;
+          trip.updateStops(p.stops||[]);trip.updateMeetings(p.meetingPoints||[]);
+          syncEditablePin();
+          trip.updateParticipants(p.convoyParticipants||[]);
+          weather.update(p.weatherPoints||[],p.showRainLayer??false);
+          alerts.update(p.roadAlerts||[]);
+          drawn=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
+            places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
+            navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
+          registeredBuildings.update(p.navigationMode?[]:drawn);
+        }
+        // The marker controller handles GPS proximity; update only when its
+        // inputs change. While driving, skip proximity work for the hidden
+        // route-service markers altogether.
+        const markerInputs=[drawn,p.navigationMode,p.userLiveCoords,p.userGpsAccuracyMeters];
+        const markersChanged=overlaysChanged||markerInputs.some((value,index)=>value!==lastMarkerInputs[index]);
+        if(markersChanged){
+          lastMarkerInputs=markerInputs;
+          markers.update(drawn,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
+            location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
+            showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});
+        }
         const nextInputs=[p.originCoords,p.destinationCoords,p.routePath,p.routeAlternatives];
         if(nextInputs.some((value,index)=>value!==fitInputs[index])){
           fitInputs=nextInputs;
