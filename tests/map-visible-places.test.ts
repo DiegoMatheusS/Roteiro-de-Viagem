@@ -29,3 +29,10 @@ test('visible place list tracks order and repeated IDs without triggering unrela
     assert.match(source,/visiblePlacesSignature\(/);
   }
 });
+
+test('GPS-only navigation renders do not repeatedly publish visible POIs',()=>{
+  const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+  assert.match(source,/if\(overlaysChanged\)publishPlaces\(\)/);
+  assert.match(source,/map\.on\('moveend',publishViewport\)/);
+  assert.match(source,/const publishViewport=\(\)=>\{/);
+});
