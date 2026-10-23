@@ -334,6 +334,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(!force&&!needsInitialStyleRecovery&&style===activeStyle&&
         theme===activeTheme&&region?.id===appliedOfflineRegion?.id)return;
       needsInitialStyleRecovery=false;
+      // A style replacement invalidates all MapLibre overlay sources/layers.
+      lastOverlayInputs=[];lastMarkerInputs=[];
       appliedOfflineRegion=region;
       setRegionError('');
       activeStyle=style;activeTheme=theme;changingStyle=true;tileErrors=0;
