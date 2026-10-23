@@ -3,6 +3,8 @@ import {selectRouteMilestones,type RoutePoint} from './routeMilestones';
 
 const SOURCE='role-route-milestones';
 const LAYER='role-route-milestone-circles';
+// GPS updates must not reserialize identical decorative route points.
+const lastMilestones=new WeakMap<object,{path:readonly RoutePoint[];visible:boolean;color:string;count:number}>();
 
 interface MilestoneFeature {
   type:'Feature';
@@ -30,11 +32,20 @@ export function updateRoleVectorMilestones(
   routePath:readonly RoutePoint[], color:string, visible:boolean
 ):number {
   if(!gl.isStyleLoaded())return 0;
-  const data=buildRoleMilestoneFeatures(visible?routePath:[]);
   const existing=gl.getSource(SOURCE) as GeoJSONSource|undefined;
+  const layerExists=Boolean(gl.getLayer(LAYER));
+  const previous=lastMilestones.get(gl);
+  // A style change removes sources/layers, so a cached snapshot is only
+  // reusable when MapLibre still owns both resources.
+  if(existing&&layerExists&&previous&&previous.path===routePath&&previous.visible===visible){
+    if(previous.color!==color)gl.setPaintProperty(LAYER,'circle-stroke-color',color);
+    lastMilestones.set(gl,{...previous,color});
+    return previous.count;
+  }
+  const data=buildRoleMilestoneFeatures(visible?routePath:[]);
   if(existing)existing.setData(data);
   else gl.addSource(SOURCE,{type:'geojson',data});
-  if(!gl.getLayer(LAYER)) {
+  if(!layerExists) {
     gl.addLayer({
       id:LAYER,
       source:SOURCE,
@@ -47,10 +58,12 @@ export function updateRoleVectorMilestones(
         'circle-opacity':0.92
       }
     });
-  }else gl.setPaintProperty(LAYER,'circle-stroke-color',color);
+  }else if(previous?.color!==color)gl.setPaintProperty(LAYER,'circle-stroke-color',color);
+  lastMilestones.set(gl,{path:routePath,visible,color,count:data.features.length});
   return data.features.length;
 }
 export function clearRoleVectorMilestones(gl:Pick<MapLibreMap,'isStyleLoaded'|'getLayer'|'removeLayer'|'getSource'|'removeSource'>):void {
+  lastMilestones.delete(gl);
   if(!gl.isStyleLoaded())return;
   if(gl.getLayer(LAYER))gl.removeLayer(LAYER);
   if(gl.getSource(SOURCE))gl.removeSource(SOURCE);
