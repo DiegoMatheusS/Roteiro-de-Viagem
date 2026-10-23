@@ -204,7 +204,8 @@ test('GPS button overrides stationary hold and centers on the newest valid fix',
 
 test('during navigation decorative building queries are not generated from each GPS update',()=>{
   const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
-  assert.match(source,/registeredBuildings.update\(p.navigationMode\?\[\]:descriptors\)/);
+  assert.match(source,/registeredBuildings.update\(p.navigationMode\?\[\]:drawn\)/);
+  assert.match(source,/if\(overlaysChanged\)/);
 });
 
 
