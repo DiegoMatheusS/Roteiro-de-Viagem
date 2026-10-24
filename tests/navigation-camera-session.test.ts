@@ -226,6 +226,12 @@ test('uma atualização GPS não dispara follow e zoom de conversão simultaneam
 test('navegação limita projeções de rota repetidas, sem atrasar troca de itinerário',()=>{
   const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
   assert.match(source,/now-lastRouteRenderAt>=250/);
-  assert.match(source,/if\(routeChanged\|\|!p.navigationMode\|\|now-lastRouteRenderAt>=250\)/);
+  assert.match(source,/if\(routeChanged\|\|\(!mapTouchActive&&\(!p.navigationMode\|\|now-lastRouteRenderAt>=250\)\)\)/);
   assert.match(source,/lastRouteRenderInputs=\[\];lastRouteRenderAt=-Infinity/);
+});
+
+test('mapa preserva pinça e arraste: suspende upload da rota até soltar os dedos',()=>{
+  const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+  assert.match(source,/mapTouchActive=true;/);
+  assert.match(source,/mapTouchActive=false;[\s\S]*?lastRouteRenderAt=-Infinity;[\s\S]*?render\(\);/);
 });
