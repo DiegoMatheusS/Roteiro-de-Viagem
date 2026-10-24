@@ -188,6 +188,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let lastFocus:InteractiveMapProps['focusedCoords'];
     captureFallback=()=>loaded?captureMapFallbackViewport(map,{...camera.snapshot(),
       fittedRoute:fitted,focusedCoords:lastFocus},TILE_PROVIDERS[styleRef.current].maxZoom):undefined;
+    // Route projection scans the road geometry. Limit repeated scans from
+    // high-frequency position/heading updates while keeping route changes immediate.
+    let lastRouteRenderAt=-Infinity;
+    let lastRouteRenderInputs:unknown[]=[];
+    let lastRouteFeatureCount=0;
     let drawn:RoleVectorMarker[]=[];
     let lastOverlayInputs:unknown[]=[];
     let lastMarkerInputs:unknown[]=[];
@@ -240,10 +245,21 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       try{
         const root=container.current?.parentElement;
         if(root)root.dataset.mapIdle='false';
-        const featureCount=updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
-          selectedRouteId:p.selectedRouteId,modalityColor:COLORS[p.routeModality||'panoramica'],
-          userLocation:p.userLiveCoords,travelledDistanceKm:p.travelledDistanceKm||0,
-          totalRouteKm:p.totalRouteKm||0,navigationMode:p.navigationMode??false,blueRoute:p.blueRoute??false});
+        const routeInputs=[p.routePath,p.routeAlternatives,p.selectedRouteId,p.routeModality,
+          p.navigationMode,p.blueRoute,p.totalRouteKm];
+        const routeChanged=routeInputs.some((value,index)=>value!==lastRouteRenderInputs[index]);
+        const now=performance.now();
+        // At most four progress scans per second during guidance. A changed
+        // itinerary, style or first render always updates immediately.
+        if(routeChanged||!p.navigationMode||now-lastRouteRenderAt>=250){
+          lastRouteRenderAt=now;
+          lastRouteRenderInputs=routeInputs;
+          lastRouteFeatureCount=updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
+            selectedRouteId:p.selectedRouteId,modalityColor:COLORS[p.routeModality||'panoramica'],
+            userLocation:p.userLiveCoords,travelledDistanceKm:p.travelledDistanceKm||0,
+            totalRouteKm:p.totalRouteKm||0,navigationMode:p.navigationMode??false,blueRoute:p.blueRoute??false});
+        }
+        const featureCount=lastRouteFeatureCount;
         if(featureCount>0)container.current?.setAttribute('data-role-vector-routes',String(featureCount));
         else container.current?.removeAttribute('data-role-vector-routes');
         updateRoleVectorMilestones(map,p.routePath||[],COLORS[p.routeModality||'panoramica'],
@@ -339,6 +355,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       needsInitialStyleRecovery=false;
       // A style replacement invalidates all MapLibre overlay sources/layers.
       lastOverlayInputs=[];lastMarkerInputs=[];
+      lastRouteRenderInputs=[];lastRouteRenderAt=-Infinity;
       appliedOfflineRegion=region;
       setRegionError('');
       activeStyle=style;activeTheme=theme;changingStyle=true;tileErrors=0;

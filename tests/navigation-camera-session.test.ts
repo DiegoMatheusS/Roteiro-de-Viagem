@@ -222,3 +222,10 @@ test('uma atualização GPS não dispara follow e zoom de conversão simultaneam
   assert.deepEqual(events,['first','turnZoom'],
     'turn zoom includes camera centering; do not queue a second easeTo');
 });
+
+test('navegação limita projeções de rota repetidas, sem atrasar troca de itinerário',()=>{
+  const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+  assert.match(source,/now-lastRouteRenderAt>=250/);
+  assert.match(source,/if\(routeChanged\|\|!p.navigationMode\|\|now-lastRouteRenderAt>=250\)/);
+  assert.match(source,/lastRouteRenderInputs=\[\];lastRouteRenderAt=-Infinity/);
+});
