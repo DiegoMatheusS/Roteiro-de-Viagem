@@ -193,6 +193,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let lastRouteRenderAt=-Infinity;
     let lastRouteRenderInputs:unknown[]=[];
     let lastRouteFeatureCount=0;
+    let mapTouchActive=false;
     let drawn:RoleVectorMarker[]=[];
     let lastOverlayInputs:unknown[]=[];
     let lastMarkerInputs:unknown[]=[];
@@ -251,7 +252,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         const now=performance.now();
         // At most four progress scans per second during guidance. A changed
         // itinerary, style or first render always updates immediately.
-        if(routeChanged||!p.navigationMode||now-lastRouteRenderAt>=250){
+        if(routeChanged||(!mapTouchActive&&(!p.navigationMode||now-lastRouteRenderAt>=250))){
           lastRouteRenderAt=now;
           lastRouteRenderInputs=routeInputs;
           lastRouteFeatureCount=updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
@@ -457,13 +458,20 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const pointerDown=(event:PointerEvent)=>{
       if(!latest.current.navigationMode)return;
       pointerIds.add(event.pointerId);
+      mapTouchActive=true;
       idleFollow?.hold();
     };
     const pointerUp=(event:PointerEvent)=>{
       pointerIds.delete(event.pointerId);
-      if(pointerIds.size===0)idleFollow?.release();
+      if(pointerIds.size===0){
+        mapTouchActive=false;
+        idleFollow?.release();
+        // Paint accumulated route progress once the fingers leave the map.
+        lastRouteRenderAt=-Infinity;
+        render();
+      }
     };
-    const gestureEnd=()=>{if(pointerIds.size===0)idleFollow?.release();};
+    const gestureEnd=()=>{if(pointerIds.size===0){mapTouchActive=false;idleFollow?.release();}};
     const userGesture=(event:{originalEvent?:unknown})=>{
       if(!event.originalEvent)return;
       camera.explore();
