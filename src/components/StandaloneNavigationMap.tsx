@@ -459,6 +459,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(!latest.current.navigationMode)return;
       pointerIds.add(event.pointerId);
       mapTouchActive=true;
+      // Claim the camera on first contact, before MapLibre emits dragstart or
+      // zoomstart. GPS may otherwise issue easeTo between touchstart and the
+      // native gesture threshold, interrupting slow pans and pinch gestures.
+      camera.explore();
+      idleFollow?.activity();
       idleFollow?.hold();
     };
     const pointerUp=(event:PointerEvent)=>{
