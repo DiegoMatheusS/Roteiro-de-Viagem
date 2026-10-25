@@ -266,7 +266,8 @@ test('chegada persistida e a próxima parada aparecem sem resetar a viagem',()=>
  const hook=read('src/hooks/useAutoReroute.ts');
  assert.match(app,/navigationVisitedStopIds:\[\.\.\.\(running\.navigationVisitedStopIds\|\|\[\]\),stopId\]/);
  assert.match(app,/onStopVisited=\{handleNavigationStopVisited\}/);
- assert.match(hud,/const outstandingStops=trip\.stops\.filter/);
+ assert.match(hud,/const outstandingStops=useMemo\(\(\)=>trip\.stops\.filter/);
+ assert.match(hud,/\[trip\.stops,trip\.navigationVisitedStopIds,trip\.navigationSkippedStopIds\]/);
  assert.match(hud,/onStopVisited\}\);/);
  assert.match(hook,/confirmStopArrival\(stopArrival\.current,options\.trip,fix\)/);
  assert.match(hook,/plannedVisitKey/);
