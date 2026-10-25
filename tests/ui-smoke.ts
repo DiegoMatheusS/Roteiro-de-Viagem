@@ -519,8 +519,10 @@ try {
   await page.getByRole('button',{name:'Encerrar viagem',exact:true}).click();
   await page.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
   await page.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
-  await destinationMap.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+  assert.equal(await destinationMap.count(),0,
+    'encerrar a navegação volta ao início sem restaurar a prévia desmontada');
+  await page.waitForFunction(()=>(window as any).__activeGpsWatchers===1);
   // O formulário detalhado de origem e destino continua disponível separadamente.
   await page.getByRole('button', {name:'Rolê com origem e destino'}).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
