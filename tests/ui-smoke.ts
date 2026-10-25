@@ -45,6 +45,7 @@ const context = await browser.newContext({ viewport: { width: 390, height: 844 }
 const stableGeolocationScript = `(() => {
   let nextId = 0;
   const timers = new Map();
+  Object.defineProperty(window, '__activeGpsWatchers', { get: () => timers.size });
   const position = () => ({
     coords: { latitude: -23.551, longitude: -46.629, accuracy: 3,
       altitude: null, altitudeAccuracy: null, heading: null, speed: null },
@@ -244,6 +245,14 @@ try {
     await realPreview.getByRole('button',{name:'Iniciar rolê'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
     const navScreen=guestPage.getByLabel('Navegação GPS ativa');
+    assert.equal(await guestPage.getByLabel('Início do Rolê',{exact:true}).count(),0,
+      'navigation must dispose the covered home map and its GPS subscription');
+    assert.equal(await guestPage.locator('main').count(),0,
+      'covered tabs must not retain a second live map during navigation');
+    await guestPage.waitForFunction(()=>(window as any).__activeGpsWatchers===1);
+    await navScreen.locator('[data-map-engine]').waitFor();
+    assert.equal(await guestPage.locator('[data-map-engine]').count(),1,
+      'only the visible navigation renderer may remain mounted');
     await navScreen.locator('.rdv-nav-bottom-actions').waitFor();
     assert.equal(await navScreen.locator('.rdv-nav-bottom-button').count(),3,
       'A tela 4 deve exibir somente Encerrar, Compartilhar e SOS no rodapé');
@@ -287,6 +296,8 @@ try {
     await guestPage.getByRole('button',{name:'Encerrar viagem',exact:true}).click();
     await guestPage.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
+    await guestPage.getByLabel('Início do Rolê',{exact:true}).waitFor();
+    await guestPage.waitForFunction(()=>(window as any).__activeGpsWatchers===1);
   }
   assert.deepEqual(modes,['km','km','hours'], 'A opção Outra rota refaz a busca por KM antes do teste por horas');
   assert.deepEqual(guestErrors,[]);

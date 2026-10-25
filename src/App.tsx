@@ -520,7 +520,9 @@ export default function App() {
       ) : (
         <>
           {/* MAIN TABS CONTAINER */}
-          <main className="flex-1 min-h-0 relative">
+          {/* Navigation owns the only live map. Unmount covered tabs so their
+              WebGL canvas, GPS watcher and discovery effects are disposed. */}
+          {!(activeTrip && isNavigationOpen) && <main className="flex-1 min-h-0 relative">
             {activeTab === 'inicio' && !advancedHome && (
               <NavigationHome
                 currentVehicle={currentVehicle}
@@ -651,7 +653,7 @@ export default function App() {
                 onOpenConvoy={() => {setJoinError('');setShowJoin(true);}}
               />
             )}
-          </main>
+          </main>}
 
           {exitNotice && <div role="status" className="fixed bottom-28 left-6 right-6 z-[100] mx-auto max-w-sm rounded-2xl bg-slate-950/90 text-white px-5 py-4 text-center text-[14px] font-semibold shadow-xl">Volte novamente para sair do Rolê</div>}
           {!isNavigationOpen && !isPlanningOpen && <NavigationTabBar
