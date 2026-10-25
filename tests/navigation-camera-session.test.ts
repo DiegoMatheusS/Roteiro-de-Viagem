@@ -235,3 +235,11 @@ test('mapa preserva pinça e arraste: suspende upload da rota até soltar os ded
   assert.match(source,/mapTouchActive=true;/);
   assert.match(source,/mapTouchActive=false;[\s\S]*?lastRouteRenderAt=-Infinity;[\s\S]*?render\(\);/);
 });
+
+test('toque no mapa toma a câmera antes de dragstart ou zoomstart',()=>{
+  const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+  const touch=source.slice(source.indexOf('const pointerDown='),source.indexOf('const pointerUp='));
+  assert.match(touch,/camera\.explore\(\)/);
+  assert.ok(touch.indexOf('camera.explore()')<touch.indexOf('idleFollow?.hold()'));
+  assert.match(touch,/mapTouchActive=true/);
+});
