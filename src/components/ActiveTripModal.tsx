@@ -1,5 +1,5 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { CameraMode } from '../services/mapCameraController';
 import confetti from 'canvas-confetti';
 import { TripPlan, Vehicle, Achievement, ConvoyParticipant, MeetingPoint } from '../types';
@@ -100,8 +100,10 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const distanceTraveledKm=tracking.distanceKm;
   const routeTravelledKm=rerouted?Math.max(0,distanceTraveledKm-rerouted.trackedAtKm):distanceTraveledKm;
   const routeDistanceKm=rerouted?.distanceKm||trip.distanceKm;
-  const outstandingStops=trip.stops.filter(stop=>!trip.navigationVisitedStopIds?.includes(stop.id)&&
-    !trip.navigationSkippedStopIds?.includes(stop.id));
+  const outstandingStops=useMemo(()=>trip.stops.filter(
+    stop=>!trip.navigationVisitedStopIds?.includes(stop.id)&&
+      !trip.navigationSkippedStopIds?.includes(stop.id)
+  ),[trip.stops,trip.navigationVisitedStopIds,trip.navigationSkippedStopIds]);
   const pendingStopMinutes=outstandingStops.reduce((sum,stop)=>
     sum+Math.max(0,stop.recommendedMinutes||0),0);
   const plannedStopMinutes=trip.stops.reduce((sum,stop)=>
