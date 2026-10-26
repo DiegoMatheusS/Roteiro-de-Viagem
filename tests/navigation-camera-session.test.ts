@@ -230,10 +230,13 @@ test('navegação limita projeções de rota repetidas, sem atrasar troca de iti
   assert.match(source,/lastRouteRenderInputs=\[\];lastRouteRenderAt=-Infinity/);
 });
 
-test('mapa preserva pinça e arraste: suspende upload da rota até soltar os dedos',()=>{
+test('mapa agenda dados somente após terminar gesto e movimento nativo',()=>{
   const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
-  assert.match(source,/mapTouchActive=true;/);
-  assert.match(source,/mapTouchActive=false;[\s\S]*?lastRouteRenderAt=-Infinity;[\s\S]*?render\(\);/);
+  assert.match(source,/runtime.current=\{render:requestRender,camera/);
+  assert.match(source,/pointerIds.size>0\|\|map.isMoving\(\)/);
+  assert.match(source,/mapUpdates.release\(\)/);
+  assert.match(source,/map.on\('moveend',gestureEnd\)/);
+  assert.match(source,/mapUpdates.dispose\(\)/);
 });
 
 test('toque no mapa toma a câmera antes de dragstart ou zoomstart',()=>{
