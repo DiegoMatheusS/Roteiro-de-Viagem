@@ -243,3 +243,9 @@ test('toque no mapa toma a câmera antes de dragstart ou zoomstart',()=>{
   assert.ok(touch.indexOf('camera.explore()')<touch.indexOf('idleFollow?.hold()'));
   assert.match(touch,/mapTouchActive=true/);
 });
+
+test('paradas de navegação não recriam camada estática em cada GPS',()=>{
+  const source=readFileSync(new URL('../src/components/ActiveTripModal.tsx',import.meta.url),'utf8');
+  assert.match(source,/const outstandingStops=useMemo\(\(\)=>trip\.stops\.filter\(/);
+  assert.match(source,/\[trip\.stops,trip\.navigationVisitedStopIds,trip\.navigationSkippedStopIds\]/);
+});
