@@ -22,6 +22,7 @@ import { mapPlaceIcon } from './mapPlaceIcon';
 import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative } from '../services/mapLibreRouteLayers';
+import {routeEditPoint} from '../services/mapRouteEditPoint';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
 import { selectRoleVectorMarkers,validMarkerPosition } from '../services/vectorPlaceData';
@@ -69,8 +70,7 @@ export interface InteractiveMapProps {
   routeAlternatives?: {id:string; routePath:[number,number][]}[];
   selectedRouteId?: string;
   onSelectRoute?: (id: string) => void;
-  /** Only in previews: blue drag handle for OSRM road recalculation. */
-  editableWaypoint?: [number,number];
+  /** Only in previews: tap a route segment to create a draggable handle. */
   onDragWaypoint?: (position:[number,number]) => void;
   routeModality?: RouteModality;
   stops?: RouteStop[];
@@ -131,7 +131,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   routeAlternatives = EMPTY_ALTERNATIVES,
   selectedRouteId,
   onSelectRoute,
-  editableWaypoint,
   onDragWaypoint,
   routeModality = 'panoramica',
   stops = EMPTY_STOPS,
@@ -165,6 +164,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const editorMarkerRef=useRef<L.Marker|null>(null);
+  const [selectedEditPoint,setSelectedEditPoint]=useState<[number,number]|null>(null);
   const onDragWaypointRef=useRef(onDragWaypoint);
   onDragWaypointRef.current=onDragWaypoint;
   const currentTileLayerRef = useRef<L.Layer | null>(null);
@@ -416,19 +416,20 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   }, []);
 
   // Same draggable editing affordance on the raster/Leaflet fallback.
+  useEffect(()=>{setSelectedEditPoint(null);},[routePath,Boolean(onDragWaypoint),navigationMode]);
   useEffect(()=>{
     const map=mapInstanceRef.current;
-    if(!map || !editableWaypoint || !onDragWaypoint || navigationMode){
+    if(!map || !selectedEditPoint || !onDragWaypoint || navigationMode){
       editorMarkerRef.current?.remove();editorMarkerRef.current=null;return;
     }
     const icon=L.divIcon({className:'role-route-edit-marker',
-      html:'<span style="display:flex;width:42px;height:42px;border-radius:50%;border:3px solid white;background:#2563eb;box-shadow:0 2px 12px #1e40af55;align-items:center;justify-content:center;color:white;font-size:19px">↔</span>',
-      iconSize:[42,42],iconAnchor:[21,21]});
-    const marker=L.marker(editableWaypoint,{icon,draggable:true,zIndexOffset:2400,autoPan:true}).addTo(map);
-    marker.on('dragend',()=>{const p=marker.getLatLng();onDragWaypointRef.current?.([p.lat,p.lng]);});
+      html:'<span aria-label="Arraste a bolinha para alterar a rota" style="display:grid;place-items:center;width:44px;height:44px;cursor:grab"><span style="display:block;width:20px;height:20px;border-radius:50%;border:3px solid #2563eb;background:white;box-shadow:0 2px 9px #1e40af66"></span></span>',
+      iconSize:[44,44],iconAnchor:[22,22]});
+    const marker=L.marker(selectedEditPoint,{icon,draggable:true,zIndexOffset:2400,autoPan:true}).addTo(map);
+    marker.on('dragend',()=>{const p=marker.getLatLng();setSelectedEditPoint([p.lat,p.lng]);onDragWaypointRef.current?.([p.lat,p.lng]);});
     editorMarkerRef.current=marker;
     return()=>{marker.remove();if(editorMarkerRef.current===marker)editorMarkerRef.current=null;};
-  },[hasMapReady,editableWaypoint?.[0],editableWaypoint?.[1],Boolean(onDragWaypoint),navigationMode]);
+  },[hasMapReady,selectedEditPoint?.[0],selectedEditPoint?.[1],Boolean(onDragWaypoint),navigationMode]);
 
   // O mapa pode ser explorado sem GPS: descobrir dados do local central após zoom.
   useEffect(() => {
@@ -504,11 +505,17 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           if(id){selectRouteRef.current(id);return;}
         }catch{ /* A style reload must not prevent an ordinary map click. */ }
       }
+      if(!navigationMode && onDragWaypointRef.current){
+        const tap=map.latLngToContainerPoint(event.latlng);
+        const point=routeEditPoint(tap,[routePath],coords=>map.latLngToContainerPoint(coords));
+        setSelectedEditPoint(point);
+        if(point)return;
+      }
       onSelectCoordinates?.([event.latlng.lat,event.latlng.lng]);
     };
     map.on('click',handleClick);
     return ()=>{map.off('click',handleClick);};
-  },[onSelectCoordinates,vectorRoutesReady]);
+  },[onSelectCoordinates,vectorRoutesReady,routePath,navigationMode]);
 
   useEffect(() => {
     const group = fuelLayerGroupRef.current;

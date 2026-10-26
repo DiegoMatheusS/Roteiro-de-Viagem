@@ -18,7 +18,7 @@ import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../serv
 import {decideRouteRender,stableList,mapPixelRatio} from '../services/mapRouteRenderPolicy';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
-import {updateRoleVectorRoutes,queryRoleVectorAlternative} from '../services/mapLibreRouteLayers';
+import {updateRoleVectorRoutes,queryRoleVectorAlternative,queryRoleRouteEditPoint} from '../services/mapLibreRouteLayers';
 import {updateRoleVectorMilestones} from '../services/mapLibreRouteMilestones';
 import {TILE_PROVIDERS,standaloneBaseStyle,type MapStyleType} from '../services/mapStyles';
 import {createRoleNavigationPins} from '../services/mapLibreNavigationPins';
@@ -215,25 +215,37 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let lastMarkerInputs:unknown[]=[];
     let editablePin:GlMarker|null=null;
     let editedAt:string|null=null;
+    let selectedEditPoint:[number,number]|null=null;
+    let selectedEditPath=latest.current.routePath;
+    const clearEditor=()=>{
+      editablePin?.remove();editablePin=null;editedAt=null;selectedEditPoint=null;
+    };
     const syncEditablePin=()=>{
       const p=latest.current;
-      if(!p.editableWaypoint || !p.onDragWaypoint || p.navigationMode){
-        editablePin?.remove();editablePin=null;editedAt=null;return;
+      if(!p.onDragWaypoint || p.navigationMode || selectedEditPath!==p.routePath){
+        clearEditor();selectedEditPath=p.routePath;return;
       }
-      const key=p.editableWaypoint.join(',');
+      if(!selectedEditPoint)return;
+      const key=selectedEditPoint.join(',');
       if(editablePin && editedAt===key)return;
       editablePin?.remove();
       const el=document.createElement('button');
-      el.type='button';el.setAttribute('aria-label','Arraste o ponto azul para mudar a rua');
-      el.title='Arraste o ponto azul para mudar a rua';
-      el.style.cssText='width:42px;height:42px;border:3px solid white;border-radius:50%;background:#2563eb;color:white;font-size:20px;box-shadow:0 2px 14px #1e40af66;cursor:grab;touch-action:none';
-      el.textContent='↔';
+      el.className='role-route-edit-marker';
+      el.type='button';el.setAttribute('aria-label','Arraste a bolinha para alterar a rota');
+      el.title='Arraste para outra rua';
+      el.style.cssText='width:44px;height:44px;border:0;padding:0;background:transparent;display:grid;place-items:center;cursor:grab;touch-action:none';
+      const dot=document.createElement('span');
+      dot.style.cssText='width:20px;height:20px;border:3px solid #2563eb;border-radius:50%;background:white;box-shadow:0 2px 9px #1e40af66';
+      el.append(dot);
+      el.addEventListener('click',event=>event.stopPropagation());
       const marker=new GlMarker({element:el,draggable:true,anchor:'center'})
-        .setLngLat([p.editableWaypoint[1],p.editableWaypoint[0]]).addTo(map);
+        .setLngLat([selectedEditPoint[1],selectedEditPoint[0]]).addTo(map);
       marker.on('dragstart',()=>camera.explore());
       marker.on('dragend',()=>{
         const position=marker.getLngLat();
-        latest.current.onDragWaypoint?.([position.lat,position.lng]);
+        selectedEditPoint=[position.lat,position.lng];
+        editedAt=selectedEditPoint.join(',');
+        latest.current.onDragWaypoint?.(selectedEditPoint);
       });
       editablePin=marker;editedAt=key;
     };
@@ -311,7 +323,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // marker responsive, but do not rebuild static overlays on each fix.
         const overlayInputs=[stableList(p.stops),stableList(p.meetingPoints),
           stableList(p.convoyParticipants),stableList(p.weatherPoints),p.showRainLayer,
-          stableList(p.roadAlerts),p.editableWaypoint,p.navigationMode,p.showFuelStations,
+          stableList(p.roadAlerts),Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,
           stableList(p.tolls),p.tollVehicleType,data.current.stations,data.current.places,
           stableList(p.routePath)];
         const overlaysChanged=overlayInputs.some((value,index)=>value!==lastOverlayInputs[index]);
@@ -570,6 +582,16 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           const id=queryRoleVectorAlternative(map,[event.lngLat.lat,event.lngLat.lng],ids);
           if(id){p.onSelectRoute(id);return;}
         }catch{/* A loading style must not swallow an ordinary map click. */}
+      }
+      if(!p.navigationMode && p.onDragWaypoint){
+        try{
+          const point=queryRoleRouteEditPoint(map,[event.lngLat.lat,event.lngLat.lng]);
+          if(point){
+            selectedEditPoint=point;selectedEditPath=p.routePath;
+            syncEditablePin();return;
+          }
+        }catch{/* A missing route layer must not create an arbitrary waypoint. */}
+        clearEditor();
       }
       p.onSelectCoordinates?.([event.lngLat.lat,event.lngLat.lng]);
     };

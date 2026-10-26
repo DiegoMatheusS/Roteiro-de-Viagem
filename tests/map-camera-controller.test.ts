@@ -12,9 +12,9 @@ test('camera mode is deterministic: gestures pause, GPS resumes and trip exit re
 test('recenter respects chosen navigation zoom and establishes useful zoom from broad map',()=>{
   assert.equal(recenterZoom(17,true),17);
   assert.equal(recenterZoom(11,true),11);
-  assert.equal(recenterZoom(4,true),15);
+  assert.equal(recenterZoom(4,true),18);
   assert.equal(recenterZoom(19,false),15);
-  assert.equal(recenterZoom(NaN,true),15);
+  assert.equal(recenterZoom(NaN,true),18);
   assert.equal(recenterZoom(22,true),19);
 });
 test('hybrid controller uses only Leaflet camera commands and supports reduced motion',()=>{
@@ -89,7 +89,7 @@ test('all initial positioning and bounds fits go through one hybrid Leaflet came
   camera.fitRoute([[-23.55,-46.63],[-23.6,-46.64]],
     {topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
   assert.deepEqual(calls.map(c=>c.name),['setView','setView','fitBounds']);
-  assert.deepEqual(calls[0].args, [[-23.55,-46.63],16,{animate:false}]);
+  assert.deepEqual(calls[0].args, [[-23.55,-46.63],18,{animate:false}]);
   assert.deepEqual(calls[1].args, [[-23.6,-46.64],12,{animate:false}]);
   assert.deepEqual(calls[2].args, [
     [[-23.55,-46.63],[-23.6,-46.64]],
@@ -111,7 +111,7 @@ test('standalone MapLibre camera fits accurate lng/lat bounds and preserves shee
   camera.fitRoute([[-23.55,-46.63],[-23.6,-46.64]],
     {topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
   assert.deepEqual(calls.map(c=>c.name),['jumpTo','jumpTo','fitBounds']);
-  assert.deepEqual(calls[0].args[0],{center:[-46.63,-23.55],zoom:16});
+  assert.deepEqual(calls[0].args[0],{center:[-46.63,-23.55],zoom:18});
   assert.deepEqual(calls[2].args,[
     [[-46.64,-23.6],[-46.63,-23.55]],
     {padding:{top:70,left:36,bottom:260,right:36},maxZoom:13,duration:0}
@@ -196,12 +196,12 @@ test('standalone camera fits very long road geometries without spreading argumen
 });
 
 
-test('pausing standalone camera animation preserves the native gesture in progress',()=>{
-  const calls:Array<boolean|undefined>=[];
+test('standalone camera uses the public MapLibre 6 stop signature',()=>{
+  const calls:unknown[][]=[];
   const camera=createStandaloneMapLibreCameraPort({
-    getZoom:()=>16,stop:(allowGestures)=>{calls.push(allowGestures);},
+    getZoom:()=>16,stop:(...args:unknown[])=>{calls.push(args);},
     jumpTo:()=>{},easeTo:()=>{},fitBounds:()=>{}
   });
   camera.stop();
-  assert.deepEqual(calls,[true]);
+  assert.deepEqual(calls,[[]]);
 });

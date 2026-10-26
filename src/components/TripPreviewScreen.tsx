@@ -61,8 +61,6 @@ export function TripPreviewScreen({
           originCoords={trip.originCoords} destinationCoords={trip.destinationCoords}
           routePath={trip.routePath} navigationMode={false}
           blueRoute showFuelStations={false}
-          editableWaypoint={onDragWaypoint && trip.routePath.length>2?
-            trip.editedWaypoint||trip.routePath[Math.floor(trip.routePath.length/2)]:undefined}
           onDragWaypoint={mapEditing?undefined:onDragWaypoint}
           stops={trip.stops} tolls={trip.tolls||[]}
           tollVehicleType={vehicleType} className="w-full h-full"/>
@@ -77,7 +75,7 @@ export function TripPreviewScreen({
       </div>
       <div className="rdv-preview-map-stat">{distance} km · {minutes} min</div>
       {onDragWaypoint && <p className="absolute left-3 top-[31%] z-20 rounded-xl border border-blue-200 bg-white/95 px-3 py-2 text-xs text-blue-800 shadow-md pointer-events-none">
-        {mapEditing?'Recalculando pelas ruas…':'Arraste o ponto azul para mudar o trajeto'}
+        {mapEditing?'Recalculando pelas ruas…':'Toque na linha da rota e arraste a bolinha para mudar o trajeto'}
       </p>}
       <div className="rdv-preview-map-controls">
         <span className="rdv-preview-origin-label">

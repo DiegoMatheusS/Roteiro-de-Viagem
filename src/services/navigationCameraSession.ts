@@ -1,4 +1,5 @@
 import type {CameraPoint,CameraPort,CameraMode} from './mapCameraController';
+import {NAVIGATION_START_ZOOM} from './mapCameraController';
 import {nextTurnCameraZoom} from './navigationTurnCamera';
 
 export interface NavigationCameraInput {
@@ -37,7 +38,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
     const zoom=nextTurnCameraZoom(input.maneuverMeters,input.speedMetersPerSecond,nearTurnZoom);
     if(zoom===null)return false;
     camera.zoomToTurn(point,zoom,input.reducedMotion);
-    nearTurnZoom=zoom!==16;
+    nearTurnZoom=zoom!==NAVIGATION_START_ZOOM;
     return true;
   };
   return {
@@ -46,7 +47,10 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         centerRequest,position:last?[...last] as CameraPoint:null};
     },
     explore(){
-      if(!navigating)return;
+      // Stop the GPS animation once, on first contact. MapLibre 6's public
+      // stop() also resets its native gesture handlers; calling it again from
+      // dragstart/zoomstart cancels the pan/pinch after its first movement.
+      if(!navigating||exploring)return;
       camera.stop();mode(true);
     },
     /** A user-chosen zoom must survive the seven-second return to GPS. */
@@ -95,8 +99,8 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         if(!lastCameraPoint){
           camera.firstGpsFix(point);
           lastCameraPoint=[...point];lastBearing=input.bearing;
-          // First fix has no previous camera movement to supersede.
-          turnZoom(input,point);
+          // Establish the close navigation view once. A turn on this same
+          // sample must not immediately replace the initial zoom/position.
         }else{
           // MapLibre easing belongs to one camera owner. A turn zoom already
           // includes the updated center, so avoid issuing follow()+zoomToTurn()

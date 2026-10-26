@@ -1,5 +1,6 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { projectRouteProgress,routeProgressRenderKey,type RouteProjection } from './routeProgress';
+import {routeEditPoint,type EditPoint} from './mapRouteEditPoint';
 
 type Coordinates = [number, number]; // latitude, longitude (Leaflet/OSRM contract)
 type Role = 'alternative' | 'active' | 'remaining' | 'travelled';
@@ -192,6 +193,28 @@ export function queryRoleVectorAlternative(
     }
   }
   return selected;
+}
+
+/** Hit-test only rendered active-route segments; no full-journey projection
+ * or waypoint is created until the user actually taps the route line. */
+export function queryRoleRouteEditPoint(
+  gl:Pick<MapLibreMap,'getLayer'|'project'|'queryRenderedFeatures'>,
+  coordinates:Coordinates,tolerancePx=14
+):EditPoint|null{
+  const ids=['role-active-outline','role-active-line','role-remaining-line','role-travelled-line']
+    .filter(id=>Boolean(gl.getLayer(id)));
+  if(!ids.length)return null;
+  const tap=gl.project([coordinates[1],coordinates[0]]);
+  const features=gl.queryRenderedFeatures([[tap.x-tolerancePx,tap.y-tolerancePx],
+    [tap.x+tolerancePx,tap.y+tolerancePx]],{layers:ids});
+  const paths:EditPoint[][]=[];
+  for(const feature of features){
+    if(!['active','remaining','travelled'].includes(feature.properties?.role))continue;
+    const lines=feature.geometry.type==='LineString'?[feature.geometry.coordinates]:
+      feature.geometry.type==='MultiLineString'?feature.geometry.coordinates:[];
+    for(const line of lines)paths.push(line.map(([lon,lat]):EditPoint=>[lat,lon]));
+  }
+  return routeEditPoint(tap,paths,point=>gl.project([point[1],point[0]]),tolerancePx);
 }
 
 /** MapLibre owns all verified line rendering and precise route hit-testing.

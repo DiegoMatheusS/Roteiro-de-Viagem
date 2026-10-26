@@ -44,7 +44,7 @@ try{
   assert.notEqual(await map.getAttribute('data-map-ready'),'true',
     'this assertion must run before the initial map load completes');
   await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>(
-    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)===16);
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)===18);
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector<SVGElement>(
     '.user-live-marker svg')?.style.transform==='rotate(180deg)',{},{timeout:3000});
@@ -65,6 +65,7 @@ try{
   const touch=(type:'touchStart'|'touchMove'|'touchEnd',points:Array<{x:number;y:number}>)=>cdp.send(
     'Input.dispatchTouchEvent',{type,touchPoints:points.map((point,id)=>({
       ...point,id,radiusX:4,radiusY:4,force:1}))});
+  const panBefore=await marker.boundingBox();assert.ok(panBefore);
   await touch('touchStart',[{x:90,y:180}]);
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).evaluate(button=>(button as HTMLButtonElement).click());
   await page.waitForTimeout(100);
@@ -78,6 +79,9 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-testid="mode"]')?.textContent==='exploring');
   await page.waitForFunction(()=>document.querySelector<SVGElement>(
     '.user-live-marker svg')?.style.transform==='rotate(270deg)',{},{timeout:3000});
+  const panAfter=await marker.boundingBox();assert.ok(panAfter);
+  assert.ok(Math.hypot(panAfter.x-panBefore.x,panAfter.y-panBefore.y)>50,
+    'drag must follow the whole gesture, not stop after its first small movement');
   await page.waitForTimeout(800);
   const beforeZoom=Number(await map.getAttribute('data-map-zoom'));
   await touch('touchStart',[{x:140,y:260},{x:220,y:260}]);
@@ -87,7 +91,8 @@ try{
   }
   await touch('touchEnd',[]);
   await page.waitForFunction(previous=>Number(document.querySelector<HTMLElement>(
-    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)>previous+.1,beforeZoom,{timeout:3000});
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)>previous+.65,beforeZoom,{timeout:3000});
+  console.log('Native pinch zoom gain:',Number(await map.getAttribute('data-map-zoom'))-beforeZoom);
   await page.waitForTimeout(800);
   const exploredCenter=await map.getAttribute('data-map-center');
   const exploredZoom=Number(await map.getAttribute('data-map-zoom'));

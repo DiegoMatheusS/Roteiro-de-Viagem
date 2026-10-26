@@ -15,17 +15,27 @@ function setup(){
 }
 const input={navigationMode:true,followUser:true,position:[-23.5,-46.6] as [number,number],centerRequest:0,reducedMotion:false};
 
+test('first GPS fix establishes the close view once, without a second turn animation',()=>{
+  let first=0,turn=0;
+  const session=createNavigationCameraSession({zoom:()=>18,stop:()=>{},
+    firstGpsFix:()=>{first++;},zoomToTurn:()=>{turn++;},
+    focus:()=>{},fitRoute:()=>{},recenter:()=>{},follow:()=>{}},()=>{});
+  session.update({...input,maneuverMeters:100,speedMetersPerSecond:8});
+  assert.equal(first,1);
+  assert.equal(turn,0,'the first sample must not issue jumpTo and easeTo together');
+});
+
 test('native gestures interrupt movement; subsequent GPS fixes cannot steal exploration',()=>{
   const s=setup();
   s.session.update(input);
   s.session.update({...input,position:[-23.501,-46.6]});
   s.session.explore();s.session.explore();
   s.session.update({...input,position:[-23.502,-46.6]});
-  assert.deepEqual(s.calls,['first','follow','stop','stop']);
+  assert.deepEqual(s.calls,['first','follow','stop']);
   assert.deepEqual(s.modes,['exploring']);
   s.session.update({...input,position:[-23.502,-46.6],centerRequest:1});
   s.session.update({...input,position:[-23.503,-46.6],centerRequest:1});
-  assert.deepEqual(s.calls,['first','follow','stop','stop','recenter','follow']);
+  assert.deepEqual(s.calls,['first','follow','stop','recenter','follow']);
   assert.deepEqual(s.modes,['exploring','following']);
 });
 
@@ -118,9 +128,9 @@ test('zoom automático ocorre uma vez na aproximação, depois volta ao nível n
   session.update(near);
   session.update({...near,position:[-23.5001,-46.6],maneuverMeters:215});
   assert.equal(commands.length,1,'sem comandos repetidos a cada amostra GPS');
-  assert.equal(commands[0].zoom,17);
+  assert.equal(commands[0].zoom,18.5);
   session.update({...near,position:[-23.5002,-46.6],maneuverMeters:500});
-  assert.deepEqual(commands.map(c=>c.zoom),[17,16]);
+  assert.deepEqual(commands.map(c=>c.zoom),[18.5,18]);
 });
 
 test('zoom manual é respeitado após 7 segundos; botão GPS volta a permitir ajuda de conversão',()=>{
@@ -135,10 +145,10 @@ test('zoom manual é respeitado após 7 segundos; botão GPS volta a permitir aj
   assert.equal(session.resume(),true);
   session.update({...input,position:[-23.5002,-46.6],maneuverMeters:200});
   session.update({...input,position:[-23.5003,-46.6],maneuverMeters:800});
-  assert.deepEqual(zooms,[17],'não sobrescrever a escala escolhida manualmente');
+  assert.deepEqual(zooms,[],'não sobrescrever a escala escolhida manualmente');
   session.update({...input,centerRequest:1,position:[-23.5003,-46.6],maneuverMeters:230});
   session.update({...input,centerRequest:1,position:[-23.5004,-46.6],maneuverMeters:220});
-  assert.deepEqual(zooms,[17,17],'botão GPS restaura o zoom automático nas manobras');
+  assert.deepEqual(zooms,[18.5],'botão GPS restaura o zoom automático nas manobras');
 });
 
 test('sem GPS válido ou durante a exploração, zoom de conversão não movimenta mapa',()=>{
