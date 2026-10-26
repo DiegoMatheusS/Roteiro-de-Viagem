@@ -12,6 +12,7 @@ import type {MapTheme} from '../services/mapAppearance';
 import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
 import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
+import {createMapGestureUpdates} from '../services/mapGestureUpdates';
 import {assessMapLoadFailure,shouldReloadAfterReconnect} from '../services/mapNetworkRecovery';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import {decideRouteRender,stableList,mapPixelRatio} from '../services/mapRouteRenderPolicy';
@@ -208,6 +209,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     // not count: that movement is ours.
     const userInteracting=()=>mapTouchActive||
       (Boolean(latest.current.navigationMode)&&camera.snapshot().mode==='exploring'&&map.isMoving());
+    let viewportDirty=false;
     let drawn:RoleVectorMarker[]=[];
     let lastOverlayInputs:unknown[]=[];
     let lastMarkerInputs:unknown[]=[];
@@ -248,16 +250,34 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
       onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null)
     });
-    const render=()=>{
-      if(disposed||failed||!loaded)return;
-      if(!map.isStyleLoaded()){
-        if(!waitingForIdle){waitingForIdle=true;map.once('idle',retry);}
-        return;
+    // DOM GPS pins and camera commands do not depend on tile/style sources.
+    // Keep them live even before the first map load, while zoom fetches new
+    // tiles, or while a route source is being processed by the worker.
+    const updateLiveViewport=()=>{
+      const p=latest.current;
+      navigation.update({origin:p.originCoords,destination:p.destinationCoords,live:p.userLiveCoords,
+        headingDegrees:p.userHeadingDegrees,speedMetersPerSecond:p.userSpeedMetersPerSecond,
+        originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
+        navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
+      camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,position:p.userLiveCoords,
+        centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing,
+        maneuverMeters:p.maneuverMeters,speedMetersPerSecond:p.userSpeedMetersPerSecond});
+      if(p.focusedCoords && p.focusedCoords!==lastFocus){
+        camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
       }
+      lastFocus=p.focusedCoords;
+    };
+    const render=()=>{
+      if(disposed||failed)return;
       const p=latest.current;
       course=updateMapCourse(course,p.userHeadingDegrees,p.userSpeedMetersPerSecond);
       bearing=p.navigationMode&&courseModeRef.current?(course??0):0;
       try{
+        if(!loaded||!map.isStyleLoaded()){
+          updateLiveViewport();
+          if(!waitingForIdle){waitingForIdle=true;map.once('idle',retry);}
+          return;
+        }
         const root=container.current?.parentElement;
         if(root)root.dataset.mapIdle='false';
         // `value||[]` in callers creates a new empty list per render; compare
@@ -287,10 +307,6 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         else container.current?.removeAttribute('data-role-vector-routes');
         updateRoleVectorMilestones(map,p.routePath||[],COLORS[p.routeModality||'panoramica'],
           !p.navigationMode&&!p.roadStyle&&!p.blueRoute);
-        navigation.update({origin:p.originCoords,destination:p.destinationCoords,live:p.userLiveCoords,
-          headingDegrees:p.userHeadingDegrees,speedMetersPerSecond:p.userSpeedMetersPerSecond,
-          originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
-          navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
         // GPS can trigger many renders while driving. Keep the live navigation
         // marker responsive, but do not rebuild static overlays on each fix.
         const overlayInputs=[stableList(p.stops),stableList(p.meetingPoints),
@@ -344,19 +360,15 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             }
           }
         }
-        camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,position:p.userLiveCoords,
-          centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing,
-          maneuverMeters:p.maneuverMeters,speedMetersPerSecond:p.userSpeedMetersPerSecond});
-        if(p.focusedCoords && p.focusedCoords!==lastFocus){
-          camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
-        }
-        lastFocus=p.focusedCoords;
+        updateLiveViewport();
         // GPS/speed renders do not change which POIs the viewport contains.
         // moveend publishes visibility after pan/zoom; changed overlays
         // publish immediately even if the camera stays still.
-        if(overlaysChanged)publishPlaces();
+        if(overlaysChanged||viewportDirty){publishPlaces();viewportDirty=false;}
       }catch{fail();}
     };
+    const mapUpdates=createMapGestureUpdates(render);
+    const requestRender=()=>mapUpdates.request();
     const publishPlaces=()=>{
       const p=latest.current;
       if(!loaded||disposed||!p.onVisiblePlacesChange)return;
@@ -367,7 +379,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const signature=visiblePlacesSignature(visible);
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
-    const retry=()=>{waitingForIdle=false;render();};
+    const retry=()=>{waitingForIdle=false;requestRender();};
     const setBase=(style:MapStyleType,theme:MapTheme=appearanceRef.current,
       force=false,region:OfflineRegion|null=appliedOfflineRegion)=>{
       if(disposed||failed)return;
@@ -417,7 +429,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     window.addEventListener('offline',onNetworkOffline);
     window.addEventListener('online',onNetworkOnline);
-    runtime.current={render,camera,
+    runtime.current={render:requestRender,camera,
       // Persisted offline choice starts on a blank local canvas. Never load the
       // remote base before checking that a complete stored package exists.
       setBaseStyle:style=>{
@@ -453,7 +465,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       // deferred route upload sees a map that has really stopped moving.
       if(routeDeferred)queueMicrotask(()=>{
         if(disposed||!routeDeferred)return;
-        lastRouteRenderAt=-Infinity;render();
+        lastRouteRenderAt=-Infinity;requestRender();
       });
       const center=map.getCenter();
       root.dataset.mapCenter=JSON.stringify([center.lat,center.lng]);
@@ -465,7 +477,9 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           [Math.round(center.lat*100)/100,Math.round(center.lng*100)/100];
         setViewportCenter(current=>current?.[0]===point?.[0]&&current?.[1]===point?.[1]?current:point);
       }
-      publishPlaces();
+      viewportDirty=true;
+      if(mapUpdates.paused())requestRender();
+      else {publishPlaces();viewportDirty=false;}
     };
     const publishIdle=()=>{
       const root=container.current?.parentElement;
@@ -485,9 +499,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     // GPS panning, and never recenter while fingers are still on the canvas.
     const pointerIds=new Set<number>();
     const pointerDown=(event:PointerEvent)=>{
-      if(!latest.current.navigationMode)return;
       pointerIds.add(event.pointerId);
       mapTouchActive=true;
+      mapUpdates.hold();
+      if(!latest.current.navigationMode)return;
       // Claim the camera on first contact, before MapLibre emits dragstart or
       // zoomstart. GPS may otherwise issue easeTo between touchstart and the
       // native gesture threshold, interrupting slow pans and pinch gestures.
@@ -496,18 +511,28 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       idleFollow?.hold();
     };
     const pointerUp=(event:PointerEvent)=>{
-      pointerIds.delete(event.pointerId);
-      if(pointerIds.size===0){
-        mapTouchActive=false;
-        idleFollow?.release();
-        // Paint accumulated route progress once the fingers leave the map.
-        lastRouteRenderAt=-Infinity;
-        render();
-      }
+      // Releases outside this map must not schedule map work.
+      if(!pointerIds.delete(event.pointerId))return;
+      gestureEnd();
     };
-    const gestureEnd=()=>{if(pointerIds.size===0){mapTouchActive=false;idleFollow?.release();}};
+    const gestureEnd=()=>{
+      // A released finger can leave inertial pan/zoom running. Wait for native
+      // moveend as well, then coalesce pending data after 160 ms of quiet.
+      if(!mapTouchActive||pointerIds.size>0||map.isMoving())return;
+      mapTouchActive=false;
+      idleFollow?.release();
+      lastRouteRenderAt=-Infinity;
+      mapUpdates.release();
+    };
+    const cancelGesture=()=>{
+      pointerIds.clear();
+      if(!mapTouchActive)return;
+      mapTouchActive=false;idleFollow?.release();mapUpdates.release();
+    };
+    const onGestureVisibility=()=>{if(document.hidden)cancelGesture();};
     const userGesture=(event:{originalEvent?:unknown})=>{
       if(!event.originalEvent)return;
+      mapTouchActive=true;mapUpdates.hold();
       camera.explore();
       idleFollow?.activity();
       idleFollow?.hold();
@@ -522,9 +547,12 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     map.on('pitchstart',userGesture);
     for(const event of ['dragend','zoomend','rotateend','pitchend'] as const)
       map.on(event,gestureEnd);
+    map.on('moveend',gestureEnd);
     map.getContainer().addEventListener('pointerdown',pointerDown,{passive:true});
     document.addEventListener('pointerup',pointerUp,{passive:true});
     document.addEventListener('pointercancel',pointerUp,{passive:true});
+    window.addEventListener('blur',cancelGesture);
+    document.addEventListener('visibilitychange',onGestureVisibility);
     const unbindGestures=bindManualMapZoom(map.getContainer(),()=>{
       camera.overrideZoom();camera.explore();
       idleFollow?.activity();
@@ -570,18 +598,19 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(root)root.dataset.mapStyleReady=appliedOfflineRegion?'offline':activeStyle;
       if(!appliedOfflineRegion&&activeStyle==='light'&&activeTheme==='light')
         applyRoleVectorPalette(map);
-      render();
+      requestRender();
     };
     map.on('style.load',styleLoaded);
     const load=()=>{
       if(disposed||failed)return;
       loaded=true;clearTimeout(timeout);
-      setReady(true);render();
+      setReady(true);requestRender();
       publishViewport();
     };
     map.once('load',load);
     return ()=>{
       disposed=true;clearTimeout(timeout);if(styleTimeout)clearTimeout(styleTimeout);runtime.current=null;
+      mapUpdates.dispose();
       idleFollow?.dispose();
       window.removeEventListener('offline',onNetworkOffline);
       window.removeEventListener('online',onNetworkOnline);
@@ -589,8 +618,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       map.getContainer().removeEventListener('pointerdown',pointerDown);
       document.removeEventListener('pointerup',pointerUp);
       document.removeEventListener('pointercancel',pointerUp);
+      window.removeEventListener('blur',cancelGesture);
+      document.removeEventListener('visibilitychange',onGestureVisibility);
       for(const event of ['dragend','zoomend','rotateend','pitchend'] as const)
         map.off(event,gestureEnd);
+      map.off('moveend',gestureEnd);
       map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userZoomGesture);map.off('rotatestart',userGesture);map.off('pitchstart',userGesture);
       editablePin?.remove();
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
