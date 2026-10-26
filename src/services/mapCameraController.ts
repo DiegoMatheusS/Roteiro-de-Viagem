@@ -2,6 +2,7 @@
  * navigation uses MapLibre. Never command both cameras for one viewport. */
 export type CameraPoint = [number,number]; // [latitude, longitude]
 export type CameraMode = 'following'|'exploring';
+export const NAVIGATION_START_ZOOM=18;
 
 export function nextCameraMode(current:CameraMode,event:'drag'|'recenter'|'stop'):CameraMode {
   if(event==='drag')return 'exploring';
@@ -13,7 +14,7 @@ export function recenterZoom(currentZoom:number,navigation:boolean):number {
   // Preserve an intentional manual zoom on an active trip. First fix from the
   // continental view must still zoom in to make navigation usable.
   return navigation && Number.isFinite(currentZoom) && currentZoom>=10
-    ? Math.min(currentZoom,19) : 15;
+    ? Math.min(currentZoom,19) : navigation?NAVIGATION_START_ZOOM:15;
 }
 export interface CameraFitPadding {
   topLeft:[number,number];
@@ -48,7 +49,7 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
     stop:()=>{map.stop();},
     firstGpsFix(point){
       // The first live location must not animate from a distant map center.
-      map.setView(point,16,{animate:false});
+      map.setView(point,NAVIGATION_START_ZOOM,{animate:false});
     },
     focus(point,zoom,reducedMotion=true){
       if(reducedMotion)map.setView(point,zoom,{animate:false});
@@ -74,7 +75,7 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
 }
 interface StandaloneMapLibreCamera {
   getZoom():number;
-  stop(allowGestures?:boolean):unknown;
+  stop():unknown;
   jumpTo(options:{center:[number,number];zoom?:number;bearing?:number}):unknown;
   easeTo(options:{center:[number,number];zoom?:number;bearing?:number;duration:number}):unknown;
   fitBounds(bounds:[[number,number],[number,number]],options:{
@@ -92,10 +93,11 @@ export function createStandaloneMapLibreCameraPort(
   };
   return {
     zoom:()=>map.getZoom(),
-    // Preserve the native gesture that just took ownership of the camera.
-    stop:()=>{map.stop(true);},
+    // The session invokes this once before a manual gesture starts. MapLibre
+    // 6 does not forward an allowGestures argument on the public Map.stop().
+    stop:()=>{map.stop();},
     firstGpsFix(point){
-      map.jumpTo({center:lngLat(point),zoom:16,...orientation()});
+      map.jumpTo({center:lngLat(point),zoom:NAVIGATION_START_ZOOM,...orientation()});
     },
     focus(point,zoom,reducedMotion=true){
       if(reducedMotion)map.jumpTo({center:lngLat(point),zoom,...orientation()});

@@ -22,7 +22,7 @@ try{
   const map=page.locator('[data-map-engine="maplibre-standalone"]');
   await page.waitForFunction(()=>{
     const map=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
-    return map?.dataset.mapReady==='true' && Number(map.dataset.mapZoom)===16;
+    return map?.dataset.mapReady==='true' && Number(map.dataset.mapZoom)===18;
   });
   assert.equal(await page.locator('.leaflet-container').count(),0,'native navigation must not create a Leaflet viewport');
   assert.equal(await page.locator('.maplibregl-canvas').count(),1,'there is exactly one native canvas');
@@ -68,7 +68,7 @@ try{
     return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001;
   });
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'following');
-  assert.equal(Number(await map.getAttribute('data-map-zoom')),16,'recenter preserves navigation zoom');
+  assert.equal(Number(await map.getAttribute('data-map-zoom')),18,'recenter preserves navigation zoom');
   assert.ok(Math.abs(Math.abs(Number(await map.getAttribute('data-map-bearing')))-180)<0.00001,'follow resumes with the latest reliable GPS course');
   await page.getByRole('button',{name:'Manter o mapa apontado para o norte',exact:true}).click();
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
@@ -89,7 +89,7 @@ try{
   await page.mouse.wheel(0,-120);
   await page.waitForFunction(()=>{
     const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
-    return root?.dataset.mapIdle==='true' && Number(root.dataset.mapZoom)>16;
+    return root?.dataset.mapIdle==='true' && Number(root.dataset.mapZoom)>18;
   });
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring');
   const lossCenter=JSON.parse((await map.getAttribute('data-map-center'))!);

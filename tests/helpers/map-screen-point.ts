@@ -3,7 +3,7 @@
 export function mapScreenPoint(root:HTMLElement,target:[number,number]):{x:number;y:number}{
   const box=(root.querySelector('.maplibregl-canvas')||root).getBoundingClientRect();
   const [lat,lon]=JSON.parse(root.dataset.mapCenter!);
-  const size=512*2**Number(root.dataset.mapZoom);
+  const size=(root.dataset.mapEngine==='leaflet-fallback'?256:512)*2**Number(root.dataset.mapZoom);
   const centerX=(lon+180)/360*size;
   const centerY=(1-Math.log(Math.tan(Math.PI/4+lat*Math.PI/360))/Math.PI)/2*size;
   const targetX=(target[1]+180)/360*size;
