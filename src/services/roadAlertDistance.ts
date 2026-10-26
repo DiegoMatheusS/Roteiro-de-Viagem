@@ -2,18 +2,46 @@ import { distanceBetweenKm } from './gpsTracking';
 import type { RoadAlert } from '../types/roadAlerts';
 
 type Coordinates = [number, number];
+
+/** Haversine length of every route segment, computed once per path. The scans
+ * below run on each GPS fix over routes of tens of thousands of vertices and
+ * used to repeat the trigonometry per segment, per alert, per render. Paths are
+ * replaced, never edited in place; the length and end-point guard rebuilds the
+ * table if one ever is. */
+interface SegmentTable { length: number; first: number; last: number; km: Float64Array; total: number }
+const segmentTables = new WeakMap<Coordinates[], SegmentTable>();
+function segmentTable(route: Coordinates[]): SegmentTable {
+  const length = route.length;
+  const first = route[0]?.[0] as number, last = route[length - 1]?.[0] as number;
+  const cached = segmentTables.get(route);
+  if (cached && cached.length === length && cached.first === first && cached.last === last) return cached;
+  const km = new Float64Array(length);
+  let total = 0;
+  for (let i = 1; i < length; i++) { km[i] = distanceBetweenKm(route[i - 1], route[i]); total += km[i]; }
+  const table = { length, first, last, km, total };
+  segmentTables.set(route, table);
+  return table;
+}
+
+/** Alerts are only reported within 3 km ahead of the driver, and the route
+ * distance between two points is never shorter than the straight line between
+ * their projections. Allowing for the 0.4 km and 0.35 km lateral tolerances,
+ * anything farther than this straight-line radius cannot qualify. */
+const ALERT_SEARCH_RADIUS_KM = 4;
+
 function nearestProgress(point: Coordinates, route: Coordinates[], expectedKm = 0) {
+  const { km } = segmentTable(route);
   let accumulated = 0, bestDistance = Infinity, bestAlong = 0, bestScore = Infinity;
+  const factor = Math.max(0.01, Math.abs(Math.cos(point[0] * Math.PI / 180)));
   for (let i = 1; i < route.length; i++) {
     const a = route[i - 1], b = route[i];
-    const factor = Math.max(0.01, Math.abs(Math.cos(point[0] * Math.PI / 180)));
     const ax = (point[1] - a[1]) * 111.195 * factor;
     const ay = (point[0] - a[0]) * 111.195;
     const dx = (b[1] - a[1]) * 111.195 * factor;
     const dy = (b[0] - a[0]) * 111.195;
     const fraction = Math.max(0, Math.min(1, (ax * dx + ay * dy) / Math.max(1e-9, dx * dx + dy * dy)));
     const distance = Math.hypot(ax - fraction * dx, ay - fraction * dy);
-    const segmentLength = distanceBetweenKm(a, b);
+    const segmentLength = km[i];
     const along = accumulated + fraction * segmentLength;
     // Different legs of a circular journey can cross the same coordinate.
     const score = distance + Math.abs(along - expectedKm) * 0.08;
@@ -27,13 +55,13 @@ export function upcomingRoadAlert(
   totalKm = 0, currentTime = Date.now()
 ): { alert: RoadAlert; distanceKm: number } | null {
   if (!position || route.length < 2) return null;
-  let routeLength = 0;
-  for (let i = 1; i < route.length; i++) routeLength += distanceBetweenKm(route[i-1],route[i]);
+  const routeLength = segmentTable(route).total;
   const expected = totalKm > 0 ? Math.min(1, travelledKm / totalKm) * routeLength : 0;
   const user = nearestProgress(position, route, expected);
   if (user.distanceKm > 0.4) return null;
   const upcoming = alerts
-    .filter(alert => Date.parse(alert.expiresAt) > currentTime)
+    .filter(alert => Date.parse(alert.expiresAt) > currentTime &&
+      distanceBetweenKm(position, [alert.lat, alert.lng]) <= ALERT_SEARCH_RADIUS_KM)
     .map(alert => {
       const found = nearestProgress([alert.lat, alert.lng], route, expected + 1);
       return { alert, distanceKm: found.alongKm - user.alongKm, lateralKm: found.distanceKm };

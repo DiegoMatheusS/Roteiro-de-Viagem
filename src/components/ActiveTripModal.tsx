@@ -123,16 +123,30 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
     trackedDistanceKm:distanceTraveledKm,
     enabled:isOpen,onReroute:onNavigationReroute,onStopVisited});
 
+  // Each of these scans the whole road path (tens of thousands of vertices on a
+  // long trip). They only depend on the GPS fix and the route, so they must not
+  // rerun when the render comes from the camera mode, a dialog or a timer.
+  const gpsFix=tracking.status==='ready'?tracking.position:null;
+  const fixLat=gpsFix?.coords[0],fixLng=gpsFix?.coords[1];
+  const outsideCorridor=useMemo(
+    ()=>isOpen&&!!gpsFix&&isGpsOutsideRouteCorridor(gpsFix,navigationPath),
+    [isOpen,gpsFix,navigationPath]);
+  const refreshingStopRoute=useMemo(()=>routeNeedsRefreshAfterStop(trip),[trip]);
+  // The last verified line remains on screen while a newly attended stop
+  // changes the itinerary. Never voice turns based on its old waypoint list.
+  const nextTurn=useMemo(()=>(!isOpen||outsideCorridor||refreshingStopRoute||usingLocalRoadGraph)?null:
+    nextNavigationGuidance(navigationPath,navigationSteps,
+      fixLat!==undefined&&fixLng!==undefined?[fixLat,fixLng]:undefined,routeTravelledKm,routeDistanceKm),
+    [isOpen,outsideCorridor,refreshingStopRoute,usingLocalRoadGraph,navigationPath,navigationSteps,
+      fixLat,fixLng,routeTravelledKm,routeDistanceKm]);
+  const upcoming=useMemo(()=>isOpen&&fixLat!==undefined&&fixLng!==undefined
+    ?upcomingRoadAlert(roadAlerts.alerts,navigationPath,[fixLat,fixLng],routeTravelledKm,routeDistanceKm):null,
+    [isOpen,roadAlerts.alerts,navigationPath,fixLat,fixLng,routeTravelledKm,routeDistanceKm]);
+
   if (!isOpen) return null;
 
   const currentSpeed = tracking.speedKmH;
   const isGpsActive = tracking.status === 'ready';
-  const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor(tracking.position,navigationPath);
-  const refreshingStopRoute=routeNeedsRefreshAfterStop(trip);
-  // The last verified line remains on screen while a newly attended stop
-  // changes the itinerary. Never voice turns based on its old waypoint list.
-  const nextTurn = (outsideCorridor||refreshingStopRoute||usingLocalRoadGraph)?null:nextNavigationGuidance(navigationPath,navigationSteps,
-    isGpsActive ? tracking.position?.coords : undefined,routeTravelledKm,routeDistanceKm);
   const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
   const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
@@ -192,10 +206,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       if(!controller.signal.aborted)setStopBusy(false);
     }
   };
-
-  const upcoming = tracking.status === 'ready'
-    ? upcomingRoadAlert(roadAlerts.alerts, navigationPath, tracking.position?.coords, routeTravelledKm, routeDistanceKm)
-    : null;
 
   const handleFinish = () => {
     if (!canFinish) return;
