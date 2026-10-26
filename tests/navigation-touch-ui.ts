@@ -1,0 +1,96 @@
+import assert from 'node:assert/strict';
+import sharp from 'sharp';
+import {chromium} from 'playwright';
+import {createServer} from 'vite';
+
+// Real touch events, including gestures whose first finger lands on the GPS
+// arrow. Double-click or mouse-only zoom cannot catch a swallowed touchstart.
+const vite=await createServer({server:{host:'127.0.0.1',port:3000,strictPort:true}});
+await vite.listen();
+let browser;
+try{
+  browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+    args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle',
+      '--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+  const tile=await sharp({create:{width:256,height:256,channels:4,background:'#eaf0ef'}}).png().toBuffer();
+  for(const fallback of [false,true]){
+    const page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true,isMobile:true});
+    const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.route('https://**',route=>route.fulfill({contentType:'image/png',body:tile}));
+    await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{
+      version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]
+    }}));
+    await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-map.html');
+    await page.waitForFunction(()=>document.querySelector<HTMLElement>(
+      '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+    if(fallback){
+      await page.locator('.maplibregl-canvas').evaluate(canvas=>
+        canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
+    }
+    const engine=fallback?'leaflet-fallback':'maplibre-standalone';
+    const map=page.locator(`[data-map-engine="${engine}"]`);
+    await map.waitFor();
+    const marker=page.locator('.user-live-marker');
+    await marker.waitFor();
+    await page.waitForTimeout(600);
+    const cdp=await page.context().newCDPSession(page);
+    const touch=(type:'touchStart'|'touchMove'|'touchEnd',points:Array<{x:number;y:number}>)=>cdp.send(
+      'Input.dispatchTouchEvent',{type,touchPoints:points.map((point,id)=>({
+        ...point,id,radiusX:4,radiusY:4,force:1}))});
+    const arrowCenter=async()=>{
+      const box=await marker.boundingBox();assert.ok(box);
+      return {x:box.x+box.width/2,y:box.y+box.height/2};
+    };
+    const click=async(name:string)=>page.getByRole('button',{name,exact:true})
+      .evaluate(button=>(button as HTMLButtonElement).click());
+    const recenter=async()=>{
+      await click('Seguir GPS');
+      await page.waitForFunction(()=>document.querySelector('[data-testid="mode"]')?.textContent==='following');
+      await page.waitForTimeout(700);
+    };
+    const zoom=async()=>Number(await map.getAttribute('data-map-zoom'));
+    // Pan begins on the arrow, with GPS arriving while the finger is still
+    // held. Neither the marker nor GPS may steal the camera before dragstart.
+    let point=await arrowCenter();
+    const initialCenter=await map.getAttribute('data-map-center');
+    await touch('touchStart',[point]);
+    await click('Mover GPS');
+    await page.waitForTimeout(100);
+    assert.equal(await map.getAttribute('data-map-center'),initialCenter,
+      `${engine}: GPS must pause on first contact, before the pan threshold`);
+    for(let i=1;i<=10;i++){
+      await touch('touchMove',[{x:point.x+i*8,y:point.y+i*4}]);
+      await page.waitForTimeout(25);
+    }
+    await touch('touchEnd',[]);
+    await page.waitForFunction(()=>document.querySelector('[data-testid="mode"]')?.textContent==='exploring');
+    await page.waitForTimeout(700);
+    assert.notEqual(await map.getAttribute('data-map-center'),initialCenter,
+      `${engine}: a pan starting on the GPS arrow must move the map`);
+    await recenter();
+    // The first finger lands exactly on the arrow; the second joins later,
+    // as on a real phone. Check a full spread and a full pinch separately.
+    for(const spread of [true,false]){
+      point=await arrowCenter();
+      const before=await zoom();
+      const startDistance=spread?60:120;
+      await touch('touchStart',[point]);
+      await touch('touchStart',[point,{x:point.x+startDistance,y:point.y}]);
+      for(let i=1;i<=10;i++){
+        const distance=startDistance*(spread?1+i/10:1-i/20);
+        await touch('touchMove',[point,{x:point.x+distance,y:point.y}]);
+        await page.waitForTimeout(25);
+      }
+      await touch('touchEnd',[]);
+      await page.waitForTimeout(900);
+      const delta=(await zoom())-before;
+      assert.ok(spread?delta>.65:delta<-.65,
+        `${engine}: ${spread?'spread':'pinch'} starting at the arrow must complete (delta ${delta})`);
+      assert.equal(await page.getByTestId('mode').textContent(),'exploring');
+      await recenter();
+    }
+    assert.deepEqual(errors,[]);
+    await page.close();
+  }
+  console.log('PASS: pan, spread and pinch from GPS arrow, with GPS during contact; native and fallback.');
+}finally{await browser?.close();await vite.close();}

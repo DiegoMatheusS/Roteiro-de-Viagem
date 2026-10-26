@@ -2,6 +2,7 @@ import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {InteractiveMap} from '../../src/components/InteractiveMap';
 import '../../src/index.css';
+import 'leaflet/dist/leaflet.css';
 function Fixture(){
   const [coords,setCoords]=useState<[number,number]>([-23.55,-46.63]);
   const [request,setRequest]=useState(0);

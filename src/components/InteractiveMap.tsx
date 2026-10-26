@@ -342,10 +342,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // Only a user's drag suspends following; programmatic GPS panning does not.
     const pauseFollowing = () => {
       if(!navigationModeRef.current)return;
-      // Cancel an in-flight GPS/recenter animation before handing control to the user.
-      createHybridCameraPort(map).stop();
       idleFollow.activity();
       if(followSuspendedRef.current)return;
+      // Interrupt our animation once on first contact, before Leaflet's pan
+      // threshold. Repeated pinch/drag events must not stop a gesture in flight.
+      createHybridCameraPort(map).stop();
       followSuspendedRef.current=true;
       cameraModeChangeRef.current?.('exploring');
     };
@@ -359,6 +360,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const pointerDown=(event:PointerEvent)=>{
       if(!navigationModeRef.current)return;
       activePointers.add(event.pointerId);
+      pauseFollowing();
       idleFollow.hold();
     };
     const pointerUp=(event:PointerEvent)=>{
@@ -1041,6 +1043,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const existing=liveFallbackRef.current;
     if (existing && group.hasLayer(existing)) {
       existing.setLatLng(userLiveCoords);
+      const element=existing.getElement();
+      if(element){element.style.pointerEvents=navigationMode?'none':'auto';element.tabIndex=navigationMode?-1:0;}
       return;
     }
     group.clearLayers();
@@ -1050,9 +1054,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
       iconSize:[32,32],iconAnchor:[16,16]
     });
-    liveFallbackRef.current=L.marker(userLiveCoords,{icon,zIndexOffset:1000})
+    liveFallbackRef.current=L.marker(userLiveCoords,{icon,zIndexOffset:1000,
+      interactive:!navigationMode,keyboard:!navigationMode})
       .addTo(group).bindPopup('<b>Sua Posição Atual (GPS)</b>');
-  },[userLiveCoords,vectorNavigationReady]);
+  },[userLiveCoords,vectorNavigationReady,navigationMode]);
 
   // Rotate the GPS arrow itself, never the Leaflet/MapLibre cameras separately.
   // Those cameras are still coupled through the hybrid adapter.
