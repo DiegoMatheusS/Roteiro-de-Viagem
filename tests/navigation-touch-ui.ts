@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {chromium} from 'playwright';
 import {createServer} from 'vite';
+import {mapScreenPoint} from './helpers/map-screen-point';
 
 // Real touch events, including gestures whose first finger lands on the GPS
 // arrow. Double-click or mouse-only zoom cannot catch a swallowed touchstart.
@@ -53,10 +54,15 @@ try{
     // held. Neither the marker nor GPS may steal the camera before dragstart.
     let point=await arrowCenter();
     const initialCenter=await map.getAttribute('data-map-center');
+    const original=JSON.parse(initialCenter!) as [number,number];
+    const screenBefore=await map.evaluate(mapScreenPoint,original);
     await touch('touchStart',[point]);
     await click('Mover GPS');
     await page.waitForTimeout(100);
-    assert.equal(await map.getAttribute('data-map-center'),initialCenter,
+    const screenHeld=await map.evaluate(mapScreenPoint,original);
+    // Leaflet stop()/setView() can round the unchanged center by a fraction
+    // of a pixel. Reject a GPS pan, not harmless Web Mercator pixel rounding.
+    assert.ok(Math.hypot(screenHeld.x-screenBefore.x,screenHeld.y-screenBefore.y)<=1,
       `${engine}: GPS must pause on first contact, before the pan threshold`);
     for(let i=1;i<=10;i++){
       await touch('touchMove',[{x:point.x+i*8,y:point.y+i*4}]);
@@ -65,8 +71,9 @@ try{
     await touch('touchEnd',[]);
     await page.waitForFunction(()=>document.querySelector('[data-testid="mode"]')?.textContent==='exploring');
     await page.waitForTimeout(700);
-    assert.notEqual(await map.getAttribute('data-map-center'),initialCenter,
-      `${engine}: a pan starting on the GPS arrow must move the map`);
+    const screenAfter=await map.evaluate(mapScreenPoint,original);
+    assert.ok(Math.hypot(screenAfter.x-screenBefore.x,screenAfter.y-screenBefore.y)>50,
+      `${engine}: a pan starting on the GPS arrow must complete the movement`);
     await recenter();
     // The first finger lands exactly on the arrow; the second joins later,
     // as on a real phone. Check a full spread and a full pinch separately.
