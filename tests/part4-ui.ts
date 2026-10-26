@@ -86,9 +86,25 @@ try{
  // Explicit route publication is shared while meeting-point check-ins are retained.
  await rider.getByRole('button',{name:'Configurações'}).click();await rider.getByRole('button',{name:'Entrar em um comboio por código',exact:true}).click();await rider.getByRole('dialog',{name:'Entrar no comboio'}).getByLabel('Código do comboio',{exact:true}).fill(group.code);await rider.getByRole('button',{name:'Entrar',exact:true}).click();await rider.getByRole('button',{name:'Cheguei',exact:true}).first().click();
  await owner.getByRole('button',{name:'Atualizar roteiro do comboio',exact:true}).click();await rider.getByText('1 no local',{exact:true}).last().waitFor();
- await owner.getByRole('button',{name:'Encerrar Comboio',exact:true}).click();await owner.getByRole('button',{name:'Sim, Encerrar',exact:true}).click();await rider.getByText(/Este comboio foi encerrado/).waitFor();
- // The status banner commits before map effects reconcile/remove DOM pins.
- // Verify the eventual cleanup, rather than racing that same React commit.
+ await owner.getByRole('button',{name:'Encerrar Comboio',exact:true}).click();
+ const endedRequest=owner.waitForResponse(response=>response.url().endsWith(`/api/convoys/${group.id}/end`)&&response.request().method()==='POST');
+ await owner.getByRole('button',{name:'Sim, Encerrar',exact:true}).click();
+ assert.equal((await endedRequest).status(),200,'the organizer must actually end the convoy');
+ // The screen polls every 5 s; App independently refreshes membership every
+ // 15 s and exits an ended convoy. Either can win. A banner can disappear in
+ // that same commit, so also accept the confirmed return to the app tabs.
+ await rider.waitForFunction(()=>document.body.innerText.includes('Este comboio foi encerrado')||
+   (!document.querySelector('[aria-label="Voltar ao menu e manter comboio ativo"]')&&
+    !!document.querySelector('[aria-label="Aba Perfil"]')));
+ const ended=await rider.evaluate(async id=>{
+   const response=await fetch('/api/convoys/'+id);
+   if(!response.ok)throw new Error('Cannot confirm ended convoy: '+response.status);
+   return response.json();
+ },group.id);
+ assert.equal(ended.status,'completed');
+ assert.ok(ended.participants.every((participant:any)=>!participant.coords),
+   'the server must no longer expose any participant location');
+ // Verify eventual map-effect cleanup in both valid UI states.
  await rider.waitForFunction(()=>document.querySelectorAll('.convoy-participant-marker').length===0);
  assert.equal(await rider.locator('.convoy-participant-marker').count(),0);
  assert.deepEqual(errors,[]);console.log('PASS: duas sessões da mesma conta, edição offline, GPS automático em duas contas, outras telas, retomada e encerramento do Comboio.');
