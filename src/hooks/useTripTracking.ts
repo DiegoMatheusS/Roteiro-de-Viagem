@@ -5,6 +5,7 @@ import { isNativeApp, TravelNative } from '../services/nativeApp';
 import type { DeviceLocation } from '../services/locationService';
 import { useDeviceLocation } from './useDeviceLocation';
 import { activeNativeTripPosition } from '../services/activeNativeTripPosition';
+import { mergeNativeTrackingState } from '../services/nativeTrackingState';
 export function useTripTracking(tripId?: string) {
   const native = isNativeApp();
   const nativeKey = tripId ? `${storageService.getScope() || 'guest'}:${tripId}` : '';
@@ -22,8 +23,9 @@ export function useTripTracking(tripId?: string) {
       if(disposed)return;
       if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
       const livePosition=activeNativeTripPosition(state,nativeKey);
-      setNativeState({ tripId, distanceKm: state.distanceKm, position: livePosition, running: state.running,
-        error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !livePosition ? 'Aguardando sinal GPS recente.' : null });
+      // Skip the render when the poll brought nothing new (see mergeNativeTrackingState).
+      setNativeState(current => mergeNativeTrackingState(current, { tripId, distanceKm: state.distanceKm, position: livePosition, running: state.running,
+        error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !livePosition ? 'Aguardando sinal GPS recente.' : null }));
     }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); }); };
     void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, resume:attempt>0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); });
     const timer = window.setInterval(read, 2000);

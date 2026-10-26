@@ -150,8 +150,9 @@ test('mapa não anuncia conversões antigas quando o GPS confiável sai do corre
  assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.4985,-46.495],{accuracyMeters:80}),path,now),false);
  assert.equal(isGpsOutsideRouteCorridor(fix(0,[-23.4985,-46.495]),path,now+9000),false);
  const hud=readFileSync(new URL('../src/components/ActiveTripModal.tsx',import.meta.url),'utf8');
- assert.match(hud,/const outsideCorridor=isGpsActive&&isGpsOutsideRouteCorridor\(tracking\.position,navigationPath\)/);
- assert.match(hud,/const nextTurn = \(outsideCorridor\|\|refreshingStopRoute\|\|usingLocalRoadGraph\)\?null:nextNavigationGuidance/);
+ // Route scans are memoized on the GPS fix and route; the rule they enforce is unchanged.
+ assert.match(hud,/const outsideCorridor=useMemo\(\s*\(\)=>isOpen&&!!gpsFix&&isGpsOutsideRouteCorridor\(gpsFix,navigationPath\)/);
+ assert.match(hud,/const nextTurn=useMemo\(\(\)=>\(!isOpen\|\|outsideCorridor\|\|refreshingStopRoute\|\|usingLocalRoadGraph\)\?null:\s*nextNavigationGuidance/);
  assert.match(hud,/outsideCorridor\?'Fora da rota':refreshingStopRoute\?'Parada atendida':'Na rota'/);
 });
 
@@ -405,8 +406,8 @@ test('o GPS solicita rota após parada mesmo sem desvio e oculta conversões ant
  assert.match(hook,/const canRefresh=needsStopRefresh&&isReliableStopRefreshFix\(fix,now\)&&/);
  assert.match(hook,/now-state\.current\.lastAttemptAt>=REROUTE_COOLDOWN_MS/);
  assert.match(hook,/if\(!canRefresh&&!decision\.trigger\)return/);
- assert.match(hud,/const refreshingStopRoute=routeNeedsRefreshAfterStop\(trip\)/);
- assert.match(hud,/const nextTurn = \(outsideCorridor\|\|refreshingStopRoute\|\|usingLocalRoadGraph\)\?null/);
+ assert.match(hud,/const refreshingStopRoute=useMemo\(\(\)=>routeNeedsRefreshAfterStop\(trip\),\[trip\]\)/);
+ assert.match(hud,/const nextTurn=useMemo\(\(\)=>\(!isOpen\|\|outsideCorridor\|\|refreshingStopRoute\|\|usingLocalRoadGraph\)\?null/);
  assert.match(hud,/Atualizando trajeto para as paradas restantes/);
  assert.match(hud,/Rota anterior mantida até atualizar/);
 });
