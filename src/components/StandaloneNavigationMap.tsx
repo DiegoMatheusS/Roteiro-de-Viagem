@@ -15,6 +15,7 @@ import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
 import {createMapGestureUpdates} from '../services/mapGestureUpdates';
 import {assessMapLoadFailure,shouldReloadAfterReconnect} from '../services/mapNetworkRecovery';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
+import {decideRouteRender,stableList,mapPixelRatio} from '../services/mapRouteRenderPolicy';
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
 import {updateRoleVectorRoutes,queryRoleVectorAlternative} from '../services/mapLibreRouteLayers';
@@ -164,6 +165,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // Preserve native pan, pinch zoom and two-finger rotation while exploring.
         // Camera following pauses on explicit gestures and resumes via GPS.
         dragRotate:true,pitchWithRotate:true,touchPitch:true,
+        // Navigation draws to a canvas capped at 2x: on 3x phones that is 2.25x
+        // fewer pixels per frame while panning. Overlays here never contain
+        // symbol layers, so label collisions only need to run inside each source.
+        pixelRatio:mapPixelRatio(window.devicePixelRatio,Boolean(latest.current.navigationMode)),
+        crossSourceCollisions:false,
         attributionControl:{compact:true}});
       map.touchZoomRotate.enableRotation();
     }catch{fail();return;}
@@ -195,6 +201,14 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let lastRouteRenderInputs:unknown[]=[];
     let lastRouteFeatureCount=0;
     let mapTouchActive=false;
+    // Progress that arrived while the user was panning/zooming; published once
+    // the map settles so the route upload never lands in the middle of a gesture.
+    let routeDeferred=false;
+    // True while a finger is down, or after the user took the camera and it is
+    // still moving (wheel zoom, pinch and fling inertia). Following the GPS does
+    // not count: that movement is ours.
+    const userInteracting=()=>mapTouchActive||
+      (Boolean(latest.current.navigationMode)&&camera.snapshot().mode==='exploring'&&map.isMoving());
     let viewportDirty=false;
     let drawn:RoleVectorMarker[]=[];
     let lastOverlayInputs:unknown[]=[];
@@ -266,13 +280,21 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         }
         const root=container.current?.parentElement;
         if(root)root.dataset.mapIdle='false';
-        const routeInputs=[p.routePath,p.routeAlternatives,p.selectedRouteId,p.routeModality,
-          p.navigationMode,p.blueRoute,p.totalRouteKm];
+        // `value||[]` in callers creates a new empty list per render; compare
+        // empty lists as one instance so GPS fixes do not look like route changes.
+        const routeInputs=[stableList(p.routePath),stableList(p.routeAlternatives),p.selectedRouteId,
+          p.routeModality,p.navigationMode,p.blueRoute,p.totalRouteKm];
         const routeChanged=routeInputs.some((value,index)=>value!==lastRouteRenderInputs[index]);
         const now=performance.now();
-        // At most four progress scans per second during guidance. A changed
+        // Guidance publishes progress at most every 250 ms (up to 1 s on very
+        // long routes) and never while the user is moving the map. A changed
         // itinerary, style or first render always updates immediately.
-        if(routeChanged||(!mapTouchActive&&(!p.navigationMode||now-lastRouteRenderAt>=250))){
+        const routeDecision=decideRouteRender({routeChanged,interacting:userInteracting(),
+          navigationMode:Boolean(p.navigationMode),now,lastRenderAt:lastRouteRenderAt,
+          routeVertices:p.routePath?.length??0});
+        if(routeDecision==='defer')routeDeferred=true;
+        if(routeDecision==='render'){
+          routeDeferred=false;
           lastRouteRenderAt=now;
           lastRouteRenderInputs=routeInputs;
           lastRouteFeatureCount=updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
@@ -287,10 +309,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           !p.navigationMode&&!p.roadStyle&&!p.blueRoute);
         // GPS can trigger many renders while driving. Keep the live navigation
         // marker responsive, but do not rebuild static overlays on each fix.
-        const overlayInputs=[p.stops,p.meetingPoints,p.convoyParticipants,
-          p.weatherPoints,p.showRainLayer,p.roadAlerts,p.editableWaypoint,
-          p.navigationMode,p.showFuelStations,p.tolls,p.tollVehicleType,
-          data.current.stations,data.current.places,p.routePath];
+        const overlayInputs=[stableList(p.stops),stableList(p.meetingPoints),
+          stableList(p.convoyParticipants),stableList(p.weatherPoints),p.showRainLayer,
+          stableList(p.roadAlerts),p.editableWaypoint,p.navigationMode,p.showFuelStations,
+          stableList(p.tolls),p.tollVehicleType,data.current.stations,data.current.places,
+          stableList(p.routePath)];
         const overlaysChanged=overlayInputs.some((value,index)=>value!==lastOverlayInputs[index]);
         if(overlaysChanged){
           lastOverlayInputs=overlayInputs;
@@ -315,7 +338,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
             showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});
         }
-        const nextInputs=[p.originCoords,p.destinationCoords,p.routePath,p.routeAlternatives];
+        const nextInputs=[p.originCoords,p.destinationCoords,stableList(p.routePath),stableList(p.routeAlternatives)];
         if(nextInputs.some((value,index)=>value!==fitInputs[index])){
           fitInputs=nextInputs;
           const key=mapRouteFitKey({origin:p.originCoords,destination:p.destinationCoords,
@@ -438,6 +461,12 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const publishViewport=()=>{
       const root=container.current?.parentElement;
       if(!root||disposed)return;
+      // Run after MapLibre finishes updating its own gesture state, so the
+      // deferred route upload sees a map that has really stopped moving.
+      if(routeDeferred)queueMicrotask(()=>{
+        if(disposed||!routeDeferred)return;
+        lastRouteRenderAt=-Infinity;requestRender();
+      });
       const center=map.getCenter();
       root.dataset.mapCenter=JSON.stringify([center.lat,center.lng]);
       root.dataset.mapZoom=String(map.getZoom());

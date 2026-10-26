@@ -1,5 +1,5 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import { splitRouteAtPosition,routeProgressRenderKey } from './routeProgress';
+import { projectRouteProgress,routeProgressRenderKey,type RouteProjection } from './routeProgress';
 
 type Coordinates = [number, number]; // latitude, longitude (Leaflet/OSRM contract)
 type Role = 'alternative' | 'active' | 'remaining' | 'travelled';
@@ -65,15 +65,50 @@ function verified(points: Coordinates[]): boolean {
     && Math.abs(point[0]) <= 90 && Math.abs(point[1]) <= 180);
 }
 
-function feature(points: Coordinates[], role: Role, color: string, routeId?: string): RoleRouteFeature {
+function lineFeature(coordinates: Coordinates[], role: Role, color: string, routeId?: string): RoleRouteFeature {
   return {
     type: 'Feature',
     properties: { role, color, ...(routeId ? { routeId } : {}) },
-    geometry: {
-      type: 'LineString',
-      coordinates: points.map(([lat,lon]): Coordinates => [lon,lat])
-    }
+    geometry: { type: 'LineString', coordinates }
   };
+}
+
+/** GeoJSON (lon,lat) copy of a verified road path, built once per path.
+ * Navigation rebuilds the collection on progress changes; re-validating and
+ * re-mapping tens of thousands of vertices each time made every update cost
+ * tens of milliseconds on the main thread. Paths are replaced, never edited in
+ * place; the length and end-point guard rebuilds the copy if one ever is. */
+interface LngLatPath { length: number; first: number|undefined; last: number|undefined;
+  valid: boolean; coordinates: Coordinates[] }
+const lngLatPaths = new WeakMap<Coordinates[], LngLatPath>();
+function lngLatPath(points: Coordinates[]): LngLatPath {
+  const length = points.length;
+  const first = points[0]?.[0], last = points[length - 1]?.[0];
+  const cached = lngLatPaths.get(points);
+  if (cached && cached.length === length && cached.first === first && cached.last === last) return cached;
+  const isValid = verified(points);
+  const entry: LngLatPath = { length, first, last, valid: isValid,
+    coordinates: isValid ? points.map(([lat,lon]): Coordinates => [lon,lat]) : [] };
+  lngLatPaths.set(points, entry);
+  return entry;
+}
+
+/** Same split as splitRouteAtPosition, applied to the cached GeoJSON path so
+ * progress updates slice pointers instead of re-mapping every vertex. */
+function splitLngLat(full: Coordinates[], position: RouteProjection | null):
+  { travelled: Coordinates[]; remaining: Coordinates[] } {
+  if (!position) return { travelled: [], remaining: full.slice() };
+  const { segmentStart, fraction, projected } = position;
+  if (fraction <= 1e-8) {
+    return { travelled: full.slice(0, segmentStart + 1), remaining: full.slice(segmentStart) };
+  }
+  if (fraction >= 1 - 1e-8) {
+    return { travelled: full.slice(0, segmentStart + 2), remaining: full.slice(segmentStart + 1) };
+  }
+  // This coordinate lies on a verified OSRM segment, never on an invented road.
+  const point: Coordinates = [projected[1], projected[0]];
+  return { travelled: [...full.slice(0, segmentStart + 1), point],
+    remaining: [point, ...full.slice(segmentStart + 1)] };
 }
 
 /** Only verified road geometries; never interpolate a straight-line replacement. */
@@ -81,20 +116,23 @@ export function buildRoleRouteCollection(options: RoleRouteOptions): RoleRouteCo
   const features: RoleRouteFeature[] = [];
   if (!options.navigationMode && options.alternatives.length > 1) {
     for (const option of options.alternatives) {
-      if (option.id && option.id !== options.selectedRouteId && verified(option.routePath))
-        features.push(feature(option.routePath, 'alternative', '#64748b', option.id));
+      if (!option.id || option.id === options.selectedRouteId) continue;
+      const path = lngLatPath(option.routePath);
+      if (path.valid) features.push(lineFeature(path.coordinates, 'alternative', '#64748b', option.id));
     }
   }
-  if (!verified(options.routePath)) return { type:'FeatureCollection', features };
-  features.push(feature(options.routePath, 'active', options.modalityColor));
+  const active = lngLatPath(options.routePath);
+  if (!active.valid) return { type:'FeatureCollection', features };
+  features.push(lineFeature(active.coordinates, 'active', options.modalityColor));
 
   if (options.navigationMode || options.blueRoute) {
-    const progress = splitRouteAtPosition(
+    const position = projectRouteProgress(
       options.routePath, options.userLocation,
       options.travelledDistanceKm, options.totalRouteKm
     );
-    if (verified(progress.remaining)) features.push(feature(progress.remaining, 'remaining', '#67c7ff'));
-    if (verified(progress.travelled)) features.push(feature(progress.travelled, 'travelled', '#17479b'));
+    const progress = splitLngLat(active.coordinates, position);
+    if (progress.remaining.length >= 2) features.push(lineFeature(progress.remaining, 'remaining', '#67c7ff'));
+    if (progress.travelled.length >= 2) features.push(lineFeature(progress.travelled, 'travelled', '#17479b'));
   }
   return { type: 'FeatureCollection', features };
 }

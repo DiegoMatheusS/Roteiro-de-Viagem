@@ -40,6 +40,12 @@ interface TrackedRoleMarker {
   visualSignature:string;
   coords: [number,number];
   entry:RoleVectorMarker;
+  // Last values written to the element. GPS fixes call applyVisibility many
+  // times a minute; rewriting identical attributes on every marker restyles the
+  // whole overlay and competes with the user's pan and zoom gestures.
+  visible:boolean|null;
+  overview:boolean|null;
+  expanded:boolean|null;
 }
 export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
@@ -80,16 +86,28 @@ export function createRoleMaplibreMarkerController(
         (Boolean(context.showRouteServices)&&(chosen.entry.kind==='fuel'||chosen.entry.kind==='toll')));
       if(!chosenVisible)manualKey=null;
     }
+    const zoom=gl.getZoom();
+    // At city-scale zoom, keep category icons but suppress the large halo
+    // so verified route lines and street labels remain easy to read.
+    const overview=zoom<15;
     for(const [key,record] of markers){
-      const visible=poiVisibleAtZoom(record.entry,gl.getZoom()) ||
+      const visible=poiVisibleAtZoom(record.entry,zoom) ||
         (Boolean(context.showRouteServices) && (record.entry.kind==='fuel'||record.entry.kind==='toll'));
+      const expanded=visible && (manualKey===key || (!manualKey&&key===preview.expandedKey));
       const element=record.marker.getElement();
-      // At city-scale zoom, keep category icons but suppress the large halo
-      // so verified route lines and street labels remain easy to read.
-      element.dataset.poiOverview=String(gl.getZoom()<15);
-      element.style.display=visible?'':'none';
-      element.dataset.expanded=String(visible && (manualKey===key || (!manualKey&&key===preview.expandedKey)));
-      element.setAttribute('aria-expanded',element.dataset.expanded);
+      if(record.overview!==overview){
+        record.overview=overview;
+        element.dataset.poiOverview=String(overview);
+      }
+      if(record.visible!==visible){
+        record.visible=visible;
+        element.style.display=visible?'':'none';
+      }
+      if(record.expanded!==expanded){
+        record.expanded=expanded;
+        element.dataset.expanded=String(expanded);
+        element.setAttribute('aria-expanded',String(expanded));
+      }
     }
   };
   const buildMarker=(entry:RoleVectorMarker):Marker=>{
@@ -204,7 +222,8 @@ export function createRoleMaplibreMarkerController(
         }
         const marker=buildMarker(entry);
         existing?.marker.remove();
-        markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords],entry});
+        markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords],entry,
+          visible:null,overview:null,expanded:null});
       }
       applyVisibility();
     },

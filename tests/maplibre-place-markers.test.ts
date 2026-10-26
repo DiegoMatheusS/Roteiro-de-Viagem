@@ -117,8 +117,24 @@ test('visualização rápida encerra no tempo, ao sair do zoom, tocar fora e des
 test('zoom geral esconde apenas o halo grande, sem reduzir a área tocável dos ícones',()=>{
  const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
  const css=readFileSync(new URL('../src/role-map-poi.css',import.meta.url),'utf8');
- assert.match(controller,/element\.dataset\.poiOverview=String\(gl\.getZoom\(\)<15\)/);
+ assert.match(controller,/const overview=zoom<15/);
+ assert.match(controller,/element\.dataset\.poiOverview=String\(overview\)/);
  assert.match(css,/\.role-poi-marker\[data-poi-overview="true"\]::before\{opacity:0;\}/);
  assert.match(css,/transform:scale\(\.84\)/);
  assert.match(css,/\.role-poi-marker\s*\{[^}]*width:38px/s);
+});
+
+test('atualizações de GPS só gravam no DOM os atributos que realmente mudaram',()=>{
+ const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
+ const apply=controller.slice(controller.indexOf('const applyVisibility'),controller.indexOf('const buildMarker'));
+ // Every DOM write inside the per-marker loop must sit behind a change check.
+ assert.match(apply,/if\(record\.overview!==overview\)\{[^}]*element\.dataset\.poiOverview=/);
+ assert.match(apply,/if\(record\.visible!==visible\)\{[^}]*element\.style\.display=/);
+ assert.match(apply,/if\(record\.expanded!==expanded\)\{[^}]*element\.dataset\.expanded=[^}]*aria-expanded/);
+ const loop=apply.slice(apply.indexOf('for(const [key,record] of markers)'));
+ const unguarded=loop.replace(/if\(record\.\w+!==\w+\)\{[^}]*\}/g,'');
+ assert.doesNotMatch(unguarded,/element\.(dataset\.|style\.|setAttribute)/,
+   'uma escrita no elemento ficou fora da verificação de mudança');
+ // A rebuilt marker starts unknown so its first pass writes every attribute.
+ assert.match(controller,/visible:null,\s*overview:null,\s*expanded:null/);
 });
