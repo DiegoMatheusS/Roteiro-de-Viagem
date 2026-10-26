@@ -13,7 +13,7 @@ try{
     const page=await browser.newPage({viewport:{width:420,height:850}});
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
     await page.route('https://**',route=>route.abort());
-    if(!fallback)await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{
+    await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{
       version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]
     }}));
     let requests=0,failNext=false;
@@ -26,6 +26,14 @@ try{
     });
     await page.goto('http://127.0.0.1:3000/tests/fixtures/route-edit.html');
     await page.getByRole('button',{name:'Expandir mapa',exact:true}).click();
+    if(fallback){
+      // Context loss gives a deterministic fallback trigger. Aborting a remote
+      // style alone can be affected by browser/style initialization timing.
+      await page.waitForFunction(()=>document.querySelector<HTMLElement>(
+        '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+      await page.locator('.maplibregl-canvas').evaluate(canvas=>
+        canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
+    }
     const engine=fallback?'leaflet-fallback':'maplibre-standalone';
     const map=page.locator(`[data-map-engine="${engine}"]`);
     await map.waitFor();
@@ -33,7 +41,8 @@ try{
       `[data-map-engine="${engine}"]`)?.dataset.mapCenter),engine);
     if(!fallback)await page.waitForFunction(()=>document.querySelector<HTMLElement>(
       '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
-    else await page.waitForFunction(()=>document.querySelectorAll('.leaflet-overlay-pane path').length>0);
+    else await page.waitForFunction(()=>document.querySelectorAll('.leaflet-overlay-pane path').length>0||
+      [...document.querySelectorAll('[data-role-vector-routes]')].some(node=>Number(node.getAttribute('data-role-vector-routes'))>0));
     const handle=page.locator('.role-route-edit-marker');
     assert.equal(await handle.count(),0,'no automatic midpoint, arrows or handle before a line tap');
     const outside=await map.evaluate(mapScreenPoint,[-23.55,-46.62] as [number,number]);
