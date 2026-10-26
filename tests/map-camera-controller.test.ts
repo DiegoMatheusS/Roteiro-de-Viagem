@@ -174,12 +174,14 @@ test('both camera owners cancel a running movement before further commands',()=>
   }
 });
 
-test('repeated user gestures cancel camera motion without duplicate exploration notifications',()=>{
+test('fallback interrupts GPS once on first contact and preserves the gesture already in progress',()=>{
   const source=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
   const pause=source.slice(source.indexOf('    const pauseFollowing = () => {'),source.indexOf("    map.on('dragstart',pauseFollowing)"));
-  assert.ok(pause.indexOf('createHybridCameraPort(map).stop()')<pause.indexOf('if(followSuspendedRef.current)return'));
+  assert.ok(pause.indexOf('if(followSuspendedRef.current)return')<pause.indexOf('createHybridCameraPort(map).stop()'));
   assert.match(pause,/followSuspendedRef.current=true/);
   assert.match(pause,/cameraModeChangeRef.current\?\.\('exploring'\)/);
+  const down=source.slice(source.indexOf('    const pointerDown=(event:PointerEvent)=>{'),source.indexOf('    const pointerUp=(event:PointerEvent)=>{'));
+  assert.match(down,/pauseFollowing\(\)/);
 });
 
 

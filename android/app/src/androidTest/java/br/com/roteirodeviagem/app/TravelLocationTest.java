@@ -10,6 +10,8 @@ import android.app.Notification;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.SystemClock;
+import android.view.InputDevice;
+import android.view.MotionEvent;
 import androidx.core.content.ContextCompat;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -105,6 +107,57 @@ public class TravelLocationTest {
   assertTrue("Pequena diferenca de relogio deve ser tolerada",TravelLocationService.isFreshGpsFix(now,now+5000));
   assertFalse(TravelLocationService.isFreshGpsFix(now,now+5001));
   assertFalse(TravelLocationService.isFreshGpsFix(now,0));
+ }
+ /** Dispatch real Android MotionEvents through the WebView. JS clicks and
+  * desktop mouse drags cannot verify the phone's pan/pinch input path. */
+ private void touch(long downTime,int action,float[][] points) {
+  MotionEvent.PointerProperties[] properties=new MotionEvent.PointerProperties[points.length];
+  MotionEvent.PointerCoords[] coordinates=new MotionEvent.PointerCoords[points.length];
+  for(int i=0;i<points.length;i++){
+   properties[i]=new MotionEvent.PointerProperties();properties[i].id=i;properties[i].toolType=MotionEvent.TOOL_TYPE_FINGER;
+   coordinates[i]=new MotionEvent.PointerCoords();coordinates[i].x=points[i][0];coordinates[i].y=points[i][1];coordinates[i].pressure=1;coordinates[i].size=1;
+  }
+  MotionEvent event=MotionEvent.obtain(downTime,SystemClock.uptimeMillis(),action,points.length,properties,coordinates,0,0,1,1,0,0,InputDevice.SOURCE_TOUCHSCREEN,0);
+  try{InstrumentationRegistry.getInstrumentation().sendPointerSync(event);}finally{event.recycle();}
+ }
+ private float[] arrowOnScreen() throws Exception {
+  JSONObject point=new JSONObject(js("(()=>{const r=document.querySelector('.user-live-marker').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,width:innerWidth};})()"));
+  float[] result=new float[2];activity.onActivity(a->{android.webkit.WebView web=a.getBridge().getWebView();int[] offset=new int[2];web.getLocationOnScreen(offset);float scale=(float)(web.getWidth()/point.optDouble("width"));result[0]=offset[0]+(float)point.optDouble("x")*scale;result[1]=offset[1]+(float)point.optDouble("y")*scale;});return result;
+ }
+ private double navigationZoom() throws Exception {return Double.parseDouble(js("Number(document.querySelector('[data-map-engine]').dataset.mapZoom)"));}
+ @Test public void navigationAcceptsPanAndBothPinchDirectionsOnTheGpsArrow() throws Exception {
+  activity=ActivityScenario.launch(MainActivity.class);
+  await("A home do aplicativo",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do Rolê\"]') != null")),60000);
+  // Seed only this guest fixture and mock the base style; the real app,
+  // native GPS service, map renderer and Android touch dispatch stay active.
+  js("(()=>{const original=window.fetch;window.fetch=(input,init)=>{const url=typeof input==='string'?input:input.url;if(url&&url.includes('tiles.openfreemap.org/'))return Promise.resolve(new Response(JSON.stringify({version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}),{headers:{'Content-Type':'application/json'}}));return original(input,init);};window.__navigationGesturePrevious={active:localStorage.getItem('rdv_private_v2_guest_active_trip'),trips:localStorage.getItem('rdv_private_v2_guest_trips')};const trip={id:'native-touch-fixture',title:'Teste de gestos',originName:'Origem',originCoords:[-23.55,-46.63],destinationName:'Destino',destinationCoords:[-23.54,-46.62],modality:'rapida',returnModality:'auto',isCircular:false,distanceKm:2,durationMinutes:5,drivingMinutes:5,vehicleId:'role-guest-navigation',routePath:[[-23.55,-46.63],[-23.54,-46.62]],routeSteps:[],routingSource:'OSRM',stops:[],weatherPoints:[],hasRainRisk:false,peopleCount:1,vehicleGroupType:'single_vehicle',groupVehiclesCount:1,participants:[],splitExpenses:false,foodCostPerPerson:0,fuelPricePerLiter:0,estimatedFuelLiters:0,estimatedFuelCost:0,knownTollsCost:0,totalFoodCost:0,totalEstimatedCost:0,costPerPerson:0,status:'in_progress',createdAt:new Date().toISOString(),trackingDeviceId:localStorage.getItem('rdv_device_v1'),trackedDistanceKm:0};localStorage.setItem('rdv_private_v2_guest_trips',JSON.stringify([trip]));localStorage.setItem('rdv_private_v2_guest_active_trip',JSON.stringify(trip));window.dispatchEvent(new Event('rdv:remote-state'));return true;})()");
+  java.util.concurrent.ScheduledExecutorService fixes=java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+  try{
+   await("O botão de retomar a viagem",()->Boolean.parseBoolean(js("[...document.querySelectorAll('button')].some(b=>b.textContent==='Retomar mapa')")));
+   js("[...document.querySelectorAll('button')].find(b=>b.textContent==='Retomar mapa').click();true");
+   await("O GPS da navegação",()->TravelLocationService.running&&"guest:native-touch-fixture".equals(TravelLocationService.activeTripId));
+   fixes.scheduleAtFixedRate(()->position(-23.55,-46.63),0,1000,TimeUnit.MILLISECONDS);
+   await("A seta e o zoom inicial da navegação",()->Boolean.parseBoolean(js("!!document.querySelector('.user-live-marker') && Number(document.querySelector('[data-map-engine]')?.dataset.mapZoom)===18")),30000);
+   float[] p=arrowOnScreen();long down=SystemClock.uptimeMillis();
+   String before=js("document.querySelector('[data-map-engine]').dataset.mapCenter");
+   touch(down,MotionEvent.ACTION_DOWN,new float[][]{{p[0],p[1]}});
+   for(int i=1;i<=20;i++){SystemClock.sleep(25);touch(down,MotionEvent.ACTION_MOVE,new float[][]{{p[0]+i*4,p[1]+i*2}});}
+   touch(down,MotionEvent.ACTION_UP,new float[][]{{p[0]+80,p[1]+40}});
+   await("Arrastar o mapa começando na seta",()->!before.equals(js("document.querySelector('[data-map-engine]').dataset.mapCenter")));
+   for(boolean spread:new boolean[]{true,false}){
+    js("document.querySelector('[aria-label=\"Centralizar mapa na minha localização\"]').click();true");SystemClock.sleep(800);
+    p=arrowOnScreen();double beforeZoom=navigationZoom();float start=spread?60:120;down=SystemClock.uptimeMillis();
+    touch(down,MotionEvent.ACTION_DOWN,new float[][]{{p[0],p[1]}});
+    touch(down,MotionEvent.ACTION_POINTER_DOWN|(1<<MotionEvent.ACTION_POINTER_INDEX_SHIFT),new float[][]{{p[0],p[1]},{p[0]+start,p[1]}});
+    for(int i=1;i<=20;i++){SystemClock.sleep(25);float distance=start*(spread?1+i/20f:1-i/40f);touch(down,MotionEvent.ACTION_MOVE,new float[][]{{p[0],p[1]},{p[0]+distance,p[1]}});}
+    float end=start*(spread?2:.5f);
+    touch(down,MotionEvent.ACTION_POINTER_UP|(1<<MotionEvent.ACTION_POINTER_INDEX_SHIFT),new float[][]{{p[0],p[1]},{p[0]+end,p[1]}});
+    touch(down,MotionEvent.ACTION_UP,new float[][]{{p[0],p[1]}});
+    await(spread?"Afastar os dois dedos":"Juntar os dois dedos",()->spread?navigationZoom()-beforeZoom>.65:navigationZoom()-beforeZoom<-.65);
+   }
+  }finally{
+   fixes.shutdownNow();js("(()=>{const old=window.__navigationGesturePrevious;if(old){for(const [key,value] of [['rdv_private_v2_guest_active_trip',old.active],['rdv_private_v2_guest_trips',old.trips]]){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}window.dispatchEvent(new Event('rdv:remote-state'));}return true;})()");
+  }
  }
  @Test public void approximatePermissionDoesNotAuthorizePreciseTracking(){Context approximate=new ContextWrapper(context){@Override public int checkSelfPermission(String permission){return Manifest.permission.ACCESS_FINE_LOCATION.equals(permission)?PackageManager.PERMISSION_DENIED:PackageManager.PERMISSION_GRANTED;}};assertFalse(TravelNativePlugin.preciseLocationGranted(approximate));assertTrue(TravelNativePlugin.preciseLocationGranted(context));}
  @Test public void sosUsesDialAndComposeWithoutCallingOrSending(){assertEquals(Intent.ACTION_DIAL,ExternalActions.intentFor("tel:190").getAction());assertEquals("tel:+5511999999999",ExternalActions.intentFor("tel:+5511999999999").getDataString());assertEquals(Intent.ACTION_VIEW,ExternalActions.intentFor("https://api.whatsapp.com/send?phone=5511999999999&text=fixture").getAction());for(String invalid:new String[]{"javascript:alert(1)","file:///private","https://api.whatsapp.com.evil.example/send","tel:190;123"}){try{ExternalActions.intentFor(invalid);fail("Link não autorizado");}catch(IllegalArgumentException expected){}}}

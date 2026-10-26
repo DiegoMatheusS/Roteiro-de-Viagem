@@ -13,7 +13,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:ui": "node --import tsx tests/navigation-loading-ui.ts && node --import tsx tests/route-edit-ui.ts && node --import tsx tests/maplibre-standalone-ui.ts && node --import tsx tests/ui-smoke.ts && node --import tsx tests/part3-ui.ts && node --import tsx tests/part4-ui.ts && node --import tsx tests/android-sos-ui.ts",
+    "test:ui": "node --import tsx tests/navigation-loading-ui.ts && node --import tsx tests/navigation-touch-ui.ts && node --import tsx tests/route-edit-ui.ts && node --import tsx tests/maplibre-standalone-ui.ts && node --import tsx tests/ui-smoke.ts && node --import tsx tests/part3-ui.ts && node --import tsx tests/part4-ui.ts && node --import tsx tests/android-sos-ui.ts",
     "admin": "node --import tsx server/moderator.ts",
     "android:sync": "node scripts/android-sync.mjs",
     "android:open": "npx cap open android",

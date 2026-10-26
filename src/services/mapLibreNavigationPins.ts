@@ -122,6 +122,11 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
       }
       const live=current.get('live');
       if(live){
+        // The driver's arrow is a visual overlay during navigation. Let a pan
+        // or the first finger of a pinch reach the canvas beneath it instead
+        // of the marker's popup listeners swallowing touchstart/pointerdown.
+        live.element.style.pointerEvents=input.navigationMode?'none':'auto';
+        live.element.tabIndex=input.navigationMode?-1:0;
         const svg=live.element.querySelector('svg');
         lastHeading=arrowHeadingStyle(svg,lastHeading,input.headingDegrees,input.speedMetersPerSecond,
           window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false);
