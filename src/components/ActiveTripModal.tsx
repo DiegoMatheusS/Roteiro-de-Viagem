@@ -53,6 +53,10 @@ interface ActiveTripModalProps {
   onSkipStop: (id:string,next:ReroutedNavigation,expectedVersion:string)=>boolean;
 }
 
+// One shared empty list: `x||[]` inside render hands the map a new array on
+// every GPS fix, which the map would read as changed tolls/weather.
+const NO_MAP_ITEMS:never[]=[];
+
 export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   trip,
   convoyParticipants, meetingPoints,
@@ -219,8 +223,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           maneuverMeters={nextTurn&&nextTurn.direction!=='straight'?nextTurn.meters:null}
           onCameraModeChange={setCameraMode}
           travelledDistanceKm={routeTravelledKm} totalRouteKm={routeDistanceKm}
-          stops={outstandingStops} weatherPoints={rerouted?[]:trip.weatherPoints} roadAlerts={roadAlerts.alerts}
-          centerOnUserRequest={centerRequest} tolls={rerouted?[]:trip.tolls||[]}
+          stops={outstandingStops} weatherPoints={rerouted?NO_MAP_ITEMS:trip.weatherPoints} roadAlerts={roadAlerts.alerts}
+          centerOnUserRequest={centerRequest} tolls={rerouted?NO_MAP_ITEMS:trip.tolls??NO_MAP_ITEMS}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
           userGpsAccuracyMeters={isGpsActive?tracking.position?.accuracyMeters:undefined}

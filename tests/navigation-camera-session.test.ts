@@ -225,8 +225,14 @@ test('uma atualização GPS não dispara follow e zoom de conversão simultaneam
 
 test('navegação limita projeções de rota repetidas, sem atrasar troca de itinerário',()=>{
   const source=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
-  assert.match(source,/now-lastRouteRenderAt>=250/);
-  assert.match(source,/if\(routeChanged\|\|\(!mapTouchActive&&\(!p.navigationMode\|\|now-lastRouteRenderAt>=250\)\)\)/);
+  // The 250 ms floor and the "new itinerary renders immediately" rule live in
+  // the shared policy (covered by map-route-render-policy.test.ts).
+  const policy=readFileSync(new URL('../src/services/mapRouteRenderPolicy.ts',import.meta.url),'utf8');
+  assert.match(policy,/MIN_ROUTE_RENDER_GAP_MS=250/);
+  assert.match(policy,/if\(input\.routeChanged\)return 'render'/);
+  assert.match(source,/decideRouteRender\(\{routeChanged,interacting:userInteracting\(\)/);
+  assert.match(source,/lastRenderAt:lastRouteRenderAt/);
+  assert.match(source,/if\(routeDecision==='render'\)\{/);
   assert.match(source,/lastRouteRenderInputs=\[\];lastRouteRenderAt=-Infinity/);
 });
 
