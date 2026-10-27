@@ -11,6 +11,8 @@ O endereço padrão é `https://roteiro-api-production.up.railway.app`; `RDV_API
 3. Informe a origem HTTPS sem `/api`, caminho ou parâmetros; escolha `debug`.
 4. Baixe `roteiro-android-debug` quando o build terminar. Extraia e instale `app-debug.apk`.
 
+Os novos builds debug usam o número crescente do workflow como `versionCode` e mostram esse número na versão (`0.5.0-test.N-debug`). O arquivo público `android-dist/apk-info.json` e o resumo da execução registram versão, commit, backend, SHA-256 do APK e SHA-1/SHA-256 do certificado efetivamente verificado no APK. Também indicam se a assinatura é persistente ou temporária. Confira esses dados antes de distribuir; a presença dos quatro nomes de secrets sozinha não comprova que seus valores estão corretos.
+
 O pacote de teste tem nome **Roteiro de Viagem (Teste)** e ID `br.com.roteirodeviagem.app.debug`. Ele pode coexistir com o pacote release. Builds debug de máquinas diferentes podem ter assinaturas diferentes; para atualizar a mesma instalação, use a mesma chave debug. Não desinstale um app com alterações offline pendentes antes de sincronizar seus dados.
 
 ### Corrigir login Google (erro 10 / DEVELOPER_ERROR)
