@@ -380,7 +380,7 @@ try {
     await page.waitForFunction(()=>{
       const el=document.querySelector<HTMLElement>('[data-panel-scroll]');
       return !!el&&el.scrollTop>0&&Math.abs(el.scrollHeight-el.clientHeight-el.scrollTop)<3;
-    },{timeout:3000});
+    },undefined,{timeout:5000});
     await scrollHome.evaluate(el=>{el.scrollTo({top:0,behavior:'instant'});});
   }else{
     assert.ok(await scrollHome.evaluate(el=>el.clientHeight>0),'Conteúdo completo do painel deve permanecer visível');
