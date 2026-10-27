@@ -81,7 +81,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       if(!currentFixAvailable||!point)return;
       if(input.centerRequest>centerRequest){
         centerRequest=input.centerRequest;mode(false);
-        camera.recenter(point,navigating,input.reducedMotion);
+        camera.recenter(point,navigating,input.reducedMotion,true);
         last=[...point];lastCameraPoint=[...point];lastBearing=input.bearing;
         manualZoom=false;nearTurnZoom=false;
         return;

@@ -32,7 +32,7 @@ function Fixture(){
   const trip={...draft,routePath:path,routeSteps:isCrossing?crossingSteps:circuitSteps,
     destinationCoords:path[path.length-1],distanceKm:isCrossing?6:4,durationMinutes:15};
   return <><ActiveTripModal isOpen trip={trip} vehicle={vehicle}
-    tracking={{status:'ready',error:null,retry:()=>{},distanceKm,speedKmH:18,
+    tracking={{status:'ready',lastKnownPosition:null,error:null,retry:()=>{},distanceKm,speedKmH:18,
       position:{coords,accuracyMeters:5,speedMetersPerSecond:5,headingDegrees:90,timestamp:Date.now()}}}
     conditions={{busy:false,weatherError:'',tollError:'',refresh:()=>{}}}
     onClose={()=>{}} onEndTrip={()=>{}} onCompleteTrip={()=>({newAchievements:[],leveledUp:false})}

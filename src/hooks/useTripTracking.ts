@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createGpsTrackingState, recordGpsPosition } from '../services/gpsTracking';
 import { storageService } from '../services/storageService';
 import { isNativeApp, TravelNative } from '../services/nativeApp';
@@ -12,6 +12,7 @@ export function useTripTracking(tripId?: string) {
   const location = useDeviceLocation(!!tripId && !native, tripId);
   const [nativeState, setNativeState] = useState<{ tripId?: string; distanceKm: number; position: DeviceLocation | null; error: string | null; running: boolean }>({ distanceKm: 0, position: null, error: null, running: false });
   const [attempt, setAttempt] = useState(0);
+  const lastNativeFix=useRef<{key:string;position:DeviceLocation}|null>(null);
   const initial = () => ({ tripId, ...createGpsTrackingState(), distanceKm: storageService.getActiveTrip()?.id === tripId ? storageService.getActiveTrip()?.trackedDistanceKm || 0 : 0 });
   const [tracking, setTracking] = useState(initial);
   useEffect(() => {
@@ -47,6 +48,11 @@ export function useTripTracking(tripId?: string) {
   }, [tripId, distanceKm]);
   const position = native ? activeNativeTripPosition(nativeState,tripId) : location.position;
   const status = native ? !tripId ? 'idle' as const : position ? 'ready' as const : nativeState.error ? 'error' as const : 'loading' as const : location.status;
-  return { position, status, error: native ? nativeState.error : location.error, retry: native ? () => setAttempt(v => v + 1) : location.retry, distanceKm,
+  // Retain a visual reference only. Guidance, distance and speed still receive
+  // exclusively the fresh position and the running trip's status.
+  if(lastNativeFix.current?.key!==nativeKey||!tripId)lastNativeFix.current=null;
+  if(native&&position)lastNativeFix.current={key:nativeKey,position};
+  const lastKnownPosition=native?lastNativeFix.current?.position??null:location.lastKnownPosition;
+  return { position, lastKnownPosition, status, error: native ? nativeState.error : location.error, retry: native ? () => setAttempt(v => v + 1) : location.retry, distanceKm,
     speedKmH: status === 'ready' && position?.speedMetersPerSecond != null ? Math.round(position.speedMetersPerSecond * 3.6) : null };
 }

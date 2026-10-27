@@ -1,12 +1,14 @@
 import { bindMarkerPopup } from './mapMarkerPopup';
 import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import { arrowHeadingStyle } from './gpsHeading';
+import { setGpsMarkerState } from './gpsMarkerState';
 
 export type RolePosition = [number,number]; // latitude, longitude
 export interface NavigationPins {
   origin?: RolePosition;
   destination?: RolePosition;
   live?: RolePosition;
+  liveStale?:boolean;
   headingDegrees?: number | null;
   speedMetersPerSecond?: number | null;
   originLabel: string;
@@ -122,6 +124,7 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
       }
       const live=current.get('live');
       if(live){
+        setGpsMarkerState(live.element,Boolean(input.liveStale));
         // The driver's arrow is a visual overlay during navigation. Let a pan
         // or the first finger of a pinch reach the canvas beneath it instead
         // of the marker's popup listeners swallowing touchstart/pointerdown.

@@ -53,6 +53,11 @@ try{
     // Pan begins on the arrow, with GPS arriving while the finger is still
     // held. Neither the marker nor GPS may steal the camera before dragstart.
     let point=await arrowCenter();
+    const mapBox=await map.boundingBox();assert.ok(mapBox);
+    if(!fallback){
+      assert.ok(point.y>mapBox.y+mapBox.height*.58&&point.y<mapBox.y+mapBox.height*.68,
+        'the driving arrow sits below center to show more road ahead');
+    }
     const initialCenter=await map.getAttribute('data-map-center');
     const original=JSON.parse(initialCenter!) as [number,number];
     const screenBefore=await map.evaluate(mapScreenPoint,original);
@@ -77,7 +82,9 @@ try{
     await recenter();
     // The first finger lands exactly on the arrow; the second joins later,
     // as on a real phone. Check a full spread and a full pinch separately.
-    for(const spread of [true,false]){
+    // Pinch out from the close driving zoom first, then spread back in. This
+    // tests the full zoom range without running into the map's max zoom 19.
+    for(const spread of [false,true]){
       point=await arrowCenter();
       const before=await zoom();
       const startDistance=spread?60:120;
@@ -94,8 +101,18 @@ try{
       assert.ok(spread?delta>.65:delta<-.65,
         `${engine}: ${spread?'spread':'pinch'} starting at the arrow must complete (delta ${delta})`);
       assert.equal(await page.getByTestId('mode').textContent(),'exploring');
-      await recenter();
     }
+    if(!fallback){
+      const pitchBefore=Number(await map.getAttribute('data-map-pitch'));
+      await page.mouse.move(80,240);await page.mouse.down({button:'right'});
+      await page.mouse.move(80,330,{steps:12});await page.mouse.up({button:'right'});
+      await page.waitForTimeout(700);
+      assert.ok(Math.abs(Number(await map.getAttribute('data-map-pitch'))-pitchBefore)>3,
+        'manual pitch must remain available while exploring');
+    }
+    await recenter();
+    assert.equal(await zoom(),18.5,'GPS restores close zoom after both pinch directions');
+    if(!fallback)assert.ok(Math.abs(Number(await map.getAttribute('data-map-pitch'))-55)<0.01,'GPS restores pitch after manual exploration');
     assert.deepEqual(errors,[]);
     await page.close();
   }

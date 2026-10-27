@@ -137,15 +137,15 @@ public class TravelLocationTest {
    js("[...document.querySelectorAll('button')].find(b=>b.textContent==='Retomar mapa').click();true");
    await("O GPS da navegação",()->TravelLocationService.running&&"guest:native-touch-fixture".equals(TravelLocationService.activeTripId));
    fixes.scheduleAtFixedRate(()->position(-23.55,-46.63),0,1000,TimeUnit.MILLISECONDS);
-   await("A seta e o zoom inicial da navegação",()->Boolean.parseBoolean(js("!!document.querySelector('.user-live-marker') && Number(document.querySelector('[data-map-engine]')?.dataset.mapZoom)===18")),30000);
+   await("A seta, o zoom próximo e a inclinação inicial da navegação",()->Boolean.parseBoolean(js("!!document.querySelector('.user-live-marker') && Number(document.querySelector('[data-map-engine]')?.dataset.mapZoom)===18.5 && Math.abs(Number(document.querySelector('[data-map-engine]')?.dataset.mapPitch)-55)<0.01")),30000);
    float[] p=arrowOnScreen();long down=SystemClock.uptimeMillis();
    String before=js("document.querySelector('[data-map-engine]').dataset.mapCenter");
    touch(down,MotionEvent.ACTION_DOWN,new float[][]{{p[0],p[1]}});
    for(int i=1;i<=20;i++){SystemClock.sleep(25);touch(down,MotionEvent.ACTION_MOVE,new float[][]{{p[0]+i*4,p[1]+i*2}});}
    touch(down,MotionEvent.ACTION_UP,new float[][]{{p[0]+80,p[1]+40}});
    await("Arrastar o mapa começando na seta",()->!before.equals(js("document.querySelector('[data-map-engine]').dataset.mapCenter")));
-   for(boolean spread:new boolean[]{true,false}){
-    js("document.querySelector('[aria-label=\"Centralizar mapa na minha localização\"]').click();true");SystemClock.sleep(800);
+   js("document.querySelector('[aria-label=\"Centralizar mapa na minha localização\"]').click();true");SystemClock.sleep(800);
+   for(boolean spread:new boolean[]{false,true}){
     p=arrowOnScreen();double beforeZoom=navigationZoom();float start=spread?60:120;down=SystemClock.uptimeMillis();
     touch(down,MotionEvent.ACTION_DOWN,new float[][]{{p[0],p[1]}});
     touch(down,MotionEvent.ACTION_POINTER_DOWN|(1<<MotionEvent.ACTION_POINTER_INDEX_SHIFT),new float[][]{{p[0],p[1]},{p[0]+start,p[1]}});
@@ -155,6 +155,17 @@ public class TravelLocationTest {
     touch(down,MotionEvent.ACTION_UP,new float[][]{{p[0],p[1]}});
     await(spread?"Afastar os dois dedos":"Juntar os dois dedos",()->spread?navigationZoom()-beforeZoom>.65:navigationZoom()-beforeZoom<-.65);
    }
+   SystemClock.sleep(900);
+   js("window.__lastGpsArrow=document.querySelector('.user-live-marker');true");
+   fixes.shutdownNow();
+   await("A última seta permanece visível quando o sinal vence",()->Boolean.parseBoolean(js("document.querySelector('.user-live-marker')?.dataset.gpsState==='stale'")));
+   assertTrue("A perda do sinal não deve desmontar a seta",Boolean.parseBoolean(js("window.__lastGpsArrow===document.querySelector('.user-live-marker')")));
+   assertTrue("O serviço GPS continua ativo durante uma interrupção do sinal",TravelLocationService.running);
+   assertTrue("Posição antiga não habilita centralização ao vivo",Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Centralizar mapa na minha localização\"]').disabled")));
+   position(-23.55,-46.63);
+   await("O sinal recente atualiza a mesma seta",()->Boolean.parseBoolean(js("document.querySelector('.user-live-marker')?.dataset.gpsState==='live' && window.__lastGpsArrow===document.querySelector('.user-live-marker')")));
+   js("document.querySelector('[aria-label=\"Centralizar mapa na minha localização\"]').click();true");
+   await("GPS restaura o enquadramento inicial",()->Boolean.parseBoolean(js("Number(document.querySelector('[data-map-engine]')?.dataset.mapZoom)===18.5 && Math.abs(Number(document.querySelector('[data-map-engine]')?.dataset.mapPitch)-55)<0.01")));
   }finally{
    fixes.shutdownNow();js("(()=>{const old=window.__navigationGesturePrevious;if(old){for(const [key,value] of [['rdv_private_v2_guest_active_trip',old.active],['rdv_private_v2_guest_trips',old.trips]]){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}window.dispatchEvent(new Event('rdv:remote-state'));}return true;})()");
   }

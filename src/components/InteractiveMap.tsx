@@ -30,6 +30,7 @@ import { selectVisibleRoadAlerts, createRoadAlertIconElement,roadAlertMarkerChan
 import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
+import { setGpsMarkerState } from '../services/gpsMarkerState';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
@@ -79,6 +80,8 @@ export interface InteractiveMapProps {
   tollVehicleType?: 'car' | 'motorcycle';
   showRainLayer?: boolean;
   userLiveCoords?: [number, number];
+  /** Visual reference during signal loss; never a fresh fix for following. */
+  userLastKnownCoords?:[number,number];
   userGpsAccuracyMeters?:number;
   userHeadingDegrees?: number | null;
   userSpeedMetersPerSecond?: number | null;
@@ -139,6 +142,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   tolls = EMPTY_TOLLS,
   tollVehicleType,
   userLiveCoords,
+  userLastKnownCoords,
   userGpsAccuracyMeters,
   userHeadingDegrees,
   userSpeedMetersPerSecond,
@@ -160,6 +164,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   centerOnUserRequest = 0,
   className = 'w-full h-full'
 }) => {
+  const markerCoords=userLiveCoords??userLastKnownCoords;
+  const markerStale=!userLiveCoords&&!!userLastKnownCoords;
   const {theme:appearanceTheme}=useMapAppearance();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -186,9 +192,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   tripPinsDataRef.current={stops,meetingPoints,convoyParticipants};
   const vectorNavigationController = useRef<NavigationPinController|null>(null);
   const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
-    live:userLiveCoords,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle});
+    live:markerCoords,liveStale:markerStale,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle});
   navigationPinInputs.current={origin:originCoords,destination:destinationCoords,
-    live:userLiveCoords,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle};
+    live:markerCoords,liveStale:markerStale,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle};
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -475,7 +481,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const map = mapInstanceRef.current;
     const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     // Hybrid map: Leaflet is the only camera owner. MapLibre follows its viewport.
-    createHybridCameraPort(map).recenter(userLiveCoords,navigationModeRef.current,reducedMotion);
+    createHybridCameraPort(map).recenter(userLiveCoords,navigationModeRef.current,reducedMotion,true);
     // GPS/readiness changes retry a pending command, never a consumed one.
   }, [centerOnUserRequest,userLiveCoords?.[0],userLiveCoords?.[1],hasMapReady]);
 
@@ -972,7 +978,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 
   useEffect(() => {
     vectorNavigationController.current?.update(navigationPinInputs.current);
-  },[originCoords,destinationCoords,userLiveCoords,userHeadingDegrees,userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle]);
+  },[originCoords,destinationCoords,markerCoords,markerStale,userHeadingDegrees,userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -1033,18 +1039,18 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const map=mapInstanceRef.current;
     const group=livePinGroupRef.current;
     if (!map || !group) return;
-    if (!userLiveCoords || vectorNavigationReady ||
-        !Number.isFinite(userLiveCoords[0]) || !Number.isFinite(userLiveCoords[1]) ||
-        Math.abs(userLiveCoords[0])>90 || Math.abs(userLiveCoords[1])>180) {
+    if (!markerCoords || vectorNavigationReady ||
+        !Number.isFinite(markerCoords[0]) || !Number.isFinite(markerCoords[1]) ||
+        Math.abs(markerCoords[0])>90 || Math.abs(markerCoords[1])>180) {
       group.clearLayers();
       liveFallbackRef.current=null;
       return;
     }
     const existing=liveFallbackRef.current;
     if (existing && group.hasLayer(existing)) {
-      existing.setLatLng(userLiveCoords);
+      existing.setLatLng(markerCoords);
       const element=existing.getElement();
-      if(element){element.style.pointerEvents=navigationMode?'none':'auto';element.tabIndex=navigationMode?-1:0;}
+      if(element){element.style.pointerEvents=navigationMode?'none':'auto';element.tabIndex=navigationMode?-1:0;setGpsMarkerState(element,markerStale);}
       return;
     }
     group.clearLayers();
@@ -1054,10 +1060,12 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
       iconSize:[32,32],iconAnchor:[16,16]
     });
-    liveFallbackRef.current=L.marker(userLiveCoords,{icon,zIndexOffset:1000,
+    liveFallbackRef.current=L.marker(markerCoords,{icon,zIndexOffset:1000,
       interactive:!navigationMode,keyboard:!navigationMode})
       .addTo(group).bindPopup('<b>Sua Posição Atual (GPS)</b>');
-  },[userLiveCoords,vectorNavigationReady,navigationMode]);
+    const element=liveFallbackRef.current.getElement();
+    if(element)setGpsMarkerState(element,markerStale);
+  },[markerCoords,markerStale,vectorNavigationReady,navigationMode]);
 
   // Rotate the GPS arrow itself, never the Leaflet/MapLibre cameras separately.
   // Those cameras are still coupled through the hybrid adapter.

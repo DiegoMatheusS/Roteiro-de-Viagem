@@ -21,7 +21,7 @@ import { InteractiveMap } from './InteractiveMap';
 import { Speedometer } from './Speedometer';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
-import { fuelApi } from '../services/fuelApi';
+import { searchLocations } from '../services/locationSearch';
 import { DestinationExplorer } from './DestinationExplorer';
 import { draggedHomeSheetHeight, type HomeSheetStage } from '../services/homeSheetSizing';
 import { destinationExploreKey } from '../services/destinationIdentity';
@@ -74,7 +74,9 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
   const searchGeneration = React.useRef(0);
+  const searchRequest = React.useRef<AbortController|null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  useEffect(()=>()=>{searchGeneration.current++;searchRequest.current?.abort();},[]);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];options:VerifiedRouteChoice[];selectedId:string}|null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
@@ -275,21 +277,24 @@ export function NavigationHome(props: NavigationHomeProps) {
     searchInputRef.current?.blur();
     setMapTarget(place);setDisplayRoute(null);setSheet(null);setCollapsed(true);setError('');setSearchError('');
   };
-  const submitQuickSearch = async (event:React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const query=searchPlace.name.trim();
+  const submitQuickSearch = async () => {
+    // Read the committed input too: Android IME can submit before React has
+    // rendered its final onChange (especially after choosing a suggestion).
+    const query=(searchInputRef.current?.value??searchPlace.name).trim();
     if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
-    if(searchBusy)return;
+    if(searchRequest.current)return;
     const generation=++searchGeneration.current;
+    const controller=new AbortController();searchRequest.current=controller;
+    searchInputRef.current?.blur();
     setSearchBusy(true);setSearchError('');
     try {
-      const result=await fuelApi<{results:LocationSelection[];unavailable?:boolean}>(`/locations/search?q=${encodeURIComponent(query)}${liveCoords?`&lat=${liveCoords[0]}&lng=${liveCoords[1]}`:''}`);
+      const result=await searchLocations(query,liveCoords,controller.signal);
       if(generation!==searchGeneration.current)return;
       const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
       if(!found)throw new Error('Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
       selectMapTarget(found);
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
-    finally{if(generation===searchGeneration.current)setSearchBusy(false);}
+    finally{if(searchRequest.current===controller)searchRequest.current=null;if(generation===searchGeneration.current)setSearchBusy(false);}
   };
   const stepValue = (increase:boolean) => {
     const amount = sheet === 'km' ? 1 : 0.5;
@@ -301,7 +306,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
-      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords}
+      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
         userSpeedMetersPerSecond={gps.status==='ready'?gps.position?.speedMetersPerSecond:null} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
@@ -310,19 +315,23 @@ export function NavigationHome(props: NavigationHomeProps) {
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
-<form role="search" aria-label="Busca rápida de destinos" onSubmit={event=>void submitQuickSearch(event)}
+<form role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
+          onSubmit={event=>{event.preventDefault();void submitQuickSearch();}}
           className="rdv-figma-home-search">
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
           <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
             aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
-            onChange={event=>{searchGeneration.current++;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            onChange={event=>{searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
             className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
-          <button type="submit" aria-label="Pesquisar destino" disabled={searchBusy || searchPlace.name.trim().length<3}
+          <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchPlace.name.trim().length<3}
             className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
             {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
           </button>
+          {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
+            {searchError||'Pesquisando endereço...'}
+          </p>}
         </form>
-        {searchError && <p role="alert" className="bg-rose-50 text-rose-700 rounded-xl px-3 py-2 text-xs">{searchError}</p>}
     <div className="rdv-figma-home-modes" role="group" aria-label="Modalidade de transporte">
       <button type="button" aria-pressed={travelMode==='car'}
         className={`rdv-figma-mode ${travelMode==='car'?'is-current':''}`}

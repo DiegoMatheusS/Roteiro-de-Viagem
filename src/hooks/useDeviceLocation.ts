@@ -6,25 +6,28 @@ type LocationStatus = 'idle' | 'loading' | 'ready' | 'error' | 'stale';
 
 export function useDeviceLocation(enabled: boolean, sessionKey = '') {
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<{ position: DeviceLocation | null; error: string | null; status: LocationStatus; key: string }>({
-    position: null, error: null, status: 'idle', key: sessionKey
+  const [state, setState] = useState<{ position: DeviceLocation | null; lastKnownPosition:DeviceLocation|null; error: string | null; status: LocationStatus; key: string }>({
+    position: null, lastKnownPosition:null, error: null, status: 'idle', key: sessionKey
   });
   const retry = useCallback(() => setAttempt(value => value + 1), []);
 
   useEffect(() => {
-    setState({ position: null, error: null, status: enabled ? 'loading' : 'idle', key: sessionKey });
+    setState(current=>({ position: null,
+      lastKnownPosition:enabled&&current.key===sessionKey?current.lastKnownPosition:null,
+      error: null, status: enabled ? 'loading' : 'idle', key: sessionKey }));
     if (!enabled) return;
     const geolocation = navigator.geolocation;
     if (!geolocation) {
-      setState({ position: null, error: 'Este dispositivo não disponibilizou o GPS.', status: 'error', key: sessionKey });
+      setState({ position: null, lastKnownPosition:null, error: 'Este dispositivo não disponibilizou o GPS.', status: 'error', key: sessionKey });
       return;
     }
     let retryTimer: number | undefined;
     const stop = watchDeviceLocation(geolocation, position => {
       const fresh = isFreshGpsFix(position.timestamp);
-      setState({ position, error: fresh ? null : 'O sinal do GPS está desatualizado. Tente novamente.', status: fresh ? 'ready' : 'stale', key: sessionKey });
+      setState(current=>({ position,lastKnownPosition:fresh?position:current.lastKnownPosition,
+        error: fresh ? null : 'O sinal do GPS está desatualizado. Tente novamente.', status: fresh ? 'ready' : 'stale', key: sessionKey }));
     }, error => {
-      setState({ position: null, error, status: 'error', key: sessionKey });
+      setState(current=>({ ...current,position: null, error, status: 'error', key: sessionKey }));
       // Um GPS lento não é permissão negada. Recomece o rastreamento até duas
       // vezes: voltar de Perfil ao Início não deve impedir o cálculo de rotas.
       // Erros de permissão continuam exigindo uma ação explícita do usuário.
@@ -41,6 +44,6 @@ export function useDeviceLocation(enabled: boolean, sessionKey = '') {
     return () => { stop(); window.clearInterval(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
   }, [enabled, sessionKey, attempt]);
 
-  const current = enabled && state.key === sessionKey ? state : { position: null, error: null, status: 'idle' as const };
+  const current = enabled && state.key === sessionKey ? state : { position: null,lastKnownPosition:null, error: null, status: 'idle' as const };
   return { ...current, retry };
 }

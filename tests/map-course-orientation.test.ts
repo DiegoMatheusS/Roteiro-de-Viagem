@@ -53,10 +53,10 @@ test('heading-only updates turn while following and remain paused during explora
   assert.deepEqual(moves,['first','follow','stop','recenter']);
 });
 
-test('course control starts north and GPS arrow stays aligned with the rotated map',()=>{
+test('navigation starts course-up and GPS arrow stays aligned with the rotated map',()=>{
   const map=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
   const pins=readFileSync(new URL('../src/services/mapLibreNavigationPins.ts',import.meta.url),'utf8');
-  assert.match(map,/\[courseMode,setCourseMode\]=useState\(false\)/);
+  assert.match(map,/\[courseMode,setCourseMode\]=useState\(Boolean\(props.navigationMode\)\)/);
   assert.match(map,/bearing=p.navigationMode&&courseModeRef.current\?\(course\?\?0\):0/);
   assert.match(pins,/rotationAlignment:kind==='live'\?'map':'viewport'/);
 });
