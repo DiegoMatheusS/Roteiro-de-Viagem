@@ -792,8 +792,10 @@ try {
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
   const mapPanel = page.getByTestId('map-explore-sheet');
   const initialMapBounds = await mapPanel.boundingBox();
-  assert.ok(initialMapBounds && initialMapBounds.height < 180,
-    'Ao entrar no Mapa, o painel deve ficar recolhido por padrão');
+  assert.ok(initialMapBounds && initialMapBounds.height >= 220 && initialMapBounds.height < 300,
+    'O painel recolhido deve mostrar a busca e a faixa de endereços salvos');
+  await page.getByRole('region',{name:'Explorar destinos e estabelecimentos'})
+    .getByRole('button',{name:'Salvar endereço'}).waitFor();
   const grab = await expandMapPanel.boundingBox();
   assert.ok(grab, 'O puxador do painel precisa estar visível');
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
