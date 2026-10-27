@@ -873,22 +873,22 @@ try {
     return rasterPaths>0 || vectorFeatures>0;
   },undefined,{timeout:10000});
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
-  // The verified restaurant fixture is near the searched destination so
-  // keyboard accessibility is tested on a marker inside the current viewport.
-  // Markers outside it must remain hidden and cannot be keyboard-focus targets.
-  const nativeMap = page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
-  const restaurantPin = (await nativeMap.count() ? nativeMap : page)
+  // Places are intentionally hidden below zoom 14. Selecting a verified
+  // establishment from the map sheet is the real user action that focuses
+  // its coordinates at neighborhood zoom. Wheel-scrolling the canvas does
+  // not guarantee this threshold or center on the intended marker.
+  await page.getByRole('button',{name:'Expandir painel do mapa'}).click();
+  const establishmentsSection=page.getByRole('heading',{name:'Estabelecimentos no mapa'})
+    .locator('xpath=../..');
+  await establishmentsSection.getByRole('button',{name:/Restaurante revisado pela administração/}).click();
+  const nativeMap=page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
+  const restaurantPin=(await nativeMap.count()?nativeMap:page)
     .locator('.managed-place-marker[title="Restaurante revisado pela administração"]').first();
-  if (await nativeMap.count()) {
-    for (let attempt=0; attempt<9 && !(await restaurantPin.isVisible()); attempt++) {
-      const canvas = await nativeMap.locator('.maplibregl-canvas').boundingBox();
-      assert.ok(canvas, 'O mapa precisa estar disponível antes de escolher o restaurante');
-      await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.45);
-      await page.mouse.wheel(0,-460);
-      await page.waitForTimeout(260);
-    }
-  }
-  await restaurantPin.waitFor({state:'visible',timeout:7000});
+  if(await nativeMap.count())await page.waitForFunction(()=>{
+    const map=document.querySelector('[data-map-engine="maplibre-standalone"]');
+    return Number((map as HTMLElement)?.dataset.mapZoom)>=14;
+  },undefined,{timeout:10000});
+  await restaurantPin.waitFor({state:'visible',timeout:10000});
   await restaurantPin.focus();
   assert.equal(await restaurantPin.evaluate(el=>document.activeElement===el),true,
     'O marcador visível deve ser acessível pelo teclado');
