@@ -192,7 +192,7 @@ export function MapTab(props: MapTabProps) {
     </div>
     {/* GPS em cima e triângulo de ocorrência embaixo, junto à lateral direita. */}
     <div aria-label="Controles de localização e ocorrência"
-      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : 'bottom-[140px]'}`}>
+      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : 'bottom-[250px]'}`}>
       <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
         className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
         <LocateFixed size={24} strokeWidth={2.2}/>
@@ -204,13 +204,13 @@ export function MapTab(props: MapTabProps) {
         onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
     <Speedometer position={location.status === 'ready' ? location.position : null}
-      className={`absolute left-3 z-40 transition-[top,bottom] duration-300 ${sheetExpanded?'top-[clamp(110px,16dvh,160px)]':'bottom-[140px]'}`} />
+      className={`absolute left-3 z-40 transition-[top,bottom] duration-300 ${sheetExpanded?'top-[clamp(110px,16dvh,160px)]':'bottom-[250px]'}`} />
     {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
       <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>
       {!locationAccess.requesting && <button type="button" onClick={()=>void locationAccess.request()} className="font-bold underline">Tentar GPS</button>}
     </div>}
-    {trip && !sheetExpanded && <div className="absolute bottom-[172px] left-[104px] right-3 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={props.conditions} /></div>}
-    {trip && <button onClick={() => props.onOpenRoutePlanner(trip.originName, trip.destinationName, trip.destinationCoords, trip.originCoords)} className="absolute bottom-28 left-3 z-30 px-4 py-3 bg-white border rounded-xl shadow-xl text-xs font-bold flex gap-2"><Navigation size={16} />Alterar rota</button>}
+    {trip && !sheetExpanded && <div className="absolute bottom-[282px] left-[104px] right-3 max-w-[260px] z-30"><RouteConditionsStatus trip={trip} conditions={props.conditions} /></div>}
+    {trip && <button onClick={() => props.onOpenRoutePlanner(trip.originName, trip.destinationName, trip.destinationCoords, trip.originCoords)} className="absolute bottom-[272px] left-3 z-30 px-4 py-3 bg-white border rounded-xl shadow-xl text-xs font-bold flex gap-2"><Navigation size={16} />Alterar rota</button>}
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
