@@ -1,6 +1,6 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fuelApi } from '../services/fuelApi';
+import { searchLocations } from '../services/locationSearch';
 import { DestinationExplorer } from './DestinationExplorer';
 import { destinationExploreKey } from '../services/destinationIdentity';
 import type { LocationSelection } from '../types/itinerary';
@@ -41,7 +41,9 @@ export function MapTab(props: MapTabProps) {
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
   const searchGeneration=useRef(0);
+  const searchRequest=useRef<AbortController|null>(null);
   const searchInputRef=useRef<HTMLInputElement>(null);
+  useEffect(()=>()=>{searchGeneration.current++;searchRequest.current?.abort();},[]);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [exploreRoute,setExploreRoute] = useState<{origin:[number,number];options:VerifiedRouteChoice[];selectedId:string}|null>(null);
   const [sheetExpanded,setSheetExpanded] = useState(false);
@@ -93,22 +95,23 @@ export function MapTab(props: MapTabProps) {
     setMapTarget(target);setExploreRoute(null);setFocusedCoords(target.coords);
     setSheetExpanded(false);setSearchError('');
   };
-  const submitQuickSearch = async (event:React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const query=searchDestination.name.trim();
+  const submitQuickSearch = async () => {
+    const query=(searchInputRef.current?.value??searchDestination.name).trim();
     if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
-    if(searchBusy)return;
+    if(searchRequest.current)return;
     const generation=++searchGeneration.current;
+    const controller=new AbortController();searchRequest.current=controller;
+    searchInputRef.current?.blur();
     setSearchBusy(true);setSearchError('');
     try {
       const bias=location.status==='ready' ? location.position?.coords : undefined;
-      const result=await fuelApi<{results:LocationSelection[];unavailable?:boolean}>(`/locations/search?q=${encodeURIComponent(query)}${bias?`&lat=${bias[0]}&lng=${bias[1]}`:''}`);
+      const result=await searchLocations(query,bias,controller.signal);
       if(generation!==searchGeneration.current)return;
       const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
       if(!found)throw new Error('Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
       focusDestination(found);
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
-    finally{if(generation===searchGeneration.current)setSearchBusy(false);}
+    finally{if(searchRequest.current===controller)searchRequest.current=null;if(generation===searchGeneration.current)setSearchBusy(false);}
   };
   const selectSuggestion = (place:MapVisiblePlace) =>
     focusDestination({name:place.name,coords:place.coords,address:place.address});
@@ -141,6 +144,7 @@ export function MapTab(props: MapTabProps) {
       selectedRouteId={exploreRoute?.selectedId}
       onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
       userLiveCoords={location.status === "ready" ? location.position?.coords : undefined}
+      userLastKnownCoords={location.lastKnownPosition?.coords}
       userGpsAccuracyMeters={location.status === 'ready'?location.position?.accuracyMeters:undefined}
        userHeadingDegrees={location.status === "ready" ? location.position?.headingDegrees : null}
        userSpeedMetersPerSecond={location.status === "ready" ? location.position?.speedMetersPerSecond : null}
@@ -197,7 +201,7 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError),dragOffset),
+      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset),
         transitionDuration:dragOffset?'0ms':undefined}}
       className="absolute bottom-0 inset-x-0 z-30 overflow-hidden bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet">
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
@@ -225,18 +229,20 @@ export function MapTab(props: MapTabProps) {
       <div data-map-panel-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         <div className="max-w-xl mx-auto space-y-5">
           <form role="search" aria-label="Busca rápida de destinos no mapa"
-            onSubmit={event=>void submitQuickSearch(event)}
+            aria-busy={searchBusy} onSubmit={event=>{event.preventDefault();void submitQuickSearch();}}
             className="flex items-center gap-3 bg-slate-100 rounded-2xl h-14 px-4 border border-slate-100 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
             <Search size={21} className="text-slate-600 shrink-0" aria-hidden="true"/>
             <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off"
               aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" maxLength={150}
               value={searchDestination.name}
-              onChange={event=>{searchGeneration.current++;setSearchBusy(false);setSearchError('');setSearchDestination({name:event.target.value});}}
+              onChange={event=>{searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchDestination({name:event.target.value});}}
+              onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
               className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-800 placeholder:text-slate-500"/>
-            <button type="submit" aria-label="Pesquisar destino" disabled={searchBusy || searchDestination.name.trim().length<3}
+            <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchDestination.name.trim().length<3}
               className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
               {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
           </form>
+          {searchBusy&&<p role="status" className="text-slate-700 text-xs">Pesquisando endereço...</p>}
           {searchError && <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs">{searchError}</p>}
           {sheetExpanded && <div className="space-y-6 pb-4">
             <section className="space-y-2.5">

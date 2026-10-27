@@ -231,3 +231,22 @@ test('GPS restores the initial close, tilted driving view; idle resume keeps man
   hybrid.recenter([-23.55,-46.63],true,true);
   assert.deepEqual(hybridCalls,[18.5,12]);
 });
+
+test('a fresh GPS fix or turn during recenter still completes the driving tilt; a gesture cancels it',()=>{
+  const calls:Record<string,unknown>[]=[];
+  let pitch=8;
+  const camera=createStandaloneMapLibreCameraPort({
+    getZoom:()=>16,getPitch:()=>pitch,getContainer:()=>({clientHeight:800}),stop:()=>{},fitBounds:()=>{},
+    jumpTo:options=>{calls.push(options);},easeTo:options=>{calls.push(options);}
+  });
+  camera.recenter([-23.55,-46.63],true,false,true);
+  pitch=20;camera.follow([-23.551,-46.63],false);
+  assert.equal(calls.at(-1)?.pitch,55,'GPS arriving before the recenter ends must retain the target pitch');
+  camera.zoomToTurn!([-23.552,-46.63],19,false);
+  assert.equal(calls.at(-1)?.pitch,55,'turn assistance must complete the same driving tilt');
+  pitch=55;camera.follow([-23.553,-46.63],false);
+  assert.equal('pitch' in calls.at(-1)!,false,'no repeated pitch overrides after the target is reached');
+  pitch=8;camera.recenter([-23.554,-46.63],true,false,true);
+  camera.stop();camera.follow([-23.555,-46.63],false);
+  assert.equal('pitch' in calls.at(-1)!,false,'manual exploration cancels the pending restore');
+});
