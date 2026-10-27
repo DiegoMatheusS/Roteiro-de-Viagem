@@ -11,15 +11,17 @@ interface DestinationExplorerProps {
   vehicle: Vehicle | null;
   gpsAvailable: boolean;
   getOrigin: () => Promise<[number,number]>;
+  getOriginLabel?:()=>string;
   onMapRoute: (origin: [number,number], options:VerifiedRouteChoice[], selectedId:string) => void;
   selectedRouteId?:string;
   onStartTrip: (trip:TripPlan) => void;
   onClose: () => void;
 }
-export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMapRoute,onStartTrip,onClose,selectedRouteId}:DestinationExplorerProps) {
+export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMapRoute,onStartTrip,onClose,selectedRouteId,getOriginLabel}:DestinationExplorerProps) {
   const [routes,setRoutes] = useState<VerifiedRouteChoice[]>([]);
   const [selected,setSelected] = useState(0);
   const [origin,setOrigin] = useState<[number,number]|null>(null);
+  const [originName,setOriginName]=useState('Sua localização atual');
   const [busy,setBusy] = useState(false);
   const initialAttempt=useRef(false);
   const busyRef=useRef(false);
@@ -41,13 +43,13 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     const choice=routes[selected];
     if(!vehicle || !origin || !target.coords || !choice || choice.source==='offline-graph' || tollChecks[choice.id])return;
     const controller=new AbortController();
-    const trip=choiceToTrip(choice,vehicle,origin,{name:target.name,coords:target.coords});
+    const trip=choiceToTrip(choice,vehicle,origin,{name:target.name,coords:target.coords},originName);
     void requestTolls(trip,vehicle.type,controller.signal).then(result=>{
       if(!controller.signal.aborted)setTollChecks(previous=>({...previous,[choice.id]:result}));
     }).catch(()=>{ /* consulta opcional: situação permanece não verificada */ });
     return ()=>controller.abort();
   },[routes,selected,origin,vehicle?.id,target.coords?.[0],target.coords?.[1]]);
-  const loadRoutes = async ():Promise<{choices:VerifiedRouteChoice[];position:[number,number]}|null> => {
+  const loadRoutes = async ():Promise<{choices:VerifiedRouteChoice[];position:[number,number];name:string}|null> => {
     if (!target.coords || busyRef.current || !activeRef.current) return null;
     busyRef.current=true;
     const controller=new AbortController();
@@ -55,14 +57,15 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     setBusy(true);setError('');
     try {
       const position=await getOrigin();
+      const name=getOriginLabel?.()||'Sua localização atual';
       // A GPS read can complete after the user changes/closes the destination.
       if(controller.signal.aborted || !activeRef.current)return null;
       const choices=await fetchRouteChoices(position,target.coords,controller.signal);
       if(controller.signal.aborted || !activeRef.current)return null;
       if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
-      setRoutes(choices);setSelected(0);setOrigin(position);setTollChecks({});
+      setRoutes(choices);setSelected(0);setOrigin(position);setOriginName(name);setTollChecks({});
       onMapRoute(position,choices,choices[0].id);
-      return {choices,position};
+      return {choices,position,name};
     } catch(e) {
       if(!controller.signal.aborted && activeRef.current)setError((e as Error).message);
       return null;
@@ -84,12 +87,12 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     if(busyRef.current || !activeRef.current)return;
     if(!target.coords){setError('O destino está sem coordenadas. Pesquise novamente.');return;}
     // O primeiro toque também inicia a navegação quando a lista ainda não foi calculada.
-    const result=routes.length && origin ? {choices:routes,position:origin} : await loadRoutes();
+    const result=routes.length && origin ? {choices:routes,position:origin,name:originName} : await loadRoutes();
     if(!result || !activeRef.current)return;
     const choice=result.choices[Math.min(selected,result.choices.length-1)];
     if(!choice){setError('Não foi possível preparar a rota. Tente novamente.');return;}
     setError('');
-    const trip=choiceToTrip(choice,vehicle || GUEST_NAVIGATION_VEHICLE,result.position,{name:target.name,coords:target.coords});
+    const trip=choiceToTrip(choice,vehicle || GUEST_NAVIGATION_VEHICLE,result.position,{name:target.name,coords:target.coords},result.name);
     const verified=tollChecks[choice.id];
     onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
   };
