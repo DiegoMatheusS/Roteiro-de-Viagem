@@ -72,6 +72,16 @@ try{
   await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
   assert.deepEqual(queries,['Rua de teste','Rua de teste','Rua de teste'],'one request per tap or keyboard submit');
   assert.equal(await input.evaluate(element=>document.activeElement===element),false,'close the keyboard after locating the address');
+  if(screen==='map'){
+    await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
+    await input.fill('Outra rua próxima');
+    const results=page.getByRole('group',{name:'Sugestões de endereços'});
+    await results.getByRole('button',{name:'Escolher destino Rua de teste'}).waitFor();
+    assert.match(await results.innerText(),/km em linha reta/,
+      'live suggestions must label GPS distance as geodesic, not driving kilometres');
+    await results.getByRole('button',{name:'Escolher destino Rua de teste'}).tap();
+    await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
+  }
   assert.deepEqual(errors,[]);
   await page.close();
   }
