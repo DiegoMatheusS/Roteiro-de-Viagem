@@ -44,7 +44,7 @@ try{
   assert.notEqual(await map.getAttribute('data-map-ready'),'true',
     'this assertion must run before the initial map load completes');
   await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>(
-    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)===18);
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)===18.5);
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector<SVGElement>(
     '.user-live-marker svg')?.style.transform==='rotate(180deg)',{},{timeout:3000});
@@ -84,18 +84,17 @@ try{
     'drag must follow the whole gesture, not stop after its first small movement');
   await page.waitForTimeout(800);
   const beforeZoom=Number(await map.getAttribute('data-map-zoom'));
-  await touch('touchStart',[{x:140,y:260},{x:220,y:260}]);
+  await touch('touchStart',[{x:100,y:260},{x:260,y:260}]);
   for(let i=1;i<=8;i++){
-    await touch('touchMove',[{x:140-i*5,y:260},{x:220+i*5,y:260}]);
+    await touch('touchMove',[{x:100+i*5,y:260},{x:260-i*5,y:260}]);
     await page.waitForTimeout(25);
   }
   await touch('touchEnd',[]);
   await page.waitForFunction(previous=>Number(document.querySelector<HTMLElement>(
-    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)>previous+.65,beforeZoom,{timeout:3000});
-  console.log('Native pinch zoom gain:',Number(await map.getAttribute('data-map-zoom'))-beforeZoom);
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)<previous-.65,beforeZoom,{timeout:3000});
+  console.log('Native pinch zoom change:',Number(await map.getAttribute('data-map-zoom'))-beforeZoom);
   await page.waitForTimeout(800);
   const exploredCenter=await map.getAttribute('data-map-center');
-  const exploredZoom=Number(await map.getAttribute('data-map-zoom'));
   const oldPin=await marker.getAttribute('style');
   await page.getByRole('button',{name:'Mover GPS',exact:true}).click();
   await page.waitForFunction(previous=>document.querySelector('.user-live-marker')?.getAttribute('style')!==previous,oldPin);
@@ -108,8 +107,10 @@ try{
     const [lat,lon]=JSON.parse(root.dataset.mapCenter);
     return Math.abs(lat+23.56)<1e-5&&Math.abs(lon+46.62)<1e-5;
   });
-  assert.equal(Number(await map.getAttribute('data-map-zoom')),exploredZoom,
-    'GPS recenter preserves the manual pinch zoom');
+  assert.equal(Number(await map.getAttribute('data-map-zoom')),18.5,
+    'GPS restores the initial close zoom after a manual pinch');
+  assert.ok(Math.abs(Number(await map.getAttribute('data-map-pitch'))-55)<0.01,
+    'GPS restores the initial driving tilt');
   assert.equal(await page.locator('.maplibregl-canvas').count(),1);
   assert.equal(await page.locator('.leaflet-container').count(),0);
   releaseTiles();

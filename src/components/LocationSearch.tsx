@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { fuelApi } from '../services/fuelApi';
+import { searchLocations } from '../services/locationSearch';
 import { useAuth } from '../contexts/AuthContext';
 import type { LocationSelection } from '../types/itinerary';
 
@@ -27,7 +28,7 @@ export function LocationSearch({ label, value, onChange, bias, placeholder }: { 
     const current = ++generation.current;
     setBusy(true); setError(''); setResults([]);
     try {
-      const result = await fuelApi<{ results: LocationSelection[]; unavailable?: boolean }>(`/locations/search?q=${encodeURIComponent(value.name)}${bias ? `&lat=${bias[0]}&lng=${bias[1]}` : ''}`);
+      const result = await searchLocations(value.name,bias);
       if (current !== generation.current) return;
       setResults(result.results);
       if (!result.results.length) setError('Nenhum local encontrado. Inclua a cidade ou o endereço.');

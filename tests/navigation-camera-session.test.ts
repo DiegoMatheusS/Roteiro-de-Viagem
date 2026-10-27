@@ -128,9 +128,9 @@ test('zoom automático ocorre uma vez na aproximação, depois volta ao nível n
   session.update(near);
   session.update({...near,position:[-23.5001,-46.6],maneuverMeters:215});
   assert.equal(commands.length,1,'sem comandos repetidos a cada amostra GPS');
-  assert.equal(commands[0].zoom,18.5);
+  assert.equal(commands[0].zoom,19);
   session.update({...near,position:[-23.5002,-46.6],maneuverMeters:500});
-  assert.deepEqual(commands.map(c=>c.zoom),[18.5,18]);
+  assert.deepEqual(commands.map(c=>c.zoom),[19,18.5]);
 });
 
 test('zoom manual é respeitado após 7 segundos; botão GPS volta a permitir ajuda de conversão',()=>{
@@ -148,7 +148,7 @@ test('zoom manual é respeitado após 7 segundos; botão GPS volta a permitir aj
   assert.deepEqual(zooms,[],'não sobrescrever a escala escolhida manualmente');
   session.update({...input,centerRequest:1,position:[-23.5003,-46.6],maneuverMeters:230});
   session.update({...input,centerRequest:1,position:[-23.5004,-46.6],maneuverMeters:220});
-  assert.deepEqual(zooms,[18.5],'botão GPS restaura o zoom automático nas manobras');
+  assert.deepEqual(zooms,[19],'botão GPS restaura o zoom automático nas manobras');
 });
 
 test('sem GPS válido ou durante a exploração, zoom de conversão não movimenta mapa',()=>{

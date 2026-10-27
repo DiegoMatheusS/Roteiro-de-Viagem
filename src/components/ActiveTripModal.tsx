@@ -237,6 +237,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           centerOnUserRequest={centerRequest} tolls={rerouted?NO_MAP_ITEMS:trip.tolls??NO_MAP_ITEMS}
           tollVehicleType={vehicle.type}
           userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
+          userLastKnownCoords={tracking.lastKnownPosition?.coords}
           userGpsAccuracyMeters={isGpsActive?tracking.position?.accuracyMeters:undefined}
           userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
           userSpeedMetersPerSecond={isGpsActive?tracking.position?.speedMetersPerSecond:null}
@@ -268,6 +269,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       <div className="rdv-nav-gps-status" aria-live="polite">
         <span aria-hidden="true">ⓘ</span>
         {isGpsActive?'GPS ativo · localização ao vivo':
+          tracking.lastKnownPosition?'Aguardando GPS · última posição conhecida no mapa':
           tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
         {refreshingStopRoute?' · Rota anterior mantida até atualizar':''}
         {usingLocalRoadGraph?' · Trajeto calculado com ruas locais; tempo estimado':''}

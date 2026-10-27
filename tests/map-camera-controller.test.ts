@@ -12,9 +12,9 @@ test('camera mode is deterministic: gestures pause, GPS resumes and trip exit re
 test('recenter respects chosen navigation zoom and establishes useful zoom from broad map',()=>{
   assert.equal(recenterZoom(17,true),17);
   assert.equal(recenterZoom(11,true),11);
-  assert.equal(recenterZoom(4,true),18);
+  assert.equal(recenterZoom(4,true),18.5);
   assert.equal(recenterZoom(19,false),15);
-  assert.equal(recenterZoom(NaN,true),18);
+  assert.equal(recenterZoom(NaN,true),18.5);
   assert.equal(recenterZoom(22,true),19);
 });
 test('hybrid controller uses only Leaflet camera commands and supports reduced motion',()=>{
@@ -59,7 +59,7 @@ test('hybrid map only issues camera moves through the Leaflet port; drag shows v
   const screen=readFileSync(new URL('../src/components/ActiveTripModal.tsx',import.meta.url),'utf8');
   const bridge=readFileSync(new URL('../src/services/mapLibreBridge.ts',import.meta.url),'utf8');
   assert.match(bridge,/interactive: false/);
-  assert.match(map,/createHybridCameraPort\(map\)\.recenter\(userLiveCoords,navigationModeRef\.current,reducedMotion\)/);
+  assert.match(map,/createHybridCameraPort\(map\)\.recenter\(userLiveCoords,navigationModeRef\.current,reducedMotion,true\)/);
   assert.match(map,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
   assert.match(map,/cameraModeChangeRef\.current\?\.\('exploring'\)/);
   assert.match(map,/cameraModeChangeRef\.current\?\.\('following'\)/);
@@ -89,7 +89,7 @@ test('all initial positioning and bounds fits go through one hybrid Leaflet came
   camera.fitRoute([[-23.55,-46.63],[-23.6,-46.64]],
     {topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
   assert.deepEqual(calls.map(c=>c.name),['setView','setView','fitBounds']);
-  assert.deepEqual(calls[0].args, [[-23.55,-46.63],18,{animate:false}]);
+  assert.deepEqual(calls[0].args, [[-23.55,-46.63],18.5,{animate:false}]);
   assert.deepEqual(calls[1].args, [[-23.6,-46.64],12,{animate:false}]);
   assert.deepEqual(calls[2].args, [
     [[-23.55,-46.63],[-23.6,-46.64]],
@@ -111,7 +111,7 @@ test('standalone MapLibre camera fits accurate lng/lat bounds and preserves shee
   camera.fitRoute([[-23.55,-46.63],[-23.6,-46.64]],
     {topLeft:[36,70],bottomRight:[36,260],maxZoom:13});
   assert.deepEqual(calls.map(c=>c.name),['jumpTo','jumpTo','fitBounds']);
-  assert.deepEqual(calls[0].args[0],{center:[-46.63,-23.55],zoom:18});
+  assert.deepEqual(calls[0].args[0],{center:[-46.63,-23.55],zoom:18.5,pitch:55,padding:{top:0,right:0,bottom:0,left:0}});
   assert.deepEqual(calls[2].args,[
     [[-46.64,-23.6],[-46.63,-23.55]],
     {padding:{top:70,left:36,bottom:260,right:36},maxZoom:13,duration:0}
@@ -206,4 +206,28 @@ test('standalone camera uses the public MapLibre 6 stop signature',()=>{
   });
   camera.stop();
   assert.deepEqual(calls,[[]]);
+});
+
+test('GPS restores the initial close, tilted driving view; idle resume keeps manual zoom and pitch',()=>{
+  const calls:Record<string,unknown>[]=[];
+  const camera=createStandaloneMapLibreCameraPort({
+    getZoom:()=>12,getContainer:()=>({clientHeight:800}),stop:()=>{},fitBounds:()=>{},
+    jumpTo:options=>{calls.push(options);},easeTo:options=>{calls.push(options);}
+  },()=>90);
+  camera.firstGpsFix([-23.55,-46.63]);
+  camera.recenter([-23.551,-46.631],true,false,true);
+  camera.recenter([-23.552,-46.632],true,true,true);
+  for(const options of calls){
+    assert.equal(options.zoom,18.5);assert.equal(options.pitch,55);assert.equal(options.bearing,90);
+    assert.deepEqual(options.padding,{top:192,right:0,bottom:0,left:0});
+  }
+  camera.recenter([-23.553,-46.633],true,false);
+  assert.equal(calls.at(-1)?.zoom,12);
+  assert.equal('pitch' in calls.at(-1)!,false,'automatic return must retain manual pitch');
+  const hybridCalls:number[]=[];
+  const hybrid=createHybridCameraPort({getZoom:()=>12,stop:()=>{},panTo:()=>{},fitBounds:()=>{},
+    setView:(_point,zoom)=>{hybridCalls.push(zoom);},flyTo:(_point,zoom)=>{hybridCalls.push(zoom);}});
+  hybrid.recenter([-23.55,-46.63],true,true,true);
+  hybrid.recenter([-23.55,-46.63],true,true);
+  assert.deepEqual(hybridCalls,[18.5,12]);
 });

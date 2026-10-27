@@ -2,7 +2,8 @@
  * navigation uses MapLibre. Never command both cameras for one viewport. */
 export type CameraPoint = [number,number]; // [latitude, longitude]
 export type CameraMode = 'following'|'exploring';
-export const NAVIGATION_START_ZOOM=18;
+export const NAVIGATION_START_ZOOM=18.5;
+export const NAVIGATION_START_PITCH=55;
 
 export function nextCameraMode(current:CameraMode,event:'drag'|'recenter'|'stop'):CameraMode {
   if(event==='drag')return 'exploring';
@@ -10,9 +11,10 @@ export function nextCameraMode(current:CameraMode,event:'drag'|'recenter'|'stop'
   return current;
 }
 
-export function recenterZoom(currentZoom:number,navigation:boolean):number {
+export function recenterZoom(currentZoom:number,navigation:boolean,restoreNavigationView=false):number {
   // Preserve an intentional manual zoom on an active trip. First fix from the
   // continental view must still zoom in to make navigation usable.
+  if(navigation&&restoreNavigationView)return NAVIGATION_START_ZOOM;
   return navigation && Number.isFinite(currentZoom) && currentZoom>=10
     ? Math.min(currentZoom,19) : navigation?NAVIGATION_START_ZOOM:15;
 }
@@ -27,7 +29,7 @@ export interface CameraPort {
   firstGpsFix(point:CameraPoint):void;
   focus(point:CameraPoint,zoom:number,reducedMotion?:boolean):void;
   fitRoute(points:readonly CameraPoint[],padding:CameraFitPadding):void;
-  recenter(point:CameraPoint,navigation:boolean,reducedMotion:boolean):void;
+  recenter(point:CameraPoint,navigation:boolean,reducedMotion:boolean,restoreNavigationView?:boolean):void;
   follow(point:CameraPoint,reducedMotion:boolean):void;
   /** Optional: native turn zoom, never invoked by the raster/Leaflet fallback. */
   zoomToTurn?(point:CameraPoint,zoom:number,reducedMotion:boolean):void;
@@ -62,8 +64,8 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
         maxZoom:padding.maxZoom,animate:false
       });
     },
-    recenter(point,navigation,reducedMotion){
-      const zoom=recenterZoom(map.getZoom(),navigation);
+    recenter(point,navigation,reducedMotion,restoreNavigationView=false){
+      const zoom=recenterZoom(map.getZoom(),navigation,restoreNavigationView);
       if(reducedMotion)map.setView(point,zoom,{animate:false});
       else map.flyTo(point,zoom,{duration:0.55,easeLinearity:0.3});
     },
@@ -75,13 +77,15 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
 }
 interface StandaloneMapLibreCamera {
   getZoom():number;
+  getContainer?():{clientHeight:number};
   stop():unknown;
-  jumpTo(options:{center:[number,number];zoom?:number;bearing?:number}):unknown;
-  easeTo(options:{center:[number,number];zoom?:number;bearing?:number;duration:number}):unknown;
+  jumpTo(options:{center:[number,number];zoom?:number;bearing?:number;pitch?:number;padding?:CameraInsets}):unknown;
+  easeTo(options:{center:[number,number];zoom?:number;bearing?:number;pitch?:number;padding?:CameraInsets;duration:number}):unknown;
   fitBounds(bounds:[[number,number],[number,number]],options:{
     padding:{top:number;right:number;bottom:number;left:number};maxZoom:number;duration:number;bearing?:number
   }):unknown;
 }
+interface CameraInsets {top:number;right:number;bottom:number;left:number}
 /** Standalone-only adapter. Never used while MapLibre is inside Leaflet. */
 export function createStandaloneMapLibreCameraPort(
   map:StandaloneMapLibreCamera,getBearing?:()=>number
@@ -91,13 +95,18 @@ export function createStandaloneMapLibreCameraPort(
     const bearing=getBearing?.();
     return bearing!==undefined && Number.isFinite(bearing)?{bearing}:{};
   };
+  // Put the vehicle below the visual center, leaving more road ahead visible.
+  // Padding works for both jumpTo (reduced motion) and easeTo, and survives
+  // follow updates without queueing a second camera animation.
+  const navigationView=()=>({pitch:NAVIGATION_START_PITCH,
+    padding:{top:Math.round((map.getContainer?.().clientHeight??0)*0.24),right:0,bottom:0,left:0}});
   return {
     zoom:()=>map.getZoom(),
     // The session invokes this once before a manual gesture starts. MapLibre
     // 6 does not forward an allowGestures argument on the public Map.stop().
     stop:()=>{map.stop();},
     firstGpsFix(point){
-      map.jumpTo({center:lngLat(point),zoom:NAVIGATION_START_ZOOM,...orientation()});
+      map.jumpTo({center:lngLat(point),zoom:NAVIGATION_START_ZOOM,...orientation(),...navigationView()});
     },
     focus(point,zoom,reducedMotion=true){
       if(reducedMotion)map.jumpTo({center:lngLat(point),zoom,...orientation()});
@@ -120,10 +129,11 @@ export function createStandaloneMapLibreCameraPort(
           maxZoom:padding.maxZoom,duration:0,...orientation()}
       );
     },
-    recenter(point,navigation,reducedMotion){
-      const zoom=recenterZoom(map.getZoom(),navigation);
-      if(reducedMotion)map.jumpTo({center:lngLat(point),zoom,...orientation()});
-      else map.easeTo({center:lngLat(point),zoom,duration:550,...orientation()});
+    recenter(point,navigation,reducedMotion,restoreNavigationView=false){
+      const zoom=recenterZoom(map.getZoom(),navigation,restoreNavigationView);
+      const view=navigation&&restoreNavigationView?navigationView():{};
+      if(reducedMotion)map.jumpTo({center:lngLat(point),zoom,...orientation(),...view});
+      else map.easeTo({center:lngLat(point),zoom,duration:550,...orientation(),...view});
     },
     follow(point,reducedMotion){
       if(reducedMotion)map.jumpTo({center:lngLat(point),...orientation()});

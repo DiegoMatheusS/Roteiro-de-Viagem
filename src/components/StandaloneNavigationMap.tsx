@@ -9,7 +9,7 @@ import type {InteractiveMapProps} from './InteractiveMap';
 import {canRenderVectorMap,applyRoleVectorPalette} from '../services/mapVectorStyle';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import type {MapTheme} from '../services/mapAppearance';
-import {createStandaloneMapLibreCameraPort,orientMapLibreCamera} from '../services/mapCameraController';
+import {createStandaloneMapLibreCameraPort,orientMapLibreCamera,NAVIGATION_START_PITCH} from '../services/mapCameraController';
 import {createNavigationCameraSession} from '../services/navigationCameraSession';
 import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
 import {createMapGestureUpdates} from '../services/mapGestureUpdates';
@@ -72,7 +72,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const showBaseSelector=!props.navigationMode&&!props.roadStyle;
   const effectiveStyle:MapStyleType=props.navigationMode||props.roadStyle?'light':baseStyle;
   const styleRef=useRef(effectiveStyle);styleRef.current=effectiveStyle;
-  const [courseMode,setCourseMode]=useState(false);
+  const [courseMode,setCourseMode]=useState(Boolean(props.navigationMode));
   const courseModeRef=useRef(courseMode);courseModeRef.current=courseMode;
   const [station,setStation]=useState<{id:string;section:'prices'|'comments'}|null>(null);
   const [place,setPlace]=useState<Place|null>(null);
@@ -161,7 +161,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           :standaloneBaseStyle(activeStyle,activeTheme),
         center:origin?[origin[1],origin[0]]:[-51.9,-14.2],zoom:origin?11:4,
         minZoom:1,maxZoom:TILE_PROVIDERS[activeStyle].maxZoom,bearing:0,
-        pitch:latest.current.navigationMode?48:0,maxPitch:65,
+        pitch:latest.current.navigationMode?NAVIGATION_START_PITCH:0,maxPitch:65,
         // Preserve native pan, pinch zoom and two-finger rotation while exploring.
         // Camera following pauses on explicit gestures and resumes via GPS.
         dragRotate:true,pitchWithRotate:true,touchPitch:true,
@@ -179,6 +179,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     },12000);
     let course:number|null=null;
     let bearing=0;
+    let lastCenterRequest=0;
     const cameraPort=createStandaloneMapLibreCameraPort(map,()=>bearing);
     let idleFollow:ReturnType<typeof createNavigationIdleFollow>|null=null;
     const camera=createNavigationCameraSession(cameraPort,mode=>{
@@ -267,7 +268,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     // tiles, or while a route source is being processed by the worker.
     const updateLiveViewport=()=>{
       const p=latest.current;
-      navigation.update({origin:p.originCoords,destination:p.destinationCoords,live:p.userLiveCoords,
+      navigation.update({origin:p.originCoords,destination:p.destinationCoords,live:p.userLiveCoords??p.userLastKnownCoords,
+        liveStale:!p.userLiveCoords&&!!p.userLastKnownCoords,
         headingDegrees:p.userHeadingDegrees,speedMetersPerSecond:p.userSpeedMetersPerSecond,
         originLabel:p.originLabel||'Origem',destinationLabel:p.destinationLabel||'Destino',
         navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
@@ -282,6 +284,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const render=()=>{
       if(disposed||failed)return;
       const p=latest.current;
+      if(p.navigationMode&&(p.centerOnUserRequest??0)>lastCenterRequest){
+        // Explicit GPS restores the complete driving view, including course-up.
+        lastCenterRequest=p.centerOnUserRequest??0;
+        courseModeRef.current=true;setCourseMode(true);
+      }
       course=updateMapCourse(course,p.userHeadingDegrees,p.userSpeedMetersPerSecond);
       bearing=p.navigationMode&&courseModeRef.current?(course??0):0;
       try{
@@ -483,6 +490,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       root.dataset.mapCenter=JSON.stringify([center.lat,center.lng]);
       root.dataset.mapZoom=String(map.getZoom());
       root.dataset.mapBearing=String(map.getBearing());
+      root.dataset.mapPitch=String(map.getPitch());
       const p=latest.current;
       if(!p.routePath?.length&&!p.originCoords){
         const point:[number,number]|null=map.getZoom()<10?null:

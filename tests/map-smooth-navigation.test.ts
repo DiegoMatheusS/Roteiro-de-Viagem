@@ -7,8 +7,8 @@ const source = readFileSync(new URL('../src/components/InteractiveMap.tsx',impor
 test('GPS and progress render in independent Leaflet fallback groups',()=>{
   assert.match(source,/livePinGroupRef\.current = L\.layerGroup\(\)\.addTo\(map\)/);
   assert.match(source,/progressGroupRef\.current = L\.layerGroup\(\)\.addTo\(map\)/);
-  assert.match(source,/existing\.setLatLng\(userLiveCoords\)/);
-  assert.match(source,/liveFallbackRef\.current=L\.marker\(userLiveCoords/);
+  assert.match(source,/existing\.setLatLng\(markerCoords\)/);
+  assert.match(source,/liveFallbackRef\.current=L\.marker\(markerCoords/);
   assert.match(source,/const progress=splitRouteAtPosition\(routePath,userLiveCoords,travelledDistanceKm,totalRouteKm\)/);
   assert.match(source,/if \(vectorRoutesReady \|\| !\(navigationMode \|\| blueRoute\) \|\| routePath\.length<2\) return/);
 });
