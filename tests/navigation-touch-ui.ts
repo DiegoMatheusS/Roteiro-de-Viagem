@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {chromium} from 'playwright';
+import {chromium,type Page,type Locator} from 'playwright';
 import {createServer} from 'vite';
 import {mapScreenPoint} from './helpers/map-screen-point';
 
@@ -15,7 +15,7 @@ try{
       '--use-angle=swiftshader','--enable-unsafe-swiftshader']});
   const tile=await sharp({create:{width:256,height:256,channels:4,background:'#eaf0ef'}}).png().toBuffer();
   for(const fallback of [false,true]){
-    const page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true,isMobile:true});
+    const page:Page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true,isMobile:true});
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
     await page.route('https://**',route=>route.fulfill({contentType:'image/png',body:tile}));
     await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{
@@ -29,7 +29,7 @@ try{
         canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
     }
     const engine=fallback?'leaflet-fallback':'maplibre-standalone';
-    const map=page.locator(`[data-map-engine="${engine}"]`);
+    const map:Locator=page.locator(`[data-map-engine="${engine}"]`);
     await map.waitFor();
     const marker=page.locator('.user-live-marker');
     await marker.waitFor();
@@ -49,7 +49,7 @@ try{
       await page.waitForFunction(()=>document.querySelector('[data-testid="mode"]')?.textContent==='following');
       await page.waitForTimeout(700);
     };
-    const zoom=async()=>Number(await map.getAttribute('data-map-zoom'));
+    const zoom=async():Promise<number>=>Number(await map.getAttribute('data-map-zoom'));
     // Pan begins on the arrow, with GPS arriving while the finger is still
     // held. Neither the marker nor GPS may steal the camera before dragstart.
     let point=await arrowCenter();
