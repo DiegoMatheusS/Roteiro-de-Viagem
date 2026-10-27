@@ -10,7 +10,6 @@ export function VoiceGuidanceControl({guidance}:VoiceGuidanceProps){
   const supported=typeof window!=='undefined'&&
     'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined';
   const [enabled,setEnabled]=useState(false);
-  const [unavailable,setUnavailable]=useState(false);
   const announced=useRef(new Set<string>());
   const say=(text:string)=>{
     if(!supported)return;
@@ -42,10 +41,11 @@ export function VoiceGuidanceControl({guidance}:VoiceGuidanceProps){
   useEffect(()=>()=>{if(supported)window.speechSynthesis.cancel();},[supported]);
   return <div className="rdv-nav-voice-wrap">
     <button type="button"
-      aria-label="Orientações por voz" aria-pressed={enabled}
-      title={supported?(enabled?'Desligar voz':'Ativar instruções faladas'):'Voz indisponível neste aparelho'}
+      aria-label={supported?'Orientações por voz':'Orientações por voz indisponíveis'}
+      aria-pressed={enabled} disabled={!supported}
+      title={supported?(enabled?'Desligar voz':'Ativar instruções faladas'):undefined}
       onClick={()=>{
-        if(!supported){setUnavailable(true);return;}
+        if(!supported)return;
         if(enabled){window.speechSynthesis.cancel();setEnabled(false);}
         else{setEnabled(true);announce(true);}
       }}
@@ -53,6 +53,5 @@ export function VoiceGuidanceControl({guidance}:VoiceGuidanceProps){
       {enabled?<Volume2 size={21}/>:<VolumeX size={21}/>}
       <span>Voz</span>
     </button>
-    {unavailable&&<span role="status" className="rdv-nav-voice-note">Voz indisponível</span>}
   </div>;
 }

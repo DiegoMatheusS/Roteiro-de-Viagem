@@ -140,14 +140,6 @@
 .rdv-nav-map-button.is-voice-enabled {background:#eaf1ff;}
 .rdv-nav-map-button span {color:#596979;line-height:1.1;font-size:10px;}
 .rdv-nav-voice-wrap {position:relative;}
-.rdv-nav-voice-note {
-  position:absolute;right:58px;top:17px;
-  min-width:125px;
-  background:#fff;color:#64748b;
-  padding:6px;border-radius:9px;
-  box-shadow:0 3px 10px #0001;
-  font-size:11px;
-}
 .rdv-nav-bottom {
   position:absolute;
   z-index:32;
@@ -156,7 +148,7 @@
   right:0;
   height:var(--rdv-nav-panel-height);
   border-radius:24px 24px 0 0;
-  background:#fff;
+  background:#f1f3f6;
   padding:20px 20px max(29px,calc(env(safe-area-inset-bottom,0px) + 15px));
   display:flex;
   flex-direction:column;
@@ -198,6 +190,11 @@
   font-weight:600;
 }
 .rdv-nav-bottom-button svg {flex-shrink:0;}
+.rdv-nav-bottom-button.rdv-nav-end {
+  background:#c62828;
+  color:#fff;
+}
+.rdv-nav-bottom-button.rdv-nav-end:active {background:#a91f1f;}
 .rdv-nav-sos {color:#d54337;}
 .rdv-nav-figma-root button:focus-visible {outline:2px solid #245ee6;outline-offset:2px;}
 .rdv-nav-extra-panel {
@@ -247,11 +244,11 @@
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-panel,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-gps-status,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-map-button,
-.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-voice-note,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-retry {background:#1e293b;color:#e2e8f0;border-color:#334155;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom-button,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-heading button,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-action {background:#334155;color:#e2e8f0;border-color:#475569;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom-button.rdv-nav-end {background:#c62828;color:#fff;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-controls .rdv-speedometer {background:#1e293b;border-color:#475569;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-eta-stat {color:#f1f5f9;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-eta-stat span,
