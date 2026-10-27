@@ -2,6 +2,7 @@ import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsSt
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { searchLocations } from '../services/locationSearch';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
+import {formatAddressDistance} from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
 import { readSavedAddresses,matchSavedAddressOrigin,type SavedAddress } from '../services/savedAddresses';
 import type { DeviceLocation } from '../services/locationService';
@@ -50,8 +51,36 @@ export function MapTab(props: MapTabProps) {
   const [searchError,setSearchError] = useState('');
   const searchGeneration=useRef(0);
   const searchRequest=useRef<AbortController|null>(null);
+  const suggestionsRequest=useRef<AbortController|null>(null);
+  const suggestionsTimeout=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const suppressedQuery=useRef('');
+  const [addressSuggestions,setAddressSuggestions]=useState<LocationSelection[]>([]);
+  const [suggestionsBusy,setSuggestionsBusy]=useState(false);
   const searchInputRef=useRef<HTMLInputElement>(null);
-  useEffect(()=>()=>{searchGeneration.current++;searchRequest.current?.abort();},[]);
+  useEffect(()=>()=>{
+    searchGeneration.current++;searchRequest.current?.abort();
+    suggestionsRequest.current?.abort();if(suggestionsTimeout.current)clearTimeout(suggestionsTimeout.current);
+  },[]);
+  const cancelTypeahead=()=>{
+    if(suggestionsTimeout.current)clearTimeout(suggestionsTimeout.current);
+    suggestionsTimeout.current=null;suggestionsRequest.current?.abort();suggestionsRequest.current=null;
+    setSuggestionsBusy(false);setAddressSuggestions([]);
+  };
+  useEffect(()=>{
+    const query=searchDestination.name.trim();
+    if(query.length<3||query===suppressedQuery.current||Boolean(searchDestination.coords))return;
+    const timer=setTimeout(()=>{
+      const controller=new AbortController();suggestionsRequest.current=controller;
+      setSuggestionsBusy(true);
+      const bias=location.status==='ready'?location.position?.coords:undefined;
+      void searchLocations(query,bias,controller.signal).then(result=>{
+        if(!controller.signal.aborted)setAddressSuggestions(result.results.slice(0,5));
+      }).catch(()=>{if(!controller.signal.aborted)setAddressSuggestions([]);})
+        .finally(()=>{if(suggestionsRequest.current===controller){suggestionsRequest.current=null;setSuggestionsBusy(false);}});
+    },550);
+    suggestionsTimeout.current=timer;
+    return ()=>{clearTimeout(timer);suggestionsRequest.current?.abort();};
+  },[searchDestination.name]);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [exploreRoute,setExploreRoute] = useState<{origin:[number,number];options:VerifiedRouteChoice[];selectedId:string}|null>(null);
   const [sheetExpanded,setSheetExpanded] = useState(false);
@@ -97,6 +126,7 @@ export function MapTab(props: MapTabProps) {
     setSheetExpanded(false);
   };
   const focusDestination = (target:LocationSelection) => {
+    cancelTypeahead();suppressedQuery.current=target.name;
     setSearchDestination(target);
     if(!target.coords)return;
     searchInputRef.current?.blur();
@@ -106,6 +136,7 @@ export function MapTab(props: MapTabProps) {
   const submitQuickSearch = async () => {
     const query=(searchInputRef.current?.value??searchDestination.name).trim();
     if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
+    suppressedQuery.current=query;cancelTypeahead();
     if(searchRequest.current)return;
     const generation=++searchGeneration.current;
     const controller=new AbortController();searchRequest.current=controller;
@@ -123,6 +154,7 @@ export function MapTab(props: MapTabProps) {
   };
   const selectSuggestion = (place:MapVisiblePlace) =>
     focusDestination({name:place.name,coords:place.coords,address:place.address});
+  const showAddressSuggestions=!searchBusy&&!mapTarget&&addressSuggestions.length>0;
   const toggleSheet=()=>setSheetExpanded(value=>!value);
   const handleGrabEnd = (event:React.PointerEvent<HTMLButtonElement>) => {
     if(touchStart.current===null)return;
@@ -192,7 +224,7 @@ export function MapTab(props: MapTabProps) {
     </div>
     {/* GPS em cima e triângulo de ocorrência embaixo, junto à lateral direita. */}
     <div aria-label="Controles de localização e ocorrência"
-      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : 'bottom-[250px]'}`}>
+      className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : showAddressSuggestions?'bottom-[448px]':'bottom-[250px]'}`}>
       <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
         className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
         <LocateFixed size={24} strokeWidth={2.2}/>
@@ -204,7 +236,7 @@ export function MapTab(props: MapTabProps) {
         onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
     <Speedometer position={location.status === 'ready' ? location.position : null}
-      className={`absolute left-3 z-40 transition-[top,bottom] duration-300 ${sheetExpanded?'top-[clamp(110px,16dvh,160px)]':'bottom-[250px]'}`} />
+      className={`absolute left-3 z-40 transition-[top,bottom] duration-300 ${sheetExpanded?'top-[clamp(110px,16dvh,160px)]':showAddressSuggestions?'bottom-[448px]':'bottom-[250px]'}`} />
     {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
       <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>
       {!locationAccess.requesting && <button type="button" onClick={()=>void locationAccess.request()} className="font-bold underline">Tentar GPS</button>}
@@ -214,7 +246,7 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset,true),
+      style={{height:showAddressSuggestions&&!sheetExpanded?'min(430px, calc(100dvh - 175px))':mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset,true),
         transitionDuration:dragOffset?'0ms':undefined}}
       className="absolute bottom-0 inset-x-0 z-30 overflow-hidden bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet">
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
@@ -248,7 +280,7 @@ export function MapTab(props: MapTabProps) {
             <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off"
               aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" maxLength={150}
               value={searchDestination.name}
-              onChange={event=>{searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchDestination({name:event.target.value});}}
+              onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchDestination({name:event.target.value});}}
               onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
               className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-800 placeholder:text-slate-500"/>
             <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchDestination.name.trim().length<3}
@@ -256,6 +288,16 @@ export function MapTab(props: MapTabProps) {
               {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
           </form>
           {searchBusy&&<p role="status" className="text-slate-700 text-xs">Pesquisando endereço...</p>}
+          {!searchBusy&&suggestionsBusy&&<p role="status" className="text-slate-500 text-[11px]">Buscando sugestões...</p>}
+          {showAddressSuggestions&&<div role="group" aria-label="Sugestões de endereços" className="rounded-xl border border-slate-200 divide-y bg-white max-h-44 overflow-y-auto">
+            {addressSuggestions.map((place,index)=><button key={place.id??index} type="button" onClick={()=>focusDestination(place)}
+              className="w-full text-left px-3 py-2 text-sm" aria-label={`Escolher destino ${place.name}`}>
+              <strong className="block truncate text-slate-900">{place.name}</strong>
+              <small className="block truncate text-slate-500">{place.address}</small>
+              {place.coords&&location.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,location.position)}</small>}
+            </button>)}
+            <p className="text-[10px] text-slate-500 px-3 py-1">Distâncias em linha reta. Rota real após selecionar.</p>
+          </div>}
           {searchError && <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs">{searchError}</p>}
           <SavedAddressesPanel gps={location.status==='ready'?location.position:null}
             onChanged={setSavedAddresses} onSelect={focusDestination}/>
