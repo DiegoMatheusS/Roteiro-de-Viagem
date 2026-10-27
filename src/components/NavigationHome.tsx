@@ -22,6 +22,9 @@ import { Speedometer } from './Speedometer';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { searchLocations } from '../services/locationSearch';
+import { useAuth } from '../contexts/AuthContext';
+import {readSavedAddresses,matchSavedAddressOrigin} from '../services/savedAddresses';
+import type {DeviceLocation} from '../services/locationService';
 import { DestinationExplorer } from './DestinationExplorer';
 import { draggedHomeSheetHeight, type HomeSheetStage } from '../services/homeSheetSizing';
 import { destinationExploreKey } from '../services/destinationIdentity';
@@ -50,6 +53,9 @@ const touristKinds: readonly string[] = TOURIST_PLACE_KINDS;
 
 export function NavigationHome(props: NavigationHomeProps) {
   const {theme:appearanceTheme}=useMapAppearance();
+  const {user}=useAuth();
+  const savedAddresses=useMemo(()=>readSavedAddresses(user?.id),[user?.id]);
+  const savedOriginName=React.useRef('Sua localização atual');
   const gps = useDeviceLocation(true, 'role-home');
   const locationAccess = useGpsPermissionAction(gps.retry);
   const liveCoords = gps.status === 'ready' ? gps.position?.coords : undefined;
@@ -186,15 +192,21 @@ export function NavigationHome(props: NavigationHomeProps) {
     return false;
   };
   const gpsCoordinates = async (): Promise<[number,number]> => {
-    // A posição já fornecida pelo rastreador evita uma segunda leitura GPS desnecessária.
+    // A position may only identify a saved origin when fresh, accurate and
+    // stationary. Otherwise keep real GPS coordinates, never a guessed address.
+    const choose=(fix:DeviceLocation):[number,number]=>{
+      const match=user?matchSavedAddressOrigin(fix,savedAddresses):null;
+      savedOriginName.current=match?.label??'Sua localização atual';
+      return match?.coords??fix.coords;
+    };
     const tracked = gps.status === 'ready' ? gps.position : null;
     if (tracked && Date.now() - tracked.timestamp >= -5000
       && Date.now() - tracked.timestamp < 30000 && tracked.accuracyMeters <= 100) {
-      return tracked.coords;
+      return choose(tracked);
     }
     const position = await getCurrentDeviceLocation();
     if (position.accuracyMeters > 150) throw new Error('O sinal GPS está impreciso. Tente novamente em local aberto.');
-    return position.coords;
+    return choose(position);
   };
   const submitCircuit = async (regenerate = false) => {
     const selectedMode = regenerate ? lastCircuitMode : sheet;
@@ -215,7 +227,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       // Sem veículo, a rota é real e navegável; consumo não é estimado.
       const avoided = regenerate ? circuitHistory.current : [];
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
-        originName:'Sua localização atual',originCoords:coords,
+        originName:savedOriginName.current,originCoords:coords,
         interests,avoidWaypoints:avoided,
         visitedWaypoints,visitedPlaceIds,
         excludePlaceIds:regenerate?circuitPlaceHistory.current:[],
@@ -251,7 +263,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     setError('');setBusy(true);
     try {
       const originCoords = useGps ? await gpsCoordinates() : origin.coords!;
-      const draft = createRoadDraft({originName:useGps?'Sua localização atual':origin.name,
+      const draft = createRoadDraft({originName:useGps?savedOriginName.current:origin.name,
         originCoords,destinationName:dest.name,destinationCoords:dest.coords,
         vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
       const trip = await prepareRoadPreview(draft, props.currentVehicle!);
@@ -263,7 +275,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     setBusy(true);setError('');
     try {
       const originCoords = await gpsCoordinates();
-      const draft = createRoadDraft({originName:'Sua localização atual',originCoords,
+      const draft = createRoadDraft({originName:savedOriginName.current,originCoords,
         destinationName:place.name,destinationCoords:[place.lat,place.lng],
         vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
       const trip = await prepareRoadPreview(draft, props.currentVehicle!);
@@ -442,7 +454,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       onLogin={props.onLogin}
     />}
     {mapTarget?.coords && <DestinationExplorer key={destinationExploreKey(mapTarget)} target={mapTarget} vehicle={props.currentVehicle}
-      gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates} onStartTrip={props.onStartTrip}
+      gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates}
+      getOriginLabel={()=>savedOriginName.current} onStartTrip={props.onStartTrip}
       selectedRouteId={displayRoute?.selectedId}
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
