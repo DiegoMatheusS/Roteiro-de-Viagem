@@ -1,6 +1,10 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { searchLocations } from '../services/locationSearch';
+import { SavedAddressesPanel } from './SavedAddressesPanel';
+import { useAuth } from '../contexts/AuthContext';
+import { readSavedAddresses,matchSavedAddressOrigin,type SavedAddress } from '../services/savedAddresses';
+import type { DeviceLocation } from '../services/locationService';
 import { DestinationExplorer } from './DestinationExplorer';
 import { destinationExploreKey } from '../services/destinationIdentity';
 import type { LocationSelection } from '../types/itinerary';
@@ -30,6 +34,10 @@ interface MapTabProps {
 }
 export function MapTab(props: MapTabProps) {
   const {theme:appearanceTheme}=useMapAppearance();
+  const {user}=useAuth();
+  const [savedAddresses,setSavedAddresses]=useState<SavedAddress[]>([]);
+  useEffect(()=>setSavedAddresses(readSavedAddresses(user?.id)),[user?.id]);
+  const savedOriginName=useRef('Sua localização atual');
   const trip = props.activeTrip || props.plannedTrip;
   const roadAlerts = useRoadAlerts(trip?.routePath || []);
 
@@ -128,14 +136,19 @@ export function MapTab(props: MapTabProps) {
       setSheetExpanded(delta<0);
     }
   };
+  const chooseOrigin=(fix:DeviceLocation):[number,number]=>{
+    const near=user?matchSavedAddressOrigin(fix,savedAddresses):null;
+    savedOriginName.current=near?.label??'Sua localização atual';
+    return near?.coords??fix.coords;
+  };
   const getExplorationOrigin = async (): Promise<[number,number]> => {
     // O rastreador da tela Mapa já tem uma posição recente. Reutilizá-la evita
     // uma segunda solicitação de GPS e o timeout que bloqueava o cálculo.
     const tracked=recentExplorationOrigin(location.status==='ready' ? location.position : null);
-    if(tracked)return tracked;
+    if(tracked&&location.position)return chooseOrigin(location.position);
     const gps=await getCurrentDeviceLocation();
     if(gps.accuracyMeters>150)throw new Error('GPS impreciso. Tente novamente em um lugar aberto.');
-    return gps.coords;
+    return chooseOrigin(gps);
   };
   return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}>
     <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute?.selectedId)?.routePath || [] : trip?.routePath || []}
@@ -201,7 +214,7 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset),
+      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset,true),
         transitionDuration:dragOffset?'0ms':undefined}}
       className="absolute bottom-0 inset-x-0 z-30 overflow-hidden bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet">
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
@@ -244,6 +257,8 @@ export function MapTab(props: MapTabProps) {
           </form>
           {searchBusy&&<p role="status" className="text-slate-700 text-xs">Pesquisando endereço...</p>}
           {searchError && <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs">{searchError}</p>}
+          <SavedAddressesPanel gps={location.status==='ready'?location.position:null}
+            onChanged={setSavedAddresses} onSelect={focusDestination}/>
           {sheetExpanded && <div className="space-y-6 pb-4">
             <section className="space-y-2.5">
               <div className="flex items-center justify-between">
@@ -282,6 +297,7 @@ export function MapTab(props: MapTabProps) {
     </section>
     {mapTarget?.coords && <DestinationExplorer key={destinationExploreKey(mapTarget)} target={mapTarget}
       vehicle={props.currentVehicle} gpsAvailable={location.status==='ready'} getOrigin={getExplorationOrigin}
+       getOriginLabel={()=>savedOriginName.current}
       onStartTrip={trip=>props.onStartTrip?.(trip)}
       selectedRouteId={exploreRoute?.selectedId}
       onMapRoute={(origin,options,selectedId)=>{setExploreRoute({origin,options,selectedId});setFocusedCoords(null);}}
