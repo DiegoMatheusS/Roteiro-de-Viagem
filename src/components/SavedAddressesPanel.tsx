@@ -8,8 +8,9 @@ import {SAVED_ADDRESS_TYPES,readSavedAddresses,saveAddress,deleteSavedAddress,
   matchSavedAddressOrigin,type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
 
-export function SavedAddressesPanel({onSelect,gps}:{
+export function SavedAddressesPanel({onSelect,gps,onChanged}:{
   onSelect:(place:LocationSelection)=>void;gps?:DeviceLocation|null;
+  onChanged?:(addresses:SavedAddress[])=>void;
 }){
   const {user,promptLogin}=useAuth();
   const [items,setItems]=useState<SavedAddress[]>([]);
@@ -49,7 +50,7 @@ export function SavedAddressesPanel({onSelect,gps}:{
     try{
       const label=type==='Outro'?custom.trim():type;
       const next=saveAddress(user.id,{label,address:chosen.address||chosen.name,coords:chosen.coords});
-      setItems(next);close();
+      setItems(next);onChanged?.(next);close();
     }catch(err){setError((err as Error).message);}
   };
   const match=user?matchSavedAddressOrigin(gps,items):null;
@@ -74,7 +75,7 @@ export function SavedAddressesPanel({onSelect,gps}:{
           <button type="button" aria-label={`Excluir endereço ${item.label}`}
             className="p-2 text-slate-500" onClick={()=>{
               if(!user)return;
-              setItems(deleteSavedAddress(user.id,item.id));
+              try{const next=deleteSavedAddress(user.id,item.id);setItems(next);onChanged?.(next);}catch(err){setError((err as Error).message);}
             }}><Trash2 size={15}/></button>
         </div>)}
       </div>
