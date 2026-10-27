@@ -14,7 +14,7 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
     { geometry: { type: 'Point', coordinates: [-46.62, -23.54] }, properties: { osm_type: 'N', osm_id: 901, name: 'Parada Alfa de teste', city: 'São Paulo', osm_value: 'city' } },
     { geometry: { type: 'Point', coordinates: [-46.60, -23.53] }, properties: { osm_type: 'N', osm_id: 902, name: 'Parada Beta de teste', city: 'São Paulo', osm_value: 'restaurant' } }
   ] }));
-  if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('node(456)')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 456, lat: -23.585, lon: -46.629, tags: { amenity: 'restaurant', name: 'Restaurante de teste da interface', 'addr:street': 'Rua de teste' } }] }));
+  if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('node(456)')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 456, lat: -23.5402, lon: -46.6202, tags: { amenity: 'restaurant', name: 'Restaurante de teste da interface', 'addr:street': 'Rua de teste' } }] }));
   if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('nwr(around:')) return new Response(JSON.stringify({ elements: [
     { type: 'node', id: 991, lat: -23.46, lon: -46.52, tags: { tourism: 'viewpoint', name: 'Mirante verificado no teste' } },
     { type: 'node', id: 992, lat: -23.43, lon: -46.48, tags: { amenity: 'cafe', name: 'Café verificado no teste' } }
@@ -873,9 +873,9 @@ try {
     return rasterPaths>0 || vectorFeatures>0;
   },undefined,{timeout:10000});
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
-  // In the new map, ordinary POIs disappear below neighborhood zoom.
-  // Restore a zoom where the restaurant is actually rendered before testing
-  // accessible keyboard activation; hidden pins must not be focus targets.
+  // The verified restaurant fixture is near the searched destination so
+  // keyboard accessibility is tested on a marker inside the current viewport.
+  // Markers outside it must remain hidden and cannot be keyboard-focus targets.
   const nativeMap = page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
   const restaurantPin = (await nativeMap.count() ? nativeMap : page)
     .locator('.managed-place-marker[title="Restaurante revisado pela administração"]').first();
