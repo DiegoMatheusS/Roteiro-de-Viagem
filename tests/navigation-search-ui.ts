@@ -72,18 +72,33 @@ try{
   await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
   assert.deepEqual(queries,['Rua de teste','Rua de teste','Rua de teste'],'one request per tap or keyboard submit');
   assert.equal(await input.evaluate(element=>document.activeElement===element),false,'close the keyboard after locating the address');
-  if(screen==='map'){
-    await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
-    await input.fill('Outra rua próxima');
-    const results=page.getByRole('group',{name:'Sugestões de endereços'});
-    await results.getByRole('button',{name:'Escolher destino Rua de teste'}).waitFor();
-    assert.match(await results.innerText(),/km em linha reta/,
-      'live suggestions must label GPS distance as geodesic, not driving kilometres');
-    await results.getByRole('button',{name:'Escolher destino Rua de teste'}).tap();
-    await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
-  }
+  await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
+  await input.fill('Outra rua próxima');
+  const results=page.getByRole('group',{name:'Sugestões de endereços'});
+  const choice=results.getByRole('button',{name:'Escolher destino Rua de teste'});
+  await choice.waitFor();
+  assert.match(await results.innerText(),/km em linha reta/,
+    `${screen}: suggestions must distinguish geodesic distance from driving kilometres`);
+  assert.equal(await choice.evaluate(element=>{
+    const box=element.getBoundingClientRect(),top=document.elementFromPoint(box.x+box.width/2,box.y+box.height/2);
+    return !!top&&(top===element||element.contains(top));
+  }),true,`${screen}: suggestions must remain clickable above map controls`);
+  const requestsAfterTyping=queries.length;
+  for(let update=0;update<3;update++)await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
+  await page.waitForTimeout(650);
+  assert.equal(queries.length,requestsAfterTyping,`${screen}: GPS ticks must not repeat a text query`);
+  await choice.tap();
+  await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
+  assert.equal(queries.length,requestsAfterTyping,`${screen}: choosing a suggestion must not search it again`);
+  assert.equal(await input.evaluate(element=>document.activeElement===element),false);
+  await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
+  await input.fill('Texto a cancelar');
+  await input.fill('ab');
+  await page.waitForTimeout(650);
+  assert.equal(queries.length,requestsAfterTyping,`${screen}: short text cancels the pending suggestion request`);
+  assert.equal(await results.count(),0);
   assert.deepEqual(errors,[]);
   await page.close();
   }
-  console.log('PASS: address search by touch and Enter on Home and Map, visible failure/empty states, retry opens the destination.');
+  console.log('PASS: Home/Map search, visible failures, live suggestions with distance, selection and cancellation without repeated GPS queries.');
 }finally{releaseSearch();await browser?.close();await vite.close();}

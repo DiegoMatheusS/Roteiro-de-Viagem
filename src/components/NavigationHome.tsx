@@ -22,6 +22,7 @@ import { Speedometer } from './Speedometer';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { LocationSearch } from './LocationSearch';
 import { searchLocations } from '../services/locationSearch';
+import { formatAddressDistance } from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
 import {readSavedAddresses,matchSavedAddressOrigin} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
@@ -82,7 +83,39 @@ export function NavigationHome(props: NavigationHomeProps) {
   const searchGeneration = React.useRef(0);
   const searchRequest = React.useRef<AbortController|null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
-  useEffect(()=>()=>{searchGeneration.current++;searchRequest.current?.abort();},[]);
+  const suggestionsRequest = React.useRef<AbortController|null>(null);
+  const suggestionsTimeout = React.useRef<ReturnType<typeof setTimeout>|null>(null);
+  const suppressedQuery = React.useRef('');
+  const [addressSuggestions,setAddressSuggestions] = useState<LocationSelection[]>([]);
+  const [suggestionsBusy,setSuggestionsBusy] = useState(false);
+  useEffect(()=>()=>{
+    searchGeneration.current++;searchRequest.current?.abort();
+    suggestionsRequest.current?.abort();
+    if(suggestionsTimeout.current)clearTimeout(suggestionsTimeout.current);
+  },[]);
+  const cancelTypeahead = () => {
+    if(suggestionsTimeout.current)clearTimeout(suggestionsTimeout.current);
+    suggestionsTimeout.current=null;
+    suggestionsRequest.current?.abort();suggestionsRequest.current=null;
+    setSuggestionsBusy(false);setAddressSuggestions([]);
+  };
+  useEffect(()=>{
+    const query=searchPlace.name.trim();
+    if(query.length<3||query===suppressedQuery.current||searchPlace.coords)return;
+    const timer=setTimeout(()=>{
+      const controller=new AbortController();suggestionsRequest.current=controller;
+      setSuggestionsBusy(true);
+      void searchLocations(query,liveCoords,controller.signal).then(result=>{
+        if(!controller.signal.aborted)setAddressSuggestions(result.results.slice(0,5));
+      }).catch(()=>{if(!controller.signal.aborted)setAddressSuggestions([]);})
+        .finally(()=>{
+          if(suggestionsRequest.current===controller){suggestionsRequest.current=null;setSuggestionsBusy(false);}
+        });
+    },550);
+    suggestionsTimeout.current=timer;
+    // GPS ticks must not restart a text query or repeatedly call the provider.
+    return ()=>{clearTimeout(timer);suggestionsRequest.current?.abort();};
+  },[searchPlace.name]);
   const [mapTarget,setMapTarget] = useState<LocationSelection|null>(null);
   const [displayRoute,setDisplayRoute] = useState<{origin:[number,number];options:VerifiedRouteChoice[];selectedId:string}|null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
@@ -283,6 +316,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     } catch(err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const selectMapTarget = (place:LocationSelection) => {
+    suppressedQuery.current=place.name;cancelTypeahead();
     setSearchPlace(place);
     if (!place.coords) return;
     // Fecha o teclado antes de revelar o mapa e as opções de rotas.
@@ -294,6 +328,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     // rendered its final onChange (especially after choosing a suggestion).
     const query=(searchInputRef.current?.value??searchPlace.name).trim();
     if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
+    suppressedQuery.current=query;cancelTypeahead();
     if(searchRequest.current)return;
     const generation=++searchGeneration.current;
     const controller=new AbortController();searchRequest.current=controller;
@@ -333,7 +368,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
           <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
             aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
-            onChange={event=>{searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
             onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
             className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
           <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchPlace.name.trim().length<3}
@@ -343,6 +378,20 @@ export function NavigationHome(props: NavigationHomeProps) {
           {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
             {searchError||'Pesquisando endereço...'}
           </p>}
+          {!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||addressSuggestions.length>0)&&
+            <div className="rdv-home-search-feedback rdv-home-address-suggestions bg-white border border-slate-200">
+              {suggestionsBusy&&<p role="status" className="text-xs text-slate-500">Buscando sugestões...</p>}
+              {addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
+                {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
+                  onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}`}
+                  className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">
+                  <strong className="block truncate text-sm text-slate-900">{place.name}</strong>
+                  <small className="block truncate text-slate-500">{place.address}</small>
+                  {place.coords&&gps.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,gps.position)}</small>}
+                </button>)}
+                <p className="text-[10px] text-slate-500 px-3 py-2">Distâncias em linha reta. Rota real após selecionar.</p>
+              </div>}
+            </div>}
         </form>
     <div className="rdv-figma-home-modes" role="group" aria-label="Modalidade de transporte">
       <button type="button" aria-pressed={travelMode==='car'}

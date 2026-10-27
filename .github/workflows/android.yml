@@ -76,6 +76,8 @@ jobs:
           RDV_STORE_PASSWORD: ${{ secrets.RDV_STORE_PASSWORD }}
           RDV_KEY_ALIAS: ${{ secrets.RDV_KEY_ALIAS }}
           RDV_KEY_PASSWORD: ${{ secrets.RDV_KEY_PASSWORD }}
+          RDV_VERSION_CODE: ${{ github.run_number }}
+          RDV_VERSION_NAME: ${{ inputs.version_name || '0.5.0' }}-test.${{ github.run_number }}
       - name: Validar APK e AAB com chave descartável de teste
         if: github.event_name != 'workflow_dispatch'
         working-directory: android
@@ -118,6 +120,10 @@ jobs:
         run: |
           test -n "$RDV_VERSION_CODE" && test -n "$RDV_VERSION_NAME"
           ./gradlew :app:assembleRelease :app:bundleRelease
+      - name: Conferir assinatura e identificar APK
+        run: node scripts/android-artifact-info.mjs
+        env:
+          RDV_DISTRIBUTION: ${{ inputs.distribution || 'debug' }}
       - name: Disponibilizar pacote conectado ao backend
         uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
@@ -135,7 +141,9 @@ jobs:
         with:
           retention-days: 5
           name: role-android-pr-preview
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android-dist/apk-info.json
       - name: Remover chave temporária
         if: always()
         run: rm -f "$RUNNER_TEMP/rdv-release.jks" "$RUNNER_TEMP/rdv-debug-stable.jks"

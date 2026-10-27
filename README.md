@@ -57,6 +57,8 @@ Salvar conserva identidades, ordem, permanências, obrigatórias/sugestões acei
 
 No Início, passeios automáticos **Por Km** e **Por Horas**, sem destino ou paradas manuais, consultam atrações identificadas no OpenStreetMap e calculam trajetos rodoviários no OSRM. O algoritmo tenta conciliar a distância ou duração com paradas reais, mas não garante encontrar um percurso compatível; nesse caso mostra um erro útil, sem inventar atrações, avaliações ou distâncias. Passeios com destino/paradas explícitos usam o roteamento rodoviário existente e preservam a ordem escolhida. A pesquisa automática usa o Overpass público apenas para baixo volume, com limites por IP e consultas limitadas; é necessário um provedor adequado antes da produção. Todos os caminhos de planejamento executáveis agora exigem cálculo rodoviário. O mapa começa sem viagem de exemplo; a origem é escolhida pelo usuário ou pelo GPS. A comunidade permanece vazia até existir uma fonte de roteiros publicados, sem autores ou avaliações inventados.
 
+A busca rápida do Início e da aba Mapa mostra sugestões após uma pausa na digitação, a partir de três caracteres. Atualizações do GPS não repetem a consulta. A distância exibida é aproximada em linha reta, apenas com GPS recente e preciso; a distância rodoviária é calculada ao escolher o destino. Selecionar um resultado fecha o teclado e abre o destino no mapa. O botão de pesquisa e Enter continuam disponíveis, com cancelamento da consulta anterior quando o texto muda.
+
 ## Comparar postos e calcular custos
 
 No planejamento, abra **Encontrar combustível mais barato**. Informe o combustível compatível com o veículo, consumo nesse combustível, combustível restante e quantidade a abastecer. Opcionalmente, informe a saída planejada.
