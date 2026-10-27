@@ -14,7 +14,7 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
     { geometry: { type: 'Point', coordinates: [-46.62, -23.54] }, properties: { osm_type: 'N', osm_id: 901, name: 'Parada Alfa de teste', city: 'São Paulo', osm_value: 'city' } },
     { geometry: { type: 'Point', coordinates: [-46.60, -23.53] }, properties: { osm_type: 'N', osm_id: 902, name: 'Parada Beta de teste', city: 'São Paulo', osm_value: 'restaurant' } }
   ] }));
-  if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('node(456)')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 456, lat: -23.585, lon: -46.629, tags: { amenity: 'restaurant', name: 'Restaurante de teste da interface', 'addr:street': 'Rua de teste' } }] }));
+  if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('node(456)')) return new Response(JSON.stringify({ elements: [{ type: 'node', id: 456, lat: -23.5402, lon: -46.6202, tags: { amenity: 'restaurant', name: 'Restaurante de teste da interface', 'addr:street': 'Rua de teste' } }] }));
   if (String(url).includes('/interpreter') && new URLSearchParams(String(options?.body)).get('data')?.includes('nwr(around:')) return new Response(JSON.stringify({ elements: [
     { type: 'node', id: 991, lat: -23.46, lon: -46.52, tags: { tourism: 'viewpoint', name: 'Mirante verificado no teste' } },
     { type: 'node', id: 992, lat: -23.43, lon: -46.48, tags: { amenity: 'cafe', name: 'Café verificado no teste' } }
@@ -374,9 +374,14 @@ try {
   // O novo painel minimalista não precisa forçar rolagem quando todo o conteúdo cabe.
   const needsScroll=await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight);
   if(needsScroll){
-    await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
-    assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções quando necessário');
-    await scrollHome.evaluate(el=>{el.scrollTop=0;});
+    // CSS smooth scrolling can postpone scrollTop until the next animation frames.
+    // Verify the actual reachable bottom, not the value synchronously after assignment.
+    await scrollHome.evaluate(el=>{el.scrollTo({top:el.scrollHeight,behavior:'instant'});});
+    await page.waitForFunction(()=>{
+      const el=document.querySelector<HTMLElement>('[data-panel-scroll]');
+      return !!el&&el.scrollTop>0&&Math.abs(el.scrollHeight-el.clientHeight-el.scrollTop)<3;
+    },undefined,{timeout:5000});
+    await scrollHome.evaluate(el=>{el.scrollTo({top:0,behavior:'instant'});});
   }else{
     assert.ok(await scrollHome.evaluate(el=>el.clientHeight>0),'Conteúdo completo do painel deve permanecer visível');
   }
@@ -792,8 +797,10 @@ try {
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
   const mapPanel = page.getByTestId('map-explore-sheet');
   const initialMapBounds = await mapPanel.boundingBox();
-  assert.ok(initialMapBounds && initialMapBounds.height < 180,
-    'Ao entrar no Mapa, o painel deve ficar recolhido por padrão');
+  assert.ok(initialMapBounds && initialMapBounds.height >= 220 && initialMapBounds.height < 300,
+    'O painel recolhido deve mostrar a busca e a faixa de endereços salvos');
+  await page.getByRole('region',{name:'Explorar destinos e estabelecimentos'})
+    .getByRole('button',{name:'Salvar endereço'}).waitFor();
   const grab = await expandMapPanel.boundingBox();
   assert.ok(grab, 'O puxador do painel precisa estar visível');
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
@@ -866,22 +873,22 @@ try {
     return rasterPaths>0 || vectorFeatures>0;
   },undefined,{timeout:10000});
   await mapDestination.getByRole('button',{name:'Sair da visualização do destino'}).click();
-  // In the new map, ordinary POIs disappear below neighborhood zoom.
-  // Restore a zoom where the restaurant is actually rendered before testing
-  // accessible keyboard activation; hidden pins must not be focus targets.
-  const nativeMap = page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
-  const restaurantPin = (await nativeMap.count() ? nativeMap : page)
+  // Places are intentionally hidden below zoom 14. Selecting a verified
+  // establishment from the map sheet is the real user action that focuses
+  // its coordinates at neighborhood zoom. Wheel-scrolling the canvas does
+  // not guarantee this threshold or center on the intended marker.
+  await page.getByRole('button',{name:'Expandir painel do mapa'}).click();
+  const establishmentsSection=page.getByRole('heading',{name:'Estabelecimentos no mapa'})
+    .locator('xpath=../..');
+  await establishmentsSection.getByRole('button',{name:/Restaurante revisado pela administração/}).click();
+  const nativeMap=page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
+  const restaurantPin=(await nativeMap.count()?nativeMap:page)
     .locator('.managed-place-marker[title="Restaurante revisado pela administração"]').first();
-  if (await nativeMap.count()) {
-    for (let attempt=0; attempt<9 && !(await restaurantPin.isVisible()); attempt++) {
-      const canvas = await nativeMap.locator('.maplibregl-canvas').boundingBox();
-      assert.ok(canvas, 'O mapa precisa estar disponível antes de escolher o restaurante');
-      await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.45);
-      await page.mouse.wheel(0,-460);
-      await page.waitForTimeout(260);
-    }
-  }
-  await restaurantPin.waitFor({state:'visible',timeout:7000});
+  if(await nativeMap.count())await page.waitForFunction(()=>{
+    const map=document.querySelector('[data-map-engine="maplibre-standalone"]');
+    return Number((map as HTMLElement)?.dataset.mapZoom)>=14;
+  },undefined,{timeout:10000});
+  await restaurantPin.waitFor({state:'visible',timeout:10000});
   await restaurantPin.focus();
   assert.equal(await restaurantPin.evaluate(el=>document.activeElement===el),true,
     'O marcador visível deve ser acessível pelo teclado');

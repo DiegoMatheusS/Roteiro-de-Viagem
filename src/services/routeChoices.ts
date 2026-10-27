@@ -84,9 +84,10 @@ export function choiceLabel(choice: VerifiedRouteChoice, index: number) {
 }
 
 export function choiceToTrip(choice: VerifiedRouteChoice, vehicle: Vehicle,
-  originCoords: [number, number], destination: { name: string; coords: [number, number] }): TripPlan {
+  originCoords: [number, number], destination: { name: string; coords: [number, number] },
+  originName='Sua localização atual'): TripPlan {
   const draft = createRoadDraft({
-    originName: 'Sua localização atual', originCoords,
+    originName, originCoords,
     destinationName: destination.name, destinationCoords: destination.coords,
     vehicle, circular: false, limits: { mode: 'destination' }
   });

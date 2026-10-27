@@ -18,7 +18,7 @@ test('rotas alternativas são desenhadas juntas e cada linha pode ser selecionad
 
 test('primeiro toque em iniciar calcula a rota e inicia a viagem',()=>{
   const explorer=source('src/components/DestinationExplorer.tsx');
-  assert.match(explorer,/const result=routes\.length && origin \? \{choices:routes,position:origin\} : await loadRoutes\(\)/);
+  assert.match(explorer,/const result=routes\.length && origin \? \{choices:routes,position:origin,name:originName\} : await loadRoutes\(\)/);
   assert.match(explorer,/onStartTrip\(verified \?/);
 });
 

@@ -15,3 +15,10 @@ test('map sheet grows upward on swipe while keeping a reserved GPS area',()=>{
 test('map sheet ignores invalid gesture distances',()=>{
   for(const v of [NaN,Infinity,-Infinity,0])assert.equal(mapSheetHeight(false,false,v),'116px');
 });
+
+test('map sheet reserves visible space for favorites below destination input',()=>{
+  assert.equal(mapSheetHeight(false,false,0,true),'226px');
+  assert.equal(mapSheetHeight(false,true,0,true),'280px');
+  assert.equal(mapSheetHeight(false,false,-25,true),
+    'clamp(226px, calc(226px + 25px), min(65dvh, calc(100dvh - 220px)))');
+});
