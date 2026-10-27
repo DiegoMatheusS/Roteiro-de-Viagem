@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
 import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from '../server/googleAuth';
@@ -55,4 +56,12 @@ test('Signed Google hosted-domain claim is verified and included for enterprise 
   }), clientId, mockFetch);
   assert.equal(identity.hostedDomain, 'empresa.com.br');
   assert.equal(canAutoLinkGoogleIdentity(identity), true);
+});
+
+test('Android code 10 exposes only public package and certificate hash for OAuth setup',()=>{
+  const android=readFileSync(new URL('../android/app/src/main/java/br/com/roteirodeviagem/app/TravelNativePlugin.java',import.meta.url),'utf8');
+  assert.match(android,/googleOAuthSigningInfo\(\)/);
+  assert.match(android,/PackageManager\.GET_SIGNING_CERTIFICATES/);
+  assert.match(android,/MessageDigest\.getInstance\("SHA-1"\)/);
+  assert.match(android,/assinatura persistente no GitHub Actions/);
 });
