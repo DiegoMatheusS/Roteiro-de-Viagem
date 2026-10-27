@@ -10,6 +10,11 @@ export interface DeviceLocation {
 
 /** Shared only in process memory: keeps a recent fix when StartupMap is replaced
  * with NavigationHome. Never persisted or reused after its timestamp expires. */
+export function canReuseWarmGpsForSession(sessionKey:string):boolean {
+  // Screen handoff only. Trip IDs and tracking sessions must never inherit
+  // the previous route's arrow, accuracy, distance or GPS status.
+  return sessionKey==='role-start-map'||sessionKey==='role-home'||sessionKey==='map-destination-search';
+}
 let recentDeviceFix:DeviceLocation|null=null;
 export function getRecentDeviceLocation(maxAgeMs=30000, now=Date.now()):DeviceLocation|null {
   const fix=recentDeviceFix;
