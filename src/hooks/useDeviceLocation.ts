@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { watchDeviceLocation, getRecentDeviceLocation, type DeviceLocation } from '../services/locationService';
+import { watchDeviceLocation, getRecentDeviceLocation, canReuseWarmGpsForSession, type DeviceLocation } from '../services/locationService';
 import { isFreshGpsFix } from '../services/gpsFreshness';
 
 type LocationStatus = 'idle' | 'loading' | 'ready' | 'error' | 'stale';
@@ -7,7 +7,7 @@ type LocationStatus = 'idle' | 'loading' | 'ready' | 'error' | 'stale';
 export function useDeviceLocation(enabled: boolean, sessionKey = '') {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{ position: DeviceLocation | null; lastKnownPosition:DeviceLocation|null; error: string | null; status: LocationStatus; key: string }>(() => {
-    const cached=enabled?getRecentDeviceLocation():null;
+    const cached=enabled&&canReuseWarmGpsForSession(sessionKey)?getRecentDeviceLocation():null;
     const fresh=Boolean(cached&&isFreshGpsFix(cached.timestamp));
     return {position:fresh?cached:null,lastKnownPosition:cached,error:null,
       status:enabled?(fresh?'ready':'loading'):'idle',key:sessionKey};
@@ -15,7 +15,7 @@ export function useDeviceLocation(enabled: boolean, sessionKey = '') {
   const retry = useCallback(() => setAttempt(value => value + 1), []);
 
   useEffect(() => {
-    const cached=enabled?getRecentDeviceLocation():null;
+    const cached=enabled&&canReuseWarmGpsForSession(sessionKey)?getRecentDeviceLocation():null;
     const fresh=Boolean(cached&&isFreshGpsFix(cached.timestamp));
     setState(current=>({position:fresh?cached:null,
       lastKnownPosition:enabled?(cached||(current.key===sessionKey?current.lastKnownPosition:null)):null,
