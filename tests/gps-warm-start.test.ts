@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {getRecentDeviceLocation,rememberDeviceLocation} from '../src/services/locationService';
+import {getRecentDeviceLocation,rememberDeviceLocation,canReuseWarmGpsForSession} from '../src/services/locationService';
 import {isFreshGpsFix} from '../src/services/gpsFreshness';
 import {readFileSync} from 'node:fs';
 
@@ -33,4 +33,13 @@ test('home uses cache before waiting for a fresh high-accuracy GPS fix',()=>{
   assert.match(source,/status:enabled\?\(fresh\?'ready':'loading'\):'idle'/);
   const provider=readFileSync(new URL('../src/services/locationService.ts',import.meta.url),'utf8');
   assert.match(provider,/NativeGeolocation\.watchPosition\(\{ enableHighAccuracy: true, maximumAge: 3000/);
+});
+
+test('do not reuse startup fix across distinct trips or convoy tracking sessions',()=>{
+  assert.equal(canReuseWarmGpsForSession('role-start-map'),true);
+  assert.equal(canReuseWarmGpsForSession('role-home'),true);
+  assert.equal(canReuseWarmGpsForSession('map-destination-search'),true);
+  assert.equal(canReuseWarmGpsForSession('gps-1'),false);
+  assert.equal(canReuseWarmGpsForSession('gps-2'),false);
+  assert.equal(canReuseWarmGpsForSession(''),false);
 });
