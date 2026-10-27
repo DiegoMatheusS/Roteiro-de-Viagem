@@ -141,6 +141,31 @@ public class TravelNativePlugin extends Plugin {
   @PluginMethod public void openExternal(PluginCall call) {
     try {getActivity().startActivity(ExternalActions.intentFor(call.getString("url","")));call.resolve();}catch(Exception error){call.reject("Não foi possível abrir o contato. Confira os aplicativos instalados.");}
   }
+  /** Package + public signing certificate fingerprint are the exact identifiers
+   * required by Google Cloud's Android OAuth client. No private signing key is read. */
+  private String googleOAuthSigningInfo() {
+    try {
+      String packageName=getContext().getPackageName();
+      android.content.pm.PackageInfo info;
+      android.content.pm.Signature cert;
+      if(Build.VERSION.SDK_INT>=28) {
+        info=getContext().getPackageManager().getPackageInfo(packageName,PackageManager.GET_SIGNING_CERTIFICATES);
+        cert=info.signingInfo.getApkContentsSigners()[0];
+      } else {
+        info=getContext().getPackageManager().getPackageInfo(packageName,PackageManager.GET_SIGNATURES);
+        cert=info.signatures[0];
+      }
+      byte[] hash=java.security.MessageDigest.getInstance("SHA-1").digest(cert.toByteArray());
+      StringBuilder sha=new StringBuilder();
+      for(byte value:hash){
+        if(sha.length()>0)sha.append(':');
+        String hex=Integer.toHexString(value&0xff).toUpperCase(java.util.Locale.US);
+        if(hex.length()<2)sha.append('0');
+        sha.append(hex);
+      }
+      return " Pacote: "+packageName+". SHA-1: "+sha+".";
+    }catch(Exception ignored){return "";}
+  }
   @PluginMethod public void signInGoogle(PluginCall call) {
     String clientId=call.getString("clientId","");
     if(clientId==null || clientId.length()>250 || !clientId.endsWith(".apps.googleusercontent.com") || !clientId.matches("[A-Za-z0-9_.-]+")) {
@@ -161,7 +186,7 @@ public class TravelNativePlugin extends Plugin {
     } catch(ApiException error) {
       if(error.getStatusCode()==12501 || error.getStatusCode()==16)call.reject("Login Google cancelado.");
       else if(error.getStatusCode()==10)
-        call.reject("Login Google não autorizado (código 10). Cadastre no Google Cloud o pacote Android e o SHA-1 da assinatura deste APK. Builds debug do CI precisam de chave persistente.");
+        call.reject("Login Google não autorizado (código 10). Cadastre no Google Cloud o OAuth Android deste pacote e certificado."+googleOAuthSigningInfo()+" Para todos os APKs de teste, configure assinatura persistente no GitHub Actions.");
       else call.reject("Falha ao entrar com Google (código "+error.getStatusCode()+"). Confira a configuração OAuth e o SHA-1 da assinatura.");
     } catch(Exception error){call.reject("Não foi possível autenticar com Google.");}
   }
