@@ -374,9 +374,14 @@ try {
   // O novo painel minimalista não precisa forçar rolagem quando todo o conteúdo cabe.
   const needsScroll=await scrollHome.evaluate(el=>el.scrollHeight>el.clientHeight);
   if(needsScroll){
-    await scrollHome.evaluate(el=>{el.scrollTop=el.scrollHeight;});
-    assert.ok(await scrollHome.evaluate(el=>el.scrollTop>0),'A folha deve permitir visualizar todas as opções quando necessário');
-    await scrollHome.evaluate(el=>{el.scrollTop=0;});
+    // CSS smooth scrolling can postpone scrollTop until the next animation frames.
+    // Verify the actual reachable bottom, not the value synchronously after assignment.
+    await scrollHome.evaluate(el=>{el.scrollTo({top:el.scrollHeight,behavior:'instant'});});
+    await page.waitForFunction(()=>{
+      const el=document.querySelector<HTMLElement>('[data-panel-scroll]');
+      return !!el&&el.scrollTop>0&&Math.abs(el.scrollHeight-el.clientHeight-el.scrollTop)<3;
+    },{timeout:3000});
+    await scrollHome.evaluate(el=>{el.scrollTo({top:0,behavior:'instant'});});
   }else{
     assert.ok(await scrollHome.evaluate(el=>el.clientHeight>0),'Conteúdo completo do painel deve permanecer visível');
   }
