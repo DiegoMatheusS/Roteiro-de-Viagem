@@ -8,6 +8,20 @@ export interface DeviceLocation {
   timestamp: number;
 }
 
+/** Shared only in process memory: keeps a recent fix when StartupMap is replaced
+ * with NavigationHome. Never persisted or reused after its timestamp expires. */
+let recentDeviceFix:DeviceLocation|null=null;
+export function getRecentDeviceLocation(maxAgeMs=30000, now=Date.now()):DeviceLocation|null {
+  const fix=recentDeviceFix;
+  if(!fix||!Number.isFinite(now)||!Number.isFinite(fix.timestamp)||
+    now-fix.timestamp>maxAgeMs||fix.timestamp-now>5000)return null;
+  return {...fix,coords:[...fix.coords]};
+}
+export function rememberDeviceLocation(fix:DeviceLocation, now=Date.now()):void {
+  if(!Number.isFinite(fix.timestamp)||fix.timestamp-now>5000||now-fix.timestamp>30000)return;
+  if(!recentDeviceFix||fix.timestamp>=recentDeviceFix.timestamp)recentDeviceFix={...fix,coords:[...fix.coords]};
+}
+
 export function locationErrorMessage(error?: Pick<GeolocationPositionError, 'code'>): string {
   if (error?.code === 1) return 'Localização não permitida. Permita o acesso à localização (GPS) nas permissões do navegador ou aplicativo e tente novamente.';
   if (error?.code === 3) return 'O GPS demorou para responder. Tente novamente em um local aberto.';
@@ -19,13 +33,15 @@ export function readDeviceLocation(position: GeolocationPosition): DeviceLocatio
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || !Number.isFinite(accuracy) || accuracy < 0 || !Number.isFinite(position.timestamp)) {
     throw new Error('O GPS retornou uma posição inválida. Tente novamente.');
   }
-  return {
+  const fix:DeviceLocation={
     coords: [latitude, longitude],
     accuracyMeters: accuracy,
     speedMetersPerSecond: speed !== null && Number.isFinite(speed) && speed >= 0 ? speed : null,
     headingDegrees: heading !== null && Number.isFinite(heading) && heading >= 0 && heading < 360 ? heading : null,
     timestamp: position.timestamp
   };
+  rememberDeviceLocation(fix);
+  return fix;
 }
 
 export function getCurrentDeviceLocation(geolocation = globalThis.navigator?.geolocation): Promise<DeviceLocation> {
@@ -55,7 +71,7 @@ export function watchDeviceLocation(
 ): () => void {
   if (isNativeApp()) {
     let stopped = false; let id: string | null = null;
-    void NativeGeolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }, (position, error) => { if (stopped) return; if (error || !position) { onError('Confira a permissão de localização precisa e o GPS.'); return; } try { onPosition(readDeviceLocation(position as unknown as GeolocationPosition)); } catch (error) { onError((error as Error).message); } }).then(watchId => { id = watchId; if (stopped) void NativeGeolocation.clearWatch({ id }); }).catch(error => { if (!stopped) onError(error.message); });
+    void NativeGeolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }, (position, error) => { if (stopped) return; if (error || !position) { onError('Confira a permissão de localização precisa e o GPS.'); return; } try { onPosition(readDeviceLocation(position as unknown as GeolocationPosition)); } catch (error) { onError((error as Error).message); } }).then(watchId => { id = watchId; if (stopped) void NativeGeolocation.clearWatch({ id }); }).catch(error => { if (!stopped) onError(error.message); });
     return () => { stopped = true; if (id) void NativeGeolocation.clearWatch({ id }); };
   }
   let stopped = false;
@@ -65,7 +81,7 @@ export function watchDeviceLocation(
     catch (error) { onError((error as Error).message); }
   }, error => {
     if (!stopped) onError(locationErrorMessage(error));
-  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 });
 
   return () => {
     stopped = true;
