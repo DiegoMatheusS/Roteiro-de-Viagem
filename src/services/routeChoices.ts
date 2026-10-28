@@ -18,12 +18,18 @@ export interface VerifiedRouteChoice {
   source?:'OSRM'|'offline-graph';
 }
 
-/** Mais interesse turístico primeiro. Não chamar de passeio um desvio sem atrações cadastradas. */
-export function prioritizeRoleRoutes(options: VerifiedRouteChoice[]): VerifiedRouteChoice[] {
+export type RoutePreference = 'fast' | 'tourist';
+
+/** Direct address search uses estimated time; planning may prefer real attractions. */
+export function prioritizeRoleRoutes(options: VerifiedRouteChoice[], preference:RoutePreference='tourist'): VerifiedRouteChoice[] {
+  const byTime=(a:VerifiedRouteChoice,b:VerifiedRouteChoice)=>a.durationMinutes-b.durationMinutes
+    || Number(b.kind==='fast')-Number(a.kind==='fast') || a.distanceKm-b.distanceKm;
+  if(preference==='fast')return [...options].sort(byTime);
   const rank:Record<VerifiedRouteChoice['kind'],number> = {
-    panoramic:0,tourist:1,stroll:2,alternative:3,fast:4
+    panoramic:0,tourist:1,stroll:2,alternative:3,fast:3
   };
-  return [...options].sort((a,b)=>rank[a.kind]-rank[b.kind] || a.durationMinutes-b.durationMinutes);
+  // Without a verified attraction, avoid selecting an arbitrary slower detour.
+  return [...options].sort((a,b)=>rank[a.kind]-rank[b.kind] || byTime(a,b));
 }
 
 export async function fetchOfflineRouteChoice(originCoords:[number,number],destinationCoords:[number,number],
@@ -58,15 +64,18 @@ export function offlineChoiceFromGraph(graph:import('./offlineRoadGraph').Offlin
     trafficStatus:'unavailable',tollStatus:'unchecked'
   };
 }
-export async function fetchRouteChoices(originCoords: [number, number], destinationCoords: [number, number], signal?: AbortSignal) {
+export async function fetchRouteChoices(originCoords: [number, number], destinationCoords: [number, number], signal?: AbortSignal,
+  preference:RoutePreference='tourist') {
   if(typeof navigator!=='undefined' && navigator.onLine===false)
     return fetchOfflineRouteChoice(originCoords,destinationCoords,signal);
   try{
     const data = await fuelApi<{ options: VerifiedRouteChoice[]; trafficDataAvailable: boolean }>('/routes/alternatives', {
       method: 'POST', signal, body: JSON.stringify({ originCoords, destinationCoords })
     });
-    return prioritizeRoleRoutes(data.options.filter(option => option.routePath?.length > 1 && option.distanceKm > 0)
-      .map(option=>({...option,source:'OSRM' as const})));
+    return prioritizeRoleRoutes(data.options.filter(option => option.routePath?.length > 1 &&
+      Number.isFinite(option.distanceKm) && option.distanceKm > 0 &&
+      Number.isFinite(option.durationMinutes) && option.durationMinutes > 0)
+      .map(option=>({...option,source:'OSRM' as const})),preference);
   }catch(error){
     if(signal?.aborted)throw error;
     try{return await fetchOfflineRouteChoice(originCoords,destinationCoords,signal);}

@@ -4,7 +4,7 @@ import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
 import type { LocationSelection } from '../types/itinerary';
-import type { VerifiedRouteChoice } from '../services/routeChoices';
+import {fetchRouteChoices,choiceToTrip,type RoutePreference,type VerifiedRouteChoice} from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
@@ -192,6 +192,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [origin, setOrigin] = useState<LocationSelection>({name:''});
   const [dest, setDest] = useState<LocationSelection>({name:''});
   const [useGps, setUseGps] = useState(true);
+  const [destinationRoutePreference,setDestinationRoutePreference] = useState<RoutePreference>('tourist');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [tollNotice, setTollNotice] = useState('');
   // Carrega pedágios após abrir a prévia, sem confundir ausência de dados com rota sem cobrança.
@@ -213,6 +214,7 @@ export function NavigationHome(props: NavigationHomeProps) {
 
   const showSheet = (value:'km'|'hours'|'destination') => {
     setError('');setSheet(value);
+    if(value==='destination')setDestinationRoutePreference('tourist');
     if(value==='km'||value==='hours') {circuitHistory.current=[];circuitPlaceHistory.current=[];}
   };
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
@@ -296,10 +298,15 @@ export function NavigationHome(props: NavigationHomeProps) {
     setError('');setBusy(true);
     try {
       const originCoords = useGps ? await gpsCoordinates() : origin.coords!;
-      const draft = createRoadDraft({originName:useGps?savedOriginName.current:origin.name,
-        originCoords,destinationName:dest.name,destinationCoords:dest.coords,
-        vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
-      const trip = await prepareRoadPreview(draft, props.currentVehicle!);
+      const choices=await fetchRouteChoices(originCoords,dest.coords,undefined,destinationRoutePreference);
+      const choice=choices[0];
+      if(!choice)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
+      const trip=choiceToTrip(choice,props.currentVehicle!,originCoords,{name:dest.name,coords:dest.coords},
+        useGps?savedOriginName.current:origin.name);
+      if(destinationRoutePreference==='tourist'&&(choice.kind==='fast'||choice.kind==='alternative')){
+        trip.routeWarnings=[...(trip.routeWarnings||[]),
+          'Nenhuma alternativa turística verificada para este trajeto. Exibindo a rota mais rápida disponível.'];
+      }
       setSheet(null); setPreview(trip);
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
   };
@@ -548,6 +555,17 @@ export function NavigationHome(props: NavigationHomeProps) {
         </header>
         <div className="p-5 pt-1 space-y-4 overflow-y-auto">
           <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
+          <fieldset className="border border-slate-200 rounded-xl p-3 space-y-2" aria-label="Preferência de rota">
+            <legend className="text-sm font-bold px-1">Preferência de rota</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="destination-route-preference" checked={destinationRoutePreference==='tourist'}
+                onChange={()=>setDestinationRoutePreference('tourist')}/> Mais turística
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="destination-route-preference" checked={destinationRoutePreference==='fast'}
+                onChange={()=>setDestinationRoutePreference('fast')}/> Mais rápida
+            </label>
+          </fieldset>
           <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)}/> Sair da minha localização (GPS)</label>
           {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords}/>}
           <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} placeholder="Cidade, endereço, parque ou restaurante"/>

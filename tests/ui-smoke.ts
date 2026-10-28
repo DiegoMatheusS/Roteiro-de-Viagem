@@ -539,7 +539,7 @@ try {
   await destinationSheet.getByLabel('Destino', { exact: true }).fill('Parada');
   await destinationSheet.getByRole('button', { name: 'Buscar destino', exact: true }).click();
   await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).first().click();
-  const roadRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/itinerary') && response.request().method() === 'POST');
+  const roadRequest = page.waitForResponse(response => response.url().endsWith('/api/routes/alternatives') && response.request().method() === 'POST');
   await destinationSheet.getByRole('button', { name: 'Ver percurso', exact: true }).click();
   assert.equal((await roadRequest).status(), 200);
   const tripPreview = page.getByRole('dialog', { name: 'Visualizar viagem' });
