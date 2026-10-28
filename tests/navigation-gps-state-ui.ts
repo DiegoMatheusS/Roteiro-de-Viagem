@@ -15,7 +15,7 @@ try{
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
     await page.addInitScript(()=>{
       (window as any).__gpsWatchCount=0;(window as any).__gpsPageHidden=false;
-      Object.defineProperty(document,'hidden',{configurable:true,get:()=>(window as any).__gpsPageHidden});
+      Object.defineProperty(document,'hidden',{configurable:true,get(){return (window as any).__gpsPageHidden;}});
       Object.defineProperty(navigator,'geolocation',{value:{
         watchPosition(success:Function,error:Function){
           (window as any).__gpsWatchCount++;
