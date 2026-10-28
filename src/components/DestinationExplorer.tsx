@@ -29,6 +29,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   const initialAttempt=useRef(false);
   const busyRef=useRef(false);
   const departingRef=useRef(false);
+  const countdownTimer=useRef<ReturnType<typeof setInterval>|null>(null);
   const activeRef=useRef(false);
   const routeRequest=useRef<AbortController|null>(null);
   useEffect(()=>{
@@ -91,6 +92,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     if(busyRef.current || departingRef.current || !activeRef.current)return;
     if(!target.coords){setError('O destino está sem coordenadas. Pesquise novamente.');return;}
     departingRef.current=true;
+    if(countdownTimer.current){clearInterval(countdownTimer.current);countdownTimer.current=null;}
     setSecondsLeft(null);
     // O primeiro toque também inicia a navegação quando a lista ainda não foi calculada.
     const result=routes.length && origin ? {choices:routes,position:origin,name:originName} : await loadRoutes();
@@ -100,7 +102,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     setError('');
     const trip=choiceToTrip(choice,vehicle || GUEST_NAVIGATION_VEHICLE,result.position,{name:target.name,coords:target.coords},result.name);
     const verified=tollChecks[choice.id];
-    onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
+    try {onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);}
+    finally {departingRef.current=false;}
   };
   useEffect(()=>{
     if(!autoStartEnabled||!gpsAvailable||!routes.length||!origin||busy||error||departingRef.current){
@@ -112,9 +115,10 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     const timer=setInterval(()=>{
       const seconds=routeAutoStartSeconds(deadline,Date.now());
       setSecondsLeft(seconds);
-      if(seconds===0){clearInterval(timer);void depart();}
+      if(seconds===0){clearInterval(timer);countdownTimer.current=null;void depart();}
     },100);
-    return()=>clearInterval(timer);
+    countdownTimer.current=timer;
+    return()=>{clearInterval(timer);if(countdownTimer.current===timer)countdownTimer.current=null;};
   },[autoStartEnabled,gpsAvailable,routes,origin,selected,busy,error]);
   const closeExplorer=()=>{activeRef.current=false;routeRequest.current?.abort();onClose();};
   return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[49dvh] flex flex-col rdv-route-sheet">
@@ -128,7 +132,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
         </div>
         <button type="button" aria-label="Sair da visualização do destino" onClick={closeExplorer} className="p-2.5 bg-slate-100 text-slate-600 rounded-full active:scale-95 transition-transform"><X size={18}/></button>
       </div>
-      <button type="button" disabled={busy||departingRef.current} onClick={()=>void depart()}
+      <button type="button" aria-label={busy?'Preparando sua navegação':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
+        disabled={busy||departingRef.current} onClick={()=>void depart()}
         className="relative w-full min-h-[66px] rounded-2xl bg-[#2167e8] text-white font-extrabold text-[17px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60 overflow-hidden">
         {secondsLeft!==null&&<svg key={`${selected}-${routes[0]?.id}`} aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           <rect className="rdv-route-countdown-border" x="1.8" y="1.8" width="96.4" height="96.4" rx="16" pathLength="100" fill="none" stroke="#a7f3d0" strokeWidth="3.6"/>

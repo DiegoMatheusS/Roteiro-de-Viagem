@@ -19,8 +19,9 @@ test('prévia mostra relógio contornando o botão e permite começar antes do p
   const css=readFileSync(new URL('../src/role-figma.css',import.meta.url),'utf8');
   assert.match(explorer,/setInterval\(/);
   assert.match(explorer,/routeAutoStartSeconds\(deadline,Date\.now\(\)\)/);
-  assert.match(explorer,/if\(seconds===0\)\{clearInterval\(timer\);void depart\(\);\}/);
+  assert.match(explorer,/if\(seconds===0\)\{clearInterval\(timer\);countdownTimer\.current=null;void depart\(\);\}/);
   assert.match(explorer,/onClick=\{\(\)=>void depart\(\)\}/);
+  assert.match(explorer,/aria-label=\{busy\?'Preparando sua navegação':routes\.length\?'Iniciar rota selecionada'/);
   assert.match(explorer,/className="rdv-route-countdown-border"/);
   assert.match(explorer,/role="timer"/);
   assert.match(css,/@keyframes rdv-route-button-clock/);
