@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route, Users } from 'lucide-react';
+import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route, Users } from 'lucide-react';
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
@@ -18,12 +18,13 @@ import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
 import { InteractiveMap } from './InteractiveMap';
+import { SavedAddressesPanel } from './SavedAddressesPanel';
 import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
 import { searchLocations } from '../services/locationSearch';
 import { formatAddressDistance } from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
-import {readSavedAddresses,matchSavedAddressOrigin} from '../services/savedAddresses';
+import {readSavedAddresses,matchSavedAddressOrigin,type SavedAddress} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
 import { DestinationExplorer } from './DestinationExplorer';
 import { draggedHomeSheetHeight, type HomeSheetStage } from '../services/homeSheetSizing';
@@ -54,7 +55,8 @@ const touristKinds: readonly string[] = TOURIST_PLACE_KINDS;
 export function NavigationHome(props: NavigationHomeProps) {
   const {theme:appearanceTheme}=useMapAppearance();
   const {user}=useAuth();
-  const savedAddresses=useMemo(()=>readSavedAddresses(user?.id),[user?.id]);
+  const [savedAddresses,setSavedAddresses]=useState<SavedAddress[]>(()=>readSavedAddresses(user?.id));
+  useEffect(()=>{setSavedAddresses(readSavedAddresses(user?.id));},[user?.id]);
   const savedOriginName=React.useRef('Sua localização atual');
   const gps = useDeviceLocation(true, 'role-home');
   const locationAccess = useGpsPermissionAction(gps.retry);
@@ -77,6 +79,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [showConvoyActions, setShowConvoyActions] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [searchPlace,setSearchPlace] = useState<LocationSelection>({name:''});
+  const [showSavedDestinations,setShowSavedDestinations]=useState(false);
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
   const searchGeneration = React.useRef(0);
@@ -327,6 +330,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   };
   const selectMapTarget = (place:LocationSelection) => {
     suppressedQuery.current=place.name;cancelTypeahead();
+    setShowSavedDestinations(false);
     setSearchPlace(place);
     if (!place.coords) return;
     // Fecha o teclado antes de revelar o mapa e as opções de rotas.
@@ -428,7 +432,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
           <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
             aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
-            onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            onChange={event=>{setShowSavedDestinations(false);cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
             onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
             onFocus={()=>{setCollapsed(false);setSheetExpanded(true);}}
             className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
@@ -437,6 +441,27 @@ export function NavigationHome(props: NavigationHomeProps) {
             {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
           </button>
         </form>
+          <div className="mt-2 flex items-center gap-2">
+            <button type="button" aria-label="Salvos" aria-expanded={showSavedDestinations}
+              aria-controls="rdv-home-saved-destinations"
+              onClick={()=>{
+                searchInputRef.current?.blur();
+                cancelTypeahead();
+                setCollapsed(false);setSheetExpanded(true);
+                setShowSavedDestinations(value=>!value);
+              }}
+              className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors
+                ${showSavedDestinations?'border-blue-600 bg-blue-600 text-white':'border-blue-100 bg-blue-50 text-blue-700'}`}>
+              <Bookmark size={15} strokeWidth={2} aria-hidden="true"/> Salvos
+            </button>
+          </div>
+          {showSavedDestinations&&<div id="rdv-home-saved-destinations" role="region"
+            aria-label="Endereços salvos na busca" className="mt-2 rounded-2xl border border-blue-100 bg-slate-50 p-3">
+            <SavedAddressesPanel
+              gps={gps.status==='ready'?gps.position:null}
+              onChanged={setSavedAddresses}
+              onSelect={selectMapTarget}/>
+          </div>}
           {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
             {searchError||'Pesquisando endereço...'}
           </p>}

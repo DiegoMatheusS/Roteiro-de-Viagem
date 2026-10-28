@@ -55,3 +55,13 @@ test('aba Mapa exibe favoritos abaixo da busca e o início mantém a origem esco
   const home=readFileSync(new URL('../src/components/NavigationHome.tsx',import.meta.url),'utf8');
   assert.match(home,/matchSavedAddressOrigin\(fix,savedAddresses\)/);
 });
+
+test('home destination suggestions expose Salvos and reuse account-scoped saved addresses',()=>{
+  const home=readFileSync(new URL('../src/components/NavigationHome.tsx',import.meta.url),'utf8');
+  assert.match(home,/aria-label="Salvos"/);
+  assert.match(home,/aria-label="Endereços salvos na busca"/);
+  assert.match(home,/<SavedAddressesPanel/);
+  assert.match(home,/onSelect=\{selectMapTarget\}/);
+  assert.match(home,/onChanged=\{setSavedAddresses\}/);
+  assert.match(home,/setShowSavedDestinations\(false\)/);
+});
