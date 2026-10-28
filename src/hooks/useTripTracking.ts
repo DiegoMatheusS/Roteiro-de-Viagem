@@ -6,6 +6,7 @@ import type { DeviceLocation } from '../services/locationService';
 import { useDeviceLocation } from './useDeviceLocation';
 import { activeNativeTripPosition } from '../services/activeNativeTripPosition';
 import { mergeNativeTrackingState } from '../services/nativeTrackingState';
+import { whilePageVisible } from '../services/whilePageVisible';
 export function useTripTracking(tripId?: string) {
   const native = isNativeApp();
   const nativeKey = tripId ? `${storageService.getScope() || 'guest'}:${tripId}` : '';
@@ -20,7 +21,7 @@ export function useTripTracking(tripId?: string) {
     if (!tripId) { void TravelNative.stopTracking().catch(() => {}); return; }
     let disposed = false, ready = false;
     setNativeState({ tripId, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, position: null, error: null, running: false });
-    const read = () => { if (!ready) return; void TravelNative.state().then(state => {
+    const read = () => { if (!ready || document.hidden || disposed) return; void TravelNative.state().then(state => {
       if(disposed)return;
       if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
       const livePosition=activeNativeTripPosition(state,nativeKey);
@@ -29,8 +30,8 @@ export function useTripTracking(tripId?: string) {
         error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !livePosition ? 'Aguardando sinal GPS recente.' : null }));
     }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); }); };
     void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, resume:attempt>0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); });
-    const timer = window.setInterval(read, 2000);
-    return () => { disposed = true; clearInterval(timer); void TravelNative.stopTracking().catch(() => {}); };
+    const stopPolling=whilePageVisible(()=>{read();const timer=window.setInterval(read,2000);return()=>clearInterval(timer);});
+    return () => { disposed = true; stopPolling(); void TravelNative.stopTracking().catch(() => {}); };
   }, [native, tripId, nativeKey, attempt]);
   useEffect(() => {
     if (native) return;

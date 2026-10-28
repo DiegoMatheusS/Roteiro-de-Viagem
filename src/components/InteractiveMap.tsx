@@ -30,7 +30,7 @@ import { selectVisibleRoadAlerts, createRoadAlertIconElement,roadAlertMarkerChan
 import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
-import { setGpsMarkerState } from '../services/gpsMarkerState';
+import { setGpsMarkerState,shouldShowDestinationPin } from '../services/gpsMarkerState';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
@@ -191,6 +191,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const tripPinsDataRef = useRef({stops,meetingPoints,convoyParticipants});
   tripPinsDataRef.current={stops,meetingPoints,convoyParticipants};
   const vectorNavigationController = useRef<NavigationPinController|null>(null);
+  const destinationPinVisible=shouldShowDestinationPin(navigationMode,destinationCoords,markerCoords);
   const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
     live:markerCoords,liveStale:markerStale,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle});
   navigationPinInputs.current={origin:originCoords,destination:destinationCoords,
@@ -1056,9 +1057,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     group.clearLayers();
     const icon=L.divIcon({
       className:'user-live-marker',
-      html:`<div style="width:32px;height:32px;display:grid;place-items:center;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 0 0 7px #2563eb25,0 3px 12px #0f172a66;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
-      iconSize:[32,32],iconAnchor:[16,16]
+      html:`<div style="width:36px;height:36px;display:grid;place-items:center;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="#2563eb" stroke="white" stroke-width="1.5" stroke-linejoin="round" style="filter:drop-shadow(0 2px 2px #0f172a66)" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
+      iconSize:[36,36],iconAnchor:[18,18]
     });
     liveFallbackRef.current=L.marker(markerCoords,{icon,zIndexOffset:1000,
       interactive:!navigationMode,keyboard:!navigationMode})
@@ -1206,7 +1207,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // meeting point popups, weather and navigation pins have independent inputs.
     const layerInputs:StaticLayerInputs={
       navigation:[originCoords,destinationCoords,originLabel,destinationLabel,
-        navigationMode,roadStyle,vectorNavigationReady],
+        navigationMode,roadStyle,vectorNavigationReady,destinationPinVisible],
       stops:[stops,vectorTripPinsReady],
       meetings:[meetingPoints,vectorTripPinsReady],
       weather:[weatherPoints,showRainLayer,vectorWeatherReady]
@@ -1266,7 +1267,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 
     // 2. Destination Marker
     if (destinationCoords) {
-      if (!vectorNavigationReady && layerChanges.navigation) {
+      if (!vectorNavigationReady && layerChanges.navigation && destinationPinVisible) {
       const destIcon = roadStyle ? L.divIcon({
         className:'map-destination-dot',
         html:'<span style="display:block;width:17px;height:17px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0003"></span>',
@@ -1486,6 +1487,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   }, [
     originCoords,
     destinationCoords,
+    destinationPinVisible,
     originLabel,
     destinationLabel,
     routePath,

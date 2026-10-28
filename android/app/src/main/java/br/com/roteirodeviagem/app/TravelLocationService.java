@@ -7,6 +7,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.location.Location;
 import android.location.LocationListener;
@@ -36,6 +37,22 @@ public class TravelLocationService extends Service implements LocationListener {
   private LocationManager manager;
   private SharedPreferences pref;
   private final ExecutorService io=Executors.newSingleThreadExecutor();
+  /** Explicit app exit cancels the same GPS session as the notification action. */
+  public static void stopForAppClose(Context context) {
+    if(running) context.startService(new Intent(context,TravelLocationService.class).setAction("STOP_ALL"));
+    else context.stopService(new Intent(context,TravelLocationService.class));
+  }
+  private void stopForUser() {
+    persist();
+    SharedPreferences.Editor stopped=pref.edit();
+    if(!locationToken.isEmpty())stopped.putString("stoppedLocationToken",locationToken);
+    if(!tripId.isEmpty())stopped.putString("stoppedTripId",tripId);
+    stopped.apply();
+    revoke();tripId="";activeTripId="";convoyId="";activeConvoyId="";
+    previous=null;lastPosition=null;running=false;
+    if(manager!=null)manager.removeUpdates(this);
+    stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
+  }
   @Override public IBinder onBind(Intent intent) { return null; }
   @Override public void onCreate() {
     super.onCreate(); pref=getSharedPreferences("travel-gps",0); manager=(LocationManager)getSystemService(LOCATION_SERVICE);
@@ -44,7 +61,7 @@ public class TravelLocationService extends Service implements LocationListener {
   @Override public int onStartCommand(Intent intent,int flags,int startId) {
     if(intent==null) { stopSelf(); return START_NOT_STICKY; }
     String action=intent.getAction();
-    if("STOP_ALL".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).putString("stoppedTripId",tripId).apply(); revoke(); tripId=""; activeTripId=""; convoyId=""; activeConvoyId=""; stopSelf(); return START_NOT_STICKY; }
+    if("STOP_ALL".equals(action)) { stopForUser(); return START_NOT_STICKY; }
     if("STOP_TRIP".equals(action)) { tripId=""; activeTripId=""; previous=null; }
     if("STOP_CONVOY".equals(action)) { pref.edit().putString("stoppedLocationToken",locationToken).apply(); revoke(); convoyId=""; activeConvoyId=""; }
     if("TRIP".equals(action)) {
@@ -104,6 +121,7 @@ public class TravelLocationService extends Service implements LocationListener {
   }
   private void revoke() { if(convoyId!=null && !convoyId.isEmpty()) { String group=convoyId,targetOrigin=origin,targetCookie=cookie; JSObject data=new JSObject();data.put("enabled",false);data.put("locationToken",locationToken);String body=data.toString();io.execute(() -> send(group,body,targetOrigin,targetCookie)); } }
   @Override public void onProviderDisabled(String provider) { previous=null; lastPosition=null; }
+  @Override public void onTaskRemoved(Intent rootIntent) { stopForUser();super.onTaskRemoved(rootIntent); }
   @Override public void onProviderEnabled(String provider) {}
   @Override public void onStatusChanged(String provider,int status,Bundle extras) {}
   @Override public void onDestroy() { running=false; activeTripId=""; activeConvoyId=""; lastPosition=null; if(manager!=null) manager.removeUpdates(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }

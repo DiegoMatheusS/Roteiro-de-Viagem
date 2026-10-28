@@ -67,7 +67,7 @@ test('rodapé da navegação é cinza-claro e Encerrar é vermelho em ambos os t
   const screen=source('src/components/ActiveTripModal.tsx');
   assert.match(screen,/aria-label="Encerrar viagem"[\s\S]*?className="rdv-nav-bottom-button rdv-nav-end"/);
   const css=source('src/role-navigation-figma.css');
-  assert.match(css,/\.rdv-nav-bottom \{[\s\S]*?background:#f1f3f6;/);
+  assert.match(css,/\.rdv-nav-bottom \{[\s\S]*?background:#e5e7eb;/);
   assert.match(css,/\.rdv-nav-bottom-button\.rdv-nav-end \{\s*background:#c62828;\s*color:#fff;/);
   assert.match(css,/\[data-role-theme="dark"\] \.rdv-nav-bottom-button\.rdv-nav-end \{background:#c62828;color:#fff;\}/);
 });

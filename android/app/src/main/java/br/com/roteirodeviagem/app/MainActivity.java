@@ -9,6 +9,10 @@ import androidx.core.graphics.Insets;
 import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
+  @Override public void onDestroy() {
+    if(isFinishing())TravelLocationService.stopForAppClose(this);
+    super.onDestroy();
+  }
   @Override public void onCreate(Bundle savedInstanceState) {
     registerPlugin(TravelNativePlugin.class);super.onCreate(savedInstanceState);
     // O gesto e o botão Voltar seguem a navegação interna do Rolê, sem fechar a Activity.

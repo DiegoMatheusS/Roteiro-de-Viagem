@@ -1,5 +1,6 @@
 import { Geolocation as NativeGeolocation } from '@capacitor/geolocation';
 import { isNativeApp } from './nativeApp';
+import { whilePageVisible } from './whilePageVisible';
 export interface DeviceLocation {
   coords: [number, number];
   accuracyMeters: number;
@@ -70,6 +71,14 @@ export function getCurrentDeviceLocation(geolocation = globalThis.navigator?.geo
 }
 
 export function watchDeviceLocation(
+  geolocation: Geolocation,
+  onPosition: (position: DeviceLocation) => void,
+  onError: (message: string) => void
+): () => void {
+  return whilePageVisible(()=>watchActiveDeviceLocation(geolocation,onPosition,onError));
+}
+
+function watchActiveDeviceLocation(
   geolocation: Geolocation,
   onPosition: (position: DeviceLocation) => void,
   onError: (message: string) => void

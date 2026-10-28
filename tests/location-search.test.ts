@@ -43,3 +43,23 @@ test('cancelling an old query ignores its late successful response',async t=>{
   resolve(new Response(JSON.stringify({results:[{id:'old',name:'Endereço anterior',coords:[1,1]}]})));
   await Promise.resolve();
 });
+
+test('a busy provider is retried once after spacing; later queries can cancel the wait',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{
+    calls++;
+    return calls===1?Response.json({error:'Busca ocupada'},{status:429}):Response.json({results:[]});
+  });
+  const pending=searchLocations('Avenida Paulista');
+  await new Promise(setImmediate);assert.equal(calls,1);
+  t.mock.timers.tick(1200);assert.deepEqual((await pending).results,[]);assert.equal(calls,2);
+});
+test('replacing a busy suggestion cancels its retry without sending another request',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({error:'Busca ocupada'},{status:429});});
+  const controller=new AbortController(),pending=searchLocations('Endereço substituído',undefined,controller.signal);
+  const rejected=assert.rejects(pending,/Busca cancelada/);
+  await new Promise(setImmediate);controller.abort();await rejected;
+  t.mock.timers.tick(1200);await Promise.resolve();assert.equal(calls,1);
+});

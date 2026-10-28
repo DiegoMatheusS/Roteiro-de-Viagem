@@ -41,7 +41,11 @@ try{
     queries.push(new URL(route.request().url()).searchParams.get('q')!);
     if(queries.length===1)await pendingResponse;
     await route.fulfill(mode==='error'?{status:503,json:{error:'Busca indisponível. Tente novamente.'}}:
-      {json:{results:mode==='empty'?[]:[{id:'osm:way:1',name:'Rua de teste',address:'Cidade de teste',coords:[-23.54,-46.62]}]}});
+      {json:{results:mode==='empty'?[]:queries.at(-1)!.startsWith('Av. Paulista')?[
+        {id:'near-namesake',name:'Avenida Paulista, 1000',address:'Centro, Campinas, SP',coords:[-23.55,-46.63]},
+        {id:'correct-city',name:'Avenida Paulista, 1000',address:'Bela Vista, São Paulo, SP',coords:[-23.54,-46.62]},
+        {id:'duplicate',name:'Avenida Paulista, 1000',address:'Bela Vista, São Paulo, SP',coords:[-23.54,-46.62]}
+      ]:[{id:'osm:way:1',name:'Rua de teste',address:'Cidade de teste',coords:[-23.54,-46.62]}]}});
   });
   await page.goto('http://127.0.0.1:3000/tests/fixtures/navigation-home-search.html?screen='+screen);
   await page.waitForFunction(()=>typeof (window as any).__searchGps==='function');
@@ -101,7 +105,7 @@ try{
   await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await input.fill('Outra rua próxima');
   const results=page.getByRole('group',{name:'Sugestões de endereços'});
-  const choice=results.getByRole('button',{name:'Escolher destino Rua de teste'});
+  const choice=results.getByRole('button',{name:/^Escolher destino Rua de teste/});
   await choice.waitFor();
   assert.match(await results.innerText(),/km em linha reta/,
     `${screen}: suggestions must distinguish geodesic distance from driving kilometres`);
@@ -124,6 +128,14 @@ try{
   assert.equal(queries.length,requestsAfterTyping,`${screen}: short text cancels the pending suggestion request`);
   assert.equal(await results.count(),0);
   if(screen==='home'){
+    await input.fill('Av. Paulista São Paulo');
+    await results.waitFor();
+    const addresses=results.getByRole('button');
+    assert.equal(await addresses.count(),2,'duplicate geocoder entries must not fill the suggestion list');
+    assert.match(await addresses.first().innerText(),/Bela Vista, São Paulo/,'the written city takes precedence over a nearby namesake');
+    await addresses.first().click();
+    await destinationPanel.getByRole('heading',{name:'Avenida Paulista, 1000'}).waitFor();
+    await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
     await page.goto('http://127.0.0.1:3000/tests/fixtures/navigation-home-search.html?vehicle=1');
     await page.waitForFunction(()=>typeof (window as any).__searchGps==='function');
     await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));

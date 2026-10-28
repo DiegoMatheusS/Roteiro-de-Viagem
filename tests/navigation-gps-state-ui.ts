@@ -14,11 +14,14 @@ try{
     const page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true});
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
     await page.addInitScript(()=>{
+      (window as any).__gpsWatchCount=0;(window as any).__gpsPageHidden=false;
+      Object.defineProperty(document,'hidden',{configurable:true,get(){return (window as any).__gpsPageHidden;}});
       Object.defineProperty(navigator,'geolocation',{value:{
         watchPosition(success:Function,error:Function){
+          (window as any).__gpsWatchCount++;
           (window as any).__gpsFix=success;(window as any).__gpsError=error;
           return 1;
-        },clearWatch(){}
+        },clearWatch(){(window as any).__gpsWatchCount--;}
       }});
     });
     await page.route('https://**',route=>route.fulfill({contentType:'image/png',body:tile}));
@@ -37,6 +40,13 @@ try{
     const marker=page.locator('.user-live-marker');
     await marker.waitFor();await page.waitForTimeout(700);
     assert.equal(await marker.getAttribute('data-gps-state'),'live');
+    const arrowStyle=await marker.evaluate(element=>{
+      const visual=element.tagName==='BUTTON'?element:element.firstElementChild!;
+      const style=getComputedStyle(visual);
+      return {background:style.backgroundColor,border:style.borderTopWidth};
+    });
+    assert.equal(arrowStyle.background,'rgba(0, 0, 0, 0)','the GPS arrow has no circular background');
+    assert.equal(arrowStyle.border,'0px');
     await marker.evaluate(element=>(window as any).__originalGpsMarker=element);
     const center=await map.getAttribute('data-map-center');
     await receive(6_001,-23.7);
@@ -51,6 +61,16 @@ try{
     await page.waitForFunction(()=>document.querySelector('.user-live-marker')?.getAttribute('data-gps-state')==='live');
     assert.equal(await marker.evaluate(element=>element===(window as any).__originalGpsMarker),true,'recovery moves the existing arrow');
     assert.equal(await page.getByTestId('speed').textContent(),'29');
+    await page.evaluate(()=>{
+      (window as any).__oldGpsCallback=(window as any).__gpsFix;
+      (window as any).__gpsPageHidden=true;document.dispatchEvent(new Event('visibilitychange'));
+    });
+    assert.equal(await page.evaluate(()=>(window as any).__gpsWatchCount),0,'a hidden page must release its foreground GPS watch');
+    await page.evaluate(()=>(window as any).__oldGpsCallback({coords:{latitude:-23.8,longitude:-46.63,accuracy:6,speed:8,heading:90},timestamp:Date.now()}));
+    await page.evaluate(()=>{(window as any).__gpsPageHidden=false;document.dispatchEvent(new Event('visibilitychange'));});
+    assert.equal(await page.evaluate(()=>(window as any).__gpsWatchCount),1,'resume starts one watch');
+    await receive(0,-23.549);
+    assert.equal(await marker.evaluate(element=>element===(window as any).__originalGpsMarker),true,'background/resume preserves the arrow');
     await page.getByRole('button',{name:'Outra viagem',exact:true}).click();
     await marker.waitFor({state:'detached'});
     assert.equal(await page.getByRole('button',{name:'GPS',exact:true}).isDisabled(),true,'another trip must not inherit a previous fix');

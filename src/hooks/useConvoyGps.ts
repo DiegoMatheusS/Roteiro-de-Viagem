@@ -3,6 +3,7 @@ import { convoyService } from '../services/convoyService';
 import { isNativeApp,TravelNative } from '../services/nativeApp';
 import { useDeviceLocation } from './useDeviceLocation';
 import { isFreshGpsFix } from '../services/gpsFreshness';
+import { whilePageVisible } from '../services/whilePageVisible';
 /** Lives at the app root so returning to another tab never stops consented sharing. */
 export function useConvoyGps(accountId:string|undefined,enabled:boolean){
   const [version,setVersion]=useState(0),[error,setError]=useState(''),[nativeReady,setNativeReady]=useState(false);
@@ -18,7 +19,7 @@ export function useConvoyGps(accountId:string|undefined,enabled:boolean){
     nativeFixTimestamp.current=null;
     setError('');setNativeReady(false);
     const tick=async()=>{
-      if(busy||disposed)return;busy=true;
+      if(busy||disposed||document.hidden)return;busy=true;
       try{
         convoyService.expireLocations();await convoyService.retryRevocations();if(disposed)return;
         const current=convoyService.getLocationSession();if(!current)return;
@@ -60,19 +61,21 @@ export function useConvoyGps(accountId:string|undefined,enabled:boolean){
       }catch(e){if(disposed)return;const err=e as Error&{status?:number};setError(err.message);if(session&&[401,403,404,409].includes(err.status||0)){await convoyService.stopSharing();}}
       finally{busy=false;}
     };
-    void tick();const timer=window.setInterval(()=>void tick(),5000);
-    // The native bridge is read every five seconds, but the on-screen GPS
-    // indicator must expire a six-second-old fix without waiting for polling.
-    const freshnessTimer=native?window.setInterval(()=>{
-      const timestamp=nativeFixTimestamp.current;
-      if(timestamp!==null&&!isFreshGpsFix(timestamp)){
-        setNativeReady(false);
-        setError('O sinal do GPS está desatualizado. Aguardando nova posição.');
-      }
-    },1000):undefined;
-    const resume=()=>{if(!document.hidden){latest.current.retry();void tick();}};
-    window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
-    return()=>{disposed=true;clearInterval(timer);if(freshnessTimer!==undefined)clearInterval(freshnessTimer);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
+    const stopPolling=whilePageVisible(()=>{
+      void tick();const timer=window.setInterval(()=>void tick(),5000);
+      // Expire the on-screen indicator without polling the native bridge every second.
+      const freshnessTimer=native?window.setInterval(()=>{
+        const timestamp=nativeFixTimestamp.current;
+        if(timestamp!==null&&!isFreshGpsFix(timestamp)){
+          setNativeReady(false);
+          setError('O sinal do GPS está desatualizado. Aguardando nova posição.');
+        }
+      },1000):undefined;
+      return()=>{clearInterval(timer);if(freshnessTimer!==undefined)clearInterval(freshnessTimer);};
+    });
+    const resume=()=>{if(!document.hidden)void tick();};
+    window.addEventListener('online',resume);
+    return()=>{disposed=true;stopPolling();window.removeEventListener('online',resume);};
   },[accountId,enabled,session?.convoyId,session?.locationToken,native]);
   void version;
   return {session,error,ready:native?nativeReady:location.status==='ready',retry:location.retry};

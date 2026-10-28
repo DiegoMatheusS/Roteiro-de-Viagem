@@ -88,6 +88,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const suppressedQuery = React.useRef('');
   const [addressSuggestions,setAddressSuggestions] = useState<LocationSelection[]>([]);
   const [suggestionsBusy,setSuggestionsBusy] = useState(false);
+  const [suggestionsError,setSuggestionsError] = useState('');
   useEffect(()=>()=>{
     searchGeneration.current++;searchRequest.current?.abort();
     suggestionsRequest.current?.abort();
@@ -97,17 +98,20 @@ export function NavigationHome(props: NavigationHomeProps) {
     if(suggestionsTimeout.current)clearTimeout(suggestionsTimeout.current);
     suggestionsTimeout.current=null;
     suggestionsRequest.current?.abort();suggestionsRequest.current=null;
-    setSuggestionsBusy(false);setAddressSuggestions([]);
+    setSuggestionsBusy(false);setAddressSuggestions([]);setSuggestionsError('');
   };
   useEffect(()=>{
     const query=searchPlace.name.trim();
     if(query.length<3||query===suppressedQuery.current||searchPlace.coords)return;
     const timer=setTimeout(()=>{
       const controller=new AbortController();suggestionsRequest.current=controller;
-      setSuggestionsBusy(true);
+      setSuggestionsBusy(true);setSuggestionsError('');
       void searchLocations(query,liveCoords,controller.signal).then(result=>{
-        if(!controller.signal.aborted)setAddressSuggestions(result.results.slice(0,5));
-      }).catch(()=>{if(!controller.signal.aborted)setAddressSuggestions([]);})
+        if(!controller.signal.aborted){
+          setAddressSuggestions(result.results.slice(0,8));
+          if(!result.results.length)setSuggestionsError('Nenhum endereço encontrado. Inclua bairro ou cidade.');
+        }
+      }).catch(error=>{if(!controller.signal.aborted){setAddressSuggestions([]);setSuggestionsError(error.message);}})
         .finally(()=>{
           if(suggestionsRequest.current===controller){suggestionsRequest.current=null;setSuggestionsBusy(false);}
         });
@@ -385,15 +389,16 @@ export function NavigationHome(props: NavigationHomeProps) {
           {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
             {searchError||'Pesquisando endereço...'}
           </p>}
-          {!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||addressSuggestions.length>0)&&
+          {!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||suggestionsError||addressSuggestions.length>0)&&
             <div className="rdv-home-search-feedback rdv-home-address-suggestions bg-white border border-slate-200">
               {suggestionsBusy&&<p role="status" className="text-xs text-slate-500">Buscando sugestões...</p>}
+              {suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
               {addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
                 {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
-                  onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}`}
+                  onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
                   className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">
                   <strong className="block truncate text-sm text-slate-900">{place.name}</strong>
-                  <small className="block truncate text-slate-500">{place.address}</small>
+                  <small className="block line-clamp-2 text-xs leading-relaxed text-slate-500">{place.address}</small>
                   {place.coords&&gps.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,gps.position)}</small>}
                 </button>)}
                 <p className="text-[10px] text-slate-500 px-3 py-2">Distâncias em linha reta. Rota real após selecionar.</p>

@@ -1,7 +1,9 @@
 /* Tela 4/7 — navegação Figma. Controles sobre o mapa, com GPS/rota reais.
    Referência: navegacao.png (402 x 874). */
 .rdv-nav-figma-root {
-  --rdv-nav-panel-height: 196px;
+  --rdv-nav-panel-height: calc(142px + env(safe-area-inset-bottom,0px));
+  --rdv-nav-guidance-top: calc(env(safe-area-inset-top,0px) + 8px);
+  --rdv-nav-guidance-height: 88px;
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -14,33 +16,33 @@
 .rdv-nav-figma-map {position: absolute; inset: 0; z-index: 0;}
 .rdv-nav-guidance {
   position: absolute;
-  top: max(60px,calc(env(safe-area-inset-top,0px) + 32px));
-  left: 16px;
-  right: 16px;
+  top: var(--rdv-nav-guidance-top);
+  left: 12px;
+  right: 12px;
   z-index: 25;
   pointer-events: none;
-  min-height: 97px;
+  height: var(--rdv-nav-guidance-height);
   border-radius: 16px;
   background: #245ee6;
-  padding: 14px 19px;
+  padding: 10px 16px;
   color: #fff;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 14px;
   box-shadow: 0 2px 6px #2156c80f;
 }
 .rdv-nav-guidance-icon {display:grid;place-items:center;flex:0 0 43px;color:#fff;}
-.rdv-nav-guidance-copy {display:flex;flex-direction:column;justify-content:center;min-width:0;gap:4px;}
+.rdv-nav-guidance-copy {display:flex;flex-direction:column;justify-content:center;min-width:0;gap:3px;}
 .rdv-nav-guidance-copy strong {
   display:block;
-  font-size:29px;
+  font-size:27px;
   line-height:1.1;
   font-weight:700;
   font-variant-numeric:tabular-nums;
   letter-spacing:-.035em;
 }
 .rdv-nav-guidance-copy > span {
-  font-size:16px;
+  font-size:14px;
   line-height:1.18;
   font-weight:600;
   letter-spacing:-.01em;
@@ -52,7 +54,7 @@
 .rdv-nav-gps-status {
   position:absolute;
   z-index:24;
-  top:max(167px,calc(env(safe-area-inset-top,0px) + 140px));
+  top:calc(var(--rdv-nav-guidance-top) + var(--rdv-nav-guidance-height) + 8px);
   left:16px;
   min-height:26px;
   display:flex;
@@ -70,7 +72,7 @@
 .rdv-nav-gps-status span {color:#8195a5;font-size:14px;line-height:1;}
 .rdv-nav-retry {
   position:absolute;z-index:27;
-  top:max(201px,calc(env(safe-area-inset-top,0px) + 174px));
+  top:calc(var(--rdv-nav-guidance-top) + var(--rdv-nav-guidance-height) + 43px);
   left:16px;
   padding:7px 12px;
   border-radius:9px;
@@ -81,7 +83,7 @@
 }
 .rdv-nav-rain-warning,.rdv-nav-upcoming-alert {
   position:absolute;z-index:24;pointer-events:none;
-  top:max(200px,calc(env(safe-area-inset-top,0px) + 173px));
+  top:calc(var(--rdv-nav-guidance-top) + var(--rdv-nav-guidance-height) + 80px);
   left:16px;right:16px;
   display:flex;align-items:center;gap:8px;
   padding:9px 12px;
@@ -91,7 +93,7 @@
   font-size:12px;
   box-shadow:0 3px 11px #00000012;
 }
-.rdv-nav-upcoming-alert {top:max(241px,calc(env(safe-area-inset-top,0px) + 214px));}
+.rdv-nav-upcoming-alert {top:calc(var(--rdv-nav-guidance-top) + var(--rdv-nav-guidance-height) + 121px);}
 .rdv-nav-left-controls {
   position:absolute;
   z-index:28;
@@ -148,8 +150,8 @@
   right:0;
   height:var(--rdv-nav-panel-height);
   border-radius:24px 24px 0 0;
-  background:#f1f3f6;
-  padding:20px 20px max(29px,calc(env(safe-area-inset-bottom,0px) + 15px));
+  background:#e5e7eb;
+  padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 10px);
   display:flex;
   flex-direction:column;
   justify-content:space-between;
@@ -158,7 +160,7 @@
 .rdv-nav-trip-progress {display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
 .rdv-nav-left-stat,.rdv-nav-eta-stat {display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0;}
 .rdv-nav-left-stat strong,.rdv-nav-eta-stat strong {
-  font-size:29px;line-height:1.1;
+  font-size:26px;line-height:1.1;
   letter-spacing:-.035em;
   font-weight:700;
   font-variant-numeric:tabular-nums;
@@ -224,11 +226,10 @@
 .rdv-nav-extra-buttons {display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding-top:11px;}
 .rdv-nav-extra-action {display:flex;align-items:center;gap:6px;min-height:40px;padding:6px 10px;border:1px solid #dce4ed;border-radius:11px;color:#245ee6;background:#fff;font-size:12px;font-weight:600;}
 @media(max-height:680px) {
-  .rdv-nav-figma-root {--rdv-nav-panel-height:168px;}
-  .rdv-nav-bottom {padding-top:12px;padding-bottom:max(12px,env(safe-area-inset-bottom,0px));}
-  .rdv-nav-guidance {top:max(15px,env(safe-area-inset-top,0px));min-height:75px;padding:10px 15px;}
+  .rdv-nav-figma-root {--rdv-nav-panel-height:calc(132px + env(safe-area-inset-bottom,0px));--rdv-nav-guidance-height:80px;}
+  .rdv-nav-bottom {padding-top:10px;}
+  .rdv-nav-guidance {padding:8px 14px;}
   .rdv-nav-guidance-copy strong {font-size:25px;}
-  .rdv-nav-gps-status {top:max(95px,calc(env(safe-area-inset-top,0px) + 84px));}
   .rdv-nav-map-button {height:50px;}
 }
 @media(max-width:359px) {
@@ -240,7 +241,7 @@
 }
 /* Low-glare navigation UI follows explicit map appearance; light remains default. */
 .rdv-nav-figma-root[data-role-theme="dark"] {background:#111827;color:#f1f5f9;}
-.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom,
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom {background:#374151;color:#f1f5f9;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-panel,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-gps-status,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-map-button,
