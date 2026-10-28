@@ -7,7 +7,7 @@ export const HOME_SHEET_EXPANDED_HEIGHT = '82dvh';
 export function draggedHomeSheetHeight(stage: HomeSheetStage, dragOffset: number): string | undefined {
   if (!Number.isFinite(dragOffset) || dragOffset === 0) return undefined;
   const base = stage === 'collapsed' ? '74px' :
-    stage === 'expanded' ? HOME_SHEET_EXPANDED_HEIGHT : 'max(37dvh, 300px)';
+    stage === 'expanded' ? HOME_SHEET_EXPANDED_HEIGHT : 'clamp(304px,42dvh,365px)';
   const direction = dragOffset > 0 ? '-' : '+';
   return `clamp(74px, calc(${base} ${direction} ${Math.abs(dragOffset)}px), ${HOME_SHEET_EXPANDED_HEIGHT})`;
 }

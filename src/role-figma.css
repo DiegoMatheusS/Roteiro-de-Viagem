@@ -22,19 +22,26 @@
 .rdv-figma-bottom-link.is-current .rdv-figma-bottom-icon {background:#edf2ff;}
 .rdv-figma-bottom-link:focus-visible {outline:2px solid var(--role-blue);outline-offset:-1px;}
 .rdv-figma-overflow {top: max(13px, env(safe-area-inset-top,13px));}
-/* Map stays interactive beneath search and the small bottom sheet. */
+/* One-handed address search inside the bottom sheet; the map stays clear. */
+.rdv-home-destination-search {position:relative;min-width:0;isolation:isolate;}
 .rdv-figma-home-search {
-  position:absolute; top:calc(53px + env(safe-area-inset-top,0px)); left:20px;right:20px;
-  z-index:38; display:flex; align-items:center; gap:10px;
-  min-height:54px; padding:6px 12px 6px 16px;
-  background:#fff; border:1px solid #e7ebf1; border-radius:13px;
-  box-shadow:0 3px 14px rgba(27,43,69,.10);
+  position:relative; width:100%;
+  display:flex;align-items:center;gap:10px;
+  min-height:50px;padding:5px 10px 5px 14px;
+  background:#f8fafc;border:1px solid #dce5ef;border-radius:14px;
+  box-shadow:none;
 }
-.rdv-figma-home-search input {min-width:0;flex:1;outline:none;background:transparent;font-size:14px;color:#253041}
-.rdv-figma-home-search input::placeholder{color:#334155;opacity:1}
-.rdv-home-search-feedback {position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:1;padding:12px;border-radius:12px;box-shadow:0 3px 14px #1b2b451a;font-size:12px;}
-.rdv-home-address-suggestions {padding:0;max-height:min(300px,45dvh);overflow-y:auto;overscroll-behavior:contain;}
-.rdv-figma-home-modes{position:absolute;top:calc(114px + env(safe-area-inset-top,0px));left:20px;z-index:35;display:flex;gap:8px;}
+.rdv-figma-home-search:focus-within {border-color:#245ee9;box-shadow:0 0 0 2px #245ee926;}
+.rdv-figma-home-search input {min-width:0;flex:1;outline:none;background:transparent;font-size:14px;color:#253041;}
+.rdv-figma-home-search input::placeholder{color:#64748b;opacity:1;}
+.rdv-home-destination-search .rdv-home-search-feedback {
+  position:relative;top:auto;left:auto;right:auto;z-index:2;
+  margin-top:7px;padding:10px;border-radius:12px;box-shadow:0 2px 12px #1b2b4513;font-size:12px;
+}
+.rdv-home-destination-search .rdv-home-address-suggestions {
+  padding:0;max-height:min(300px,38dvh);overflow-y:auto;overscroll-behavior:contain;
+}
+.rdv-figma-home-modes{position:absolute;top:calc(70px + env(safe-area-inset-top,0px));left:20px;z-index:35;display:flex;gap:8px;}
 .rdv-figma-mode{min-height:36px;display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e0e6ed;border-radius:100px;padding:0 13px;font-size:12px;color:#334155;box-shadow:0 1px 6px #10203813;}
 .rdv-figma-mode.is-current{background:#edf3ff;color:var(--role-blue);border-color:var(--role-blue);font-weight:600;}
 .rdv-figma-home-sheet {
@@ -659,22 +666,30 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
 .rdv-home-map-right-controls {
   position:absolute;
   right:16px;
-  bottom:calc(338px + env(safe-area-inset-bottom,0px));
+  bottom:calc(clamp(304px,42dvh,365px) + 108px + env(safe-area-inset-bottom,0px));
   z-index:25;
   display:flex;
   flex-direction:column;
   align-items:center;
   gap:11px;
 }
+/* Keep the now-circular traffic icon above GPS after raising the home sheet.
+   The standalone traffic overlay is rendered inside the map (before this panel). */
+.rdv-navigation-screen .rdv-map-traffic-control {
+  bottom:calc(clamp(304px,42dvh,365px) + 226px + env(safe-area-inset-bottom,0px)) !important;
+}
 .rdv-home-map-speedometer {
   position:absolute !important;
   left:16px !important;
-  bottom:calc(355px + env(safe-area-inset-bottom,0px)) !important;
+  bottom:calc(clamp(304px,42dvh,365px) + 125px + env(safe-area-inset-bottom,0px)) !important;
   z-index:25 !important;
 }
 @media(max-height:650px) {
-  .rdv-home-map-right-controls {bottom:calc(265px + env(safe-area-inset-bottom,0px));}
-  .rdv-home-map-speedometer {bottom:calc(280px + env(safe-area-inset-bottom,0px)) !important;}
+  .rdv-navigation-screen .rdv-map-traffic-control {
+    bottom:calc(clamp(304px,42dvh,365px) + 208px + env(safe-area-inset-bottom,0px)) !important;
+  }
+  .rdv-home-map-right-controls {bottom:calc(clamp(304px,42dvh,365px) + 90px + env(safe-area-inset-bottom,0px));}
+  .rdv-home-map-speedometer {bottom:calc(clamp(304px,42dvh,365px) + 107px + env(safe-area-inset-bottom,0px)) !important;}
 }
 
 

@@ -332,7 +332,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     if (!place.coords) return;
     // Fecha o teclado antes de revelar o mapa e as opções de rotas.
     searchInputRef.current?.blur();
-    setMapTarget(place);setDisplayRoute(null);setSheet(null);setCollapsed(true);setError('');setSearchError('');
+    setMapTarget(place);setDisplayRoute(null);setSheet(null);setSheetExpanded(false);setCollapsed(true);setError('');setSearchError('');
   };
   const submitQuickSearch = async () => {
     // Read the committed input too: Android IME can submit before React has
@@ -373,38 +373,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
         blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
-<form role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
-          onSubmit={event=>{event.preventDefault();void submitQuickSearch();}}
-          className="rdv-figma-home-search">
-          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
-          <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
-            aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
-            onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
-            onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
-            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
-          <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchPlace.name.trim().length<3}
-            className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
-            {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
-          </button>
-          {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
-            {searchError||'Pesquisando endereço...'}
-          </p>}
-          {!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||suggestionsError||addressSuggestions.length>0)&&
-            <div className="rdv-home-search-feedback rdv-home-address-suggestions bg-white border border-slate-200">
-              {suggestionsBusy&&<p role="status" className="text-xs text-slate-500">Buscando sugestões...</p>}
-              {suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
-              {addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
-                {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
-                  onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
-                  className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">
-                  <strong className="block truncate text-sm text-slate-900">{place.name}</strong>
-                  <small className="block line-clamp-2 text-xs leading-relaxed text-slate-500">{place.address}</small>
-                  {place.coords&&gps.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,gps.position)}</small>}
-                </button>)}
-                <p className="text-[10px] text-slate-500 px-3 py-2">Distâncias em linha reta. Rota real após selecionar.</p>
-              </div>}
-            </div>}
-        </form>
+
     <div className="rdv-figma-home-modes" role="group" aria-label="Modalidade de transporte">
       <button type="button" aria-pressed={travelMode==='car'}
         className={`rdv-figma-mode ${travelMode==='car'?'is-current':''}`}
@@ -437,7 +406,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onLostPointerCapture={()=>{if(dragStart.current!==null){dragStart.current=null;setDragOffset(0);}}}
       // Only the height changes during a gesture: bottom:0 stays anchored.
       style={{height:sheetDragHeight,transitionDuration:dragOffset?'0ms':undefined}}
-      className={`rdv-figma-home-sheet absolute bottom-0 inset-x-0 ${sheetExpanded?'z-[51]':'z-30'} overflow-hidden flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[64px]':sheetExpanded?'h-[82dvh]':dragOffset?'':'h-[228px]'}`}>
+      className={`rdv-figma-home-sheet absolute bottom-0 inset-x-0 ${sheetExpanded?'z-[51]':'z-30'} overflow-hidden flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet ${collapsed?'h-[64px]':sheetExpanded?'h-[82dvh]':dragOffset?'':'h-[clamp(304px,42dvh,365px)]'}`}>
       <button type="button" aria-label={collapsed?'Expandir início':'Recolher para explorar o mapa'} onClick={()=>{if(swallowNextClick.current){swallowNextClick.current=false;return;}if(sheetExpanded)setSheetExpanded(false);else setCollapsed(c=>!c);}}
         data-panel-grip
         aria-expanded={!collapsed}
@@ -460,6 +429,41 @@ export function NavigationHome(props: NavigationHomeProps) {
             <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Bora dar um rolê?</h2>
             <p className="text-[14px] mt-1 text-slate-500">Saia de onde está. A gente cria a volta.</p>
           </div>
+          <div className="rdv-home-destination-search" data-testid="home-inline-destination-search">
+          <form role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
+          onSubmit={event=>{event.preventDefault();void submitQuickSearch();}}
+          className="rdv-figma-home-search">
+          <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
+          <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
+            aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
+            onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
+            onFocus={()=>{setCollapsed(false);setSheetExpanded(true);}}
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
+          <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchPlace.name.trim().length<3}
+            className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
+            {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
+          </button>
+        </form>
+          {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
+            {searchError||'Pesquisando endereço...'}
+          </p>}
+          {!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||suggestionsError||addressSuggestions.length>0)&&
+            <div className="rdv-home-search-feedback rdv-home-address-suggestions bg-white border border-slate-200">
+              {suggestionsBusy&&<p role="status" className="text-xs text-slate-500">Buscando sugestões...</p>}
+              {suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
+              {addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
+                {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
+                  onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
+                  className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">
+                  <strong className="block truncate text-sm text-slate-900">{place.name}</strong>
+                  <small className="block line-clamp-2 text-xs leading-relaxed text-slate-500">{place.address}</small>
+                  {place.coords&&gps.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,gps.position)}</small>}
+                </button>)}
+                <p className="text-[10px] text-slate-500 px-3 py-2">Distâncias em linha reta. Rota real após selecionar.</p>
+              </div>}
+            </div>}
+        </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
