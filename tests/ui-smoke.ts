@@ -340,8 +340,12 @@ try {
   assert.equal(await modeGroup.getByRole('button',{name:'Moto'}).getAttribute('aria-pressed'),'true');
   await modeGroup.getByRole('button',{name:'Carro'}).click();
   const initialHomeBounds = await homePanel.boundingBox();
-  assert.ok(initialHomeBounds && initialHomeBounds.y > 0.56 * 844,
-    'O painel Início deve começar mais baixo, deixando a maior parte do mapa visível');
+  const inlineSearch=page.getByTestId('home-inline-destination-search');
+  assert.equal(await inlineSearch.count(),1,'Busca de endereço deve aparecer dentro do painel');
+  assert.equal(await homePanel.locator('[data-testid="home-inline-destination-search"]').count(),1,
+    'A busca fica abaixo do título, e não sobre o mapa');
+  assert.ok(initialHomeBounds && initialHomeBounds.y > 0.47 * 844,
+    'O painel Início deve ficar mais alto para exibir a busca e ainda preservar o mapa');
   // Regression: dragging the Home grip must grow the sheet from the BOTTOM;
   // translating the entire sheet up exposed a second map strip below it.
   const homeGrip=page.locator('[data-panel-grip]');
