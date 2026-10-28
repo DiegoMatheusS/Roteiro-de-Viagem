@@ -186,7 +186,7 @@ public class TravelNativePlugin extends Plugin {
     } catch(ApiException error) {
       if(error.getStatusCode()==12501 || error.getStatusCode()==16)call.reject("Login Google cancelado.");
       else if(error.getStatusCode()==10)
-        call.reject("Login Google não autorizado (código 10). Cadastre no Google Cloud o OAuth Android deste pacote e certificado."+googleOAuthSigningInfo()+" Para todos os APKs de teste, configure assinatura persistente no GitHub Actions.");
+        call.reject("Login Google não autorizado (código 10 / DEVELOPER_ERROR)."+googleOAuthSigningInfo()+" Client ID Web solicitado: "+call.getString("clientId","não informado")+". Confirme que este cliente Web e o OAuth Android (pacote + SHA-1 acima) pertencem ao mesmo projeto Google Cloud. Se já estiverem cadastrados, compare os identificadores exatos e a assinatura do APK instalado; não é necessário cadastrar novamente sem identificar a divergência.");
       else call.reject("Falha ao entrar com Google (código "+error.getStatusCode()+"). Confira a configuração OAuth e o SHA-1 da assinatura.");
     } catch(Exception error){call.reject("Não foi possível autenticar com Google.");}
   }
