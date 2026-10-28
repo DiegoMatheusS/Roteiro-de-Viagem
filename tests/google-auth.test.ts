@@ -63,7 +63,9 @@ test('Android code 10 exposes only public package and certificate hash for OAuth
   assert.match(android,/googleOAuthSigningInfo\(\)/);
   assert.match(android,/PackageManager\.GET_SIGNING_CERTIFICATES/);
   assert.match(android,/MessageDigest\.getInstance\("SHA-1"\)/);
-  assert.match(android,/assinatura persistente no GitHub Actions/);
+  assert.match(android,/Client ID Web solicitado/);
+  assert.match(android,/call\.getString\("clientId","não informado"\)/);
+  assert.match(android,/mesmo projeto Google Cloud/);
 });
 
 test('Google OAuth Android code 10 reports installed APK SHA-1 and lets user copy diagnostics',()=>{

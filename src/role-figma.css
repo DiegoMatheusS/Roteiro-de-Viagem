@@ -726,9 +726,19 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   .rdv-start-brand-wave{display:none;}
 }
 
-/* The traffic toggle stays next to the GPS cluster instead of hiding behind
-   the dynamic map search sheet. When expanded, place it beside GPS because
-   the header occupies the space immediately above the controls. */
+/* The traffic icon sits immediately above the two round GPS/alert buttons.
+   Traffic is rendered inside the map canvas; GPS/alert controls are siblings. */
+.rdv-navigation-screen .rdv-map-traffic-control {
+  right:16px;
+  bottom:calc(456px + env(safe-area-inset-bottom,0px));
+  z-index:26;
+}
+@media(max-height:650px) {
+  .rdv-navigation-screen .rdv-map-traffic-control {
+    bottom:calc(383px + env(safe-area-inset-bottom,0px));
+  }
+}
+/* Mapa tab: match the sheet-dependent GPS position, not a fixed viewport offset. */
 .rdv-flat-map[data-map-suggestions-visible="true"][data-map-sheet-expanded="false"] .rdv-map-traffic-control {
   bottom:568px;
 }

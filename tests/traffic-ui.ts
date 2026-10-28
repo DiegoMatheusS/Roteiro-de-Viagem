@@ -37,7 +37,11 @@ try{
   }
   await showTraffic().click();
   await map.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
-  await page.getByLabel('Legenda do trânsito').waitFor();
+  const trafficToggle=map.locator('[data-traffic-control] button');
+  assert.equal(await trafficToggle.getAttribute('aria-pressed'),'true');
+  assert.match((await trafficToggle.getAttribute('class'))||'',/rounded-full/);
+  assert.match((await trafficToggle.getAttribute('class'))||'',/bg-blue-600/);
+  assert.equal(await page.getByLabel('Legenda do trânsito').count(),0,'no legend or detail panel should cover roads');
   // MapLibre can signal source metadata before raster-tile network requests.
   for(let retry=0;retry<30&&tileCalls===0;retry++)await page.waitForTimeout(200);
   assert.ok(tileCalls>0,'a visible traffic layer must request at least one real tile');
@@ -46,6 +50,8 @@ try{
   assert.equal(statusCalls,1,'GPS callbacks cannot repeat traffic metadata requests');
   fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/traffic-map.png'});
   await hideTraffic().click();await map.locator('[data-traffic-state="off"]').waitFor();
+  assert.equal(await trafficToggle.getAttribute('aria-pressed'),'false');
+  assert.match((await trafficToggle.getAttribute('class'))||'',/bg-white/);
   assert.equal(await page.getByLabel('Legenda do trânsito').count(),0);
   await page.waitForTimeout(200);const stoppedTiles=tileCalls;
   await page.getByRole('button',{name:'Mover GPS',exact:true}).click();await page.waitForTimeout(250);
