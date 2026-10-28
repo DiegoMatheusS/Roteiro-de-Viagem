@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {draggedHomeSheetHeight,HOME_SHEET_EXPANDED_HEIGHT} from '../src/services/homeSheetSizing';
+import {draggedHomeSheetHeight,HOME_SHEET_EXPANDED_HEIGHT,HOME_SHEET_RESTING_HEIGHT} from '../src/services/homeSheetSizing';
 
 test('home sheet drag changes height instead of translating the panel away from screen bottom',()=>{
   assert.equal(HOME_SHEET_EXPANDED_HEIGHT,'82dvh');
+  assert.equal(HOME_SHEET_RESTING_HEIGHT,'max(37dvh, 300px)');
   assert.equal(draggedHomeSheetHeight('resting',0),undefined);
   assert.equal(draggedHomeSheetHeight('resting',-180),
     'clamp(74px, calc(max(37dvh, 300px) + 180px), 82dvh)');
