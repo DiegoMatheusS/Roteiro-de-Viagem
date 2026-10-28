@@ -182,7 +182,8 @@ export function MapTab(props: MapTabProps) {
     if(gps.accuracyMeters>150)throw new Error('GPS impreciso. Tente novamente em um lugar aberto.');
     return chooseOrigin(gps);
   };
-  return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}>
+  return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}
+    data-map-sheet-expanded={sheetExpanded} data-map-suggestions-visible={showAddressSuggestions}>
     <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute?.selectedId)?.routePath || [] : trip?.routePath || []}
       routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
       onSelectCoordinates={()=>setSheetExpanded(false)}
