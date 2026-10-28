@@ -398,7 +398,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     </div>
     <Speedometer position={gps.status === 'ready' ? gps.position : null}
       className="rdv-home-map-speedometer" />
-    <div data-testid="home-main-sheet"
+    <div data-testid="home-main-sheet" data-sheet-stage={sheetStage}
       onPointerDown={startPanelDrag}
       onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}
       onPointerUp={finishPanelDrag}
