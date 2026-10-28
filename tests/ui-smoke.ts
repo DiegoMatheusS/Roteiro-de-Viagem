@@ -598,7 +598,9 @@ try {
   assert.deepEqual(kmPayload.originCoords, [-23.551, -46.629]);
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
-  await planner.getByText(/Percurso por estradas reais/).first().waitFor();
+  await planner.getByRole('heading', { name: 'Clima e pedágios' }).waitFor();
+  assert.equal(await planner.getByText(/Percurso por estradas reais/).count(),0,
+    'não mostrar a antiga faixa amarela de trânsito e cobertura de pedágios indisponíveis');
   // Move the edge-of-route station clear of the provider attribution on the
   // compact preview. Use a real drag, keeping pointer hit-testing enabled.
   const preview=planner.locator('.maplibregl-canvas, .leaflet-container').first();
