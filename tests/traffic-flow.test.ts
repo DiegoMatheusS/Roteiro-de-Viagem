@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createTrafficFlowController,isTrafficMapError,type TrafficConfig,type TrafficMapPort,type TrafficState} from '../src/services/trafficFlow';
+import {createTrafficFlowController,isTrafficMapError,TRAFFIC_MAX_CAMERA_RADIUS_KM,trafficViewportRadiusKm,type TrafficConfig,type TrafficMapPort,type TrafficState} from '../src/services/trafficFlow';
 
 const config:TrafficConfig={available:true,tileUrl:'https://api.example.test/api/traffic/tiles/{style}/{z}/{x}/{y}.png',attribution:'© TomTom',refreshSeconds:60};
 const flush=()=>new Promise<void>(resolve=>setImmediate(resolve));
 function surface(){
   let events!:Parameters<TrafficMapPort['listen']>[0];
-  const state={zoom:18,moving:false,url:null as string|null,updates:[] as (string|null)[],states:[] as TrafficState[]};
-  const port:TrafficMapPort={getZoom:()=>state.zoom,isMoving:()=>state.moving,
+  const state={zoom:18,radiusKm:2,moving:false,url:null as string|null,updates:[] as (string|null)[],states:[] as TrafficState[]};
+  const port:TrafficMapPort={getZoom:()=>state.zoom,getViewportRadiusKm:()=>state.radiusKm,isMoving:()=>state.moving,
     setTiles:url=>{state.url=url;state.updates.push(url);},listen:callbacks=>{events=callbacks;return()=>{};}};
   return {state,port,get events(){return events;},onState:(value:TrafficState)=>state.states.push(value)};
 }
@@ -69,6 +69,30 @@ test('missing provider configuration and low zoom never pretend to have live tra
   const map=surface();map.state.zoom=4;let calls=0;
   const control=createTrafficFlowController({...map,load:async()=>{calls++;return {...config,available:false,tileUrl:null};}});
   assert.equal(map.state.states.at(-1),'zoom-in');assert.equal(calls,0);
-  map.state.zoom=10;map.events.idle();await flush();assert.equal(calls,1);
+  map.state.zoom=12;map.events.idle();await flush();assert.equal(calls,1);
   assert.equal(map.state.states.at(-1),'unavailable');assert.equal(map.state.url,null);control.destroy();
+});
+
+test('10 km viewport limit avoids requests and clears the existing overlay when zooming out',async()=>{
+  const map=surface();let calls=0;
+  const control=createTrafficFlowController({...map,load:async()=>{calls++;return config;}});
+  await flush();assert.equal(calls,1);
+  map.events.loaded();assert.equal(map.state.states.at(-1),'live');
+  map.state.radiusKm=10.01;map.events.idle();
+  assert.equal(map.state.url,null,'traffic overlay removed when camera exceeds the radius');
+  assert.equal(map.state.states.at(-1),'zoom-in');
+  assert.equal(calls,1);
+  for(let i=0;i<20;i++)map.events.idle();assert.equal(calls,1);
+  map.state.radiusKm=9.99;map.events.idle();await flush();
+  assert.equal(calls,2,'fetch only after returning to a nearby camera view');
+  control.destroy();
+});
+test('camera-to-corner radius is geodesic and bounded around the actual viewport',()=>{
+  assert.equal(TRAFFIC_MAX_CAMERA_RADIUS_KM,10);
+  assert.equal(trafficViewportRadiusKm([-23.55,-46.63],[-23.55,-46.63],[-23.55,-46.63]),0);
+  const nearby=trafficViewportRadiusKm([-23.55,-46.63],[-23.58,-46.66],[-23.52,-46.6]);
+  const distant=trafficViewportRadiusKm([-23.55,-46.63],[-23.75,-46.85],[-23.35,-46.41]);
+  assert.ok(nearby>2&&nearby<10);
+  assert.ok(distant>10);
+  assert.equal(trafficViewportRadiusKm([NaN,0],[0,0],[0,0]),Infinity);
 });
