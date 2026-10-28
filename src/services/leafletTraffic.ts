@@ -1,12 +1,17 @@
 import L from 'leaflet';
-import {TRAFFIC_MIN_ZOOM,type TrafficMapPort} from './trafficFlow';
+import {TRAFFIC_MIN_ZOOM,trafficViewportRadiusKm,type TrafficMapPort} from './trafficFlow';
 
 export function createLeafletTrafficPort(map:L.Map):TrafficMapPort {
   let layer:L.TileLayer|null=null,currentUrl:string|null=null,moving=false;
   let events:Parameters<TrafficMapPort['listen']>[0]|null=null;
   const clear=()=>{if(layer){layer.off();try{layer.remove();}catch{/* Map already gone. */}layer=null;}currentUrl=null;};
   return {
-    getZoom:()=>map.getZoom(),isMoving:()=>moving,
+    getZoom:()=>map.getZoom(),
+    getViewportRadiusKm:()=>{
+      const center=map.getCenter(),bounds=map.getBounds(),sw=bounds.getSouthWest(),ne=bounds.getNorthEast();
+      return trafficViewportRadiusKm([center.lat,center.lng],[sw.lat,sw.lng],[ne.lat,ne.lng]);
+    },
+    isMoving:()=>moving,
     setTiles(url,attribution='© TomTom'){
       if(!url){clear();return;}
       if(currentUrl===url&&layer)return;
