@@ -18,8 +18,7 @@ import { prepareRoadPreview } from '../services/itinerary';
 import { requestTolls, tollBudgetPatch } from '../services/routeConditions';
 import { useEffect } from 'react';
 import { InteractiveMap } from './InteractiveMap';
-import { Speedometer } from './Speedometer';
-import { RoadAlertReporter } from './RoadAlertReporter';
+import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
 import { searchLocations } from '../services/locationSearch';
 import { formatAddressDistance } from '../services/addressSuggestions';
@@ -383,21 +382,14 @@ export function NavigationHome(props: NavigationHomeProps) {
         onClick={()=>setTravelMode('motorcycle')}><Navigation size={15}/> Moto</button>
     </div>
         {/* Coluna fixada à área do mapa; o sheet sobe por cima sem deslocá-la. */}
-    <div aria-label="Controles de localização e ocorrência no início"
+    <div aria-label="Controles de localização e som no início"
       className="rdv-home-map-right-controls">
       <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
-        className="w-12 h-12 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
-        <Crosshair size={22} strokeWidth={2.2}/>
+        className="w-14 h-14 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
+        <Crosshair size={30} strokeWidth={2.2}/>
       </button>
-      <RoadAlertReporter
-        location={gps.status === 'ready' ? gps.position : null}
-        speedKmH={gps.status === 'ready' && gps.position?.speedMetersPerSecond != null
-          ? gps.position.speedMetersPerSecond * 3.6 : null}
-        menuPlacement="above"
-      />
+      <VoiceGuidanceControl guidance={null} variant="map"/>
     </div>
-    <Speedometer position={gps.status === 'ready' ? gps.position : null}
-      className="rdv-home-map-speedometer" />
     <div data-testid="home-main-sheet"
       onPointerDown={startPanelDrag}
       onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-180,Math.min(260,event.clientY-dragStart.current)));}}

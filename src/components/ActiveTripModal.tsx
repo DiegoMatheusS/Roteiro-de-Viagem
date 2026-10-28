@@ -301,7 +301,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           title={cameraMode==='exploring'?'Voltar a seguir o GPS':'Centralizar GPS'}
           onClick={()=>setCenterRequest(v=>v+1)} disabled={!isGpsActive}
           className="rdv-nav-map-button">
-          <LocateFixed size={21} strokeWidth={1.9}/><span>Centrar</span>
+          <LocateFixed size={30} strokeWidth={2.1}/><span>Centrar</span>
         </button>
       </div>
 

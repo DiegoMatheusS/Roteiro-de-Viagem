@@ -122,8 +122,8 @@ export function RoadAlertReporter({
     <button type="button" aria-label="Reportar problema na estrada"
       aria-expanded={menuOpen} aria-haspopup="menu"
       onClick={()=>setMenuOpen(value=>!value)}
-      className="w-12 h-12 rounded-full bg-white text-amber-700 border border-amber-200 flex items-center justify-center shadow-[0_4px_18px_rgba(15,23,42,.16)] active:scale-95 transition-transform">
-      {menuOpen?<X size={23}/>:<AlertTriangle size={25} strokeWidth={2.3}/>}
+      className="w-14 h-14 rounded-full bg-white text-amber-700 border border-amber-200 flex items-center justify-center shadow-[0_4px_18px_rgba(15,23,42,.16)] active:scale-95 transition-transform">
+      {menuOpen?<X size={30}/>:<AlertTriangle size={30} strokeWidth={2.3}/>}
     </button>
 
     {menuOpen&&createPortal(
