@@ -1,8 +1,8 @@
 import {captureMapFallbackViewport,type MapFallbackViewport} from '../services/mapFallbackViewport';
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {Compass,Layers} from 'lucide-react';
 import {updateMapCourse} from '../services/gpsHeading';
-import {Map as GlMap,Marker as GlMarker,setWorkerUrl,type MapMouseEvent} from 'maplibre-gl';
+import {Map as GlMap,Marker as GlMarker,setWorkerUrl,type MapMouseEvent,type ErrorEvent} from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type {InteractiveMapProps} from './InteractiveMap';
@@ -45,6 +45,9 @@ import type {RoadAlert} from '../types/roadAlerts';
 import {ROAD_ALERT_TYPES} from '../types/roadAlerts';
 import {confirmRoadAlert} from '../hooks/useRoadAlerts';
 import {getCurrentDeviceLocation} from '../services/locationService';
+import {MapTrafficControl} from './MapTrafficControl';
+import {createMapLibreTrafficPort} from '../services/mapLibreTraffic';
+import {isTrafficMapError} from '../services/trafficFlow';
 
 setWorkerUrl(workerUrl);
 const EMPTY_POINTS:[number,number][]=[];
@@ -60,6 +63,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const appearanceRef=useRef(appearanceTheme);appearanceRef.current=appearanceTheme;
   const latest=useRef(props);latest.current=props;
   const [ready,setReady]=useState(false);
+  const [trafficMap,setTrafficMap]=useState<GlMap|null>(null);
+  const trafficPort=useMemo(()=>trafficMap?createMapLibreTrafficPort(trafficMap):null,[trafficMap]);
   const [offline,setOffline]=useState(()=>typeof navigator!=='undefined'&&!navigator.onLine);
   const [baseStyle,setBaseStyle]=useState<MapStyleType>(props.initialStyle||'light');
   const [styleMenu,setStyleMenu]=useState(false);
@@ -604,7 +609,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       p.onSelectCoordinates?.([event.lngLat.lat,event.lngLat.lng]);
     };
     map.on('click',select);
-    const onError=()=>{
+    const onError=(event:ErrorEvent)=>{
+      if(isTrafficMapError(event))return;
       if(appliedOfflineRegion){
         // Missing local tiles must never force online Leaflet/OSM fallback.
         if(!changingStyle&&++tileErrors>=3)fail();
@@ -626,15 +632,15 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       changingStyle=false;tileErrors=0;
       const root=container.current?.parentElement;
       if(root)root.dataset.mapStyleReady=appliedOfflineRegion?'offline':activeStyle;
-      if(!appliedOfflineRegion&&activeStyle==='light'&&activeTheme==='light')
-        applyRoleVectorPalette(map);
+      if(!appliedOfflineRegion&&activeStyle==='light')
+        applyRoleVectorPalette(map,activeTheme);
       requestRender();
     };
     map.on('style.load',styleLoaded);
     const load=()=>{
       if(disposed||failed)return;
       loaded=true;clearTimeout(timeout);
-      setReady(true);requestRender();
+      setReady(true);setTrafficMap(map);requestRender();
       publishViewport();
     };
     map.once('load',load);
@@ -688,6 +694,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     data-map-style-menu={styleMenu?'open':'closed'}
     data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
+    <MapTrafficControl port={trafficPort} offline={offline||Boolean(regionId)} navigation={Boolean(props.navigationMode)}/>
     {selectedRegion&&<div role="status" aria-live="polite"
       className="pointer-events-none absolute left-3 top-3 z-30 max-w-[220px] rounded-xl bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800 shadow-lg">
       Mapa local: {selectedRegion.name} · zoom {selectedRegion.minZoom}–{selectedRegion.maxZoom}

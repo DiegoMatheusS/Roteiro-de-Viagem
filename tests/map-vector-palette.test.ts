@@ -11,9 +11,9 @@ test('paleta clara mantém prédios brancos, ruas cinzas e água/vegetação col
   assert.equal(roleVectorPaintForLayer({ id:'water',type:'fill' })['fill-color'],'#b7def5');
   assert.equal(roleVectorPaintForLayer({ id:'park',type:'fill' })['fill-color'],'#d7ecd9');
   assert.equal(roleVectorPaintForLayer({ id:'landcover_wood',type:'fill' })['fill-color'],'#c9e5cf');
-  assert.equal(roleVectorPaintForLayer({ id:'highway_minor',type:'line' })['line-color'],'#d5dee6');
-  assert.equal(roleVectorPaintForLayer({ id:'highway_major_inner',type:'line' })['line-color'],'#f2f5f7');
-  assert.equal(roleVectorPaintForLayer({ id:'highway_motorway_bridge_casing',type:'line' })['line-color'],'#aebfcb');
+  assert.equal(roleVectorPaintForLayer({ id:'highway_minor',type:'line' })['line-color'],'#bfc6ce');
+  assert.equal(roleVectorPaintForLayer({ id:'highway_major_inner',type:'line' })['line-color'],'#bfc6ce');
+  assert.equal(roleVectorPaintForLayer({ id:'highway_motorway_bridge_casing',type:'line' })['line-color'],'#bfc6ce');
   assert.equal(roleVectorPaintForLayer({ id:'waterway',type:'line' })['line-color'],'#91c5e7');
   assert.equal(roleVectorPaintForLayer({ id:'label_city',type:'symbol' })['text-color'],'#2c4052');
   assert.equal(roleVectorPaintForLayer({ id:'highway-name-minor',type:'symbol' })['text-halo-color'],'#f8fafc');
@@ -47,6 +47,6 @@ test('aplica só propriedades de tinta e tolera uma camada ausente', () => {
     'water:fill-color=#b7def5',
     'building:fill-color=#ffffff',
     'building:fill-outline-color=#dbe3e9',
-    'highway_major_casing:line-color=#b8c7d1',
+    'highway_major_casing:line-color=#bfc6ce',
   ]);
 });

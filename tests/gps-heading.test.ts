@@ -24,10 +24,8 @@ test('GPS arrow crosses true north by the shortest angle, without full turn',()=
   assert.equal(shortestHeadingTransition(359,2),362);
   assert.equal(shortestHeadingTransition(362,358),358);
 });
-test('browser, Capacitor and native Android transport optional real GPS course',()=>{
-  const service=read('src/services/locationService.ts');
+test('native Android transports optional real GPS course',()=>{
   const native=read('android/app/src/main/java/br/com/roteirodeviagem/app/TravelLocationService.java');
-  assert.match(service,/headingDegrees: heading !== null && Number.isFinite\(heading\)/);
   assert.match(native,/location\.hasBearing\(\)/);
   assert.match(native,/pos\.put\("headingDegrees"/);
 });

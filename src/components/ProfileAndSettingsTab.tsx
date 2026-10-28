@@ -1,4 +1,5 @@
 import { AndroidStatus } from './AndroidStatus';
+import {GpsCalibrationPanel} from './GpsCalibrationPanel';
 import {OfflineRegionsPanel} from './OfflineRegionsPanel';
 import { EmergencyContactsEditor } from './EmergencyContactsEditor';
 import { ProfileFigmaHome } from './ProfileFigmaHome';
@@ -623,6 +624,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
             </div>
 
             <AndroidStatus />
+            <GpsCalibrationPanel />
             {/* QUERO VOLTAR PRA CASA (Requirement #11) */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 space-y-4">
               <div className="flex items-center justify-between">
