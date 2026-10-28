@@ -85,6 +85,15 @@ try{
     assert.equal(layout.noFloatingSearch,true,'no duplicate search overlays the map');
     assert.equal(layout.searchVisible,true);
     assert.ok(layout.collapsedHeight>=300,'the sheet rises to make room for the search');
+    const savedShortcut=page.getByRole('button',{name:'Salvos',exact:true});
+    assert.equal(await savedShortcut.getAttribute('aria-expanded'),'false');
+    await savedShortcut.tap();
+    await page.getByRole('region',{name:'Endereços salvos na busca'}).waitFor();
+    await page.getByText('Entre na sua conta para cadastrar Casa, Trabalho e outros locais.').waitFor();
+    assert.equal(await savedShortcut.getAttribute('aria-expanded'),'true');
+    await savedShortcut.tap();
+    await page.getByRole('region',{name:'Endereços salvos na busca'}).waitFor({state:'hidden'});
+    assert.equal(await savedShortcut.getAttribute('aria-expanded'),'false');
   }
   await input.fill('Rua de teste');
   await submit.tap();
