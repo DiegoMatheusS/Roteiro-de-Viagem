@@ -85,14 +85,15 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   const [exceedsLimit, setExceedsLimit] = useState(false), [limitAccepted, setLimitAccepted] = useState(false);
   const [calculatedKey, setCalculatedKey] = useState(''), [routingAttempt, setRoutingAttempt] = useState(0);
   const routingKey = JSON.stringify([manualStops, acceptedSuggestions, routeAnchor?.originCoords, routeAnchor?.destinationCoords, routingAttempt]);
-  const preserveGeneratedCircuit = routeAnchor?.routingSource === 'OSRM' && routeAnchor?.isCircular === true &&
+  const preserveVerifiedWaypoints = routeAnchor?.routingSource === 'OSRM' &&
     (routeAnchor?.waypointOrder?.length || 0) > 2 && routeAnchor.routePath.length > 1 &&
     manualStops.length === 0 && acceptedSuggestions.length === 0;
-  const staleRoute = useRoad && !preserveGeneratedCircuit && calculatedKey !== routingKey;
+  const staleRoute = useRoad && !preserveVerifiedWaypoints && calculatedKey !== routingKey;
   useEffect(() => {
     if (!useRoad || !routeAnchor || !isOpen) return;
-    // Percurso circular verificado sem atrações: não substituí-lo por origem -> origem de 0 km.
-    if (preserveGeneratedCircuit) {
+    // Keep verified circuits and scenic waypoints when only adjusting budget.
+    // Recalculate after an explicit stop edit, not on opening the same trip.
+    if (preserveVerifiedWaypoints) {
       setWorkingTrip(routeAnchor); setExceedsLimit(false); setRouteError(''); setIsRouting(false);
       setCalculatedKey(routingKey);
       return;
@@ -107,7 +108,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
         .finally(() => { if (!controller.signal.aborted) setIsRouting(false); });
     }, 400);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [routingKey, useRoad, routeAnchor, isOpen, preserveGeneratedCircuit]);
+  }, [routingKey, useRoad, routeAnchor, isOpen, preserveVerifiedWaypoints]);
   const [departureAt, setDepartureAt] = useState(() => { if(!presetTrip?.departureAt) return ''; const date=new Date(presetTrip.departureAt); return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); });
   const [weatherError, setWeatherError] = useState(''), [tollError, setTollError] = useState('');
   const [conditionsBusy, setConditionsBusy] = useState(false), [conditionsAttempt, setConditionsAttempt] = useState(0);

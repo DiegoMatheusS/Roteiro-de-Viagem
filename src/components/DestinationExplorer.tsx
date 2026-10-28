@@ -60,7 +60,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
       const name=getOriginLabel?.()||'Sua localização atual';
       // A GPS read can complete after the user changes/closes the destination.
       if(controller.signal.aborted || !activeRef.current)return null;
-      const choices=await fetchRouteChoices(position,target.coords,controller.signal);
+      const choices=await fetchRouteChoices(position,target.coords,controller.signal,'fast');
       if(controller.signal.aborted || !activeRef.current)return null;
       if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
       setRoutes(choices);setSelected(0);setOrigin(position);setOriginName(name);setTollChecks({});

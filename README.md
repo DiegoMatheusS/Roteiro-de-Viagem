@@ -59,6 +59,8 @@ No Início, passeios automáticos **Por Km** e **Por Horas**, sem destino ou par
 
 A busca rápida do Início e da aba Mapa mostra sugestões após uma pausa na digitação, a partir de três caracteres. Atualizações do GPS não repetem a consulta. A distância exibida é aproximada em linha reta, apenas com GPS recente e preciso; a distância rodoviária é calculada ao escolher o destino. Selecionar um resultado fecha o teclado e abre o destino no mapa. O botão de pesquisa e Enter continuam disponíveis, com cancelamento da consulta anterior quando o texto muda.
 
+Ao escolher um endereço na busca rápida do Início ou da aba Mapa, a rota de menor tempo estimado fica selecionada; as opções turísticas continuam disponíveis para escolha manual. No painel inferior **Rolê com origem e destino**, **Mais turística** começa marcada, e é possível trocar para **Mais rápida**. Esse planejamento usa alternativas rodoviárias verificadas e preserva as atrações escolhidas ao ajustar o orçamento. Quando não há alternativa turística verificada, o app informa a limitação e usa a rota mais rápida disponível. As estimativas não incluem trânsito ao vivo.
+
 ## Comparar postos e calcular custos
 
 No planejamento, abra **Encontrar combustível mais barato**. Informe o combustível compatível com o veículo, consumo nesse combustível, combustível restante e quantidade a abastecer. Opcionalmente, informe a saída planejada.
