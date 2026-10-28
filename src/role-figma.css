@@ -663,33 +663,23 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
 
 /* Controles fixos na área do mapa. O sheet (z-index 30/51) os cobre ao subir.
    Nenhuma posição depende da altura ou do gesto de arrastar o painel. */
+.rdv-navigation-screen {
+  --rdv-home-map-controls-bottom:calc(clamp(304px,42dvh,365px) + 108px + env(safe-area-inset-bottom,0px));
+}
 .rdv-home-map-right-controls {
   position:absolute;
   right:16px;
-  bottom:calc(clamp(304px,42dvh,365px) + 108px + env(safe-area-inset-bottom,0px));
+  bottom:var(--rdv-home-map-controls-bottom);
   z-index:25;
   display:flex;
   flex-direction:column;
   align-items:center;
   gap:11px;
 }
-/* Keep the now-circular traffic icon above GPS after raising the home sheet.
-   The standalone traffic overlay is rendered inside the map (before this panel). */
-.rdv-navigation-screen .rdv-map-traffic-control {
-  bottom:calc(clamp(304px,42dvh,365px) + 226px + env(safe-area-inset-bottom,0px)) !important;
-}
-.rdv-home-map-speedometer {
-  position:absolute !important;
-  left:16px !important;
-  bottom:calc(clamp(304px,42dvh,365px) + 125px + env(safe-area-inset-bottom,0px)) !important;
-  z-index:25 !important;
-}
 @media(max-height:650px) {
-  .rdv-navigation-screen .rdv-map-traffic-control {
-    bottom:calc(clamp(304px,42dvh,365px) + 208px + env(safe-area-inset-bottom,0px)) !important;
+  .rdv-navigation-screen {
+    --rdv-home-map-controls-bottom:calc(clamp(304px,42dvh,365px) + 90px + env(safe-area-inset-bottom,0px));
   }
-  .rdv-home-map-right-controls {bottom:calc(clamp(304px,42dvh,365px) + 90px + env(safe-area-inset-bottom,0px));}
-  .rdv-home-map-speedometer {bottom:calc(clamp(304px,42dvh,365px) + 107px + env(safe-area-inset-bottom,0px)) !important;}
 }
 
 
@@ -741,21 +731,15 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   .rdv-start-brand-wave{display:none;}
 }
 
-/* The traffic icon sits immediately above the two round GPS/alert buttons.
-   Traffic is rendered inside the map canvas; GPS/alert controls are siblings. */
+/* Traffic sits above the larger GPS/sound buttons with the same centerline. */
 .rdv-navigation-screen .rdv-map-traffic-control {
-  right:16px;
-  bottom:calc(456px + env(safe-area-inset-bottom,0px));
+  right:20px;
+  bottom:calc(var(--rdv-home-map-controls-bottom) + 135px);
   z-index:26;
-}
-@media(max-height:650px) {
-  .rdv-navigation-screen .rdv-map-traffic-control {
-    bottom:calc(383px + env(safe-area-inset-bottom,0px));
-  }
 }
 /* Mapa tab: match the sheet-dependent GPS position, not a fixed viewport offset. */
 .rdv-flat-map[data-map-suggestions-visible="true"][data-map-sheet-expanded="false"] .rdv-map-traffic-control {
-  bottom:568px;
+  bottom:584px;
 }
 .rdv-flat-map[data-map-sheet-expanded="true"] .rdv-map-traffic-control {
   top:clamp(64px,10dvh,118px);

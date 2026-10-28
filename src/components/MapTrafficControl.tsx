@@ -15,7 +15,7 @@ export function MapTrafficControl({port,offline=false,navigation=false}:{port:Tr
   useEffect(()=>{controller.current?.setEnabled(enabled);},[enabled]);
   useEffect(()=>{controller.current?.setOffline(offline);},[offline]);
   return <div data-traffic-state={state} data-traffic-control data-traffic-enabled={enabled}
-    className={`absolute z-30 ${navigation?'right-5 bottom-[calc(var(--rdv-nav-panel-height)+151px)]':'right-4 bottom-[370px] rdv-map-traffic-control'}`}>
+    className={`absolute z-30 ${navigation?'right-6 bottom-[calc(var(--rdv-nav-panel-height)+159px)]':'right-5 bottom-[386px] rdv-map-traffic-control'}`}>
     <button type="button" aria-label={enabled?'Ocultar trânsito':'Mostrar trânsito'}
       aria-pressed={enabled} title={enabled?'Ocultar trânsito':'Mostrar trânsito'}
       onClick={()=>setEnabled(value=>!value)}

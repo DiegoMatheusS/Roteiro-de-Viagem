@@ -37,7 +37,7 @@ test('não associa limite a estrada distante, via ambígua ou sem tag', () => {
   assert.equal(resolveRoadSpeedLimit([way(2, '60'), way(5, '40')], location, 5), null);
 });
 
-test('interface preserva contraste dos botões e usa velocímetro comum nos mapas', () => {
+test('interface preserva contraste dos botões e mostra velocímetro só na navegação', () => {
   const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   const rgb = (hex: string) => {
     const channels = [1,3,5].map(offset => parseInt(hex.slice(offset, offset + 2), 16) / 255);
@@ -53,5 +53,6 @@ test('interface preserva contraste dos botões e usa velocímetro comum nos mapa
   const map = readFileSync(new URL('../src/components/MapTab.tsx', import.meta.url), 'utf8');
   assert.match(home, /Escolher KM/);
   assert.match(home, /Escolher horas/);
-  for (const component of [home, trip, map]) assert.match(component, /<Speedometer/);
+  assert.match(trip, /<Speedometer/);
+  for (const component of [home, map]) assert.doesNotMatch(component, /<Speedometer/);
 });

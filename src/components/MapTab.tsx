@@ -22,7 +22,6 @@ import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { RoadAlertReporter } from './RoadAlertReporter';
-import { Speedometer } from './Speedometer';
 import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
@@ -227,8 +226,8 @@ export function MapTab(props: MapTabProps) {
     <div aria-label="Controles de localização e ocorrência"
       className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : showAddressSuggestions?'bottom-[448px]':'bottom-[250px]'}`}>
       <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
-        className="w-12 h-12 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
-        <LocateFixed size={24} strokeWidth={2.2}/>
+        className="w-14 h-14 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
+        <LocateFixed size={30} strokeWidth={2.2}/>
       </button>
       <RoadAlertReporter location={location.status==='ready' ? location.position : null}
         speedKmH={location.status==='ready' && location.position?.speedMetersPerSecond!=null
@@ -236,8 +235,6 @@ export function MapTab(props: MapTabProps) {
         menuPlacement={sheetExpanded ? 'below' : 'above'}
         onSubmitted={()=>{void roadAlerts.reload();}}/>
     </div>
-    <Speedometer position={location.status === 'ready' ? location.position : null}
-      className={`absolute left-3 z-40 transition-[top,bottom] duration-300 ${sheetExpanded?'top-[clamp(110px,16dvh,160px)]':showAddressSuggestions?'bottom-[448px]':'bottom-[250px]'}`} />
     {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
       <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>
       {!locationAccess.requesting && <button type="button" onClick={()=>void locationAccess.request()} className="font-bold underline">Tentar GPS</button>}

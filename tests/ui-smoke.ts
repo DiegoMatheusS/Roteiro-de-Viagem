@@ -189,6 +189,9 @@ try {
     {name:/Por distância/,label:'Quantidade de quilômetros',amount:'40',mode:'km'},
     {name:/Por tempo/,label:'Quantidade de horas',amount:'1',mode:'hours'}
   ]) {
+    const expectedVoice=choice.mode==='km';
+    const homeVoice=guestPage.getByRole('button',{name:'Orientações por voz'});
+    if((await homeVoice.getAttribute('aria-pressed'))!==String(expectedVoice))await homeVoice.click();
     await guestPage.getByRole('button',{name:choice.name}).click();
     const modal=guestPage.getByRole('dialog',{name:'Criar um rolê'});
     if(choice.mode==='km'){
@@ -262,7 +265,11 @@ try {
       navGeometry.y<2&&navGeometry.height>=840&&
       bottomGeometry.y>0.65*844&&bottomGeometry.y<0.85*844,
       'Navegação deve ocupar toda a tela e reservar um painel compacto inferior');
-    await navScreen.getByRole('button',{name:'Orientações por voz'}).waitFor();
+    const navigationVoice=navScreen.getByRole('button',{name:'Orientações por voz'});
+    await navigationVoice.waitFor();
+    assert.equal(await navigationVoice.getAttribute('aria-pressed'),String(expectedVoice),
+      'A navegação deve respeitar o som escolhido na Home');
+    await navScreen.getByRole('status',{name:/Velocímetro/}).waitFor();
     if(choice.mode==='km'){
       await guestPage.screenshot({path:'test-results/figma-tela-4-navegacao.png'});
       await navScreen.getByRole('button',{name:'Compartilhar',exact:true}).click();
@@ -323,15 +330,18 @@ try {
   const homePanel = page.getByTestId('home-main-sheet');
   // Controles não sobem junto com o painel e o menu não pode cobrir o toque no mapa.
   const gpsFixedBefore=await page.getByRole('button',{name:'Atualizar GPS'}).boundingBox();
-  const reportFixedBefore=await page.getByRole('button',{name:'Reportar problema na estrada'}).boundingBox();
-  const speedFixedBefore=await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
-  assert.ok(gpsFixedBefore&&reportFixedBefore&&speedFixedBefore);
-  assert.ok(gpsFixedBefore.y+gpsFixedBefore.height+6<=reportFixedBefore.y,
-    'GPS deve ficar acima do alerta, sem sobreposição');
-  assert.ok(Math.abs(gpsFixedBefore.x-reportFixedBefore.x)<2,
-    'GPS e alerta devem ficar na mesma coluna à direita');
-  assert.ok(speedFixedBefore.x+speedFixedBefore.width<gpsFixedBefore.x,
-    'Velocímetro fica fixo à esquerda, separado dos controles direitos');
+  const voiceFixedBefore=await page.getByRole('button',{name:'Orientações por voz'}).boundingBox();
+  assert.ok(gpsFixedBefore&&voiceFixedBefore);
+  assert.ok(gpsFixedBefore.y+gpsFixedBefore.height+6<=voiceFixedBefore.y,
+    'GPS deve ficar acima do som, sem sobreposição');
+  assert.ok(Math.abs(gpsFixedBefore.x-voiceFixedBefore.x)<2,
+    'GPS e som devem ficar na mesma coluna à direita');
+  assert.equal(await page.getByRole('status',{name:/Velocímetro/}).count(),0,
+    'Velocímetro fica apenas na navegação');
+  assert.equal(await page.getByRole('button',{name:'Reportar problema na estrada'}).count(),0,
+    'Início mantém somente GPS e som na coluna de controles');
+  assert.ok(gpsFixedBefore.width>=56&&voiceFixedBefore.width>=56,
+    'Controles da Home devem ter uma área de toque maior');
   assert.equal(await page.getByRole('button',{name:'Abrir menu'}).count(),0,
     'Não deve haver hambúrguer redundante no topo do Início');
   const modeGroup=page.getByRole('group',{name:'Modalidade de transporte'});
@@ -367,10 +377,9 @@ try {
     const nav=document.querySelector('.rdv-figma-bottom-nav')?.getBoundingClientRect();return !!panel&&!!nav&&Math.abs(panel.bottom-nav.top)<2&&panel.height>=window.innerHeight*0.8;
   });
   const gpsFixedAfter=await page.getByRole('button',{name:'Atualizar GPS'}).boundingBox();
-  const reportFixedAfter=await page.getByRole('button',{name:'Reportar problema na estrada'}).boundingBox();
-  const speedFixedAfter=await page.getByRole('status',{name:'Velocímetro'}).boundingBox();
-  assert.ok(gpsFixedAfter&&reportFixedAfter&&speedFixedAfter);
-  for(const [before,after] of [[gpsFixedBefore,gpsFixedAfter],[reportFixedBefore,reportFixedAfter],[speedFixedBefore,speedFixedAfter]]){
+  const voiceFixedAfter=await page.getByRole('button',{name:'Orientações por voz'}).boundingBox();
+  assert.ok(gpsFixedAfter&&voiceFixedAfter);
+  for(const [before,after] of [[gpsFixedBefore,gpsFixedAfter],[voiceFixedBefore,voiceFixedAfter]]){
     assert.ok(Math.abs(before.x-after.x)<2 && Math.abs(before.y-after.y)<2,
       'Controles do mapa não devem acompanhar o movimento do painel');
   }
@@ -412,36 +421,19 @@ try {
   await blockedPage.getByText(/ícone ao lado do endereço do site/).waitFor();
   await blockedContext.close();
   const homeGps = page.getByRole('button', {name:'Atualizar GPS'});
-  const homeReport = page.getByRole('button', {name:'Reportar problema na estrada'});
+  const homeVoice = page.getByRole('button', {name:'Orientações por voz'});
   await homeGps.waitFor();
-  await homeReport.waitFor();
+  await homeVoice.waitFor();
   const homeGpsBox = await homeGps.boundingBox();
-  const homeReportBox = await homeReport.boundingBox();
-  assert.ok(homeGpsBox && homeReportBox &&
-    homeGpsBox.y + homeGpsBox.height + 6 <= homeReportBox.y &&
-    Math.abs(homeGpsBox.x-homeReportBox.x)<2,
-    'GPS precisa ficar acima do alerta, em coluna vertical e sem sobreposição');
-  await homeReport.click();
-  const homeReportOptions = page.getByRole('menu', {name:'Escolher ocorrência'});
-  await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).waitFor();
-  const menuBounds=await homeReportOptions.boundingBox();
-  assert.ok(menuBounds && menuBounds.y<100,
-    'Ícones de alerta precisam aparecer no topo do telefone, não ao lado do botão');
-  const menuAnimation=await homeReportOptions.evaluate(el=>getComputedStyle(el).animationName);
-  assert.ok(menuAnimation.includes('rdv-alert-drop-down'),
-    'Menu de alerta deve descer de cima para baixo');
-  await homeReportOptions.getByRole('menuitem', {name:'Veículo parado / quebrado'}).waitFor();
-  await homeReportOptions.getByRole('menuitem', {name:'Pedágio'}).waitFor();
-  await homeReportOptions.getByRole('menuitem', {name:'Buraco na pista'}).click();
-  const homeReportDialog = page.getByRole('dialog', {name:'Reportar ocorrência na via'});
-  await homeReportDialog.getByText(/Pare em segurança/).waitFor();
-  await homeReportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
-  await homeReportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
-  assert.equal(await homeReportDialog.locator('textarea').count(),0,
-    'Não exigir digitação ao informar ocorrência');
-  assert.equal(await homeReportDialog.locator('input[type="checkbox"]').count(),0,
-    'Confirmar por gesto, sem formulário de múltiplas etapas');
-  await homeReportDialog.getByRole('button', {name:'Fechar ocorrência'}).click();
+  const homeVoiceBox = await homeVoice.boundingBox();
+  assert.ok(homeGpsBox && homeVoiceBox &&
+    homeGpsBox.y + homeGpsBox.height + 6 <= homeVoiceBox.y &&
+    Math.abs(homeGpsBox.x-homeVoiceBox.x)<2,
+    'GPS precisa ficar acima do som, em coluna vertical e sem sobreposição');
+  await homeVoice.click();
+  assert.equal(await homeVoice.getAttribute('aria-pressed'),'true');
+  await homeVoice.click();
+  assert.equal(await homeVoice.getAttribute('aria-pressed'),'false');
   if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
@@ -786,8 +778,14 @@ try {
   const gpsRect = await gpsControl.boundingBox();
   const reportRect = await reportControl.boundingBox();
   assert.ok(gpsRect && reportRect && gpsRect.y + gpsRect.height <= reportRect.y + 1, 'GPS precisa ficar acima do alerta');
+  assert.ok(gpsRect.width>=56&&reportRect.width>=56);
+  assert.equal(await page.getByRole('status',{name:/Velocímetro/}).count(),0);
   await reportControl.click();
   const reportMenu = page.getByRole('menu', { name: 'Escolher ocorrência' });
+  const menuBounds=await reportMenu.boundingBox();
+  assert.ok(menuBounds&&menuBounds.y<100,'Ícones de alerta continuam no topo do telefone');
+  const menuAnimation=await reportMenu.evaluate(el=>getComputedStyle(el).animationName);
+  assert.ok(menuAnimation.includes('rdv-alert-drop-down'));
   await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).waitFor();
   await reportMenu.getByRole('menuitem', { name: 'Pedágio' }).waitFor();
   await reportMenu.getByRole('menuitem', { name: 'Radar de velocidade' }).waitFor();
