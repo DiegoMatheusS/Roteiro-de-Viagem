@@ -57,5 +57,9 @@ test('resultados digitados aparecem sobre os painéis sem sofrer corte por rolag
   assert.match(overlay,/window\.visualViewport/);
   assert.match(home,/<SearchResultsOverlay anchorRef=\{searchFormRef\}/);
   assert.match(map,/<SearchResultsOverlay anchorRef=\{searchFormRef\}/);
+  assert.match(home,/searchBusy&&<p role="status"[^>]*>Pesquisando endereço/);
+  assert.match(map,/searchBusy&&<p role="status"[^>]*>Pesquisando endereço/);
+  assert.match(home,/searchError&&<p role="alert"/);
+  assert.match(map,/searchError&&<p role="alert"/);
   assert.doesNotMatch(map,/max-h-44 overflow-y-auto/);
 });

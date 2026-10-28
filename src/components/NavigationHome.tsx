@@ -462,15 +462,14 @@ export function NavigationHome(props: NavigationHomeProps) {
               onChanged={setSavedAddresses}
               onSelect={selectMapTarget}/>
           </div>}
-          {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
-            {searchError||'Pesquisando endereço...'}
-          </p>}
           <SearchResultsOverlay anchorRef={searchFormRef}
-            visible={!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||Boolean(suggestionsError)||addressSuggestions.length>0)}
-            onDismiss={cancelTypeahead}>
-              {suggestionsBusy&&<p role="status" className="text-xs text-slate-500">Buscando sugestões...</p>}
-              {suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
-              {addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
+            visible={searchBusy||Boolean(searchError)||(!mapTarget&&(suggestionsBusy||Boolean(suggestionsError)||addressSuggestions.length>0))}
+            onDismiss={()=>{cancelTypeahead();setSearchError('');}}>
+              {searchBusy&&<p role="status" className="text-sm text-slate-700 p-3 font-semibold">Pesquisando endereço...</p>}
+              {searchError&&<p role="alert" className="text-sm text-rose-700 bg-rose-50 p-3">{searchError}</p>}
+              {!searchBusy&&!searchError&&suggestionsBusy&&<p role="status" className="text-xs text-slate-500 p-3">Buscando sugestões...</p>}
+              {!searchBusy&&!searchError&&suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
+              {!searchBusy&&!searchError&&addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
                 {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
                   onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
                   className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">

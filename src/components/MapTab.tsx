@@ -288,12 +288,13 @@ export function MapTab(props: MapTabProps) {
               className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
               {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
           </form>
-          {searchBusy&&<p role="status" className="text-slate-700 text-xs">Pesquisando endereço...</p>}
           <SearchResultsOverlay anchorRef={searchFormRef}
-            visible={!searchBusy&&!mapTarget&&(suggestionsBusy||showAddressSuggestions)}
-            onDismiss={cancelTypeahead}>
-            {suggestionsBusy&&<p role="status" className="text-slate-500 text-sm p-3">Buscando sugestões...</p>}
-            {showAddressSuggestions&&<div role="group" aria-label="Sugestões de endereços" className="divide-y bg-white">
+            visible={searchBusy||Boolean(searchError)||(!mapTarget&&(suggestionsBusy||showAddressSuggestions))}
+            onDismiss={()=>{cancelTypeahead();setSearchError('');}}>
+            {searchBusy&&<p role="status" className="text-slate-700 text-sm p-3 font-semibold">Pesquisando endereço...</p>}
+            {searchError&&<p role="alert" className="text-rose-700 text-sm bg-rose-50 p-3">{searchError}</p>}
+            {!searchBusy&&!searchError&&suggestionsBusy&&<p role="status" className="text-slate-500 text-sm p-3">Buscando sugestões...</p>}
+            {!searchBusy&&!searchError&&showAddressSuggestions&&<div role="group" aria-label="Sugestões de endereços" className="divide-y bg-white">
             {addressSuggestions.map((place,index)=><button key={place.id??index} type="button" onClick={()=>focusDestination(place)}
               className="w-full text-left px-3 py-2 text-sm" aria-label={`Escolher destino ${place.name}`}>
               <strong className="block truncate text-slate-900">{place.name}</strong>
@@ -303,7 +304,6 @@ export function MapTab(props: MapTabProps) {
             <p className="text-[10px] text-slate-500 px-3 py-1">Distâncias em linha reta. Rota real após selecionar.</p>
           </div>}
           </SearchResultsOverlay>
-          {searchError && <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs">{searchError}</p>}
           <SavedAddressesPanel gps={location.status==='ready'?location.position:null}
             onChanged={setSavedAddresses} onSelect={focusDestination}/>
           {sheetExpanded && <div className="space-y-6 pb-4">
