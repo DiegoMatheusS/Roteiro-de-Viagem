@@ -3,11 +3,13 @@
  */
 export type HomeSheetStage = 'collapsed' | 'resting' | 'expanded';
 export const HOME_SHEET_EXPANDED_HEIGHT = '82dvh';
+// Height accommodates the destination search plus the two main action cards.
+export const HOME_SHEET_RESTING_HEIGHT = 'max(37dvh, 300px)';
 
 export function draggedHomeSheetHeight(stage: HomeSheetStage, dragOffset: number): string | undefined {
   if (!Number.isFinite(dragOffset) || dragOffset === 0) return undefined;
   const base = stage === 'collapsed' ? '74px' :
-    stage === 'expanded' ? HOME_SHEET_EXPANDED_HEIGHT : 'max(37dvh, 300px)';
+    stage === 'expanded' ? HOME_SHEET_EXPANDED_HEIGHT : HOME_SHEET_RESTING_HEIGHT;
   const direction = dragOffset > 0 ? '-' : '+';
   return `clamp(74px, calc(${base} ${direction} ${Math.abs(dragOffset)}px), ${HOME_SHEET_EXPANDED_HEIGHT})`;
 }
