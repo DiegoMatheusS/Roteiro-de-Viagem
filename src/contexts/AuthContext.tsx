@@ -4,6 +4,7 @@ import { fuelApi,FuelApiError } from '../services/fuelApi';
 import type { FuelUser } from '../types/fuel';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import {isNativeApp,TravelNative} from '../services/nativeApp';
 
 const AuthContext = createContext<{ user: FuelUser | null; loading: boolean; promptLogin: () => void; logout: () => Promise<void>; clearSession: () => void }>({ user: null, loading: true, promptLogin: () => {}, logout: async () => {}, clearSession: () => {} });
 export const useAuth = () => useContext(AuthContext);
@@ -84,6 +85,11 @@ export function AuthProvider({ children, adminOnly = false }: { children: React.
         {register && !adminOnly && !pendingGoogleCredential && <label className="block text-xs font-semibold">Repetir senha<input name="confirmPassword" type="password" required minLength={10} maxLength={128} className="mt-1 w-full border rounded-xl p-3" autoComplete="new-password" /></label>}
         {!adminOnly && !pendingGoogleCredential && <GoogleSignInButton disabled={busy} onCredential={googleSignIn} onError={message => setError(message)} />}
         {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
+        {!adminOnly && /código 10/.test(error) && isNativeApp() &&
+          <button type="button" className="w-full min-h-11 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800"
+            onClick={()=>{void TravelNative.copyText({text:error}).catch(()=>{});}}>
+            Copiar diagnóstico de assinatura Google
+          </button>}
         <button disabled={busy} className="w-full bg-emerald-600 text-white font-bold rounded-xl p-3 disabled:opacity-50">{busy ? 'Aguarde...' : adminOnly ? 'Entrar no painel' : pendingGoogleCredential ? 'Vincular Google e entrar' : register ? 'Criar minha conta' : 'Entrar'}</button>
         {!adminOnly && (pendingGoogleCredential
           ? <button type="button" onClick={() => { setPendingGoogleCredential(null); setError(''); }} className="text-xs font-semibold text-emerald-700">Entrar de outra forma</button>
