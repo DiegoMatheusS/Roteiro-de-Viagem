@@ -725,3 +725,15 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   .rdv-start-brand-wave,.rdv-start-brand-logo{animation:none;}
   .rdv-start-brand-wave{display:none;}
 }
+
+/* The traffic toggle stays next to the GPS cluster instead of hiding behind
+   the dynamic map search sheet. When expanded, place it beside GPS because
+   the header occupies the space immediately above the controls. */
+.rdv-flat-map[data-map-suggestions-visible="true"][data-map-sheet-expanded="false"] .rdv-map-traffic-control {
+  bottom:568px;
+}
+.rdv-flat-map[data-map-sheet-expanded="true"] .rdv-map-traffic-control {
+  top:clamp(64px,10dvh,118px);
+  bottom:auto;
+  right:82px;
+}
