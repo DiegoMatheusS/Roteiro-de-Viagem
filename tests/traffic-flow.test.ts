@@ -84,7 +84,7 @@ test('10 km viewport limit avoids requests and clears the existing overlay when 
   assert.equal(calls,1);
   for(let i=0;i<20;i++)map.events.idle();assert.equal(calls,1);
   map.state.radiusKm=9.99;map.events.idle();await flush();
-  assert.equal(calls,2,'fetch only after returning to a nearby camera view');
+  assert.equal(calls,1,'reuse recently fetched configuration when returning nearby; do not pay twice');
   control.destroy();
 });
 test('camera-to-corner radius is geodesic and bounded around the actual viewport',()=>{
