@@ -6,6 +6,7 @@ import { privateRoadRoute } from './routeCache';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { createHash } from 'node:crypto';
 import { sampleRoutePath, type LocationSelection, type MandatoryStop, type SuggestedStop } from '../src/types/itinerary';
+import {rankLocationSuggestions,providerAddressLabel} from '../src/services/locationSuggestions';
 
 const locationDto = (row: any): LocationSelection => ({ id: row.id, name: row.name, address: row.address, coords: [row.lat, row.lng], sourceUrl: row.source_url, category: row.category || row.kind });
 export function registerItineraryRoutes(app: Express, options: { db: FuelDatabase; mapFetch?: MapFetch; limit: (key: string, max: number, window: number) => void }) {
@@ -56,8 +57,8 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     res.json({ ok: true });
   });
   app.get('/api/locations/search', asyncRoute(async (req, res) => {
-    limit(`geocoding:${clientIp(req)}`, 15, 60000);
-    const q = String(req.query.q || '').trim();
+    limit(`geocoding:${clientIp(req)}`, 45, 60000);
+    const q = String(req.query.q || '').trim().replace(/\s+/g,' ');
     if (q.length < 3 || q.length > 150) throw new ApiError('Pesquise um nome ou endereço de 3 a 150 caracteres.');
     const bias = req.query.lat !== undefined && req.query.lng !== undefined ? validate(() => validateCoordinates([[Number(req.query.lat), Number(req.query.lng)]]))[0] : undefined;
     // Public OSM places are indexed once, then reused across users without a provider request.
@@ -73,18 +74,19 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     const stationRows = db.prepare(`SELECT * FROM stations WHERE active=1
       AND (name LIKE ? ESCAPE '!' OR address LIKE ? ESCAPE '!') ORDER BY managed DESC,name LIMIT 12`)
       .all(match, match) as any[];
-    const local = [...new Map([...privateRows, ...stationRows, ...publicRows]
-      .map(row => locationDto(row)).map(place => [place.id, place])).values()].slice(0, 10);
+    const local = rankLocationSuggestions(q,[...new Map([...privateRows, ...stationRows, ...publicRows]
+      .map(row => locationDto(row)).map(place => [place.id, place])).values()],bias).slice(0, 10);
     const key = createHash('sha256').update(JSON.stringify([q.toLowerCase(), bias?.map(v => Number(v.toFixed(2))), process.env.GEOCODING_URL || 'https://photon.komoot.io'])).digest('hex');
     const cached = db.prepare('SELECT * FROM geocoding_queries WHERE id=?').get(key) as any;
-    const merge = (ids: string[]) => [...new Map([...local, ...ids.flatMap(id => { try { return [findLocation(id)]; } catch { return []; } })].map(item => [item.id, item])).values()].slice(0, 10);
+    const merge = (ids: string[]) => rankLocationSuggestions(q,[...new Map([...local, ...ids.flatMap(id => { try { return [findLocation(id)]; } catch { return []; } })].map(item => [item.id, item])).values()],bias).slice(0, 10);
     if (cached && Date.now() - Date.parse(cached.updated_at) < 86400000) { res.json({ results: merge(JSON.parse(cached.location_ids)), cached: true }); return; }
     // Prefer our growing local address index whenever it has enough useful matches.
     // Exact address searches may return a single verified local match without Photon.
     if (local.length >= 5 || local.some(place => place.address?.toLowerCase() === q.toLowerCase())) {
       res.json({ results: local, cached: true, source: 'local' }); return;
     }
-    // Explicit searches only, one upstream request at a time and at least one second apart.
+    // Debounced suggestions share the same guarded provider as explicit searches.
+    // Keep one upstream request at a time and at least one second apart.
     if (geocodingBusy || Date.now() - lastSearch < 1000) {
       if (local.length) { res.json({ results: local, limited: true }); return; }
       throw new ApiError('A busca está ocupada. Aguarde um instante e tente novamente.', 429);
@@ -92,7 +94,7 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     geocodingBusy = true; lastSearch = Date.now();
     try {
       const url = new URL('/api/', process.env.GEOCODING_URL || 'https://photon.komoot.io');
-      url.searchParams.set('q', q); url.searchParams.set('limit', '8');
+      url.searchParams.set('q', q); url.searchParams.set('limit', '12');
       if (bias) { url.searchParams.set('lat', String(bias[0])); url.searchParams.set('lon', String(bias[1])); }
       const response = await mapFetch(url.toString(), { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'RoteiroDeViagem/1.0 (user-place-search)', 'Accept-Language': 'pt-BR,pt;q=0.9' } });
       if (!response.ok) throw new Error('Busca indisponível.');
@@ -100,14 +102,13 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
       if (!Array.isArray(payload.features)) throw new Error('Resposta inválida.');
       const ids: string[] = [];
       const insert = db.prepare('INSERT OR REPLACE INTO locations VALUES(?,?,?,?,?,?,?,?)');
-      for (const feature of payload.features.slice(0, 8)) {
+      for (const feature of payload.features.slice(0, 12)) {
         const p = feature.properties?.geocoding || feature.properties;
         const point = feature.geometry?.coordinates;
         const type = ({ N: 'node', W: 'way', R: 'relation', node: 'node', way: 'way', relation: 'relation' } as any)[p?.osm_type];
         if (!type || !Number.isSafeInteger(Number(p.osm_id)) || Number(p.osm_id) <= 0 || !Array.isArray(point) || point.length < 2 || !Number.isFinite(point[0]) || !Number.isFinite(point[1]) || Math.abs(point[0]) > 180 || Math.abs(point[1]) > 90) continue;
         const id = `osm:${type}:${p.osm_id}`;
-        const address = [p.street, p.housenumber, p.city || p.locality, p.state, p.country].filter(Boolean).join(', ').slice(0, 350);
-        const name = String(p.name || p.street || p.city || p.locality || address).slice(0, 150);
+        const {name,address}=providerAddressLabel(p);
         if (!name) continue;
         insert.run(id, name, address, point[1], point[0], `https://www.openstreetmap.org/${type}/${p.osm_id}`, String(p.osm_value || p.type || 'local').slice(0, 50), now()); ids.push(id);
         if (p.osm_value === 'fuel') db.prepare(`INSERT INTO stations(id,name,lat,lng,address,source_url,map_updated_at)

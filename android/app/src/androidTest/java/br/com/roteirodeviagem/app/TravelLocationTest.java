@@ -98,6 +98,20 @@ public class TravelLocationTest {
    js("window.Capacitor.Plugins.TravelNative.startTracking({tripId:'"+trip+"',distanceKm:5,resume:true});true");await(()->TravelLocationService.running&&trip.equals(TravelLocationService.activeTripId));
   }finally{context.stopService(new Intent(context,TravelLocationService.class));await(()->!TravelLocationService.running);server.shutdown();HttpsURLConnection.setDefaultSSLSocketFactory(previous);}
  }
+ @Test public void closingActivityStopsGpsAndPreservesTheTripForAnExplicitResume() throws Exception {
+  activity=ActivityScenario.launch(MainActivity.class);
+  await("A home antes de iniciar o teste de fechamento",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do Rolê\"]') != null")),60000);
+  String trip="fixture-account:closed-app-trip";
+  start("TRIP",trip,"","");
+  await(()->TravelLocationService.running&&trip.equals(TravelLocationService.activeTripId));
+  activity.close();activity=null;
+  await("Fechar o aplicativo deve liberar o GPS",()->!TravelLocationService.running&&TravelLocationService.activeTripId.isEmpty());
+  android.content.SharedPreferences pref=context.getSharedPreferences("travel-gps",0);
+  assertEquals(trip,pref.getString("tripId",""));assertEquals(trip,pref.getString("stoppedTripId",""));
+  assertTrue(Double.longBitsToDouble(pref.getLong("distance",0))>=5.0);
+  NotificationManager notifications=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+  await("A notificação GPS deve desaparecer",()->{for(android.service.notification.StatusBarNotification item:notifications.getActiveNotifications())if(item.getId()==41)return false;return true;});
+ }
  @Test public void nativeGpsRejectsStaleOrFutureFixesWithoutStoppingTracking() {
   long now=System.currentTimeMillis();
   assertTrue(TravelLocationService.isFreshGpsFix(now,now));

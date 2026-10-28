@@ -351,6 +351,14 @@ try{
   await page.goto('http://127.0.0.1:3000/tests/fixtures/circular-guidance.html');
   const guidance=page.getByRole('status',{name:'Próxima orientação de navegação',exact:true});
   await guidance.getByText('Primeira curva',{exact:true}).waitFor();
+  const hud=await page.evaluate(()=>{
+    const guidance=document.querySelector('.rdv-nav-guidance')!.getBoundingClientRect();
+    const panel=document.querySelector('.rdv-nav-bottom')!,bounds=panel.getBoundingClientRect();
+    return {top:guidance.top,height:bounds.height,bottom:bounds.bottom,viewport:innerHeight,background:getComputedStyle(panel).backgroundColor};
+  });
+  assert.ok(hud.top<=16,'turn instructions stay near the top safe area');
+  assert.ok(hud.height<=160&&hud.bottom===hud.viewport,'a compact bottom panel leaves more map visible');
+  assert.equal(hud.background,'rgb(229, 231, 235)');
   await page.getByRole('button',{name:'Simular volta ao início',exact:true}).click();
   await guidance.getByText('Chegando ao destino',{exact:true}).waitFor();
   await guidance.getByText('0 m',{exact:true}).waitFor();

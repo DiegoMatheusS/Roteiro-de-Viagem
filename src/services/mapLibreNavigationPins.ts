@@ -36,12 +36,13 @@ export function visibleNavigationPins(input:NavigationPins): Kind[] {
 
 const drawIcon = (kind:Kind): SVGSVGElement => {
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('width','19');
-  svg.setAttribute('height','19');
+  svg.setAttribute('width',kind==='live'?'36':'19');
+  svg.setAttribute('height',kind==='live'?'36':'19');
   svg.setAttribute('viewBox','0 0 24 24');
-  svg.setAttribute('fill','none');
-  svg.setAttribute('stroke','currentColor');
-  svg.setAttribute('stroke-width','2.1');
+  svg.setAttribute('fill',kind==='live'?'#2563eb':'none');
+  svg.setAttribute('stroke',kind==='live'?'white':'currentColor');
+  svg.setAttribute('stroke-width',kind==='live'?'1.5':'2.1');
+  if(kind==='live')svg.style.filter='drop-shadow(0 2px 2px #0f172a66)';
   svg.setAttribute('stroke-linecap','round');
   svg.setAttribute('stroke-linejoin','round');
   const path=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -74,7 +75,10 @@ function elementFor(kind:Kind, label:string, roadStyle:boolean): HTMLButtonEleme
     text.style.cssText='max-width:115px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;';
     button.append(text);
   }
-  if(kind==='live')button.style.boxShadow='0 0 0 7px #2563eb25,0 3px 12px #0f172a66';
+  if(kind==='live'){
+    button.style.background='transparent';button.style.border='0';button.style.boxShadow='none';
+    button.style.borderRadius='0';button.style.width='36px';button.style.height='36px';button.style.padding='0';
+  }
   for(const type of ['pointerdown','touchstart','click'] as const){
     button.addEventListener(type,event=>event.stopPropagation(),{passive:true});
   }

@@ -159,7 +159,7 @@ export default function App() {
     if (!auth.user || !accountReady) return;
     let disposed = false,busy = false,pending = false;
     const refresh = () => {
-      if(disposed)return;
+      if(disposed||document.hidden)return;
       if(busy){pending=true;return;}
       busy=true;
       convoyService.expireLocations();
