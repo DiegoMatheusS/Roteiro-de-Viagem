@@ -90,6 +90,18 @@ try {
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
+  // Mobile layout: destination search is inside the raised bottom sheet, below
+  // the heading and above the route-by-distance/time action cards.
+  const homePanel=page.locator('[data-testid="home-main-sheet"]');
+  const titleBox=await page.getByRole('heading',{name:'Bora dar um rolê?'}).boundingBox();
+  const searchBox=await homePanel.getByRole('searchbox',{name:'Para onde quer ir?'}).boundingBox();
+  const distanceBox=await page.getByRole('button',{name:'Por distância — Escolher KM'}).boundingBox();
+  const homePanelBox=await homePanel.boundingBox();
+  assert.ok(titleBox&&searchBox&&distanceBox&&homePanelBox);
+  assert.ok(searchBox.y>titleBox.y&&distanceBox.y>searchBox.y+searchBox.height,
+    'A busca fica abaixo do título e acima dos cartões de passeio');
+  assert.ok(homePanelBox.y<480,'O painel sobe para acomodar o campo no viewport de 844px');
+  assert.equal(await homePanel.getAttribute('data-sheet-stage'),'resting');
   await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
   // Tela 6: filtros, métricas reais, estado vazio e CTAs iguais ao PNG do Figma.
   await page.getByRole('button',{name:'Aba Viagens'}).click();
@@ -490,6 +502,7 @@ try {
   // A busca da tela inicial é um input verdadeiro: teclado direto, sem formulário de origem/destino.
   const quickSearch = page.getByRole('searchbox', {name:'Para onde quer ir?'});
   await quickSearch.click();
+  await page.locator('[data-testid="home-main-sheet"][data-sheet-stage="expanded"]').waitFor();
   assert.equal(await quickSearch.evaluate(element=>document.activeElement===element),true,'O toque deve focar o input do teclado');
   assert.equal(await page.getByRole('dialog',{name:'Buscar destino no mapa'}).count(),0,'A busca rápida não abre modal');
   await quickSearch.fill('Parada');
