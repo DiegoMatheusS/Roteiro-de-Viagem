@@ -40,7 +40,8 @@ export function saveAddress(userId:string,record:Omit<SavedAddress,'id'>):SavedA
   const existing=previous.find(item=>item.label.toLocaleLowerCase('pt-BR')===label.toLocaleLowerCase('pt-BR'));
   const saved:SavedAddress={id:existing?.id??String(Date.now())+'-'+Math.random().toString(36).slice(2,8),
     label,address,coords:[...record.coords]};
-  const updated=[saved,...previous.filter(item=>item.id!==existing?.id)].slice(0,MAX_ADDRESSES);
+  // Keep the first registration first. Editing Casa/Trabalho replaces in place.
+  const updated=(existing?previous.map(item=>item.id===existing.id?saved:item):[...previous,saved]).slice(0,MAX_ADDRESSES);
   localStorage.setItem(KEY_PREFIX+encodeURIComponent(userId),JSON.stringify(updated));
   return updated;
 }

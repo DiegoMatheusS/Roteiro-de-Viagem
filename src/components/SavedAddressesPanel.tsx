@@ -1,9 +1,9 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {Bookmark,Home,MapPin,Plus,Search,Trash2,X} from 'lucide-react';
+import {Bookmark,BriefcaseBusiness,GraduationCap,Home,MapPin,Plus,Search,X} from 'lucide-react';
 import {useAuth} from '../contexts/AuthContext';
 import type {LocationSelection} from '../types/itinerary';
-import {searchLocations} from '../services/locationSearch';
+import {houseNumberNotFoundMessage,searchLocations} from '../services/locationSearch';
 import {SAVED_ADDRESS_TYPES,readSavedAddresses,saveAddress,deleteSavedAddress,
   matchSavedAddressOrigin,type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
@@ -23,10 +23,38 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
   const [chosen,setChosen]=useState<LocationSelection|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const [holdingId,setHoldingId]=useState<string|null>(null);
+  const [notice,setNotice]=useState('');
   const request=useRef<AbortController|null>(null);
   const lastQuery=useRef('');
+  const holdTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const heldId=useRef<string|null>(null);
+  const suppressClickId=useRef<string|null>(null);
   useEffect(()=>{setItems(readSavedAddresses(user?.id));},[user?.id]);
-  useEffect(()=>()=>request.current?.abort(),[]);
+  useEffect(()=>()=>{request.current?.abort();if(holdTimer.current)clearTimeout(holdTimer.current);},[]);
+  const cancelHold=()=>{
+    if(holdTimer.current)clearTimeout(holdTimer.current);
+    holdTimer.current=null;heldId.current=null;setHoldingId(null);
+  };
+  const removeSaved=(item:SavedAddress)=>{
+    if(!user)return;
+    try{
+      const next=deleteSavedAddress(user.id,item.id);
+      setItems(next);onChanged?.(next);setNotice(`${item.label} excluído.`);setError('');
+    }catch(err){setError((err as Error).message);}
+  };
+  const beginHold=(item:SavedAddress)=>{
+    cancelHold();heldId.current=item.id;setHoldingId(item.id);setNotice('');
+    holdTimer.current=setTimeout(()=>{
+      if(heldId.current!==item.id)return;
+      suppressClickId.current=item.id;
+      cancelHold();removeSaved(item);
+    },2000);
+  };
+  const selectSaved=(item:SavedAddress)=>{
+    if(suppressClickId.current===item.id){suppressClickId.current=null;return;}
+    onSelect({name:item.label,address:item.address,coords:item.coords});
+  };
   const clear=()=>{
     request.current?.abort();request.current=null;lastQuery.current='';
     setBusy(false);setError('');setQuery('');setResults([]);setChosen(null);
@@ -44,7 +72,8 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
       const found=await searchLocations(query.trim(),gps?.coords,controller.signal);
       if(controller.signal.aborted)return;
       setResults(found.results.slice(0,6));
-      if(!found.results.length)setError('Nenhum endereço encontrado. Inclua a rua, número e cidade.');
+      if(!found.results.length)setError(found.unmatchedHouseNumber?houseNumberNotFoundMessage(found.unmatchedHouseNumber)
+        :'Nenhum endereço encontrado. Inclua a rua, número e cidade.');
     }catch(err){if(!controller.signal.aborted)setError((err as Error).message);}
     finally{if(request.current===controller){request.current=null;setBusy(false);}}
   };
@@ -64,32 +93,39 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
     }catch(err){setError((err as Error).message);}
   };
   const match=user?matchSavedAddressOrigin(gps,items):null;
-  return <div className="space-y-2" aria-label="Endereços salvos">
+  return <div className="space-y-3" aria-label="Salvos">
     <div className="flex items-center justify-between gap-2">
-      <h2 className="text-[13px] font-extrabold text-slate-900 flex items-center gap-1.5">
-        <Bookmark size={16} className="text-blue-600"/> Endereços salvos
+      <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+        <Bookmark size={22} className="text-blue-600"/> Salvos
       </h2>
       <button type="button" onClick={()=>{if(!user){promptLogin();return;}clear();setOpen(true);}}
-        className="flex items-center gap-1.5 text-[12px] font-bold text-blue-700 min-h-9 px-2"
-        aria-label="Salvar endereço"><Plus size={17}/> Salvar endereço</button>
+        className="flex items-center gap-1.5 text-sm font-bold text-blue-700 min-h-12 px-2"
+        aria-label="Salvar endereço"><Plus size={20}/> Salvar endereço</button>
     </div>
     {user&&items.length>0
-      ? <div className="flex gap-2 overflow-x-auto pb-1" data-testid="saved-address-list">
-        {items.map(item=><div key={item.id} className="shrink-0 flex items-center rounded-xl bg-blue-50 border border-blue-100">
-          <button type="button" onClick={()=>onSelect({name:item.label,address:item.address,coords:item.coords})}
-            className="text-left flex items-center gap-2 px-3 py-2 max-w-[220px]" aria-label={`Ir para ${item.label}`}>
-            {item.label==='Casa'?<Home size={18} className="text-blue-700 shrink-0"/>:<MapPin size={18} className="text-blue-700 shrink-0"/>}
-            <span className="min-w-0"><strong className="block text-xs truncate">{item.label}</strong>
-              <small className="block text-[10px] text-slate-600 truncate">{item.address}</small></span>
-          </button>
-          <button type="button" aria-label={`Excluir endereço ${item.label}`}
-            className="p-2 text-slate-500" onClick={()=>{
-              if(!user)return;
-              try{const next=deleteSavedAddress(user.id,item.id);setItems(next);onChanged?.(next);}catch(err){setError((err as Error).message);}
-            }}><Trash2 size={15}/></button>
-        </div>)}
-      </div>
+      ? <>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="saved-address-list">
+          {items.map(item=><button key={item.id} type="button"
+            onClick={()=>selectSaved(item)}
+            onPointerDown={event=>{if(event.button===0)beginHold(item);}}
+            onPointerUp={cancelHold} onPointerCancel={cancelHold} onPointerLeave={cancelHold}
+            onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();if(!event.repeat)beginHold(item);}}}
+            onKeyUp={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();const deleted=suppressClickId.current===item.id;cancelHold();if(!deleted)selectSaved(item);else suppressClickId.current=null;}}}
+            onBlur={cancelHold} onContextMenu={event=>event.preventDefault()}
+            aria-label={`Ir para ${item.label}`} aria-describedby="rdv-saved-hold-hint"
+            className={`min-w-0 min-h-[92px] rounded-2xl border-2 px-3 py-4 flex flex-col justify-center items-center gap-2 text-center transition-colors select-none touch-pan-y
+              ${holdingId===item.id?'bg-blue-200 border-blue-600 ring-4 ring-blue-100':'bg-blue-50 border-blue-100 active:bg-blue-100'}`}>
+            {item.label==='Casa'?<Home size={27} className="text-blue-700 shrink-0"/>
+              :item.label==='Trabalho'?<BriefcaseBusiness size={27} className="text-blue-700 shrink-0"/>
+              :item.label==='Escola'||item.label==='Faculdade'?<GraduationCap size={27} className="text-blue-700 shrink-0"/>
+              :<MapPin size={27} className="text-blue-700 shrink-0"/>}
+            <strong className="text-[17px] leading-tight font-extrabold text-blue-900 break-words line-clamp-2">{item.label}</strong>
+          </button>)}
+        </div>
+        <p id="rdv-saved-hold-hint" className="text-xs text-slate-500">Toque para abrir a rota. Segure por 2 segundos para excluir.</p>
+      </>
       : <p className="text-[11px] text-slate-500">{user?'Cadastre Casa, Trabalho ou outro local para acessar com um toque.':'Entre na sua conta para cadastrar Casa, Trabalho e outros locais.'}</p>}
+    {notice&&<p role="status" className="text-sm text-emerald-700">{notice}</p>}
     {match&&<p role="status" className="text-[11px] text-emerald-700">Você está perto de {match.label}. Este endereço será sugerido como origem.</p>}
     {user&&gps&&gps.accuracyMeters>35&&<p className="text-[11px] text-amber-700">Precisão GPS estimada: {Math.round(gps.accuracyMeters)} m. Aguarde um sinal melhor para reconhecer seu local automaticamente.</p>}
     {open&&typeof document!=='undefined'&&createPortal(

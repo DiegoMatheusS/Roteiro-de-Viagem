@@ -4,6 +4,11 @@ import { openDatabase } from '../server/db';
 import { createApi } from '../server/app';
 import { distanceToRouteKm } from '../server/roadAlerts';
 import { upcomingRoadAlert } from '../src/services/roadAlertDistance';
+import { roadAlertBannerText } from '../src/services/roadAlertPresentation';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const route: [number, number][] = [[-23.5,-46.6],[-23.5,-46.59],[-23.5,-46.58]];
 test('distance to road uses full segments, not only point markers', () => {
@@ -17,6 +22,37 @@ test('active alert appears only ahead, expires and ignores other roads', () => {
   assert.equal(upcomingRoadAlert([base],route,[-23.5,-46.581],1.9,2),null);
   assert.equal(upcomingRoadAlert([{...base,lat:-23.52}],route,[-23.5,-46.597],0,2),null);
   assert.equal(upcomingRoadAlert([{...base,expiresAt:new Date(Date.now()-1000).toISOString()}],route,[-23.5,-46.597],0,2),null);
+});
+test('car breakdown and accident banners describe verified remaining distance',()=>{
+  assert.equal(roadAlertBannerText('broken_vehicle',0.24),'Carro quebrado na pista a 240 metros');
+  assert.equal(roadAlertBannerText('accident',1.2),'Acidente na pista a 1,2 km');
+});
+
+test('upgrading the road hazard categories preserves existing community confirmations',()=>{
+  const folder=mkdtempSync(join(tmpdir(),'role-alert-upgrade-'));
+  const file=join(folder,'alerts.sqlite');
+  try {
+    const old=new DatabaseSync(file);
+    old.exec(`
+      CREATE TABLE users (id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user',created_at TEXT NOT NULL);
+      CREATE TABLE road_alerts (id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+        lat REAL NOT NULL,lng REAL NOT NULL,note TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL,expires_at TEXT NOT NULL,reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,reviewed_at TEXT);
+      CREATE TABLE road_alert_checks (alert_id TEXT NOT NULL REFERENCES road_alerts(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,present INTEGER NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(alert_id,user_id));
+      INSERT INTO users VALUES ('person','person@example.com','Pessoa','hash','user','2026-01-01');
+      INSERT INTO road_alerts VALUES ('hazard','person','pothole',-23.5,-46.5,'','active','2026-01-01','2027-01-01',NULL,NULL);
+      INSERT INTO road_alert_checks VALUES ('hazard','person',1,'2026-01-01');
+    `);
+    old.close();
+    const upgraded=openDatabase(file);
+    try {
+      assert.equal((upgraded.prepare('SELECT COUNT(*) AS total FROM road_alert_checks').get() as {total:number}).total,1);
+      upgraded.prepare("INSERT INTO road_alerts (id,kind,lat,lng,created_at,expires_at) VALUES ('new','accident',-23.5,-46.6,'2026-01-01','2027-01-01')").run();
+      assert.equal(upgraded.prepare('PRAGMA foreign_key_check').all().length,0);
+    } finally {upgraded.close();}
+  } finally {rmSync(folder,{recursive:true,force:true});}
 });
 test('road hazards require signed-in sender and admin approval; public route reveals no contributor', async () => {
   const db = openDatabase(':memory:');

@@ -5,6 +5,7 @@ import type { LocationSelection } from '../types/itinerary';
 import { fetchRouteChoices, choiceLabel, choiceToTrip, type VerifiedRouteChoice } from '../services/routeChoices';
 import { requestTolls, tollBudgetPatch, type TollResult } from '../services/routeConditions';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
+import {ROUTE_AUTO_START_MS,routeAutoStartSeconds} from '../services/routeAutoStart';
 
 interface DestinationExplorerProps {
   target: LocationSelection;
@@ -16,15 +17,19 @@ interface DestinationExplorerProps {
   selectedRouteId?:string;
   onStartTrip: (trip:TripPlan) => void;
   onClose: () => void;
+  autoStartEnabled?:boolean;
 }
-export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMapRoute,onStartTrip,onClose,selectedRouteId,getOriginLabel}:DestinationExplorerProps) {
+export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMapRoute,onStartTrip,onClose,selectedRouteId,getOriginLabel,autoStartEnabled=true}:DestinationExplorerProps) {
   const [routes,setRoutes] = useState<VerifiedRouteChoice[]>([]);
   const [selected,setSelected] = useState(0);
   const [origin,setOrigin] = useState<[number,number]|null>(null);
   const [originName,setOriginName]=useState('Sua localização atual');
   const [busy,setBusy] = useState(false);
+  const [secondsLeft,setSecondsLeft]=useState<number|null>(null);
   const initialAttempt=useRef(false);
   const busyRef=useRef(false);
+  const departingRef=useRef(false);
+  const countdownTimer=useRef<ReturnType<typeof setInterval>|null>(null);
   const activeRef=useRef(false);
   const routeRequest=useRef<AbortController|null>(null);
   useEffect(()=>{
@@ -84,18 +89,37 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     void loadRoutes();
   },[gpsAvailable]);
   const depart = async () => {
-    if(busyRef.current || !activeRef.current)return;
+    if(busyRef.current || departingRef.current || !activeRef.current)return;
     if(!target.coords){setError('O destino está sem coordenadas. Pesquise novamente.');return;}
+    departingRef.current=true;
+    if(countdownTimer.current){clearInterval(countdownTimer.current);countdownTimer.current=null;}
+    setSecondsLeft(null);
     // O primeiro toque também inicia a navegação quando a lista ainda não foi calculada.
     const result=routes.length && origin ? {choices:routes,position:origin,name:originName} : await loadRoutes();
-    if(!result || !activeRef.current)return;
+    if(!result || !activeRef.current){departingRef.current=false;return;}
     const choice=result.choices[Math.min(selected,result.choices.length-1)];
-    if(!choice){setError('Não foi possível preparar a rota. Tente novamente.');return;}
+    if(!choice){departingRef.current=false;setError('Não foi possível preparar a rota. Tente novamente.');return;}
     setError('');
     const trip=choiceToTrip(choice,vehicle || GUEST_NAVIGATION_VEHICLE,result.position,{name:target.name,coords:target.coords},result.name);
     const verified=tollChecks[choice.id];
-    onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);
+    try {onStartTrip(verified ? {...trip,...tollBudgetPatch(trip,verified)} : trip);}
+    finally {departingRef.current=false;}
   };
+  useEffect(()=>{
+    if(!autoStartEnabled||!gpsAvailable||!routes.length||!origin||busy||error||departingRef.current){
+      setSecondsLeft(null);
+      return;
+    }
+    const deadline=Date.now()+ROUTE_AUTO_START_MS;
+    setSecondsLeft(7);
+    const timer=setInterval(()=>{
+      const seconds=routeAutoStartSeconds(deadline,Date.now());
+      setSecondsLeft(seconds);
+      if(seconds===0){clearInterval(timer);countdownTimer.current=null;void depart();}
+    },100);
+    countdownTimer.current=timer;
+    return()=>{clearInterval(timer);if(countdownTimer.current===timer)countdownTimer.current=null;};
+  },[autoStartEnabled,gpsAvailable,routes,origin,selected,busy,error]);
   const closeExplorer=()=>{activeRef.current=false;routeRequest.current?.abort();onClose();};
   return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[49dvh] flex flex-col rdv-route-sheet">
     <div className="h-7 shrink-0 flex justify-center items-center"><span className="h-1.5 w-12 bg-slate-300 rounded-full"/></div>
@@ -108,15 +132,19 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
         </div>
         <button type="button" aria-label="Sair da visualização do destino" onClick={closeExplorer} className="p-2.5 bg-slate-100 text-slate-600 rounded-full active:scale-95 transition-transform"><X size={18}/></button>
       </div>
-      <button type="button" disabled={busy} onClick={()=>void depart()}
-        className="w-full min-h-14 rounded-2xl bg-[#2167e8] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60">
-        <Navigation size={21}/>{busy?'Preparando sua navegação...':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
+      <button type="button" aria-label={busy?'Preparando sua navegação':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
+        disabled={busy||departingRef.current} onClick={()=>void depart()}
+        className="relative w-full min-h-[66px] rounded-2xl bg-[#2167e8] text-white font-extrabold text-[17px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60 overflow-hidden">
+        {secondsLeft!==null&&<svg key={`${selected}-${routes[0]?.id}`} aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <rect className="rdv-route-countdown-border" x="1.8" y="1.8" width="96.4" height="96.4" rx="16" pathLength="100" fill="none" stroke="#a7f3d0" strokeWidth="3.6"/>
+        </svg>}
+        <Navigation size={21} className="relative shrink-0"/>
+        <span className="relative">{busy?'Preparando sua navegação...':routes.length?'Iniciar rota':'Calcular e iniciar rota'}</span>
+        {secondsLeft!==null&&<span role="timer" aria-label={`Início automático em ${secondsLeft} segundos`} className="relative ml-1 rounded-lg bg-white/20 px-2 py-1 text-[16px] font-black tabular-nums">{secondsLeft}s</span>}
       </button>
       {routes.some(route=>route.source==='offline-graph')&&
-        <p role="status" className="text-xs text-amber-900 bg-amber-50 rounded-xl p-3">
-          Rota local calculada sem internet. Não há instruções de conversão,
-          trânsito em tempo real ou pedágios confirmados; siga a sinalização das vias.
-          O GPS deve estar dentro da rede de ruas armazenada.
+        <p role="status" className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3">
+          Rota local calculada sem internet. Confira a sinalização das vias.
         </p>}
       {error && <p role="alert" className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl p-3">{error}</p>}
 
@@ -129,11 +157,9 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
           className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 active:scale-[.99] ${index===selected?'border-blue-500 bg-blue-50 shadow-[0_5px_16px_#2563eb20]':'border-slate-200 bg-white hover:border-blue-200'}`}>
           <div className="flex justify-between gap-2"><strong className="text-[13px]">{choiceLabel(route,index)}{index===0 && route.kind!=='fast' && route.kind!=='alternative' ? ' · sugerida pelo Rolê' : ''}</strong><strong className="text-xs text-blue-700">{route.durationMinutes} min</strong></div>
           <p className="text-[11px] text-slate-600 mt-1">{route.distanceKm.toFixed(1)} km{route.scenicStop ? ` · Via ${route.scenicStop.name}` : ''}</p>
-          <p className="text-[11px] text-slate-500 mt-1">
-            {tollChecks[route.id]?.tolls.length
-              ? `Com pedágio · ${tollChecks[route.id].knownCost.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} conhecido`
-              : 'Pedágios: não confirmados'} · Trânsito ao vivo: indisponível
-          </p>
+          {Boolean(tollChecks[route.id]?.tolls.length) && <p className="text-[11px] text-slate-500 mt-1">
+            Com pedágio · {tollChecks[route.id].knownCost.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} conhecido
+          </p>}
         </button>)}
         {!gpsAvailable && <p className="text-xs text-amber-800">Ative o GPS para calcular as rotas a partir da sua localização.</p>}
       </section>

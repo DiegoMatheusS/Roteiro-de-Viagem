@@ -21,7 +21,8 @@ import { InteractiveMap } from './InteractiveMap';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
 import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
-import { searchLocations } from '../services/locationSearch';
+import { SearchResultsOverlay } from './SearchResultsOverlay';
+import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
 import { formatAddressDistance } from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
 import {readSavedAddresses,matchSavedAddressOrigin,type SavedAddress} from '../services/savedAddresses';
@@ -35,6 +36,7 @@ import { CreateTouristCircuitScreen } from './CreateTouristCircuitScreen';
 import { TripPreviewScreen } from './TripPreviewScreen';
 
 interface NavigationHomeProps {
+  activeTripInProgress?:boolean;
   currentVehicle: Vehicle | null;
   trips: TripPlan[];
   onStartTrip: (trip: TripPlan) => void;
@@ -85,6 +87,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const searchGeneration = React.useRef(0);
   const searchRequest = React.useRef<AbortController|null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const searchFormRef = React.useRef<HTMLFormElement>(null);
   const suggestionsRequest = React.useRef<AbortController|null>(null);
   const suggestionsTimeout = React.useRef<ReturnType<typeof setTimeout>|null>(null);
   const suppressedQuery = React.useRef('');
@@ -111,7 +114,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       void searchLocations(query,liveCoords,controller.signal).then(result=>{
         if(!controller.signal.aborted){
           setAddressSuggestions(result.results.slice(0,8));
-          if(!result.results.length)setSuggestionsError('Nenhum endereço encontrado. Inclua bairro ou cidade.');
+          if(!result.results.length)setSuggestionsError(result.unmatchedHouseNumber
+            ?houseNumberNotFoundMessage(result.unmatchedHouseNumber):'Nenhum endereço encontrado. Inclua bairro ou cidade.');
         }
       }).catch(error=>{if(!controller.signal.aborted){setAddressSuggestions([]);setSuggestionsError(error.message);}})
         .finally(()=>{
@@ -200,21 +204,16 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [useGps, setUseGps] = useState(true);
   const [destinationRoutePreference,setDestinationRoutePreference] = useState<RoutePreference>('tourist');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
-  const [tollNotice, setTollNotice] = useState('');
   // Carrega pedágios após abrir a prévia, sem confundir ausência de dados com rota sem cobrança.
   useEffect(() => {
     if (!preview || preview.routePath.length < 2 || !props.currentVehicle || preview.tolls?.length) return;
     const controller = new AbortController();
-    setTollNotice('');
     void requestTolls(preview, props.currentVehicle.type, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
         setPreview(current => current?.id === preview.id ? { ...current, ...tollBudgetPatch(current, result) } : current);
-        if (result.mapUnavailable) setTollNotice('Cobertura de pedágios indisponível. Confira os valores antes de viajar.');
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setTollNotice('Não foi possível consultar os pedágios. Confira-os antes de viajar.');
-      });
+      .catch(() => { /* Sem dados: não mostrar faixa amarela nem inventar preço. */ });
     return () => controller.abort();
   }, [preview?.id, props.currentVehicle?.type]);
 
@@ -352,7 +351,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       const result=await searchLocations(query,liveCoords,controller.signal);
       if(generation!==searchGeneration.current)return;
       const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
-      if(!found)throw new Error('Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
+      if(!found)throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
+        :'Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
       selectMapTarget(found);
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
     finally{if(searchRequest.current===controller)searchRequest.current=null;if(generation===searchGeneration.current)setSearchBusy(false);}
@@ -426,7 +426,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             <p className="text-[14px] mt-1 text-slate-500">Saia de onde está. A gente cria a volta.</p>
           </div>
           <div className="rdv-home-destination-search" data-testid="home-inline-destination-search">
-          <form role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
+          <form ref={searchFormRef} role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
           onSubmit={event=>{event.preventDefault();void submitQuickSearch();}}
           className="rdv-figma-home-search">
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
@@ -441,7 +441,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
           </button>
         </form>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex items-center">
             <button type="button" aria-label="Salvos" aria-expanded={showSavedDestinations}
               aria-controls="rdv-home-saved-destinations"
               onClick={()=>{
@@ -450,9 +450,9 @@ export function NavigationHome(props: NavigationHomeProps) {
                 setCollapsed(false);setSheetExpanded(true);
                 setShowSavedDestinations(value=>!value);
               }}
-              className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors
+              className={`inline-flex w-full min-h-[60px] items-center justify-center gap-3 rounded-2xl border px-5 text-lg font-extrabold transition-colors
                 ${showSavedDestinations?'border-blue-600 bg-blue-600 text-white':'border-blue-100 bg-blue-50 text-blue-700'}`}>
-              <Bookmark size={15} strokeWidth={2} aria-hidden="true"/> Salvos
+              <Bookmark size={24} strokeWidth={2} aria-hidden="true"/> Salvos
             </button>
           </div>
           {showSavedDestinations&&<div id="rdv-home-saved-destinations" role="region"
@@ -462,14 +462,14 @@ export function NavigationHome(props: NavigationHomeProps) {
               onChanged={setSavedAddresses}
               onSelect={selectMapTarget}/>
           </div>}
-          {(searchBusy||searchError)&&<p role={searchError?'alert':'status'} className={`rdv-home-search-feedback ${searchError?'bg-rose-50 text-rose-700':'bg-white text-slate-700'}`}>
-            {searchError||'Pesquisando endereço...'}
-          </p>}
-          {!searchBusy&&!searchError&&!mapTarget&&(suggestionsBusy||suggestionsError||addressSuggestions.length>0)&&
-            <div className="rdv-home-search-feedback rdv-home-address-suggestions bg-white border border-slate-200">
-              {suggestionsBusy&&<p role="status" className="text-xs text-slate-500">Buscando sugestões...</p>}
-              {suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
-              {addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
+          <SearchResultsOverlay anchorRef={searchFormRef}
+            visible={searchBusy||Boolean(searchError)||(!mapTarget&&(suggestionsBusy||Boolean(suggestionsError)||addressSuggestions.length>0))}
+            onDismiss={()=>{cancelTypeahead();setSearchError('');}}>
+              {searchBusy&&<p role="status" className="text-sm text-slate-700 p-3 font-semibold">Pesquisando endereço...</p>}
+              {searchError&&<p role="alert" className="text-sm text-rose-700 bg-rose-50 p-3">{searchError}</p>}
+              {!searchBusy&&!searchError&&suggestionsBusy&&<p role="status" className="text-xs text-slate-500 p-3">Buscando sugestões...</p>}
+              {!searchBusy&&!searchError&&suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
+              {!searchBusy&&!searchError&&addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
                 {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
                   onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
                   className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">
@@ -479,7 +479,7 @@ export function NavigationHome(props: NavigationHomeProps) {
                 </button>)}
                 <p className="text-[10px] text-slate-500 px-3 py-2">Distâncias em linha reta. Rota real após selecionar.</p>
               </div>}
-            </div>}
+          </SearchResultsOverlay>
         </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
@@ -537,6 +537,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     />}
     {mapTarget?.coords && <DestinationExplorer key={destinationExploreKey(mapTarget)} target={mapTarget} vehicle={props.currentVehicle}
       gpsAvailable={Boolean(liveCoords)} getOrigin={gpsCoordinates}
+      autoStartEnabled={!props.activeTripInProgress}
       getOriginLabel={()=>savedOriginName.current} onStartTrip={props.onStartTrip}
       selectedRouteId={displayRoute?.selectedId}
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
@@ -558,7 +559,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       key={preview.id} trip={preview}
       vehicleType={travelMode}
       isSaved={props.trips.some(savedTrip=>savedTrip.id===preview.id)}
-      tollNotice={tollNotice} error={error}
+      error={error}
       onRegenerate={preview.id===circuitPreviewId?()=>void submitCircuit(true):undefined}
       regenerating={busy}
       onDragWaypoint={point=>void editPreviewRoute(point)}

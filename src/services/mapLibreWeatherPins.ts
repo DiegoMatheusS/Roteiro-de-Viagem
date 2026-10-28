@@ -1,7 +1,8 @@
 import { bindMarkerPopup } from './mapMarkerPopup';
 import {Marker,Popup,type Map as MapLibreMap} from 'maplibre-gl';
 import type {WeatherPoint} from '../types';
-import {visibleWeatherSamples,weatherPointKey,weatherDisplayLines} from './vectorWeatherData';
+import {visibleRainSamples,weatherPointKey,weatherDisplayLines} from './vectorWeatherData';
+import {createRainDropsSvg} from './rainDropMarkers';
 
 interface TrackedForecast { marker:Marker; signature:string; }
 export interface WeatherPinController {
@@ -14,17 +15,8 @@ function pointElement(point:WeatherPoint):HTMLButtonElement {
   button.className='weather-forecast-marker rdv-maplibre-forecast';
   button.setAttribute('aria-label',`Ver previsão do tempo em ${point.locationName}`);
   button.title=`Previsão em ${point.locationName}`;
-  button.style.cssText='display:grid;place-items:center;width:31px;height:31px;padding:0;border:2px solid white;border-radius:50%;box-shadow:0 3px 10px #0f172a50;cursor:pointer;color:white;';
-  button.style.background=point.rainProb>=50?'#0284c7':'#475569';
-  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('viewBox','0 0 24 24');
-  svg.setAttribute('width','19');svg.setAttribute('height','19');
-  svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');
-  svg.setAttribute('stroke-width','2');svg.setAttribute('stroke-linecap','round');
-  svg.setAttribute('stroke-linejoin','round');
-  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-  path.setAttribute('d','M12 3c-2.5 4-7 9-7 13a7 7 0 0 0 14 0c0-4-4.5-9-7-13Z');
-  svg.append(path);button.append(svg);
+  button.style.cssText='display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent;cursor:pointer;';
+  button.append(createRainDropsSvg());
   // Keep popup click, but do not select a map destination underneath the marker.
   for(const type of ['click','dblclick','mousedown','pointerdown','touchstart'] as const){
     button.addEventListener(type,event=>event.stopPropagation(),{passive:true});
@@ -60,7 +52,7 @@ export function createRoleWeatherPins(gl:MapLibreMap):WeatherPinController {
   return {
     update(samples,show){
       if(destroyed)return;
-      const visible=show?visibleWeatherSamples(samples):[];
+      const visible=show?visibleRainSamples(samples):[];
       const desired=new Set(visible.map(weatherPointKey));
       for(const key of [...current.keys()])if(!desired.has(key))remove(key);
       for(const point of visible){

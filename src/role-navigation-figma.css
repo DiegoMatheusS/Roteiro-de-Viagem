@@ -81,7 +81,7 @@
   font-size:11px;
   font-weight:600;
 }
-.rdv-nav-rain-warning,.rdv-nav-upcoming-alert {
+.rdv-nav-route-warning {
   position:absolute;z-index:24;pointer-events:none;
   top:calc(var(--rdv-nav-guidance-top) + var(--rdv-nav-guidance-height) + 80px);
   left:16px;right:16px;
@@ -93,7 +93,49 @@
   font-size:12px;
   box-shadow:0 3px 11px #00000012;
 }
-.rdv-nav-upcoming-alert {top:calc(var(--rdv-nav-guidance-top) + var(--rdv-nav-guidance-height) + 121px);}
+.rdv-nav-upcoming-alert {
+  position:absolute;
+  z-index:31;
+  pointer-events:none;
+  bottom:calc(var(--rdv-nav-panel-height) + 12px);
+  left:12px;right:12px;
+  max-width:440px;
+  min-height:94px;
+  margin-inline:auto;
+  padding:14px 16px;
+  display:flex;align-items:center;gap:14px;
+  border:2px solid #f59e0b;
+  border-radius:18px;
+  background:#fff;
+  color:#202d3e;
+  box-shadow:0 8px 24px #0f172a40;
+}
+.rdv-nav-upcoming-icon {
+  position:relative;
+  flex:0 0 58px;
+  width:58px;height:58px;
+  display:grid;place-items:center;
+  border-radius:16px;
+  color:#9a3412;
+  background:#fff1dc;
+}
+.rdv-nav-upcoming-icon-badge {
+  position:absolute;
+  bottom:5px;right:5px;
+  background:#fff1dc;
+  border-radius:50%;
+}
+.rdv-nav-upcoming-copy {
+  display:block;
+  font-size:17px;
+  font-weight:800;
+  line-height:1.28;
+  letter-spacing:-.012em;
+}
+.rdv-nav-figma-root[data-upcoming-alert="true"] .rdv-nav-left-controls,
+.rdv-nav-figma-root[data-upcoming-alert="true"] .rdv-nav-right-controls {
+  bottom:calc(var(--rdv-nav-panel-height) + 128px);
+}
 .rdv-nav-left-controls {
   position:absolute;
   z-index:28;
@@ -256,6 +298,9 @@
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-stat span,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-map-button span {color:#cbd5e1;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-guidance {background:#1e40af;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-upcoming-alert {
+  background:#1f2937;color:#f8fafc;border-color:#f59e0b;
+}
 .rdv-navigation-screen[data-role-theme="dark"] {background:#111827;}
 .rdv-navigation-screen[data-role-theme="dark"] .rdv-figma-home-sheet,
 .rdv-navigation-screen[data-role-theme="dark"] .rdv-route-sheet {background:#1e293b;color:#f1f5f9;}

@@ -7,7 +7,6 @@ interface TripPreviewScreenProps {
   trip: TripPlan;
   vehicleType: VehicleType;
   isSaved: boolean;
-  tollNotice?: string;
   error?: string;
   onClose: () => void;
   onAdjust: () => void;
@@ -31,7 +30,7 @@ function formatDuration(durationMinutes:number):string {
 
 /** Tela 3/7: visual do Figma, usando dados e geometria da rota verificada. */
 export function TripPreviewScreen({
-  trip, vehicleType, isSaved, tollNotice, error, onClose, onAdjust, onStart, onSave,
+  trip, vehicleType, isSaved, error, onClose, onAdjust, onStart, onSave,
   onRegenerate, regenerating = false, onDragWaypoint, mapEditing=false, mapEditError=''
 }:TripPreviewScreenProps) {
   const [mapExpanded,setMapExpanded]=useState(false);
@@ -40,7 +39,7 @@ export function TripPreviewScreen({
   const vehicleLabel=vehicleType==='motorcycle'?'Moto':'Carro';
   const tolls=trip.tolls?.length||0;
   const tollLabel=tolls>0?`${tolls} ${tolls===1?'pedágio listado':'pedágios listados'}`:
-    trip.tollsStatus==='available'?'sem pedágios':'pedágios a confirmar';
+    trip.tollsStatus==='available'?'sem pedágios':'';
   // Na prévia por KM/horas a ausência de atrações e o retorno já são evidentes
   // no mapa. Mantemos alertas realmente úteis, como distância diferente ou rota desatualizada.
   const circuit = trip.planningLimits?.mode === 'km' || trip.planningLimits?.mode === 'hours';
@@ -110,7 +109,7 @@ export function TripPreviewScreen({
         </div>
         <p className="rdv-preview-meta">
           <RotateCcw size={15}/>
-          {trip.isCircular?'Volta ao início':'Só ida'} · {tollLabel}
+          {trip.isCircular?'Volta ao início':'Só ida'}{tollLabel?` · ${tollLabel}`:''}
         </p>
         {onRegenerate && <button type="button" aria-label="Gerar outra rota"
           disabled={regenerating} onClick={onRegenerate}
@@ -118,7 +117,6 @@ export function TripPreviewScreen({
           <RefreshCw size={18} className={regenerating?'animate-spin':''}/>
           {regenerating?'Buscando outra rota…':'Outra rota'}
         </button>}
-        {tollNotice && <p className="rdv-preview-notice" role="status">{tollNotice}</p>}
         {visibleWarnings.map((warning,i)=><p className="rdv-preview-notice" key={i}>{warning}</p>)}
         {error && <p className="rdv-preview-notice" role="alert">{error}</p>}
         {mapEditError && <p className="rdv-preview-notice" role="alert">{mapEditError}</p>}

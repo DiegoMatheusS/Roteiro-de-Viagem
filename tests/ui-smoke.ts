@@ -598,7 +598,9 @@ try {
   assert.deepEqual(kmPayload.originCoords, [-23.551, -46.629]);
   const planner = page.getByRole('dialog', { name: 'Planejamento da viagem' });
   await planner.getByRole('heading', { name: 'Configurar Passeio' }).waitFor();
-  await planner.getByText(/Percurso por estradas reais/).first().waitFor();
+  await planner.getByRole('heading', { name: 'Clima e pedágios' }).waitFor();
+  assert.equal(await planner.getByText(/Percurso por estradas reais/).count(),0,
+    'não mostrar a antiga faixa amarela de trânsito e cobertura de pedágios indisponíveis');
   // Move the edge-of-route station clear of the provider attribution on the
   // compact preview. Use a real drag, keeping pointer hit-testing enabled.
   const preview=planner.locator('.maplibregl-canvas, .leaflet-container').first();
@@ -1036,7 +1038,9 @@ try {
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
   // Android Back event replaces the removed bulky header while keeping the trip active.
   await page.evaluate(()=>window.dispatchEvent(new Event('rdv:android-back')));
-  await page.getByRole('button', { name: 'Retomar mapa', exact: true }).waitFor();
+  const resumeBanner=page.getByRole('complementary',{name:'Viagem em andamento'});
+  const resumeNavigation=resumeBanner.getByRole('button',{name:'Retomar navegação',exact:true});
+  await resumeNavigation.waitFor();
   const sessionState = await page.evaluate(async () => {
     const response = await fetch('/api/auth/me');
     const me = await response.json();
@@ -1053,10 +1057,10 @@ try {
   assert.ok(sessionState.hasActiveTrip, 'A viagem iniciada precisa continuar no armazenamento da conta');
   const runningId = sessionState.runningId;
   assert.ok(runningId);
-  await page.getByRole('button', { name: 'Retomar mapa', exact: true }).click();
+  await resumeNavigation.click();
   await page.locator('.rdv-nav-figma-root').getByRole('button', { name: 'Encerrar viagem', exact: true }).click();
   await page.getByRole('button', { name: 'Sim, encerrar', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: 'Retomar mapa', exact: true }).count(), 0);
+  assert.equal(await resumeBanner.count(),0,'Encerrar a viagem remove a faixa de retomada');
   if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();

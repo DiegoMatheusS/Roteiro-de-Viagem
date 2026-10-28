@@ -14,14 +14,13 @@ import { isGpsOutsideRouteCorridor,eligibleAutomaticReroute,remainingRerouteStop
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
-import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
+import { UpcomingRoadAlertBanner } from './UpcomingRoadAlertBanner';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
   Navigation, PowerOff, ArrowUp, CornerUpLeft, CornerUpRight, RotateCcw,
   MapPin, 
   AlertOctagon, 
   Home, 
-  CloudRain, 
   Sun, 
   CheckCircle, 
   Radio, 
@@ -224,7 +223,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   };
 
   return (
-    <div className="rdv-nav-figma-root" data-role-theme={appearanceTheme} aria-label="Navegação GPS ativa">
+    <div className="rdv-nav-figma-root" data-role-theme={appearanceTheme}
+      data-upcoming-alert={Boolean(upcoming)} aria-label="Navegação GPS ativa">
       {/* O mapa continua vivo e ocupando a tela toda; a UI não intercepta os gestos. */}
       <div className="rdv-nav-figma-map rdv-flat-map">
         <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
@@ -266,31 +266,23 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </>:isGpsActive?(refreshingStopRoute?'Atualizando trajeto para as paradas restantes':outsideCorridor?(eligibleAutomaticReroute(trip)?'Aguardando recálculo rodoviário':'Siga com atenção · recálculo indisponível'):usingLocalRoadGraph?'Acompanhe o traçado e a sinalização':'Siga a rota'):'Ative a localização para receber instruções'}</span>
         </span>
       </div>
-      <div className="rdv-nav-gps-status" aria-live="polite">
-        <span aria-hidden="true">ⓘ</span>
-        {isGpsActive?'GPS ativo · localização ao vivo':
-          tracking.lastKnownPosition?'Aguardando GPS · última posição conhecida no mapa':
-          tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'}
-        {refreshingStopRoute?' · Rota anterior mantida até atualizar':''}
-        {usingLocalRoadGraph?' · Trajeto calculado com ruas locais; tempo estimado':''}
-        {rerouteNotice==='recalculating'?' · Recalculando rota...':
-          rerouteNotice==='updated'?' · Rota atualizada':
-          rerouteNotice==='unavailable'?' · Rota anterior mantida':''}
-      </div>
-      {usingLocalRoadGraph&&<div role="status" className="rdv-nav-rain-warning">
+      {(!isGpsActive||refreshingStopRoute||rerouteNotice!=='idle')&&
+        <div className="rdv-nav-gps-status" aria-live="polite">
+          <span aria-hidden="true">ⓘ</span>
+          {!isGpsActive?(tracking.lastKnownPosition?'Aguardando GPS · última posição conhecida no mapa':
+            tracking.error?'GPS indisponível · tente novamente':'Aguardando sinal de GPS'):''}
+          {refreshingStopRoute?' Rota anterior mantida até atualizar':''}
+          {rerouteNotice==='recalculating'?' Recalculando rota...':
+            rerouteNotice==='updated'?' Rota atualizada':
+            rerouteNotice==='unavailable'?' Rota anterior mantida':''}
+        </div>}
+      {usingLocalRoadGraph&&<div role="status" className="rdv-nav-route-warning">
         Trajeto offline sem orientações de conversão. Siga a sinalização das ruas e não manuseie o aparelho enquanto dirige.
         O tempo é estimado e não considera trânsito ao vivo ou restrições ausentes no pacote.
       </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
-      {!rerouted&&(trip.hasRainRisk||trip.weatherPoints.some(p=>p.warning))&&vehicle.type==='motorcycle'&&
-        <div className="rdv-nav-rain-warning" role="status">
-          <CloudRain size={17}/> Atenção: condições de chuva no percurso.
-        </div>}
-
-      {upcoming&&<div role="status" className="rdv-nav-upcoming-alert">
-        {ROAD_ALERT_TYPES.find(type=>type.id===upcoming.alert.kind)?.label} · ~{upcoming.distanceKm.toFixed(1)} km à frente
-      </div>}
+      {upcoming&&<UpcomingRoadAlertBanner kind={upcoming.alert.kind} distanceKm={upcoming.distanceKm}/>}
 
       <div className="rdv-nav-left-controls">
         <Speedometer position={isGpsActive?tracking.position:null}/>

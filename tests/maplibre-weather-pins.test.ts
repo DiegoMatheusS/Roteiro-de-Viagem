@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {validWeatherPoint,visibleWeatherSamples,weatherDisplayTime,weatherDisplayLines,weatherPointKey} from '../src/services/vectorWeatherData';
+import {validWeatherPoint,visibleWeatherSamples,visibleRainSamples,weatherDisplayTime,weatherDisplayLines,weatherPointKey} from '../src/services/vectorWeatherData';
+import {isRainForecast,rainDropsSvgMarkup} from '../src/services/rainDropMarkers';
 import type {WeatherPoint} from '../src/types';
 
 const forecast:WeatherPoint={
@@ -46,6 +47,15 @@ test('forecast details contain real wind, rain, warning and explicit non-live at
   assert.doesNotMatch(weatherDisplayLines({...forecast,windDirectionDegrees:Infinity}).join(' '),/direção/);
 });
 
+test('only verified rainy samples are rendered as grouped small map droplets',()=>{
+  const dry:WeatherPoint={...forecast,condition:'Ensolarado',rainProb:5};
+  assert.equal(isRainForecast(forecast),true);
+  assert.equal(isRainForecast(dry),false);
+  assert.equal(isRainForecast({...dry,condition:'Pancadas de chuva'}),true);
+  assert.deepEqual(visibleRainSamples([dry,forecast,{...forecast,coords:[180,0]}]),[forecast]);
+  assert.equal((rainDropsSvgMarkup.match(/<path /g)||[]).length,5);
+});
+
 test('native MapLibre pins replace Leaflet only after markers are installed',()=>{
   const read=(file:string)=>readFileSync(new URL('../'+file,import.meta.url),'utf8');
   const map=read('src/components/InteractiveMap.tsx');
@@ -55,12 +65,14 @@ test('native MapLibre pins replace Leaflet only after markers are installed',()=
   assert.match(map,/setVectorWeatherReady\(true\)/);
   assert.match(map,/setVectorWeatherReady\(false\)/);
   assert.match(map,/showRainLayer && !vectorWeatherReady/);
-  assert.match(map,/L\.circleMarker\(point\.coords!/);
+  assert.match(map,/L\.marker\(point\.coords!/);
+  assert.match(map,/rainDropsSvgMarkup/);
   assert.match(map,/weatherDisplayTime\(point\)/);
   assert.match(native,/setDOMContent\(popupContent\(point\)\)/);
   assert.match(native,/setAttribute\('aria-label'/);
   assert.match(native,/\.textContent=line/);
   assert.match(native,/marker\.setLngLat\(\[point\.coords!\[1\],point\.coords!\[0\]\]\)/);
   assert.match(native,/marker\.remove\(\)/);
+  assert.match(native,/visibleRainSamples/);
   assert.doesNotMatch(native,/innerHTML|\.setHTML\(/);
 });

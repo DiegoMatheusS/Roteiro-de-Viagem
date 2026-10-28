@@ -110,13 +110,13 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
     return () => { clearTimeout(timer); controller.abort(); };
   }, [routingKey, useRoad, routeAnchor, isOpen, preserveVerifiedWaypoints]);
   const [departureAt, setDepartureAt] = useState(() => { if(!presetTrip?.departureAt) return ''; const date=new Date(presetTrip.departureAt); return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); });
-  const [weatherError, setWeatherError] = useState(''), [tollError, setTollError] = useState('');
+  const [weatherError, setWeatherError] = useState('');
   const [conditionsBusy, setConditionsBusy] = useState(false), [conditionsAttempt, setConditionsAttempt] = useState(0);
   const conditionsKey = JSON.stringify([workingTrip?.routePath, workingTrip?.durationMinutes, workingTrip?.drivingMinutes, workingTrip?.stops, vehicle.type, departureAt, conditionsAttempt]);
   useEffect(() => {
     if (!isOpen || !workingTrip?.routePath.length || isRouting || staleRoute) return;
     const controller = new AbortController();
-    setConditionsBusy(true); setWeatherError(''); setTollError('');
+    setConditionsBusy(true); setWeatherError('');
     setWorkingTrip(trip => trip ? { ...trip, weatherPoints: [], hasRainRisk: false, knownTollsCost: 0, tollsStatus: 'unknown', tolls: [] } : trip);
     const trip = workingTrip;
     const fetchConditions = async () => {
@@ -127,7 +127,6 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
       if (controller.signal.aborted) return;
       const [weather, tolls] = results;
       if (weather.status === 'rejected') setWeatherError(weather.reason.message);
-      if (tolls.status === 'rejected') setTollError(tolls.reason.message); else if(tolls.value.mapUnavailable) setTollError('Mapa indisponível: exibindo pedágios e tarifas já verificados no servidor.');
       setWorkingTrip(current => current ? { ...current, departureAt: departureAt ? new Date(departureAt).toISOString() : undefined,
         ...(weather.status === 'fulfilled' ? { weatherPoints: weather.value.weatherPoints, hasRainRisk: weather.value.hasRainRisk, weatherSource: weather.value.source, weatherUpdatedAt: weather.value.updatedAt } : { weatherPoints: [], hasRainRisk: false, weatherSource: undefined }),
         ...(tolls.status === 'fulfilled' ? tollBudgetPatch(current,tolls.value) : { tolls: [], knownTollsCost: 0, tollsStatus: 'unknown' }) } : current);
@@ -209,10 +208,7 @@ export const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
 
         {/* MODAL BODY (SCROLLABLE) */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            Percurso por estradas reais. Tempo sem trânsito ao vivo. O orçamento inclui apenas tarifas aprovadas identificadas; a cobertura de pedágios é parcial.
-          </p>
-          <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Clima e pedágios</h3><label className="block text-xs">Saída planejada (vazio: agora)<input type="datetime-local" value={departureAt} onChange={e => setDepartureAt(e.target.value)} className="block mt-1 border rounded-xl p-2" /></label>{conditionsBusy && <p role="status" className="text-xs text-emerald-700">Consultando previsão e pedágios reais...</p>}{weatherError && <p role="alert" className="text-xs text-amber-800">Clima: {weatherError}</p>}{tollError && <p role="alert" className="text-xs text-amber-800">Pedágios: {tollError}</p>}{workingTrip?.weatherSource && <p className="text-xs text-slate-500">Previsão: {workingTrip.weatherSource} · atualizada {new Date(workingTrip.weatherUpdatedAt!).toLocaleString('pt-BR')} · Horários aproximados considerando condução e permanência nas paradas, sem trânsito ao vivo.</p>}<button disabled={conditionsBusy} onClick={() => setConditionsAttempt(v => v + 1)} className="text-xs underline text-emerald-700">Atualizar clima e tarifas</button>{workingTrip?.tolls?.map(toll => <TollContribution key={toll.id} toll={toll} vehicleType={vehicle.type} />)}{!workingTrip?.tolls?.length && !conditionsBusy && <p className="text-xs text-slate-500">Nenhum pedágio identificado nesta consulta. Isso não garante ausência de cobrança.</p>}</section>
+          <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Clima e pedágios</h3><label className="block text-xs">Saída planejada (vazio: agora)<input type="datetime-local" value={departureAt} onChange={e => setDepartureAt(e.target.value)} className="block mt-1 border rounded-xl p-2" /></label>{conditionsBusy && <p role="status" className="text-xs text-emerald-700">Consultando previsão e pedágios reais...</p>}{weatherError && <p role="alert" className="text-xs text-amber-800">Clima: {weatherError}</p>}{workingTrip?.weatherSource && <p className="text-xs text-slate-500">Previsão: {workingTrip.weatherSource} · atualizada {new Date(workingTrip.weatherUpdatedAt!).toLocaleString('pt-BR')} · Horários aproximados considerando condução e permanência nas paradas.</p>}<button disabled={conditionsBusy} onClick={() => setConditionsAttempt(v => v + 1)} className="text-xs underline text-emerald-700">Atualizar clima e tarifas</button>{workingTrip?.tolls?.map(toll => <TollContribution key={toll.id} toll={toll} vehicleType={vehicle.type} />)}</section>
           <section className="border rounded-2xl p-4 space-y-3"><h3 className="text-sm font-bold">Paradas obrigatórias</h3><ManualStopsEditor value={manualStops} onChange={changeStops} bias={originCoords} />
             {isRouting && <p role="status" className="text-xs text-emerald-700">Recalculando o percurso com todas as paradas...</p>}
             {routeError && <div role="alert" className="text-xs text-rose-700">{routeError}<button type="button" onClick={() => setRoutingAttempt(value => value + 1)} className="ml-3 underline">Recalcular rota</button></div>}
