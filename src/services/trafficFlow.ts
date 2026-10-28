@@ -25,7 +25,7 @@ export interface TrafficMapPort {
   listen:(events:{idle:()=>void;style:()=>void;loaded:()=>void;error:()=>void})=>()=>void;
 }
 interface Options {
-  port:TrafficMapPort;onState:(state:TrafficState)=>void;offline?:boolean;
+  port:TrafficMapPort;onState:(state:TrafficState)=>void;offline?:boolean;initialEnabled?:boolean;
   load?:(signal:AbortSignal)=>Promise<TrafficConfig>;
   clock?:()=>number;doc?:Pick<Document,'hidden'|'addEventListener'|'removeEventListener'>;
   page?:Pick<Window,'addEventListener'|'removeEventListener'>;online?:()=>boolean;
@@ -33,10 +33,10 @@ interface Options {
 
 /** Traffic is independent of GPS renders. Refresh only while visible and idle;
  * failures remove the overlay rather than leave stale green roads on screen. */
-export function createTrafficFlowController({port,onState,offline=false,
+export function createTrafficFlowController({port,onState,offline=false,initialEnabled=true,
   load=signal=>fuelApi<TrafficConfig>('/traffic/status',{signal}),clock=Date.now,
   doc=globalThis.document,page=globalThis.window,online=()=>globalThis.navigator?.onLine!==false}:Options){
-  let enabled=true,disposed=false,pageHidden=false,state:TrafficState|undefined;
+  let enabled=initialEnabled,disposed=false,pageHidden=false,state:TrafficState|undefined;
   let config:TrafficConfig|null=null,appliedUrl:string|null=null,nextRequest=0,generation=0;
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|undefined,deadline:ReturnType<typeof setTimeout>|undefined;
   const emit=(value:TrafficState)=>{if(!disposed&&state!==value){state=value;onState(value);}};
