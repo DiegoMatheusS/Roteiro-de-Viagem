@@ -9,7 +9,7 @@ export function MapTrafficControl({port,offline=false,navigation=false}:{port:Tr
   const controller=useRef<ReturnType<typeof createTrafficFlowController>|null>(null);
   useEffect(()=>{
     if(!port)return;
-    const current=createTrafficFlowController({port,onState:setState,offline});controller.current=current;
+    const current=createTrafficFlowController({port,onState:setState,offline,initialEnabled:enabled});controller.current=current;
     current.setEnabled(enabled);
     return()=>{current.destroy();if(controller.current===current)controller.current=null;};
   },[port]);
