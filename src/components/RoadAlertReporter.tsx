@@ -11,6 +11,7 @@ import '../role-road-alert.css';
 const alertIcons:Record<RoadAlertType,React.ElementType>={
   pothole:PotholeIcon,
   broken_vehicle:CarFront,
+  accident:AlertTriangle,
   speed_camera:Cctv,
   road_obstruction:Construction,
   flooded_road:Waves,

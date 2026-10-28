@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { fuelApi } from '../services/fuelApi';
-import { searchLocations } from '../services/locationSearch';
+import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
 import { useAuth } from '../contexts/AuthContext';
 import type { LocationSelection } from '../types/itinerary';
 
@@ -31,7 +31,8 @@ export function LocationSearch({ label, value, onChange, bias, placeholder }: { 
       const result = await searchLocations(value.name,bias);
       if (current !== generation.current) return;
       setResults(result.results);
-      if (!result.results.length) setError('Nenhum local encontrado. Inclua a cidade ou o endereço.');
+      if (!result.results.length) setError(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
+        :'Nenhum local encontrado. Inclua a cidade ou o endereço.');
       else if (result.unavailable) setError('Busca externa indisponível; exibindo locais já verificados.');
     } catch (error) { if (current === generation.current) setError((error as Error).message); }
     finally { if (current === generation.current) setBusy(false); }

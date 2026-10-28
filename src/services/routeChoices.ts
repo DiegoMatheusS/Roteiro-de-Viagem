@@ -115,7 +115,7 @@ export function choiceToTrip(choice: VerifiedRouteChoice, vehicle: Vehicle,
     estimatedFuelLiters: Number(liters.toFixed(2)),
     tollsStatus: 'unknown',
     routeWarnings:choice.source==='offline-graph'
-      ? ['Trajeto offline calculado somente em ruas importadas. Sem instruções de curva, trânsito ao vivo nem verificação de pedágios. Respeite a sinalização.']
-      : ['Trânsito em tempo real indisponível. Pedágios ainda não verificados para esta alternativa.']
+      ? ['Trajeto offline calculado em ruas armazenadas no aparelho. Sem instruções de curva. Respeite a sinalização.']
+      : []
   };
 }

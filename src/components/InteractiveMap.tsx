@@ -38,7 +38,8 @@ import {createNavigationIdleFollow} from '../services/navigationIdleFollow';
 import { bindMapResumeRefresh } from '../services/mapResumeRefresh';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
-import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
+import {visibleRainSamples,weatherDisplayTime} from '../services/vectorWeatherData';
+import {rainDropsSvgMarkup} from '../services/rainDropMarkers';
 import {changedStaticLayers,type StaticLayerInputs} from '../services/mapStaticLayerInvalidation';
 import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
 import {MapTrafficControl} from './MapTrafficControl';
@@ -1451,13 +1452,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // 7. Convoy participants are moved incrementally in dedicated layers.
 
     // Pontos reais de previsão Open-Meteo; nenhum polígono de radar inventado.
-    if(showRainLayer && !vectorWeatherReady && layerChanges.weather)for(const point of visibleWeatherSamples(weatherPoints)){
+    if(showRainLayer && !vectorWeatherReady && layerChanges.weather)for(const point of visibleRainSamples(weatherPoints)){
       const direction=Number.isFinite(point.windDirectionDegrees) && point.windDirectionDegrees!>=0 &&
         point.windDirectionDegrees!<360 ? ` · direção ${Math.round(point.windDirectionDegrees!)}°` : '';
-      L.circleMarker(point.coords!,{
-        className:'weather-forecast-marker',radius:9,
-        color:point.rainProb>=50?'#0284c7':'#475569',fillOpacity:0.7
-      }).addTo(rainGroup).bindPopup(
+      L.marker(point.coords!,{icon:L.divIcon({
+        className:'weather-forecast-marker',html:rainDropsSvgMarkup,
+        iconSize:[44,44],iconAnchor:[22,22]
+      })}).addTo(rainGroup).bindPopup(
         `<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h${direction} · ${escapeHtml(weatherDisplayTime(point))}${point.warning?`<br>${escapeHtml(point.warning)}`:''}<br>Fonte: Open-Meteo (não é radar ao vivo)`
       );
     }

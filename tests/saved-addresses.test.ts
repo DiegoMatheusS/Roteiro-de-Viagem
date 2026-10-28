@@ -30,6 +30,20 @@ test('endereços com nome e coordenadas verificadas ficam isolados por conta',()
   assert.equal(deleteSavedAddress('account-a',replaced[0].id).length,0);
   assert.throws(()=>saveAddress('account-a',{label:'Escola',address:'Inválido',coords:[95,0]}));
 });
+
+test('o primeiro endereço salvo permanece primeiro, mesmo após editar os existentes',()=>{
+  storage();
+  saveAddress('account-order',{label:'Casa',address:'Rua A, 1',coords});
+  saveAddress('account-order',{label:'Trabalho',address:'Rua B, 2',coords});
+  saveAddress('account-order',{label:'Escola',address:'Rua C, 3',coords});
+  assert.deepEqual(readSavedAddresses('account-order').map(item=>item.label),['Casa','Trabalho','Escola']);
+  saveAddress('account-order',{label:'Casa',address:'Rua A, 100',coords});
+  assert.deepEqual(readSavedAddresses('account-order').map(item=>item.label),['Casa','Trabalho','Escola']);
+  assert.equal(readSavedAddresses('account-order')[0].address,'Rua A, 100');
+  const refreshed=readSavedAddresses('account-order');
+  deleteSavedAddress('account-order',refreshed[1].id);
+  assert.deepEqual(readSavedAddresses('account-order').map(item=>item.label),['Casa','Escola']);
+});
 test('origem Casa só pode substituir GPS atual quando o sinal é confiável e próximo',()=>{
   storage();
   const saved=saveAddress('a',{label:'Casa',address:'Rua A',coords});

@@ -18,6 +18,20 @@ test('address search preserves accented query and bias, and rejects invalid coor
   assert.deepEqual(result.results.map(place=>place.id),['valid']);
 });
 
+test('search never chooses another house number or the street centroid',async t=>{
+  t.mock.method(globalThis,'fetch',async()=>Response.json({results:[
+    {id:'street',name:'Rua das Flores',address:'Rua das Flores, São Paulo',coords:[-23.55,-46.63]},
+    {id:'other',name:'Rua das Flores, 10',address:'Rua das Flores, 10, São Paulo',coords:[-23.55,-46.63]},
+    {id:'exact',name:'Rua das Flores, 100',address:'Rua das Flores, 100, São Paulo',coords:[-23.56,-46.64]}
+  ]}));
+  const found=await searchLocations('Rua das Flores, 100, São Paulo',[-23.55,-46.63]);
+  assert.deepEqual(found.results.map(p=>p.id),['exact']);
+  assert.equal(found.unmatchedHouseNumber,null);
+  const missing=await searchLocations('Rua das Flores 123, São Paulo',[-23.55,-46.63]);
+  assert.deepEqual(missing.results,[]);
+  assert.equal(missing.unmatchedHouseNumber,'123');
+});
+
 test('an unresponsive search times out, aborts HTTP, and permits a later retry',async t=>{
   t.mock.timers.enable({apis:['setTimeout']});
   let signal:AbortSignal|undefined;

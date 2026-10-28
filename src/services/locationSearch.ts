@@ -1,6 +1,10 @@
 import {fuelApi,FuelApiError} from './fuelApi';
 import type {LocationSelection} from '../types/itinerary';
-import {rankLocationSuggestions} from './locationSuggestions';
+import {matchingHouseNumber,rankLocationSuggestions,requestedHouseNumber} from './locationSuggestions';
+
+export function houseNumberNotFoundMessage(number:string):string {
+  return `Não localizamos o imóvel nº ${number}. Confira a rua e a cidade; não vamos usar outro número.`;
+}
 
 /** Bound the wait on both fetch and the Android bridge. The bridge cannot
  * cancel a running HTTP call; late responses must still be ignored by callers. */
@@ -39,9 +43,13 @@ export async function searchLocations(query:string,bias?:[number,number],signal?
     const result=await Promise.race([cancelled,
       queryResult()]);
     if(!Array.isArray(result.results))throw new Error('Não foi possível pesquisar este endereço. Tente novamente.');
-    return {...result,results:rankLocationSuggestions(query,result.results.filter(place=>typeof place?.name==='string'&&
+    const valid=result.results.filter(place=>typeof place?.name==='string'&&
       Array.isArray(place.coords)&&place.coords.length===2&&place.coords.every(Number.isFinite)&&
-      Math.abs(place.coords[0])<=90&&Math.abs(place.coords[1])<=180),bias)};
+      Math.abs(place.coords[0])<=90&&Math.abs(place.coords[1])<=180);
+    const requestedNumber=requestedHouseNumber(query);
+    const numbered=requestedNumber?valid.filter(place=>matchingHouseNumber(place,requestedNumber)):valid;
+    return {...result,results:rankLocationSuggestions(query,numbered,bias),
+      unmatchedHouseNumber:requestedNumber&&numbered.length===0?requestedNumber:null};
   }finally{
     clearTimeout(timer);signal?.removeEventListener('abort',cancel);
   }

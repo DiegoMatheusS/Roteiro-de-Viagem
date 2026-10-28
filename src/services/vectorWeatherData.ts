@@ -1,4 +1,5 @@
 import type {WeatherPoint} from '../types';
+import {isRainForecast} from './rainDropMarkers';
 
 /** Previsões pontuais vindas do provedor. Sem posição válida, não há marcador. */
 export function validWeatherPoint(point:WeatherPoint):boolean {
@@ -22,6 +23,11 @@ export function visibleWeatherSamples(samples:readonly WeatherPoint[]):WeatherPo
     seen.add(key);
     return true;
   });
+}
+export function visibleRainSamples(samples:readonly WeatherPoint[]):WeatherPoint[] {
+  // Filter before deduplication so a dry sample cannot hide a rainy forecast
+  // at the same location and time in a provider refresh.
+  return visibleWeatherSamples(samples.filter(isRainForecast));
 }
 /** Forecast time can be an ISO timestamp OR a time-only string; never assume a date. */
 export function weatherDisplayTime(point:WeatherPoint):string {

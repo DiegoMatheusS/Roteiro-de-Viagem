@@ -1,7 +1,8 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { searchLocations } from '../services/locationSearch';
+import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
+import { SearchResultsOverlay } from './SearchResultsOverlay';
 import {formatAddressDistance} from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
 import { readSavedAddresses,matchSavedAddressOrigin,type SavedAddress } from '../services/savedAddresses';
@@ -56,6 +57,7 @@ export function MapTab(props: MapTabProps) {
   const [addressSuggestions,setAddressSuggestions]=useState<LocationSelection[]>([]);
   const [suggestionsBusy,setSuggestionsBusy]=useState(false);
   const searchInputRef=useRef<HTMLInputElement>(null);
+  const searchFormRef=useRef<HTMLFormElement>(null);
   useEffect(()=>()=>{
     searchGeneration.current++;searchRequest.current?.abort();
     suggestionsRequest.current?.abort();if(suggestionsTimeout.current)clearTimeout(suggestionsTimeout.current);
@@ -146,7 +148,8 @@ export function MapTab(props: MapTabProps) {
       const result=await searchLocations(query,bias,controller.signal);
       if(generation!==searchGeneration.current)return;
       const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
-      if(!found)throw new Error('Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
+      if(!found)throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
+        :'Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
       focusDestination(found);
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
     finally{if(searchRequest.current===controller)searchRequest.current=null;if(generation===searchGeneration.current)setSearchBusy(false);}
@@ -244,7 +247,7 @@ export function MapTab(props: MapTabProps) {
 
     {/* Painel da tela Mapa: puxador por gesto ou clique, conteúdos conectados à região visível. */}
     <section aria-label="Explorar destinos e estabelecimentos" data-testid="map-explore-sheet"
-      style={{height:showAddressSuggestions&&!sheetExpanded?'min(430px, calc(100dvh - 175px))':mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset,true),
+      style={{height:mapSheetHeight(sheetExpanded,Boolean(searchError)||searchBusy,dragOffset,true),
         transitionDuration:dragOffset?'0ms':undefined}}
       className="absolute bottom-0 inset-x-0 z-30 overflow-hidden bg-white/95 backdrop-blur-xl rounded-t-[28px] shadow-[0_-14px_40px_#0f172a20] flex flex-col transition-[height] duration-300 ease-out rdv-home-sheet">
       <button type="button" aria-label={sheetExpanded ? 'Recolher painel do mapa' : 'Expandir painel do mapa'}
@@ -271,7 +274,7 @@ export function MapTab(props: MapTabProps) {
       </button>
       <div data-map-panel-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         <div className="max-w-xl mx-auto space-y-5">
-          <form role="search" aria-label="Busca rápida de destinos no mapa"
+          <form ref={searchFormRef} role="search" aria-label="Busca rápida de destinos no mapa"
             aria-busy={searchBusy} onSubmit={event=>{event.preventDefault();void submitQuickSearch();}}
             className="flex items-center gap-3 bg-slate-100 rounded-2xl h-14 px-4 border border-slate-100 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
             <Search size={21} className="text-slate-600 shrink-0" aria-hidden="true"/>
@@ -286,8 +289,11 @@ export function MapTab(props: MapTabProps) {
               {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
           </form>
           {searchBusy&&<p role="status" className="text-slate-700 text-xs">Pesquisando endereço...</p>}
-          {!searchBusy&&suggestionsBusy&&<p role="status" className="text-slate-500 text-[11px]">Buscando sugestões...</p>}
-          {showAddressSuggestions&&<div role="group" aria-label="Sugestões de endereços" className="rounded-xl border border-slate-200 divide-y bg-white max-h-44 overflow-y-auto">
+          <SearchResultsOverlay anchorRef={searchFormRef}
+            visible={!searchBusy&&!mapTarget&&(suggestionsBusy||showAddressSuggestions)}
+            onDismiss={cancelTypeahead}>
+            {suggestionsBusy&&<p role="status" className="text-slate-500 text-sm p-3">Buscando sugestões...</p>}
+            {showAddressSuggestions&&<div role="group" aria-label="Sugestões de endereços" className="divide-y bg-white">
             {addressSuggestions.map((place,index)=><button key={place.id??index} type="button" onClick={()=>focusDestination(place)}
               className="w-full text-left px-3 py-2 text-sm" aria-label={`Escolher destino ${place.name}`}>
               <strong className="block truncate text-slate-900">{place.name}</strong>
@@ -296,6 +302,7 @@ export function MapTab(props: MapTabProps) {
             </button>)}
             <p className="text-[10px] text-slate-500 px-3 py-1">Distâncias em linha reta. Rota real após selecionar.</p>
           </div>}
+          </SearchResultsOverlay>
           {searchError && <p role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs">{searchError}</p>}
           <SavedAddressesPanel gps={location.status==='ready'?location.position:null}
             onChanged={setSavedAddresses} onSelect={focusDestination}/>
@@ -337,6 +344,7 @@ export function MapTab(props: MapTabProps) {
     </section>
     {mapTarget?.coords && <DestinationExplorer key={destinationExploreKey(mapTarget)} target={mapTarget}
       vehicle={props.currentVehicle} gpsAvailable={location.status==='ready'} getOrigin={getExplorationOrigin}
+      autoStartEnabled={!props.activeTrip}
        getOriginLabel={()=>savedOriginName.current}
       onStartTrip={trip=>props.onStartTrip?.(trip)}
       selectedRouteId={exploreRoute?.selectedId}

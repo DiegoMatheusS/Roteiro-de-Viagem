@@ -37,7 +37,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   db.exec(`
     CREATE TABLE IF NOT EXISTS road_alerts (
       id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+      kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','accident','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
       lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
       note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
@@ -87,13 +87,16 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   `);
   // SQLite não permite ampliar um CHECK em uma coluna existente. Preserva os relatos já armazenados.
   const alertSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='road_alerts'").get() as {sql:string}).sql;
-  if (!alertSql.includes("'flooded_road'")) {
+  if (!alertSql.includes("'accident'")) {
+    // Dropping the old table with FK enforcement enabled would cascade-delete
+    // confirmation votes in road_alert_checks during an in-place upgrade.
+    db.exec('PRAGMA foreign_keys = OFF');
     db.exec('BEGIN IMMEDIATE');
     try {
       db.exec(`
         CREATE TABLE road_alerts_next (
           id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-          kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+          kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','accident','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
           lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
           note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
           created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
@@ -105,8 +108,11 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
         CREATE INDEX road_alerts_geo ON road_alerts(status,expires_at,lat,lng);
         CREATE INDEX road_alerts_user ON road_alerts(user_id,created_at);
       `);
+      if (db.prepare('PRAGMA foreign_key_check').all().length)
+        throw new Error('Migração de alertas violou referências existentes.');
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
+    finally { db.exec('PRAGMA foreign_keys = ON'); }
   }
   // Somente uma confirmação por conta e ocorrência. Sem dados de GPS armazenados nos votos.
   db.exec(`
