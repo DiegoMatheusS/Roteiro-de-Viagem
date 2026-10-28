@@ -1,7 +1,7 @@
 import { bindMarkerPopup } from './mapMarkerPopup';
 import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import { arrowHeadingStyle } from './gpsHeading';
-import { setGpsMarkerState } from './gpsMarkerState';
+import { setGpsMarkerState,shouldShowDestinationPin } from './gpsMarkerState';
 
 export type RolePosition = [number,number]; // latitude, longitude
 export interface NavigationPins {
@@ -30,6 +30,7 @@ export function toNavigationLngLat([lat,lng]:RolePosition):[number,number] {
 export function visibleNavigationPins(input:NavigationPins): Kind[] {
   return (['origin','destination','live'] as Kind[]).filter(kind=>{
     if(kind==='origin') return !input.navigationMode && valid(input.origin);
+    if(kind==='destination'&&!shouldShowDestinationPin(input.navigationMode,input.destination,input.live))return false;
     return valid(kind==='destination'?input.destination:input.live);
   });
 }

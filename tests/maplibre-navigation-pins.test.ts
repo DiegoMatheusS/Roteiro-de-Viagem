@@ -31,6 +31,14 @@ test('navigation pins update without remounting on every GPS reading',()=>{
   assert.doesNotMatch(text,/innerHTML\s*=\s*label/);
 });
 
+test('arrival pin cannot form a circle under the GPS arrow at a circular trip start',()=>{
+  const atStart={...input,navigationMode:true,destination:input.origin,live:input.origin};
+  assert.deepEqual(visibleNavigationPins(atStart),['live']);
+  assert.deepEqual(visibleNavigationPins({...atStart,live:[-23.55,-46.6299]}),['live']);
+  assert.deepEqual(visibleNavigationPins({...atStart,live:[-23.55,-46.629]}),['destination','live']);
+  assert.deepEqual(visibleNavigationPins({...atStart,navigationMode:false}),['origin','destination','live']);
+});
+
 test('Leaflet fallback and MapLibre switch do not create duplicate GPS endpoints',()=>{
   const text=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
   assert.match(text,/navigationPinGroupRef\.current\?\.clearLayers\(\)/);

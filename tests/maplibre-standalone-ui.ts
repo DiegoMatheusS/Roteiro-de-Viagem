@@ -359,6 +359,7 @@ try{
   assert.ok(hud.top<=16,'turn instructions stay near the top safe area');
   assert.ok(hud.height<=160&&hud.bottom===hud.viewport,'a compact bottom panel leaves more map visible');
   assert.equal(hud.background,'rgb(229, 231, 235)');
+  assert.equal(await page.locator('.map-destination-dot').count(),0,'the arrival pin must not cover the GPS arrow at the start of a circular trip');
   await page.getByRole('button',{name:'Simular volta ao início',exact:true}).click();
   await guidance.getByText('Chegando ao destino',{exact:true}).waitFor();
   await guidance.getByText('0 m',{exact:true}).waitFor();
