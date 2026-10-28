@@ -22,34 +22,49 @@ try{
   await page.route('**/api/traffic/tiles/**',route=>{tileCalls++;return fail?route.fulfill({status:503,json:{error:'Unavailable'}}):
     route.fulfill({contentType:'image/png',body:image,headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'}});});
   await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-map.html');
-  const map=page.locator('[data-map-engine="maplibre-standalone"]'),toggle=page.getByRole('button',{name:'Mostrar trânsito ao vivo',exact:true});
+  const map=page.locator('[data-map-engine="maplibre-standalone"]');
+  const showTraffic=()=>page.getByRole('button',{name:'Mostrar trânsito',exact:true});
+  const hideTraffic=()=>page.getByRole('button',{name:'Ocultar trânsito',exact:true});
+  await map.locator('[data-traffic-state="off"]').waitFor();
+  assert.equal(statusCalls,0,'no automatic paid traffic call on map startup');
+  // Navigation zoom can begin at city scale; get close enough for the 10-km window.
+  await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+  for(let i=0;i<5;i++){
+    const zoom=Number(await map.getAttribute('data-map-zoom'));
+    if(zoom>=15)break;
+    const canvas=await map.locator('.maplibregl-canvas').boundingBox();
+    if(canvas){await page.mouse.move(canvas.x+canvas.width/2,canvas.y+canvas.height/2);await page.mouse.wheel(0,-450);await page.waitForTimeout(230);}
+  }
+  await showTraffic().click();
   await map.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
   await page.getByLabel('Legenda do trânsito').waitFor();assert.ok(tileCalls>0);assert.equal(statusCalls,1);
   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   assert.equal(statusCalls,1,'GPS callbacks cannot repeat traffic metadata requests');
   fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/traffic-map.png'});
-  await toggle.click();await map.locator('[data-traffic-state="off"]').waitFor();
+  await hideTraffic().click();await map.locator('[data-traffic-state="off"]').waitFor();
   assert.equal(await page.getByLabel('Legenda do trânsito').count(),0);
   await page.waitForTimeout(200);const stoppedTiles=tileCalls;
   await page.getByRole('button',{name:'Mover GPS',exact:true}).click();await page.waitForTimeout(250);
   assert.equal(tileCalls,stoppedTiles,'disabled traffic cannot request more tiles after camera updates');
-  await toggle.click();await map.locator('[data-traffic-state="live"]').waitFor();
+  await showTraffic().click();await map.locator('[data-traffic-state="live"]').waitFor();
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
   await map.locator('[data-traffic-state="paused"]').waitFor();
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});
   await map.locator('[data-traffic-state="live"]').waitFor();
   // Traffic failures must never trip the base-map fallback or lose the GPS pin.
-  await toggle.click();fail=true;await toggle.click();
+  await hideTraffic().click();fail=true;await showTraffic().click();
   await map.locator('[data-traffic-state="unavailable"]').waitFor();
   assert.equal(await map.getAttribute('data-map-ready'),'true');assert.equal(await map.locator('.user-live-marker').count(),1);
   assert.equal(await page.locator('[data-map-engine="leaflet-fallback"]').count(),0);
   fail=false;
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   const fallback=page.locator('[data-map-engine="leaflet-fallback"]');await fallback.waitFor();
+  await fallback.locator('[data-traffic-state="off"]').waitFor({timeout:20000});
+  await showTraffic().click();
   await fallback.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
-  assert.equal(statusCalls,2);assert.ok(await fallback.locator('.leaflet-role-traffic-pane img').count()>0);
+  assert.equal(statusCalls,4);assert.ok(await fallback.locator('.leaflet-role-traffic-pane img').count()>0);
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();
-  assert.equal(await page.getByRole('button',{name:'Mostrar trânsito ao vivo',exact:true}).count(),0);
+  assert.equal(await page.locator('[data-traffic-control]').count(),0);
   assert.deepEqual(errors,[]);
   console.log('PASS: real raster traffic renders in both engines; toggling/background/failure preserve GPS and base-map gestures.');
 }finally{await browser?.close();await vite.close();}
