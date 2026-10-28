@@ -1,10 +1,15 @@
 import type {Map as GlMap,RasterTileSource,MapSourceDataEvent,ErrorEvent} from 'maplibre-gl';
-import {TRAFFIC_SOURCE_ID,TRAFFIC_MIN_ZOOM,isTrafficMapError,type TrafficMapPort} from './trafficFlow';
+import {TRAFFIC_SOURCE_ID,TRAFFIC_MIN_ZOOM,isTrafficMapError,trafficViewportRadiusKm,type TrafficMapPort} from './trafficFlow';
 
 export function createMapLibreTrafficPort(map:GlMap):TrafficMapPort {
   const layerId='role-traffic-colors';let currentUrl:string|null=null;
   return {
-    getZoom:()=>map.getZoom(),isMoving:()=>map.isMoving(),
+    getZoom:()=>map.getZoom(),
+    getViewportRadiusKm:()=>{
+      const center=map.getCenter(),bounds=map.getBounds(),sw=bounds.getSouthWest(),ne=bounds.getNorthEast();
+      return trafficViewportRadiusKm([center.lat,center.lng],[sw.lat,sw.lng],[ne.lat,ne.lng]);
+    },
+    isMoving:()=>map.isMoving(),
     setTiles(url,attribution='© TomTom'){
       try{
         if(!url){
