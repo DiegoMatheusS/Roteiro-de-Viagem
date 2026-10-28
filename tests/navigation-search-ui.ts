@@ -65,6 +65,27 @@ try{
   await page.waitForFunction(()=>document.querySelector('.user-live-marker')?.getAttribute('data-gps-state')==='live');
   const input=page.getByRole('searchbox',{name:'Para onde quer ir?'});
   const submit=page.getByRole('button',{name:'Pesquisar destino',exact:true});
+  if(screen==='home'){
+    const layout=await page.evaluate(()=>{
+      const heading=document.querySelector('.rdv-figma-home-sheet h2');
+      const search=document.querySelector('[data-testid="home-inline-destination-search"]');
+      const sheet=document.querySelector('[data-testid="home-main-sheet"]');
+      const map=document.querySelector('.rdv-navigation-screen');
+      const searchRect=search?.getBoundingClientRect(),titleRect=heading?.getBoundingClientRect(),sheetRect=sheet?.getBoundingClientRect();
+      return {nested:!!search&&!!sheet?.contains(search),
+        titleBeforeSearch:!!titleRect&&!!searchRect&&searchRect.top>titleRect.bottom,
+        searchInsideSheet:!!searchRect&&!!sheetRect&&searchRect.bottom<=sheetRect.bottom,
+        noFloatingSearch:!(map?.querySelector(':scope > form[role="search"]')),
+        collapsedHeight:sheetRect?.height||0,
+        searchVisible:!!searchRect&&searchRect.height>40};
+    });
+    assert.equal(layout.nested,true,'address search is contained in the home panel');
+    assert.equal(layout.titleBeforeSearch,true,'address search is below Bora dar um rolê');
+    assert.equal(layout.searchInsideSheet,true,'the initial mobile search stays inside the panel');
+    assert.equal(layout.noFloatingSearch,true,'no duplicate search overlays the map');
+    assert.equal(layout.searchVisible,true);
+    assert.ok(layout.collapsedHeight>=300,'the sheet rises to make room for the search');
+  }
   await input.fill('Rua de teste');
   await submit.tap();
   const progress=page.getByRole('status').filter({hasText:'Pesquisando endereço...'});
@@ -101,7 +122,7 @@ try{
   await destinationPanel.getByRole('button',{name:'Iniciar rota selecionada'}).tap();
   assert.equal(await page.evaluate(()=>(window as any).__startedRouteTrip.modality),'turistica');
   assert.deepEqual(queries,['Rua de teste','Rua de teste','Rua de teste'],'one request per tap or keyboard submit');
-  assert.equal(await input.evaluate(element=>document.activeElement===element),false,'close the keyboard after locating the address');
+  assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')==='Para onde quer ir?'),false,'close the keyboard after locating the address');
   await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await input.fill('Outra rua próxima');
   const results=page.getByRole('group',{name:'Sugestões de endereços'});
@@ -120,7 +141,7 @@ try{
   await choice.tap();
   await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
   assert.equal(queries.length,requestsAfterTyping,`${screen}: choosing a suggestion must not search it again`);
-  assert.equal(await input.evaluate(element=>document.activeElement===element),false);
+  assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')==='Para onde quer ir?'),false);
   await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await input.fill('Texto a cancelar');
   await input.fill('ab');
