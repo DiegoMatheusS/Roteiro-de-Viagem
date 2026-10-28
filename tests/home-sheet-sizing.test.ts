@@ -6,7 +6,7 @@ test('home sheet drag changes height instead of translating the panel away from 
   assert.equal(HOME_SHEET_EXPANDED_HEIGHT,'82dvh');
   assert.equal(draggedHomeSheetHeight('resting',0),undefined);
   assert.equal(draggedHomeSheetHeight('resting',-180),
-    'clamp(74px, calc(max(37dvh, 300px) + 180px), 82dvh)');
+    'clamp(74px, calc(clamp(304px,42dvh,365px) + 180px), 82dvh)');
   assert.equal(draggedHomeSheetHeight('expanded',120),
     'clamp(74px, calc(82dvh - 120px), 82dvh)');
   assert.equal(draggedHomeSheetHeight('collapsed',-120),
