@@ -1,11 +1,25 @@
 import {fuelApi} from './fuelApi';
 
 export const TRAFFIC_SOURCE_ID='role-traffic-flow';
-export const TRAFFIC_MIN_ZOOM=6;
+export const TRAFFIC_MIN_ZOOM=10;
+export const TRAFFIC_MAX_CAMERA_RADIUS_KM=10;
+/** Furthest viewport corner, never a request for traffic outside the map view. */
+export function trafficViewportRadiusKm(center:[number,number],sw:[number,number],ne:[number,number]):number {
+  const values=[...center,...sw,...ne];
+  if(!values.every(Number.isFinite))return Infinity;
+  const rad=Math.PI/180,meters=(a:[number,number],b:[number,number])=>{
+    const dLat=(b[0]-a[0])*rad,dLon=(b[1]-a[1])*rad;
+    const h=Math.sin(dLat/2)**2+Math.cos(a[0]*rad)*Math.cos(b[0]*rad)*Math.sin(dLon/2)**2;
+    return 12742*Math.asin(Math.min(1,Math.sqrt(Math.max(0,h))));
+  };
+  return Math.max(...[sw,ne,[sw[0],ne[1]],[ne[0],sw[1]]].map(p=>meters(center,p as [number,number])));
+}
+
 export type TrafficState='loading'|'live'|'unavailable'|'off'|'offline'|'paused'|'zoom-in';
 export interface TrafficConfig {available:boolean;tileUrl:string|null;attribution:string;refreshSeconds:number}
 export interface TrafficMapPort {
   getZoom:()=>number;
+  getViewportRadiusKm:()=>number;
   isMoving:()=>boolean;
   setTiles:(url:string|null,attribution?:string)=>void;
   listen:(events:{idle:()=>void;style:()=>void;loaded:()=>void;error:()=>void})=>()=>void;
@@ -27,11 +41,12 @@ export function createTrafficFlowController({port,onState,offline=false,
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|undefined,deadline:ReturnType<typeof setTimeout>|undefined;
   const emit=(value:TrafficState)=>{if(!disposed&&state!==value){state=value;onState(value);}};
   const active=()=>!disposed&&enabled&&!offline&&online()&&!doc?.hidden&&!pageHidden;
+  const withinRadius=()=>port.getViewportRadiusKm()<=TRAFFIC_MAX_CAMERA_RADIUS_KM;
   const remove=()=>{appliedUrl=null;port.setTiles(null);};
   const cancel=()=>{generation++;request?.abort();request=null;clearTimeout(timer);clearTimeout(deadline);timer=undefined;deadline=undefined;};
   const schedule=()=>{
     clearTimeout(timer);timer=undefined;
-    if(active()&&port.getZoom()>=TRAFFIC_MIN_ZOOM)
+    if(active()&&port.getZoom()>=TRAFFIC_MIN_ZOOM&&withinRadius())
       timer=setTimeout(()=>{timer=undefined;reconcile();},Math.max(1000,nextRequest-clock()));
   };
   const apply=()=>{
@@ -66,7 +81,9 @@ export function createTrafficFlowController({port,onState,offline=false,
     if(!active()){
       cancel();remove();emit(!enabled?'off':offline||!online()?'offline':'paused');return;
     }
-    if(port.getZoom()<TRAFFIC_MIN_ZOOM){cancel();remove();emit('zoom-in');return;}
+    if(port.getZoom()<TRAFFIC_MIN_ZOOM||!withinRadius()){
+      cancel();remove();emit('zoom-in');return;
+    }
     if(port.isMoving()){clearTimeout(timer);timer=undefined;return;}
     if(clock()>=nextRequest){void refresh();return;}
     if(config)apply();
