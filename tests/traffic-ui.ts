@@ -37,7 +37,11 @@ try{
   }
   await showTraffic().click();
   await map.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
-  await page.getByLabel('Legenda do trânsito').waitFor();assert.ok(tileCalls>0);assert.equal(statusCalls,1);
+  await page.getByLabel('Legenda do trânsito').waitFor();
+  // MapLibre can signal source metadata before raster-tile network requests.
+  for(let retry=0;retry<30&&tileCalls===0;retry++)await page.waitForTimeout(200);
+  assert.ok(tileCalls>0,'a visible traffic layer must request at least one real tile');
+  assert.equal(statusCalls,1);
   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   assert.equal(statusCalls,1,'GPS callbacks cannot repeat traffic metadata requests');
   fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/traffic-map.png'});
