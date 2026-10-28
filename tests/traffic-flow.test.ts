@@ -96,3 +96,16 @@ test('camera-to-corner radius is geodesic and bounded around the actual viewport
   assert.ok(distant>10);
   assert.equal(trafficViewportRadiusKm([NaN,0],[0,0],[0,0]),Infinity);
 });
+
+test('traffic opt-in must not request API on controller mount',async()=>{
+  const map=surface();let calls=0;
+  const control=createTrafficFlowController({...map,initialEnabled:false,
+    load:async()=>{calls++;return config;}});
+  await flush();assert.equal(calls,0);
+  assert.equal(map.state.url,null);
+  assert.equal(map.state.states.at(-1),'off');
+  control.setEnabled(true);await flush();
+  assert.equal(calls,1);
+  control.setEnabled(false);assert.equal(map.state.url,null);
+  control.destroy();
+});
