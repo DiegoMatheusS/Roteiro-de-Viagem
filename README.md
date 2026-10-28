@@ -138,6 +138,12 @@ Cada participante começa com GPS desligado e ativa o compartilhamento explicita
 
 ## Navegação e encerramento
 
+Em Perfil, **Precisão do GPS → Calibrar GPS** observa leituras reais por até 12 segundos. O resultado mostra a incerteza informada em metros e só confirma estabilidade após duas posições recentes, consistentes e com precisão de até 20 m. Um sinal de até 50 m pode ser apresentado como limitado; posições antigas ou ruins não viram confirmação. Cancelar, sair da tela ou minimizar interrompe a verificação e libera seu rastreador temporário. A função avalia o sinal recebido e não altera fisicamente os sensores.
+
+No Android, o mapa solicita atualizações de GPS em um intervalo independente do prazo de espera, evitando usar o timeout de 15 segundos como frequência desejada. A seta usa o sentido de deslocamento (`course`) disponibilizado pelo plugin; leituras de bússola do telefone não substituem esse sentido. Navegadores continuam usando o `heading` padrão.
+
+No mapa vetorial, ruas, avenidas, rodovias, pontes e túneis usam o mesmo cinza no miolo e na borda, com uma tonalidade uniforme por tema claro/escuro. As larguras e os nomes das vias são preservados, assim como os traçados de navegação.
+
 O painel de navegação é compacto e cinza, fica junto à base da tela e mantém botões de pelo menos 44 px. As instruções de conversão ficam próximas à área segura superior. O marcador do GPS usa uma seta azul com contorno branco, sem círculo, nos dois renderizadores.
 
 O GPS usado pelas telas e as consultas periódicas de acompanhamento pausam quando o aplicativo fica oculto e retomam ao voltar. Uma viagem ativa ou o compartilhamento consentido de Comboio no Android continuam pelo serviço nativo com a tela apagada e a notificação de GPS. Ao fechar a Activity ou remover o aplicativo dos recentes, o serviço para, libera o GPS e remove a notificação; a viagem e a distância ficam salvas para retomada explícita. Esse comportamento não quantifica o consumo de bateria de cada celular.
@@ -257,9 +263,17 @@ Quando o e-mail já pertence a uma conta de viajante, o login Google vincula-se 
 - Os pontos de encontro continuam mostrando quantos participantes confirmaram chegada. Paradas com referência OSM de posto preservam os comandos de preços e comentários. No fallback raster, os mesmos marcadores e pop-ups permanecem.
 - O renderizador MapLibre ainda usa a ponte de câmera/gestos Leaflet. Remover a dependência do Leaflet exige migrar os gestos e os overlays meteorológicos e validar o Android físico.
 
+## Trânsito ao vivo (TomTom)
+
+Configure `TOMTOM_TRAFFIC_API_KEY` somente no servidor da API, nas variáveis privadas do Railway. A integração usa [TomTom Orbis Traffic v2 Raster Flow Tiles](https://docs.tomtom.com/traffic-api/documentation/tomtom-orbis-maps/v2/traffic-flow/raster-flow-tiles), com a chave no cabeçalho entre servidor e provedor. O APK recebe apenas URLs do proxy da API; não recebe a chave. O domínio público do Railway fornece a origem absoluta das imagens no Android; em outros hosts, configure `PUBLIC_API_URL` com a origem HTTPS pública da API.
+
+O controle **Trânsito** aparece no mapa vetorial e no fallback. Verde indica fluxo livre, amarelo lentidão e vermelho congestionamento, conforme o PNG real do provedor, em áreas com cobertura. Cinza indica ausência de dados de trânsito; não significa trânsito livre. A camada de cores não altera as estimativas ou a seleção de rotas do OSRM, que continuam sem trânsito ao vivo.
+
+As imagens têm cache curto e limitado no servidor, requisições idênticas são agrupadas e erros do provedor têm espera antes de nova tentativa. A atualização periódica ocorre a cada 60 segundos, aguarda o fim dos gestos e pausa quando o app fica oculto, offline, em um mapa local ou quando a pessoa desativa a camada. Sem chave válida, conexão ou resposta do provedor, as cores são removidas e o controle informa a indisponibilidade. Não há dados de trânsito simulados.
+
 ## Seta do GPS orientada pelo deslocamento
 
-- Quando o GPS fornece um rumo real de deslocamento (`heading` no navegador/Capacitor e `Location.getBearing()` no Android nativo), a seta azul passa a apontar na direção de movimento, tanto no MapLibre quanto no fallback Leaflet.
+- Quando o GPS fornece um rumo real de deslocamento (`heading` no navegador, `course` no Capacitor e `Location.getBearing()` no Android nativo), a seta azul passa a apontar na direção de movimento, tanto no MapLibre quanto no fallback Leaflet.
 - Direções inválidas, ausentes ou com velocidade conhecida inferior a 1,4 m/s não fazem a seta girar. A última direção válida é mantida para reduzir oscilações em paradas. A interpolação angular escolhe o caminho mais curto ao cruzar 0°/360°.
 - A animação da seta respeita `prefers-reduced-motion`; não há novas permissões nem telemetria de GPS. O código não calcula rumo a partir de posições incertas nem inventa valores.
 - **Nesta fase a câmera continua apontada para o norte:** a base MapLibre ainda usa gestos e viewport controlados pelo Leaflet. Girar apenas a câmera MapLibre causaria dessincronização das rotas e pinos. Rotação do mapa e gestos MapLibre independentes exigem uma próxima etapa que substitua o adaptador por um controlador único e seja testada em aparelhos reais.

@@ -1,4 +1,4 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useRef,useState} from 'react';
 import {Geolocation as NativeGeolocation} from '@capacitor/geolocation';
 import {getCurrentDeviceLocation} from '../services/locationService';
 import {isNativeApp, TravelNative} from '../services/nativeApp';
@@ -13,12 +13,14 @@ function denied(error: unknown): boolean {
 }
 
 /** Executa sob o clique do usuário: pede GPS ou abre as configurações quando já bloqueado. */
-export function useGpsPermissionAction(retry: () => void) {
+export function useGpsPermissionAction(retry: () => void,acquire:()=>Promise<unknown>=getCurrentDeviceLocation) {
   const [requesting, setRequesting] = useState(false);
   const [help, setHelp] = useState('');
+  const busy=useRef(false);
 
   const request = useCallback(async (): Promise<boolean> => {
-    if (requesting) return false;
+    if (busy.current) return false;
+    busy.current=true;
     setRequesting(true);
     setHelp('');
     try {
@@ -33,7 +35,7 @@ export function useGpsPermissionAction(retry: () => void) {
           }
         }
       }
-      await getCurrentDeviceLocation();
+      await acquire();
       retry();
       return true;
     } catch (error) {
@@ -51,8 +53,9 @@ export function useGpsPermissionAction(retry: () => void) {
       }
       return false;
     } finally {
+      busy.current=false;
       setRequesting(false);
     }
-  }, [requesting,retry]);
+  }, [retry,acquire]);
   return {request, requesting, help};
 }

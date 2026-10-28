@@ -25,9 +25,10 @@ import { registerTollRoutes } from './tolls';
 import { registerRoadAlertRoutes } from './roadAlerts';
 import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from './googleAuth';
 import { stationOpeningStatus } from './openingHours';
+import {registerTrafficRoutes,type TrafficOptions} from './traffic';
 
 const scryptAsync = promisify(scrypt);
-export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; requestLimitPerMinute?: number }) {
+export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; traffic?:TrafficOptions; requestLimitPerMinute?: number }) {
   const { db } = options;
   const photosDir = path.resolve(options.photoDirectory || process.env.PHOTO_DIRECTORY || './data/photos');
   fs.mkdirSync(photosDir, { recursive: true, mode: 0o700 });
@@ -56,7 +57,8 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
     res.setHeader('Referrer-Policy', 'same-origin');
     try {
       // Testes E2E executam vários navegadores no mesmo IP; produção mantém 180/minuto.
-      limit(`requests:${clientIp(req)}`, options.requestLimitPerMinute ?? 180, 60000);
+      const trafficTile=req.path.startsWith('/traffic/tiles/');
+      limit(`${trafficTile?'traffic-tiles':'requests'}:${clientIp(req)}`,trafficTile?600:options.requestLimitPerMinute??180,60000);
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
         const allowed = new Set([process.env.PUBLIC_APP_URL || 'http://localhost:3000', process.env.PUBLIC_ADMIN_URL, ...(process.env.NODE_ENV !== 'production' ? ['http://127.0.0.1:3000'] : [])].filter((entry): entry is string => !!entry));
         if (!allowed.has(req.headers.origin)) throw new ApiError('Origem da solicitação não permitida.', 403);
@@ -91,6 +93,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
   registerTollRoutes(app, db, options.mapFetch || fetch, limit);
   registerRoadAlertRoutes(app, db, limit);
+  registerTrafficRoutes(app,limit,options.traffic);
 
   app.get('/api/public-config', (_req, res) => res.json({
     appOrigin: process.env.PUBLIC_APP_URL || 'http://localhost:3000',

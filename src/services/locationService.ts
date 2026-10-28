@@ -36,6 +36,9 @@ export function locationErrorMessage(error?: Pick<GeolocationPositionError, 'cod
 
 export function readDeviceLocation(position: GeolocationPosition): DeviceLocation {
   const { latitude, longitude, accuracy, speed, heading } = position.coords;
+  // Capacitor 8.2's heading may be the phone's compass. Navigation needs
+  // the vehicle course; the standard browser API still calls that heading.
+  const course='course' in position.coords?(position.coords as GeolocationCoordinates&{course?:number|null}).course:heading;
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || !Number.isFinite(accuracy) || accuracy < 0 || !Number.isFinite(position.timestamp)) {
     throw new Error('O GPS retornou uma posição inválida. Tente novamente.');
   }
@@ -43,7 +46,7 @@ export function readDeviceLocation(position: GeolocationPosition): DeviceLocatio
     coords: [latitude, longitude],
     accuracyMeters: accuracy,
     speedMetersPerSecond: speed !== null && Number.isFinite(speed) && speed >= 0 ? speed : null,
-    headingDegrees: heading !== null && Number.isFinite(heading) && heading >= 0 && heading < 360 ? heading : null,
+    headingDegrees: course != null && Number.isFinite(course) && course >= 0 && course < 360 ? course : null,
     timestamp: position.timestamp
   };
   rememberDeviceLocation(fix);
@@ -85,8 +88,8 @@ function watchActiveDeviceLocation(
 ): () => void {
   if (isNativeApp()) {
     let stopped = false; let id: string | null = null;
-    void NativeGeolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }, (position, error) => { if (stopped) return; if (error || !position) { onError('Confira a permissão de localização precisa e o GPS.'); return; } try { onPosition(readDeviceLocation(position as unknown as GeolocationPosition)); } catch (error) { onError((error as Error).message); } }).then(watchId => { id = watchId; if (stopped) void NativeGeolocation.clearWatch({ id }); }).catch(error => { if (!stopped) onError(error.message); });
-    return () => { stopped = true; if (id) void NativeGeolocation.clearWatch({ id }); };
+    void NativeGeolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 3000, timeout: 15000, interval: 2000, minimumUpdateInterval: 1000 }, (position, error) => { if (stopped) return; if (error || !position) { onError('Confira a permissão de localização precisa e o GPS.'); return; } try { onPosition(readDeviceLocation(position as unknown as GeolocationPosition)); } catch (error) { onError((error as Error).message); } }).then(watchId => { id = watchId; if (stopped) void NativeGeolocation.clearWatch({ id }).catch(()=>{}); }).catch(error => { if (!stopped) onError(error.message); });
+    return () => { stopped = true; if (id) void NativeGeolocation.clearWatch({ id }).catch(()=>{}); };
   }
   let stopped = false;
   const watchId = geolocation.watchPosition(position => {

@@ -2,16 +2,22 @@ import type { Map as GlMap } from 'maplibre-gl';
 
 export const ROLE_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 export const ROLE_DARK_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+export const ROLE_ROAD_COLOR = '#bfc6ce';
 
 /**
  * Paleta clara do Rolê. Mantém as camadas, as larguras de vias e os níveis
  * de zoom do Positron/OpenFreeMap: só altera cores, sem gerar mais geometrias,
  * fontes, tiles ou trabalho durante as atualizações de GPS.
  */
-export function roleVectorPaintForLayer(layer: { id: string; type: string }): Record<string, string> {
+export function roleVectorPaintForLayer(layer: { id: string; type: string },theme:'light'|'dark'='light'): Record<string, string> {
   const id = layer.id.toLowerCase();
   // As rotas, alertas e marcadores do Rolê nunca devem receber a paleta da base.
   if (id.startsWith('role-')) return {};
+  // Matching inner/casing colours keep avenues and motorways filled rather
+  // than showing a pale centre surrounded by a thin grey outline.
+  if(layer.type==='line'&&/^(highway_|(?:tunnel|bridge)_(?:motorway|trunk|primary|secondary|tertiary|minor|service|street|path))/.test(id))
+    return {'line-color':theme==='dark'?'#7b8492':ROLE_ROAD_COLOR};
+  if(theme==='dark')return {};
 
   if (layer.type === 'background' && id === 'background')
     return { 'background-color': '#f5f7f8' };
@@ -29,18 +35,6 @@ export function roleVectorPaintForLayer(layer: { id: string; type: string }): Re
 
   if (layer.type === 'line') {
     if (id === 'waterway') return { 'line-color': '#91c5e7' };
-    if (id === 'highway_path') return { 'line-color': '#e2e8ed' };
-    if (id === 'highway_minor') return { 'line-color': '#d5dee6' };
-    if (id === 'highway_major_casing') return { 'line-color': '#b8c7d1' };
-    if (id === 'highway_major_inner') return { 'line-color': '#f2f5f7' };
-    if (id === 'highway_major_subtle') return { 'line-color': '#d0dbe3' };
-    if (/^highway_motorway(_bridge)?_casing$/.test(id))
-      return { 'line-color': '#aebfcb' };
-    if (/^highway_motorway(_bridge)?_inner$/.test(id))
-      return { 'line-color': '#edf2f5' };
-    if (id === 'highway_motorway_subtle') return { 'line-color': '#cedae3' };
-    if (id === 'tunnel_motorway_casing') return { 'line-color': '#c2cdd5' };
-    if (id === 'tunnel_motorway_inner') return { 'line-color': '#e8eef2' };
     if (id === 'road_pier') return { 'line-color': '#e4ebef' };
     if (/^railway.*dashline$/.test(id)) return { 'line-color': '#ffffff' };
     if (/^railway/.test(id)) return { 'line-color': '#c8d2da' };
@@ -77,10 +71,10 @@ export function canRenderVectorMap(): boolean {
  * Aplicada apenas ao carregar/trocar o estilo vetorial. Satélite, relevo,
  * fallback OSM, câmera e traçados de navegação permanecem inalterados.
  */
-export function applyRoleVectorPalette(map: GlMap): void {
+export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light'): void {
   const layers = map.getStyle()?.layers || [];
   for (const layer of layers) {
-    const paints = roleVectorPaintForLayer(layer);
+    const paints = roleVectorPaintForLayer(layer,theme);
     for (const [property, color] of Object.entries(paints)) {
       try {
         // Os nomes das propriedades são constantes da paleta acima.

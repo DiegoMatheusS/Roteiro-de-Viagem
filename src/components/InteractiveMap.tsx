@@ -4,7 +4,7 @@ import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
 import type { RouteToll } from '../types/tolls';
 import {TILE_PROVIDERS,type MapStyleType} from '../services/mapStyles';
 import { TollModal } from './TollModal';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
@@ -41,6 +41,8 @@ import type { WeatherPinController } from '../services/mapLibreWeatherPins';
 import {visibleWeatherSamples,weatherDisplayTime} from '../services/vectorWeatherData';
 import {changedStaticLayers,type StaticLayerInputs} from '../services/mapStaticLayerInvalidation';
 import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
+import {MapTrafficControl} from './MapTrafficControl';
+import {createLeafletTrafficPort} from '../services/leafletTraffic';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 // Stable defaults prevent a GPS-driven parent render from recreating all map layers.
@@ -240,6 +242,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   visibleCallbackRef.current = onVisiblePlacesChange;
   const visibleKeyRef = useRef('');
   const [hasMapReady, setHasMapReady] = useState(false);
+  const trafficPort=useMemo(()=>hasMapReady&&mapInstanceRef.current?createLeafletTrafficPort(mapInstanceRef.current):null,[hasMapReady]);
   const discoveryPoints = routePath.length ? routePath : originCoords ? [originCoords]
     : viewportCenter ? [viewportCenter] : [];
 
@@ -818,7 +821,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
             if (disposed) return;
             vectorLoaded = true;
             if (vectorTimer) clearTimeout(vectorTimer);
-            if(appearanceTheme==='light')applyRoleVectorPalette(gl);
+            applyRoleVectorPalette(gl,appearanceTheme);
             vectorMapRef.current = gl;
             setVectorRoutesReady(true);
             setTileError(false);
@@ -1560,6 +1563,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         </div>}
       </section>}
       <div ref={mapContainerRef} className="w-full h-full" />
+      <MapTrafficControl port={trafficPort} navigation={navigationMode}/>
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
