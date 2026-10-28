@@ -65,3 +65,10 @@ test('Android code 10 exposes only public package and certificate hash for OAuth
   assert.match(android,/MessageDigest\.getInstance\("SHA-1"\)/);
   assert.match(android,/assinatura persistente no GitHub Actions/);
 });
+
+test('Google OAuth Android code 10 reports installed APK SHA-1 and lets user copy diagnostics',()=>{
+  const ui=readFileSync(new URL('../src/contexts/AuthContext.tsx',import.meta.url),'utf8');
+  assert.match(ui,/código 10/);
+  assert.match(ui,/Copiar diagnóstico de assinatura Google/);
+  assert.match(ui,/TravelNative\.copyText\(\{text:error\}\)/);
+});
