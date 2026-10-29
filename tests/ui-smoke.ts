@@ -692,9 +692,9 @@ try {
   // não use force:true, que esconderia problemas reais de hit-testing.
   const tapFuelMarker=async(name:string)=>{
     const compact=(await fuelMarker.getAttribute('class'))?.includes('role-poi-marker')??false;
-    const actionName=compact?`${name==='Sugerir preço'?'Sugerir preço':'Comentários'}: Posto de teste de interface`:name;
-    // Compact markers must expand before nested actions, while preserving real hit testing.
-    if(compact && await fuelMarker.getAttribute('data-expanded')!=='true'){
+    // Native MapLibre marker opens the station sheet in one tap. Keep the
+    // existing gesture-recovery path for overlapping GPS/route overlays.
+    if(compact){
       for(let attempt=0;attempt<4;attempt++){
         try { await fuelMarker.click({trial:true,timeout:1200});break; }
         catch {
@@ -706,8 +706,14 @@ try {
         }
       }
       await fuelMarker.click();
+      if(name.startsWith('Comentários')){
+        const sheet=page.getByRole('dialog',{name:'Preços do posto'});
+        await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
+      }
+      return;
     }
-    const button=fuelMarker.getByRole('button', {name:actionName,exact:true});
+    // Leaflet fallback may still expose explicit contribution buttons.
+    const button=fuelMarker.getByRole('button',{name,exact:true});
     for(let attempt=0;attempt<4;attempt++){
       try { await button.click({trial:true,timeout:1200});break; }
       catch {
