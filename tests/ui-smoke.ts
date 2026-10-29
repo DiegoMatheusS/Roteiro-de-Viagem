@@ -476,7 +476,38 @@ try {
   // O cadastro de veículos permanece no Perfil, não na antiga aba inferior.
   await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
   await page.getByRole('button', { name: 'Novo Veículo', exact: true }).click();
+  const vehicleForm=page.getByRole('dialog',{name:'Cadastrar veículo',exact:true});
+  const vehicleYear=vehicleForm.getByLabel('Ano',{exact:true});
+  const vehicleTank=vehicleForm.getByLabel('Capacidade do Tanque (Litros)',{exact:true});
+  const vehicleConsumption=vehicleForm.getByLabel('Consumo Médio (km/l)',{exact:true});
+  for(const input of [vehicleYear,vehicleTank,vehicleConsumption]){
+    await input.fill('1');await input.press('Backspace');
+    assert.equal(await input.inputValue(),'','deleting the last digit must leave the field empty');
+  }
+  await vehicleYear.fill('2024');
+  await vehicleForm.getByRole('button',{name:'Consultar Especificações',exact:true}).click();
+  assert.equal(await vehicleTank.inputValue(),'17.7');
+  assert.equal(await vehicleConsumption.inputValue(),'27.6');
+  await vehicleTank.fill('12,');
+  assert.equal(await vehicleTank.inputValue(),'12,','a decimal separator must remain while typing');
+  await vehicleTank.pressSequentially('5');
+  assert.equal(await vehicleTank.inputValue(),'12,5');
+  await vehicleConsumption.fill('0,5');
+  assert.equal(await vehicleConsumption.inputValue(),'0,5','small consumption values must not become 15');
+  await vehicleConsumption.fill('12.75');
+  await vehicleTank.fill('0');
+  await vehicleForm.getByRole('button',{name:'Salvar Veículo na Garagem',exact:true}).click();
+  await vehicleForm.getByRole('alert').waitFor();
+  await vehicleTank.fill('12,5');
   await page.getByRole('button', { name: 'Salvar Veículo na Garagem', exact: true }).click();
+  await vehicleForm.waitFor({state:'hidden'});
+  const registeredVehicle=await page.evaluate(()=>{
+    const {user}=JSON.parse(localStorage.getItem('rdv_auth_cache_v1')!);
+    return JSON.parse(localStorage.getItem('rdv_private_v2_'+user.id+'_vehicles')!)[0];
+  });
+  assert.equal(registeredVehicle.year,2024);
+  assert.equal(registeredVehicle.tankCapacityLiters,12.5);
+  assert.equal(registeredVehicle.consumption.userConfigured,12.75);
   if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   const accountMenu = page.getByRole('dialog', { name: 'Menu do Rolê' });

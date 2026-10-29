@@ -260,8 +260,8 @@ export const storageService = {
   // Prata: 500 to 1,999 km
   // Ouro: 2,000 to 9,999 km
   // Diamante: >= 10,000 km
-  // Rule: Only actually completed trips (verified GPS + reported manual) count towards accumulated km.
-  calculateTier(totalKm: number): {
+  // Only GPS-recorded distance contributes to levels; manual km remain history.
+  calculateTier(profile:Pick<TravelerProfile,'verifiedGpsKm'>): {
     tier: TravelerTier;
     nextTier: TravelerTier | null;
     currentKmInTier: number;
@@ -270,6 +270,7 @@ export const storageService = {
     thresholdMin: number;
     thresholdMax: number;
   } {
+    const totalKm=Number.isFinite(profile.verifiedGpsKm)?Math.max(0,profile.verifiedGpsKm):0;
     if (totalKm < 500) {
       return {
         tier: 'Bronze',
@@ -412,7 +413,6 @@ export const storageService = {
     // 3. Verify Achievements (Requirement #2)
     const achievements = this.getAchievements();
     const newlyUnlocked: Achievement[] = [];
-    const totalKm = profile.verifiedGpsKm + profile.manualKm;
 
     achievements.forEach(ach => {
       if (ach.unlockedAt) return; // already unlocked
@@ -421,10 +421,10 @@ export const storageService = {
       if (ach.id === 'ach-first-trip' && profile.completedTripsCount >= 1) {
         ach.progress = profile.completedTripsCount;
         shouldUnlock = true;
-      } else if (ach.id === 'ach-100km' && actualDistanceKm >= 100) {
+      } else if (ach.id === 'ach-100km' && verifiedByGps && actualDistanceKm >= 100) {
         ach.progress = actualDistanceKm;
         shouldUnlock = true;
-      } else if (ach.id === 'ach-500km' && actualDistanceKm >= 500) {
+      } else if (ach.id === 'ach-500km' && verifiedByGps && actualDistanceKm >= 500) {
         ach.progress = actualDistanceKm;
         shouldUnlock = true;
       } else if (ach.id === 'ach-10-trips') {

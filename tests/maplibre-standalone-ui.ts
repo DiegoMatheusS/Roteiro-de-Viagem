@@ -382,8 +382,21 @@ try{
   assert.ok(hud.height<=160&&hud.bottom===hud.viewport,'a compact bottom panel leaves more map visible');
   assert.equal(hud.background,'rgb(229, 231, 235)');
   assert.equal(await page.locator('.map-destination-dot').count(),0,'the arrival pin must not cover the GPS arrow at the start of a circular trip');
+  await page.getByRole('button',{name:'Detalhes de clima e pedágios',exact:true}).click();
+  await page.getByRole('button',{name:'Concluir Viagem',exact:true}).click();
+  assert.equal(await page.getByLabel('Distância percorrida manualmente',{exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Confirmar Chegada',exact:true}).isDisabled(),true,
+    'completion cannot invent kilometres when GPS recorded no movement');
+  await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+  await page.getByRole('button',{name:'Fechar detalhes da rota',exact:true}).click();
   await page.getByRole('button',{name:'Simular volta ao início',exact:true}).click();
   await guidance.getByText('Chegando ao destino',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Detalhes de clima e pedágios',exact:true}).click();
+  await page.getByRole('button',{name:'Concluir Viagem',exact:true}).click();
+  assert.equal(await page.getByRole('button',{name:'Confirmar Chegada',exact:true}).isEnabled(),true,
+    'recorded GPS distance still allows normal completion');
+  await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+  await page.getByRole('button',{name:'Fechar detalhes da rota',exact:true}).click();
   await guidance.getByText('0 m',{exact:true}).waitFor();
   assert.equal(await guidance.getByText('Primeira curva',{exact:true}).count(),0);
   await page.getByRole('button',{name:'Simular cruzamento na ida',exact:true}).click();

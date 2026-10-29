@@ -17,6 +17,7 @@ import {
 } from '../types';
 import { storageService } from '../services/storageService';
 import { lookupVehicleBenchmark, KNOWN_VEHICLE_DATABASE } from '../data/vehicleSpecs';
+import {parseVehicleNumber} from '../services/vehicleNumberInput';
 import { 
   User, 
   Award, 
@@ -93,12 +94,13 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   const [vehType, setVehType] = useState<VehicleType>('motorcycle');
   const [vehBrand, setVehBrand] = useState('Honda');
   const [vehModel, setVehModel] = useState('CB 500X / NX 500');
-  const [vehYear, setVehYear] = useState<number>(2024);
+  const [vehYear, setVehYear] = useState('2024');
   const [vehNickname, setVehNickname] = useState('');
   const [vehVersion, setVehVersion] = useState('');
   const [vehFuelType, setVehFuelType] = useState<FuelType>('gasolina');
-  const [vehTankLiters, setVehTankLiters] = useState<number>(17.7);
-  const [vehUserConsumption, setVehUserConsumption] = useState<number>(28.2);
+  const [vehTankLiters, setVehTankLiters] = useState('17.7');
+  const [vehUserConsumption, setVehUserConsumption] = useState('28.2');
+  const [vehError,setVehError]=useState('');
   const [vehBenchmarkNote, setVehBenchmarkNote] = useState<string>('');
 
   // Fuel refill modal state
@@ -111,8 +113,8 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   const [refillNotes, setRefillNotes] = useState<string>('');
 
   // Calculate Traveler Level
-  const totalKm = profile.verifiedGpsKm + profile.manualKm;
-  const tierInfo = storageService.calculateTier(totalKm);
+  const levelKm = Math.max(0,profile.verifiedGpsKm);
+  const tierInfo = storageService.calculateTier(profile);
 
   // Filtered stats calculation
   const completedTrips = trips.filter(t => t.status === 'completed');
@@ -131,10 +133,11 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
 
   // Benchmark auto-lookup handler when creating vehicle
   const handleLookupSpecs = () => {
-    const result = lookupVehicleBenchmark(vehType, vehBrand, vehModel, vehYear);
+    const result = lookupVehicleBenchmark(vehType, vehBrand, vehModel, parseVehicleNumber(vehYear)??undefined);
     if (result) {
-      setVehTankLiters(result.version.tankCapacityLiters);
-      setVehUserConsumption(result.version.consumption.averageKmL);
+      setVehTankLiters(String(result.version.tankCapacityLiters));
+      setVehUserConsumption(String(result.version.consumption.averageKmL));
+      setVehError('');
       setVehFuelType(result.version.fuelType);
       setVehVersion(result.version.name);
       setVehBenchmarkNote(`Fonte verificada: ${result.version.consumption.source} (${result.version.consumption.sourceDate}) · Urbano: ${result.version.consumption.urbanKmL} km/l, Rodoviário: ${result.version.consumption.highwayKmL} km/l`);
@@ -145,25 +148,32 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
 
   const handleSaveVehicle = (e: React.FormEvent) => {
     e.preventDefault();
+    const year=parseVehicleNumber(vehYear);
+    const tankLiters=parseVehicleNumber(vehTankLiters);
+    const consumption=parseVehicleNumber(vehUserConsumption);
+    if(year===null||!Number.isInteger(year)||year<1){setVehError('Informe um ano válido.');return;}
+    if(tankLiters===null||tankLiters<=0||tankLiters>2000){setVehError('Informe uma capacidade maior que zero e de até 2.000 litros.');return;}
+    if(consumption===null||consumption<=0||consumption>1000){setVehError('Informe um consumo maior que zero e de até 1.000 km/l.');return;}
+    setVehError('');
     const newVeh: Vehicle = {
       id: `veh-${Date.now()}`,
       type: vehType,
       brand: vehBrand.trim(),
       model: vehModel.trim(),
-      year: vehYear,
+      year,
       version: vehVersion.trim(),
       nickname: vehNickname.trim() || `${vehBrand} ${vehModel}`,
       fuelType: vehFuelType,
-      tankCapacityLiters: vehTankLiters,
+      tankCapacityLiters: tankLiters,
       odometerKm: 0,
       maxPassengers: vehType === 'motorcycle' ? 2 : 5,
       consumption: {
-        referenceUrban: vehUserConsumption * 0.9,
-        referenceHighway: vehUserConsumption * 1.1,
-        referenceAverage: vehUserConsumption,
+        referenceUrban: consumption * 0.9,
+        referenceHighway: consumption * 1.1,
+        referenceAverage: consumption,
         source: vehBenchmarkNote.includes('Fonte') ? vehBenchmarkNote : 'Informado manualmente pelo proprietário',
         sourceDate: '2026',
-        userConfigured: vehUserConsumption
+        userConfigured: consumption
       }
     };
     onAddOrUpdateVehicle(newVeh);
@@ -193,7 +203,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
         profile={profile} vehicles={vehicles} trips={trips} selectedVehicleId={selectedVehicleId}
         accountLabel={accountLabel} onLogin={onLogin}
         onEdit={()=>{setProfileName(profile.name);setProfileBio(profile.bio||'');setEditingProfile(true);openDetails('perfil');}}
-        onAddVehicle={()=>setShowAddVehicleModal(true)}
+        onAddVehicle={()=>{setVehError('');setShowAddVehicleModal(true);}}
         onOpenGarage={()=>openDetails('garagem')}
         onSelectVehicle={onSelectVehicle}
         onOpenSafety={()=>openDetails('seguranca')}
@@ -304,7 +314,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
 
                 <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
                   <span>{tierInfo.thresholdMin} km</span>
-                  <span>{totalKm} km acumulados</span>
+                  <span>{levelKm} km por GPS</span>
                   <span>{tierInfo.thresholdMax} km</span>
                 </div>
               </div>
@@ -432,7 +442,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
                 </button>
 
                 <button
-                  onClick={() => setShowAddVehicleModal(true)}
+                  onClick={() => {setVehError('');setShowAddVehicleModal(true);}}
                   className="py-2 px-3 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 flex items-center gap-1.5 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -745,11 +755,11 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
       {/* MODAL: NOVO VEÍCULO COM CONSULTA TÉCNICA INTELIGENTE */}
       {/* ================================================= */}
       {showAddVehicleModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+        <div role="dialog" aria-modal="true" aria-label="Cadastrar veículo" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl p-6 border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-900">Cadastrar Novo Veículo</h3>
-              <button onClick={() => setShowAddVehicleModal(false)} className="text-slate-400">✕</button>
+              <button aria-label="Fechar cadastro de veículo" onClick={() => setShowAddVehicleModal(false)} className="text-slate-400">✕</button>
             </div>
 
             <form onSubmit={handleSaveVehicle} className="space-y-4 text-xs">
@@ -801,12 +811,13 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Ano</label>
+                  <label htmlFor="vehicle-year" className="font-semibold block mb-1">Ano</label>
                   <input
-                    type="number"
+                    id="vehicle-year" type="text" inputMode="numeric" maxLength={4}
                     value={vehYear}
-                    onChange={(e) => setVehYear(parseInt(e.target.value) || 2024)}
+                    onChange={(e) => {setVehYear(e.target.value);setVehError('');}}
                     className="w-full p-2 rounded-xl border border-slate-200"
+                    required
                   />
                 </div>
                 <div>
@@ -842,29 +853,28 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">Capacidade do Tanque (Litros)</label>
+                  <label htmlFor="vehicle-tank" className="font-semibold block mb-1">Capacidade do Tanque (Litros)</label>
                   <input
-                    type="number"
-                    step="0.1"
+                    id="vehicle-tank" type="text" inputMode="decimal" maxLength={12}
                     value={vehTankLiters}
-                    onChange={(e) => setVehTankLiters(parseFloat(e.target.value) || 15)}
+                    onChange={(e) => {setVehTankLiters(e.target.value);setVehError('');}}
                     className="w-full p-2 rounded-xl border border-slate-200"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">Consumo Médio (km/l)</label>
+                  <label htmlFor="vehicle-consumption" className="font-semibold block mb-1">Consumo Médio (km/l)</label>
                   <input
-                    type="number"
-                    step="0.1"
+                    id="vehicle-consumption" type="text" inputMode="decimal" maxLength={12}
                     value={vehUserConsumption}
-                    onChange={(e) => setVehUserConsumption(parseFloat(e.target.value) || 15)}
+                    onChange={(e) => {setVehUserConsumption(e.target.value);setVehError('');}}
                     className="w-full p-2 rounded-xl border border-slate-200"
                     required
                   />
                 </div>
               </div>
 
+              {vehError&&<p role="alert" className="text-sm text-rose-700">{vehError}</p>}
               <button
                 type="submit"
                 className="w-full py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-md"
