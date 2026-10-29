@@ -24,9 +24,11 @@ export function poiAccent(category:string):string {
   if(TOURIST.has(category))return '#15803d';
   return '#0369a1';
 }
-/** Icons vanish at lower zooms, tourist landmarks remain visible longer. */
+/** Registered places remain discoverable in city overview as well as while
+ * driving. Only the large cards/halos are reserved for street-level zoom. */
 export function poiVisibleAtZoom(marker:RoleVectorMarker,zoom:number):boolean {
   if(!Number.isFinite(zoom))return false;
+  if(marker.managed||marker.id.startsWith('admin:'))return zoom>=9;
   const category=poiCategory(marker);
   if(TOURIST.has(category))return zoom>=11;
   if(category==='toll')return zoom>=13;

@@ -28,6 +28,6 @@ export function stationDetails(db: FuelDatabase, stationId: string, userId?: str
       myVote: row.my_vote || undefined, isMine: userId === row.user_id });
   }
   return { id: station.id, name: station.name, lat: station.lat, lng: station.lng, address: station.address,
-    source: 'OpenStreetMap', sourceUrl: station.source_url, mapUpdatedAt: station.map_updated_at,
+    managed:Boolean(station.managed), source: 'OpenStreetMap', sourceUrl: station.source_url, mapUpdatedAt: station.map_updated_at,
     openingHours: station.opening_hours || undefined, openingHoursVerifiedAt: station.hours_verified_at || undefined, prices };
 }

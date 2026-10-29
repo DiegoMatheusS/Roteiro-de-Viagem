@@ -2,7 +2,7 @@ import type { Express, Request } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
 import { ApiError, auth, administrator, asyncRoute, now, user, validate, observationDate } from './http';
-import { lookupMapPlace, validateCoordinates, nearbyPlaceRows, type MapFetch } from './maps';
+import { lookupMapPlace, validateCoordinates, nearbyPlaceRows, viewportPlaceRows, type MapFetch } from './maps';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import { validatePriceDraft } from '../src/services/fuelPriceRules';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place, type PriceHistory } from '../src/types/admin';
@@ -25,7 +25,7 @@ const websiteUrl = (value: unknown) => {
   return website;
 };
 const placeDto = (row: any): Place => ({ id: row.id, name: row.name, kind: row.kind, lat: row.lat, lng: row.lng, address: row.address,
-  sourceUrl: row.source_url, description: row.description, website: row.website, phone: row.phone, active: Boolean(row.active), openingHours: row.opening_hours || undefined });
+  sourceUrl: row.source_url, description: row.description, website: row.website, phone: row.phone, active: Boolean(row.active), managed:Boolean(row.managed), openingHours: row.opening_hours || undefined });
 export function priceHistory(db: FuelDatabase, stationId: string): PriceHistory[] {
   return (db.prepare(`SELECT p.id,p.fuel_type,p.custom_label,p.price,p.observed_at,p.approved_at,p.status,u.display_name AS contributor,a.display_name AS reviewer
     FROM prices p JOIN users u ON u.id=p.user_id LEFT JOIN users a ON a.id=p.approved_by WHERE p.station_id=? ORDER BY p.created_at DESC,p.rowid DESC LIMIT 30`).all(stationId) as any[])
@@ -57,11 +57,13 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     if (typeof radiusKm !== 'number' || !Number.isFinite(radiusKm) || radiusKm < 1 || radiusKm > 120)
       throw new ApiError('O raio de busca deve estar entre 1 e 120 km.');
     // Catálogo turístico amplo: um único ponto por tela Explorar, limite de resultados.
-    const points = validate(() => validateCoordinates(req.body.points, radiusKm > 10 ? 3 : 25));
-    const places = nearbyPlaceRows(db, points, radiusKm, true)
+    const viewport=req.body.bounds!==undefined;
+    const points = validate(() => validateCoordinates(req.body.points, viewport?1:radiusKm > 10 ? 3 : 25));
+    const rows=viewport?validate(()=>viewportPlaceRows(db,req.body.bounds,req.body.includeFuel===true)):nearbyPlaceRows(db,points,radiusKm,true);
+    const places = rows
       .sort((a,b) => Number(b.managed) - Number(a.managed) ||
         distanceBetweenKm(points[0],[a.lat,a.lng]) - distanceBetweenKm(points[0],[b.lat,b.lng]))
-      .slice(0, 150).map(placeDto);
+      .slice(0, viewport?500:150).map(placeDto);
     res.json({ places });
   });
   app.get('/api/places/:id', (req, res) => res.json(placeDto(activePlace(req.params.id))));

@@ -37,6 +37,8 @@ import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import {visiblePlacesSignature} from '../services/mapVisiblePlaces';
 import {useFuelStations} from '../hooks/useFuelStations';
 import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
+import {mapPlaceViewport,sameMapPlaceQuery,type MapPlaceQuery} from '../services/mapPlaceViewport';
+import {MAP_PLACES_REFRESH_MS} from '../services/placeRefresh';
 import {FuelStationModal} from './FuelStationModal';
 import {PlaceModal} from './PlaceModal';
 import {TollModal} from './TollModal';
@@ -87,10 +89,15 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const [checkError,setCheckError]=useState('');
   const [checkMessage,setCheckMessage]=useState('');
   const [viewportCenter,setViewportCenter]=useState<[number,number]|null>(null);
+  const [placeViewport,setPlaceViewport]=useState<MapPlaceQuery|null>(null);
   const path=props.routePath || EMPTY_POINTS;
   const discovery=path.length?path:props.originCoords?[props.originCoords]:viewportCenter?[viewportCenter]:EMPTY_POINTS;
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
-  const places=useNearbyPlaces(discovery,(props.showFuelStations??true)&&discovery.length>0);
+  const nearbyPlaces=useNearbyPlaces(placeViewport?.points||EMPTY_POINTS,
+    (props.showPlaces??true)&&Boolean(placeViewport),placeViewport?.radiusKm??5,
+    {bounds:placeViewport?.bounds,refreshMs:MAP_PLACES_REFRESH_MS,includeFuel:true});
+  const places=useMemo(()=>props.showFuelStations===false?nearbyPlaces.filter(place=>place.kind!=='fuel'):nearbyPlaces,
+    [nearbyPlaces,props.showFuelStations]);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
   const runtime=useRef<{render:()=>void;orient:()=>void;
     setBaseStyle:(style:MapStyleType)=>void;
@@ -335,7 +342,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // marker responsive, but do not rebuild static overlays on each fix.
         const overlayInputs=[stableList(p.stops),stableList(p.meetingPoints),
           stableList(p.convoyParticipants),stableList(p.weatherPoints),p.showRainLayer,
-          stableList(p.roadAlerts),Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,
+          stableList(p.roadAlerts),Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,p.showPlaces,
           stableList(p.tolls),p.tollVehicleType,data.current.stations,data.current.places,
           stableList(p.routePath)];
         const overlaysChanged=overlayInputs.some((value,index)=>value!==lastOverlayInputs[index]);
@@ -347,8 +354,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           weather.update(p.weatherPoints||[],p.showRainLayer??false);
           alerts.update(p.roadAlerts||[]);
           drawn=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
-            places:p.showFuelStations===false?[]:data.current.places,tolls:p.tolls||[],
-            navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
+            places:p.showPlaces===false?[]:data.current.places,tolls:p.tolls||[],
+            navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType,viewportScopedPlaces:p.showPlaces!==false});
           registeredBuildings.update(p.navigationMode?[]:drawn);
         }
         weather.avoidPosition(p.userLiveCoords??p.userLastKnownCoords);
@@ -390,6 +397,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // moveend publishes visibility after pan/zoom; changed overlays
         // publish immediately even if the camera stays still.
         if(overlaysChanged||viewportDirty){publishPlaces();viewportDirty=false;}
+        // Catalog/DOM-pin updates do not necessarily schedule a MapLibre frame.
+        // Do not leave a fully loaded stationary map marked busy waiting for an
+        // idle event that only fires after another actual map render.
+        if(!map.isMoving()&&map.loaded())publishIdle();
       }catch{fail();}
     };
     const mapUpdates=createMapGestureUpdates(render);
@@ -400,7 +411,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const bounds=map.getBounds(),center=map.getCenter();
       const visible=standaloneVisiblePlaces({markers:drawn,stations:data.current.stations,
         places:data.current.places,stops:p.stops||[],center:[center.lat,center.lng],
-        contains:([lat,lon])=>bounds.contains([lon,lat])});
+        contains:([lat,lon])=>bounds.contains([lon,lat]),zoom:map.getZoom(),
+        showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});
       const signature=visiblePlacesSignature(visible);
       if(signature!==visibleKey){visibleKey=signature;p.onVisiblePlacesChange(visible);}
     };
@@ -497,6 +509,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       root.dataset.mapZoom=String(map.getZoom());
       root.dataset.mapBearing=String(map.getBearing());
       root.dataset.mapPitch=String(map.getPitch());
+      const bounds=map.getBounds();
+      const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
+        west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
+      setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
       const p=latest.current;
       if(!p.routePath?.length&&!p.originCoords){
         const point:[number,number]|null=map.getZoom()<10?null:

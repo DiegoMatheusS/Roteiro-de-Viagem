@@ -45,6 +45,16 @@ test('sem preço aprovado não fabrica valor e navegação permite cartões por 
   tolls:[toll],tollVehicleType:'car',navigationMode:true});
  assert.deepEqual(nav.map(entry=>entry.kind),['fuel','toll','place']);
 });
+test('faixas da mesma praça usam o pedágio com tarifa do trajeto',()=>{
+ const lane={...managedToll,id:'osm:node:neighbor',lat:toll.coords[0]+0.0001,lng:toll.coords[1]};
+ const separate={...lane,id:'admin:another-toll',lat:toll.coords[0]+0.01};
+ for(const navigationMode of [false,true]){
+  const entries=selectRoleVectorMarkers({stations:[],places:[lane,separate],tolls:[toll],
+   tollVehicleType:'car',navigationMode});
+  assert.deepEqual(entries.map(entry=>entry.id),[toll.id,separate.id]);
+  assert.match(entries[0].kind==='toll'?entries[0].priceLabel||'':'',/12,50/);
+ }
+});
 test('marcadores com coordenadas inválidas não são exibidos',()=>{
  const entries=selectRoleVectorMarkers({stations:[{...station,lat:Infinity}],places:[{...place,lng:190}],
   tolls:[],navigationMode:false});

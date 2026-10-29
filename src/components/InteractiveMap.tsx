@@ -12,8 +12,12 @@ import { Layers, Mountain, Eye, Sparkles, X } from 'lucide-react';
 import { useFuelStations } from '../hooks/useFuelStations';
 import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
+import {mapPlaceViewport,sameMapPlaceQuery,type MapPlaceQuery} from '../services/mapPlaceViewport';
+import {MAP_PLACES_REFRESH_MS} from '../services/placeRefresh';
+import {poiVisibleAtZoom} from '../services/mapPoiPresentation';
+import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import { PlaceModal } from './PlaceModal';
-import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place } from '../types/admin';
+import { PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -25,7 +29,7 @@ import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternati
 import {routeEditPoint} from '../services/mapRouteEditPoint';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
-import { selectRoleVectorMarkers,validMarkerPosition } from '../services/vectorPlaceData';
+import { selectRoleVectorMarkers,validMarkerPosition,isRouteTollPlace } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement,roadAlertMarkerChange } from '../services/mapRoadAlerts';
 import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
@@ -97,6 +101,8 @@ export interface InteractiveMapProps {
   className?: string;
   onSelectCoordinates?: (coords: [number, number], placeName?: string) => void;
   showFuelStations?: boolean;
+  /** Registered places are independent of fuel-station discovery. */
+  showPlaces?:boolean;
   navigationMode?: boolean;
   travelledDistanceKm?: number;
   totalRouteKm?: number;
@@ -154,6 +160,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   meetingPoints = EMPTY_MEETINGS,
   onSelectCoordinates,
   showFuelStations = true,
+  showPlaces = true,
   navigationMode = false,
   travelledDistanceKm = 0,
   totalRouteKm = 0,
@@ -239,6 +246,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const lastFollowRef=useRef<[number, number] | null>(resumeViewport?.position??null);
   const lastCenterRequestRef=useRef(resumeViewport?.centerRequest??0);
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
+  const [placeViewport,setPlaceViewport]=useState<MapPlaceQuery|null>(null);
+  const [placeZoom,setPlaceZoom]=useState(0);
   const [viewportRevision, setViewportRevision] = useState(0);
   const visibleCallbackRef = useRef(onVisiblePlacesChange);
   visibleCallbackRef.current = onVisiblePlacesChange;
@@ -249,7 +258,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     : viewportCenter ? [viewportCenter] : [];
 
   const fuel = useFuelStations(discoveryPoints, showFuelStations);
-  const places = useNearbyPlaces(discoveryPoints, showFuelStations && discoveryPoints.length > 0);
+  const nearbyPlaces = useNearbyPlaces(placeViewport?.points||EMPTY_ROUTE,showPlaces&&Boolean(placeViewport),
+    placeViewport?.radiusKm??5,{bounds:placeViewport?.bounds,refreshMs:MAP_PLACES_REFRESH_MS,includeFuel:true});
+  const places=useMemo(()=>showFuelStations?nearbyPlaces:nearbyPlaces.filter(place=>place.kind!=='fuel'),
+    [nearbyPlaces,showFuelStations]);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [stationSection, setStationSection] = useState<'prices' | 'comments'>('prices');
   const [tollSection, setTollSection] = useState<'prices' | 'comments'>('prices');
@@ -261,8 +273,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   // Keep the current data/actions available to async MapLibre initialization.
   // Changing one confirmed fuel price must not rebuild every other pin.
-  const vectorPlaceInputsRef=useRef({stations:fuel.stations,places,tolls,navigationMode,tollVehicleType});
-  vectorPlaceInputsRef.current={stations:fuel.stations,places,tolls,navigationMode,tollVehicleType};
+  const vectorPlaceInputsRef=useRef({stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces});
+  vectorPlaceInputsRef.current={stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces};
   const vectorPlaceActionsRef=useRef<RoleMarkerActions>({
     onStation:(id,section)=>openStation(id,section),
     onToll:(id,section,place)=>openToll(id,section,place),
@@ -457,6 +469,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         root.dataset.mapZoom=String(map.getZoom());
       }
       setViewportRevision(value => value + 1);
+      setPlaceZoom(Math.floor(map.getZoom()));
+      const bounds=map.getBounds();
+      const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
+        west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
+      setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
       if (routePath.length || originCoords) return;
       if (map.getZoom() < 10) { setViewportCenter(null); return; }
       const center = map.getCenter();
@@ -496,10 +513,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
     if (vectorMarkersReady || !tollVehicleType) return;
-    for(const toll of navigationMode ? [] : (Array.isArray(tolls) ? tolls : [])) {
-      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
+    for(const toll of (Array.isArray(tolls) ? tolls : [])) {
+      const icon=navigationMode?mapPlaceIcon('toll'):mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
-      const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
+      const tip=document.createElement('span');tip.textContent=toll.name;marker.bindTooltip(tip);
       marker.on('click',() => openToll(toll.id));
     }
   },[tolls,tollVehicleType,navigationMode,vectorMarkersReady]);
@@ -536,30 +553,43 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if (!group) return;
     group.clearLayers();
     if (vectorMarkersReady) return;
-    for (const station of navigationMode ? [] : (Array.isArray(fuel.stations) ? fuel.stations : [])) {
-      const icon = mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', priceLabel: fuelPriceLabel(station), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
+    const freshFuelPlaces=new Map(places.filter(place=>place.active&&place.kind==='fuel').map(place=>[place.id,place]));
+    for (const source of (Array.isArray(fuel.stations) ? fuel.stations : [])) {
+      const fresh=freshFuelPlaces.get(source.id);
+      if(showPlaces&&source.managed&&!fresh)continue;
+      const station=fresh?{...source,name:fresh.name,lat:fresh.lat,lng:fresh.lng,managed:fresh.managed}:source;
+      if(!poiVisibleAtZoom({kind:'fuel',id:station.id,name:station.name,coords:[station.lat,station.lng],priceLabel:null,managed:station.managed},placeZoom)&&!(!navigationMode&&routePath.length>1))continue;
+      const icon = navigationMode?mapPlaceIcon('fuel'):mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', priceLabel: fuelPriceLabel(station), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
       marker.bindTooltip(tooltip);
       marker.on('click', () => openStation(station.id));
     }
-    for (const place of (Array.isArray(places) ? places : []).filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))) {
+    for (const place of (Array.isArray(places) ? places : []).filter(place=>place.active)) {
+      if(!poiVisibleAtZoom({kind:'place',id:place.id,name:place.name,coords:[place.lat,place.lng],category:place.kind,managed:place.managed},placeZoom))continue;
+      if(place.kind==='fuel'){
+        if(fuel.stations.some(station=>station.id===place.id))continue;
+        const marker=L.marker([place.lat,place.lng],{icon:mapPlaceIcon('fuel'),title:place.name,zIndexOffset:1500}).addTo(group);
+        marker.on('click',()=>openStation(place.id));
+        continue;
+      }
       if (place.kind === 'toll') {
-        if (tolls.some(toll => toll.id === place.id)) continue;
+        if (isRouteTollPlace(place,tolls)) continue;
         const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
         L.marker([place.lat, place.lng], { icon, title: place.name, keyboard: false, zIndexOffset: 1700 }).addTo(group);
         continue;
       }
       const icon = mapPlaceIcon(place.kind);
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
-      const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
-      marker.bindTooltip(tooltip); marker.on('click', () => setSelectedPlace(place));
+      const tooltip = document.createElement('span'); tooltip.textContent = place.name;
+      tooltip.style.cssText='display:block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;';
+      marker.bindTooltip(tooltip,{permanent:Boolean(place.managed)&&placeZoom>=16,direction:'bottom',offset:[0,18],pane:'markerPane'}); marker.on('click', () => setSelectedPlace(place));
       marker.on('keypress', event => {
         const original = (event as L.LeafletKeyboardEvent).originalEvent;
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
       });
     }
-  }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady]);
+  }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady,placeZoom,showPlaces]);
 
   // Install MapLibre pins once per vector map lifecycle, not after every
   // station price refresh. The Leaflet fallback remains available until ready.
@@ -625,41 +655,18 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const publish = visibleCallbackRef.current;
     if (!map || !publish) return;
     const bounds = map.getBounds();
-    const all: MapVisiblePlace[] = [
-      ...(!navigationMode && showFuelStations ? fuel.stations.map(station => ({
-        id: station.id, name: station.name, kind: 'fuel', address: station.address,
-        coords: [station.lat, station.lng] as [number, number]
-      })) : []),
-      ...(showFuelStations ? places
-        .filter(place => !navigationMode || (TOURIST_PLACE_KINDS as readonly string[]).includes(place.kind))
-        .filter(place => place.kind !== 'toll' || !tolls.some(toll => toll.id === place.id))
-        .map(place => ({id: place.id, name: place.name, kind: place.kind, address: place.address,
-          coords: [place.lat, place.lng] as [number, number]})) : []),
-      ...(!navigationMode && tollVehicleType ? tolls.map(toll => ({
-        id: toll.id, name: toll.name, kind:'toll', address:'',
-        coords: toll.coords
-      })) : []),
-      ...stops.filter(stop => stop.category !== 'posto' || Boolean(stop.type)).map(stop => ({
-        id: 'stop:' + stop.name + ':' + stop.lat + ':' + stop.lng,
-        name: stop.name, kind: stop.category, address: stop.description,
-        coords: [stop.lat, stop.lng] as [number, number]
-      }))
-    ];
-    const unique = new Map<string,MapVisiblePlace>();
-    for(const place of all) {
-      if (!bounds.contains(place.coords)) continue;
-      const placeKey = place.coords.map(n=>n.toFixed(5)).join(',') + ':' + place.name.toLowerCase();
-      if (!unique.has(placeKey)) unique.set(placeKey, place);
-    }
-    const center = map.getCenter();
-    const ordered = [...unique.values()]
-      .sort((a,b) => map.distance(a.coords,center)-map.distance(b.coords,center)).slice(0,25);
+    const center=map.getCenter();
+    const ordered=standaloneVisiblePlaces({
+      markers:selectRoleVectorMarkers(vectorPlaceInputsRef.current),stations:fuel.stations,places,stops,
+      center:[center.lat,center.lng],contains:coords=>bounds.contains(coords),zoom:map.getZoom(),
+      showRouteServices:!navigationMode&&routePath.length>1
+    });
     const signature = visiblePlacesSignature(ordered);
     if (signature !== visibleKeyRef.current) {
       visibleKeyRef.current = signature;
       publish(ordered);
     }
-  }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations, tollVehicleType, viewportRevision, hasMapReady]);
+  }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations,showPlaces, tollVehicleType, viewportRevision, hasMapReady]);
 
   const openRoadAlert = (alert: RoadAlert) => {
     setSelectedRoadAlert(alert);

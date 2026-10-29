@@ -25,7 +25,7 @@ export const TOURIST_PLACE_KINDS = ['waterfall', 'viewpoint', 'park', 'museum', 
 export interface Place {
   id: string; name: string; kind: typeof PLACE_KINDS[number]['id']; lat: number; lng: number;
   address: string; sourceUrl: string; description: string; website: string; phone: string;
-  active: boolean; openingHours?: string;
+  active: boolean; openingHours?: string; managed?: boolean;
 }
 export interface PlaceComment {
   id: string; body: string; displayName: string; createdAt: string; status: string;

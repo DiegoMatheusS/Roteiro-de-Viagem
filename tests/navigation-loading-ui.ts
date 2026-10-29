@@ -9,6 +9,7 @@ const vite=await createServer({server:{host:'127.0.0.1',port:3000,strictPort:tru
 await vite.listen();
 let browser;
 let releaseTiles:()=>void=()=>{};
+let releasePlaces:()=>void=()=>{};
 try{
   browser=await chromium.launch({headless:true,
     executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH,
@@ -17,6 +18,13 @@ try{
   const page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true});
   const errors:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
+  const placesReady=new Promise<void>(resolve=>{releasePlaces=resolve;});
+  await page.route('**/api/places/search',async route=>{
+    await placesReady;
+    await route.fulfill({json:{places:[{id:'admin:late-place',name:'Local cadastrado após o mapa',
+      kind:'park',lat:-23.55,lng:-46.63,address:'Endereço confirmado',sourceUrl:'https://www.openstreetmap.org/',
+      description:'',phone:'',website:'',active:true,managed:true}]}});
+  });
   const tile=await sharp({create:{width:256,height:256,channels:4,
     background:'#dce8d8'}}).png().toBuffer();
   let tilesReady=new Promise<void>(resolve=>{releaseTiles=resolve;});
@@ -51,6 +59,10 @@ try{
   releaseTiles();
   await page.waitForFunction(()=>document.querySelector<HTMLElement>(
     '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
+  releasePlaces();
+  await page.getByRole('button',{name:'Ver Local cadastrado após o mapa',exact:true}).waitFor();
+  await page.waitForFunction(()=>document.querySelector<HTMLElement>(
+    '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true',undefined,{timeout:3000});
 
   // Once loaded, a fresh GPS camera move requests another group of tiles.
   // Hold only these requests so the test also covers an already running trip.
@@ -119,6 +131,7 @@ try{
   assert.deepEqual(errors,[]);
   console.log('PASS: pending tiles do not block GPS, heading, native pan/pinch or recenter.');
 }finally{
+  releasePlaces();
   releaseTiles();
   await browser?.close();
   await vite.close();

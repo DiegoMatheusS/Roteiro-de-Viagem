@@ -3,9 +3,28 @@ import type { FuelDatabase } from './db';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
 import type { Place } from '../src/types/admin';
 import type { NavigationManeuver } from '../src/types';
+import type {PlaceBounds} from '../src/services/mapPlaceViewport';
 
 export type Coordinates = [number, number];
 export type MapFetch = typeof fetch;
+
+/** A bounded camera query prevents the beginning of a long route from using
+ * the entire result budget while the driver is looking at another town. */
+export function viewportPlaceRows(db:FuelDatabase,value:unknown,includeManagedFuel=false){
+  const bounds=value as PlaceBounds|null;
+  if(!bounds||typeof bounds!=='object')throw new Error('Área do mapa inválida.');
+  const {south,north,west,east}=bounds;
+  if(![south,north,west,east].every(v=>typeof v==='number'&&Number.isFinite(v))||
+    south>=north||south< -90||north>90||Math.abs(west)>180||Math.abs(east)>180)
+    throw new Error('Área do mapa inválida.');
+  const width=west<=east?east-west:360-west+east;
+  if(north-south>10||width<=0||width>10)throw new Error('Aproxime o mapa para consultar os lugares.');
+  const longitude=west<=east?'lng BETWEEN ? AND ?':'(lng>=? OR lng<=?)';
+  return db.prepare(`SELECT * FROM stations WHERE active=1 AND (kind<>'fuel'${includeManagedFuel?' OR managed=1':''})
+    AND lat BETWEEN ? AND ? AND ${longitude}
+    ORDER BY managed DESC,ABS(lat-?) LIMIT 1000`)
+    .all(south,north,west,east,(south+north)/2) as any[];
+}
 
 export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusKm: number, excludeFuel = false) {
   const params: number[] = [];

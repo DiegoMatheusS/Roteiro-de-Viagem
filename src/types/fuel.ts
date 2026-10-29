@@ -36,6 +36,7 @@ export interface FuelStation {
   source: 'OpenStreetMap';
   sourceUrl: string;
   mapUpdatedAt: string;
+  managed?:boolean;
   openingHours?: string;
   openingHoursVerifiedAt?: string;
   prices: FuelPrice[];
