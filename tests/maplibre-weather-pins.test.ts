@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {validWeatherPoint,visibleWeatherSamples,visibleRainSamples,weatherDisplayTime,weatherDisplayLines,weatherPointKey} from '../src/services/vectorWeatherData';
-import {isRainForecast,rainDropsSvgMarkup} from '../src/services/rainDropMarkers';
+import {isRainForecast,rainDropsSvgMarkup,rainDropCoversArrow} from '../src/services/rainDropMarkers';
 import type {WeatherPoint} from '../src/types';
 
 const forecast:WeatherPoint={
@@ -11,6 +11,14 @@ const forecast:WeatherPoint={
   condition:'Chuva Fraca',rainProb:68,windKmH:12,windDirectionDegrees:180,
   warning:'Risco de chuva na região'
 };
+
+test('rain markers keep a clear screen-space area around the GPS arrow',()=>{
+  assert.equal(rainDropCoversArrow({x:150,y:250},{x:150,y:250}),true);
+  assert.equal(rainDropCoversArrow({x:193,y:290},{x:150,y:250}),true);
+  assert.equal(rainDropCoversArrow({x:200,y:250},{x:150,y:250}),false);
+  assert.equal(rainDropCoversArrow({x:150,y:300},{x:150,y:250}),false);
+  assert.equal(rainDropCoversArrow({x:150,y:250}),false);
+});
 
 test('only provider samples with usable positions and finite weather values appear',()=>{
   assert.equal(validWeatherPoint(forecast),true);

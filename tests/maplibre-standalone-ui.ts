@@ -27,6 +27,13 @@ try{
   assert.equal(await page.locator('.leaflet-container').count(),0,'native navigation must not create a Leaflet viewport');
   assert.equal(await page.locator('.maplibregl-canvas').count(),1,'there is exactly one native canvas');
   const marker=page.locator('.user-live-marker');await marker.waitFor();
+  const currentRain=page.getByTitle('Previsão em Ponto de chuva atual',{exact:true});
+  const nextRain=page.getByTitle('Previsão em Próximo ponto de chuva',{exact:true});
+  await currentRain.waitFor({state:'attached'});await nextRain.waitFor({state:'attached'});
+  assert.equal(await currentRain.evaluate(element=>getComputedStyle(element).visibility),'hidden',
+    'rain at the GPS position must not cover the arrow');
+  assert.notEqual(await nextRain.evaluate(element=>getComputedStyle(element).visibility),'hidden',
+    'other forecast locations stay visible');
   assert.equal(Number(await map.getAttribute('data-map-bearing')),90,'driving starts oriented toward the GPS course');
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing)-90)<0.00001);
   const box=await map.boundingBox();assert.ok(box);
@@ -40,6 +47,8 @@ try{
   const position=await marker.getAttribute('style');
   await page.getByRole('button',{name:'Mover GPS',exact:true}).click();
   await page.waitForFunction(previous=>document.querySelector('.user-live-marker')?.getAttribute('style')!==previous,position);
+  assert.equal(await nextRain.evaluate(element=>getComputedStyle(element).visibility),'hidden',
+    'moving GPS hides the rain cluster at the new arrow position');
   assert.equal(await map.getAttribute('data-map-center'),center,'GPS updates move the pin while manual camera position remains unchanged');
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector<SVGElement>('.user-live-marker svg')?.style.transform==='rotate(180deg)');
@@ -351,6 +360,19 @@ try{
   await page.goto('http://127.0.0.1:3000/tests/fixtures/circular-guidance.html');
   const guidance=page.getByRole('status',{name:'Próxima orientação de navegação',exact:true});
   await guidance.getByText('Primeira curva',{exact:true}).waitFor();
+  const reportButton=page.getByRole('button',{name:'Reportar problema na estrada',exact:true});
+  assert.equal(await reportButton.count(),1,'navigation has one persistent report button');
+  for(const viewport of [{width:390,height:844},{width:360,height:640}]){
+    await page.setViewportSize(viewport);
+    assert.equal(await reportButton.evaluate(element=>{
+      const r=element.getBoundingClientRect(),top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
+      return r.width>=56&&r.height>=56&&r.top>=0&&r.bottom<=innerHeight&&!!top&&(top===element||element.contains(top));
+    }),true,'report button remains visible and clickable without opening trip details');
+    await reportButton.click();
+    await page.getByRole('menu',{name:'Escolher ocorrência'}).waitFor();
+    await page.getByRole('button',{name:'Fechar opções de alerta',exact:true}).click();
+  }
+  await page.setViewportSize({width:420,height:850});
   const hud=await page.evaluate(()=>{
     const guidance=document.querySelector('.rdv-nav-guidance')!.getBoundingClientRect();
     const panel=document.querySelector('.rdv-nav-bottom')!,bounds=panel.getBoundingClientRect();

@@ -1,8 +1,13 @@
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {InteractiveMap} from '../../src/components/InteractiveMap';
+import type {WeatherPoint} from '../../src/types';
 import '../../src/index.css';
 import 'leaflet/dist/leaflet.css';
+const weatherPoints:WeatherPoint[]=[
+  {locationName:'Ponto de chuva atual',coords:[-23.55,-46.63],passTime:'10:30',tempC:22,condition:'Chuva Fraca',rainProb:80,windKmH:10},
+  {locationName:'Próximo ponto de chuva',coords:[-23.555,-46.625],passTime:'10:40',tempC:22,condition:'Chuva Fraca',rainProb:80,windKmH:10}
+];
 function Fixture(){
   const [coords,setCoords]=useState<[number,number]>([-23.55,-46.63]);
   const [request,setRequest]=useState(0);
@@ -11,6 +16,7 @@ function Fixture(){
   const [show,setShow]=useState(true);
   const [path,setPath]=useState<[number,number][]>([[-23.55,-46.63],[-23.56,-46.62]]);
   return <><div style={{width:390,height:620}}>{show&&<InteractiveMap navigationMode
+    weatherPoints={weatherPoints} showRainLayer
     routePath={path} destinationCoords={path[path.length-1]}
     userLiveCoords={coords} userHeadingDegrees={heading} userSpeedMetersPerSecond={10} showFuelStations={false} centerOnUserRequest={request}
     onCameraModeChange={setMode}/>}</div><output data-testid="mode">{mode}</output>

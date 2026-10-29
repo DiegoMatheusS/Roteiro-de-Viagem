@@ -141,7 +141,14 @@
   z-index:28;
   left:20px;
   bottom:calc(var(--rdv-nav-panel-height) + 33px);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  pointer-events:none;
 }
+.rdv-nav-left-controls button {pointer-events:auto;}
+.rdv-nav-left-controls > button {flex-shrink:0;}
 .rdv-nav-left-controls .rdv-speedometer {
   width:66px;height:66px;
   border:1.5px solid #e7ebef;
@@ -293,6 +300,7 @@
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-extra-action {background:#334155;color:#e2e8f0;border-color:#475569;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-bottom-button.rdv-nav-end {background:#c62828;color:#fff;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-controls .rdv-speedometer {background:#1e293b;border-color:#475569;}
+.rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-controls > button {background:#1e293b;color:#fbbf24;border-color:#785d25;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-eta-stat {color:#f1f5f9;}
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-eta-stat span,
 .rdv-nav-figma-root[data-role-theme="dark"] .rdv-nav-left-stat span,

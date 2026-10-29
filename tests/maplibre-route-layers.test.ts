@@ -16,13 +16,13 @@ test('GeoJSON inverts Leaflet latitude/longitude for OSRM verified road paths',(
   assert.deepEqual(collection.features[0].geometry.coordinates[0],[-46.632,-23.551]);
   assert.deepEqual(collection.features[1].geometry.coordinates[2],[-46.634,-23.553]);
 });
-test('real GPS progress uses a dark-blue driven line and light-blue remaining line',()=>{
+test('real GPS progress uses a muted blue driven line and light-blue remaining line',()=>{
   const collection=buildRoleRouteCollection({...base, navigationMode:true,
     userLocation:active[1], travelledDistanceKm:0.5});
   const roles=collection.features.map(f=>f.properties.role);
   assert.deepEqual(roles,['active','remaining','travelled']);
   assert.equal(collection.features.find(f=>f.properties.role==='remaining')?.properties.color,'#67c7ff');
-  assert.equal(collection.features.find(f=>f.properties.role==='travelled')?.properties.color,'#17479b');
+  assert.equal(collection.features.find(f=>f.properties.role==='travelled')?.properties.color,'#6b839f');
 });
 test('when GPS is off-route, no section is reported as travelled',()=>{
   const collection=buildRoleRouteCollection({...base, navigationMode:true,
@@ -71,7 +71,7 @@ test('route strokes use MapLibre zoom interpolation, retaining a white outline a
   const travelled=layers.get('role-travelled-line');
   assert.equal(outline?.paint['line-color'],'#ffffff');
   assert.equal(remaining?.paint['line-color'],'#67c7ff');
-  assert.equal(travelled?.paint['line-color'],'#17479b');
+  assert.equal(travelled?.paint['line-color'],'#6b839f');
   assert.deepEqual(outline?.paint['line-width'],routeZoomStroke(5,7.5,10));
   assert.deepEqual(remaining?.paint['line-width'],routeZoomStroke(3,5,7));
   assert.deepEqual(travelled?.paint['line-width'],routeZoomStroke(3,5,7));
@@ -153,6 +153,7 @@ test('night route glows below street labels and day/night switching preserves ro
   updateRoleVectorRoutes(gl,{...options,theme:'light'});
   assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#ffffff');
   assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#67c7ff');
-  assert.equal(layers.has('role-remaining-glow'),false);
+  assert.equal(layers.get('role-remaining-glow')?.paint['line-opacity'],0.3);
+  assert.equal(layers.get('role-travelled-line')?.paint['line-color'],'#6b839f');
   assert.equal(JSON.stringify(data),geometry);
 });

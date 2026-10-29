@@ -82,12 +82,16 @@
 .rdv-search-results-overlay small,
 .rdv-search-results-overlay p {font-size:14px;line-height:1.4;}
 .rdv-search-results-overlay button {min-height:58px;}
+.rdv-route-countdown-frame {
+  position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+}
 .rdv-route-countdown-border {
   stroke-dasharray:100;
   stroke-dashoffset:0;
-  animation:rdv-route-button-clock 7s linear forwards;
+  filter:drop-shadow(0 0 2px #93c5fd70);
+  animation:rdv-route-button-clock 10s linear forwards;
 }
-@keyframes rdv-route-button-clock {to {stroke-dashoffset:100;}}
+@keyframes rdv-route-button-clock {to {stroke-dashoffset:-100;}}
 @media (prefers-reduced-motion:reduce) {
   .rdv-route-countdown-border {animation:none;}
 }

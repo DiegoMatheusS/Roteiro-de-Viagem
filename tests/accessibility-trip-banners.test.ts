@@ -32,7 +32,7 @@ test('atalhos Salvos são grandes e exclusão exige 2 segundos sem lixeira',()=>
   assert.match(saved,/min-h-\[92px\]/);
   assert.match(saved,/},2000\)/);
   assert.doesNotMatch(saved,/<Trash/);
-  assert.match(saved,/Segure por 2 segundos para excluir/);
+  assert.match(saved,/aria-description="Segure por 2 segundos para excluir"/);
   assert.match(saved,/items\.map\(item=>/);
 });
 

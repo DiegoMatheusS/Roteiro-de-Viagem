@@ -6,6 +6,7 @@ import { fetchRouteChoices, choiceLabel, choiceToTrip, type VerifiedRouteChoice 
 import { requestTolls, tollBudgetPatch, type TollResult } from '../services/routeConditions';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import {ROUTE_AUTO_START_MS,routeAutoStartSeconds} from '../services/routeAutoStart';
+import {RouteCountdownBorder} from './RouteCountdownBorder';
 
 interface DestinationExplorerProps {
   target: LocationSelection;
@@ -26,6 +27,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
   const [originName,setOriginName]=useState('Sua localização atual');
   const [busy,setBusy] = useState(false);
   const [secondsLeft,setSecondsLeft]=useState<number|null>(null);
+  const [countdownDeadline,setCountdownDeadline]=useState<number|null>(null);
+  const [selectionVersion,setSelectionVersion]=useState(0);
   const initialAttempt=useRef(false);
   const busyRef=useRef(false);
   const departingRef=useRef(false);
@@ -111,7 +114,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
       return;
     }
     const deadline=Date.now()+ROUTE_AUTO_START_MS;
-    setSecondsLeft(7);
+    setSecondsLeft(Math.ceil(ROUTE_AUTO_START_MS/1000));
+    setCountdownDeadline(deadline);
     const timer=setInterval(()=>{
       const seconds=routeAutoStartSeconds(deadline,Date.now());
       setSecondsLeft(seconds);
@@ -119,14 +123,14 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
     },100);
     countdownTimer.current=timer;
     return()=>{clearInterval(timer);if(countdownTimer.current===timer)countdownTimer.current=null;};
-  },[autoStartEnabled,gpsAvailable,routes,origin,selected,busy,error]);
+  },[autoStartEnabled,gpsAvailable,routes,origin,selected,selectionVersion,busy,error]);
   const closeExplorer=()=>{activeRef.current=false;routeRequest.current?.abort();onClose();};
   return <section aria-label="Destino no mapa" className="absolute bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl rounded-t-[26px] shadow-[0_-16px_46px_#0f172a24] border-t border-slate-100 max-h-[49dvh] flex flex-col rdv-route-sheet">
     <div className="h-7 shrink-0 flex justify-center items-center"><span className="h-1.5 w-12 bg-slate-300 rounded-full"/></div>
     <div className="overflow-y-auto w-full max-w-xl mx-auto px-4 pb-5 space-y-3">
       <div className="flex items-start gap-3">
         <span className="w-11 h-11 rounded-[15px] bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><MapPin size={24}/></span>
-        <div className="flex-1 min-w-0"><p className="text-[10px] font-bold uppercase text-slate-500">Destino localizado no mapa</p>
+        <div className="flex-1 min-w-0">
           <h2 className="text-[19px] font-bold tracking-tight truncate">{target.name}</h2>
           {target.address && <p className="text-xs text-slate-500 truncate">{target.address}</p>}
         </div>
@@ -135,9 +139,8 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
       <button type="button" aria-label={busy?'Preparando sua navegação':routes.length?'Iniciar rota selecionada':'Calcular e iniciar rota'}
         disabled={busy||departingRef.current} onClick={()=>void depart()}
         className="relative w-full min-h-[66px] rounded-2xl bg-[#2167e8] text-white font-extrabold text-[17px] flex items-center justify-center gap-2 shadow-[0_8px_20px_#2563eb45] active:scale-[.98] transition-transform disabled:opacity-60 overflow-hidden">
-        {secondsLeft!==null&&<svg key={`${selected}-${routes[0]?.id}`} aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <rect className="rdv-route-countdown-border" x="1.8" y="1.8" width="96.4" height="96.4" rx="16" pathLength="100" fill="none" stroke="#a7f3d0" strokeWidth="3.6"/>
-        </svg>}
+        {secondsLeft!==null&&countdownDeadline!==null&&
+          <RouteCountdownBorder key={countdownDeadline} durationMs={ROUTE_AUTO_START_MS}/>}
         <Navigation size={21} className="relative shrink-0"/>
         <span className="relative">{busy?'Preparando sua navegação...':routes.length?'Iniciar rota':'Calcular e iniciar rota'}</span>
         {secondsLeft!==null&&<span role="timer" aria-label={`Início automático em ${secondsLeft} segundos`} className="relative ml-1 rounded-lg bg-white/20 px-2 py-1 text-[16px] font-black tabular-nums">{secondsLeft}s</span>}
@@ -153,7 +156,7 @@ export function DestinationExplorer({target,vehicle,gpsAvailable,getOrigin,onMap
           <button type="button" disabled={busy} onClick={()=>void loadRoutes()} className="text-xs text-blue-700 font-bold">{routes.length?'Atualizar rotas':'Mostrar rotas'}</button></div>
         {!routes.length && !error && <p className="text-xs text-slate-500">{busy ? 'Calculando rotas a partir do GPS...' : 'Destino marcado no mapa. Toque em Mostrar rotas para tentar novamente.'}</p>}
         {routes.map((route,index)=><button key={route.id} type="button" aria-pressed={index===selected}
-          onClick={()=>{setSelected(index);if(origin)onMapRoute(origin,routes,route.id);}}
+          onClick={()=>{setSelected(index);setSelectionVersion(value=>value+1);if(origin)onMapRoute(origin,routes,route.id);}}
           className={`w-full text-left p-3.5 rounded-2xl border transition-all duration-200 active:scale-[.99] ${index===selected?'border-blue-500 bg-blue-50 shadow-[0_5px_16px_#2563eb20]':'border-slate-200 bg-white hover:border-blue-200'}`}>
           <div className="flex justify-between gap-2"><strong className="text-[13px]">{choiceLabel(route,index)}{index===0 && route.kind!=='fast' && route.kind!=='alternative' ? ' · sugerida pelo Rolê' : ''}</strong><strong className="text-xs text-blue-700">{route.durationMinutes} min</strong></div>
           <p className="text-[11px] text-slate-600 mt-1">{route.distanceKm.toFixed(1)} km{route.scenicStop ? ` · Via ${route.scenicStop.name}` : ''}</p>

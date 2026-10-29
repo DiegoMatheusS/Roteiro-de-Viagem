@@ -423,7 +423,6 @@ export function NavigationHome(props: NavigationHomeProps) {
         <section className="space-y-3">
           <div>
             <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Bora dar um rolê?</h2>
-            <p className="text-[14px] mt-1 text-slate-500">Saia de onde está. A gente cria a volta.</p>
           </div>
           <div className="rdv-home-destination-search" data-testid="home-inline-destination-search">
           <form ref={searchFormRef} role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
@@ -477,28 +476,27 @@ export function NavigationHome(props: NavigationHomeProps) {
                   <small className="block line-clamp-2 text-xs leading-relaxed text-slate-500">{place.address}</small>
                   {place.coords&&gps.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,gps.position)}</small>}
                 </button>)}
-                <p className="text-[10px] text-slate-500 px-3 py-2">Distâncias em linha reta. Rota real após selecionar.</p>
               </div>}
           </SearchResultsOverlay>
         </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
-              <strong className="rdv-figma-card-title">Por km</strong><small className="rdv-figma-card-detail">Escolha a distância</small>
+              <strong className="rdv-figma-card-title">Por km</strong>
             </button>
             <button type="button" onClick={()=>showSheet('hours')} aria-label="Por tempo — Escolher horas" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Clock3 size={20} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
-              <strong className="rdv-figma-card-title">Por horas</strong><small className="rdv-figma-card-detail">Escolha a duração</small>
+              <strong className="rdv-figma-card-title">Por horas</strong>
             </button>
           </div>
           <button type="button" aria-label="Comboio" onClick={()=>setShowConvoyActions(true)}
             className="w-full text-left bg-white border border-blue-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
             <span className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-50 text-blue-700"><Users size={21} strokeWidth={1.9}/></span>
-            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Comboio</strong><small className="text-[11px] text-slate-500">Criar ou entrar em um comboio</small></span><ChevronRight size={17} className="text-slate-400"/>
+            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Comboio</strong></span><ChevronRight size={17} className="text-slate-400"/>
           </button>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
             <span className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-blue-700"><Route size={21} strokeWidth={1.9}/></span>
-            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rolê com origem e destino</strong><small className="text-[11px] text-slate-500">Escolha de onde sair e aonde chegar</small></span><ChevronRight size={17} className="text-slate-400"/>
+            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rolê com origem e destino</strong></span><ChevronRight size={17} className="text-slate-400"/>
           </button>
         </section>
         <section className="space-y-2.5">

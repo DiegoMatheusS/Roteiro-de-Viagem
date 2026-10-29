@@ -2,11 +2,12 @@ import { bindMarkerPopup } from './mapMarkerPopup';
 import {Marker,Popup,type Map as MapLibreMap} from 'maplibre-gl';
 import type {WeatherPoint} from '../types';
 import {visibleRainSamples,weatherPointKey,weatherDisplayLines} from './vectorWeatherData';
-import {createRainDropsSvg} from './rainDropMarkers';
+import {createRainDropsSvg,rainDropCoversArrow} from './rainDropMarkers';
 
 interface TrackedForecast { marker:Marker; signature:string; }
 export interface WeatherPinController {
   update(samples:readonly WeatherPoint[],show:boolean):void;
+  avoidPosition(position?:[number,number]):void;
   destroy():void;
 }
 function pointElement(point:WeatherPoint):HTMLButtonElement {
@@ -37,6 +38,19 @@ function popupContent(point:WeatherPoint):HTMLDivElement {
 export function createRoleWeatherPins(gl:MapLibreMap):WeatherPinController {
   const current=new Map<string,TrackedForecast>();
   let destroyed=false;
+  let arrowPosition:[number,number]|undefined;
+  const refreshVisibility=()=>{
+    if(destroyed||!current.size)return;
+    const arrow=arrowPosition?gl.project([arrowPosition[1],arrowPosition[0]]):undefined;
+    for(const {marker} of current.values()){
+      const hidden=rainDropCoversArrow(gl.project(marker.getLngLat()),arrow);
+      const element=marker.getElement();
+      const visibility=hidden?'hidden':'';
+      if(element.style.visibility!==visibility)element.style.visibility=visibility;
+      if(hidden)marker.getPopup()?.remove();
+    }
+  };
+  gl.on('move',refreshVisibility);
   const remove=(key:string)=>{
     const item=current.get(key);
     if(!item)return;
@@ -50,6 +64,11 @@ export function createRoleWeatherPins(gl:MapLibreMap):WeatherPinController {
     return bindMarkerPopup(marker);
   };
   return {
+    avoidPosition(position){
+      arrowPosition=position?.length===2&&position.every(Number.isFinite)&&
+        Math.abs(position[0])<=90&&Math.abs(position[1])<=180?position:undefined;
+      refreshVisibility();
+    },
     update(samples,show){
       if(destroyed)return;
       const visible=show?visibleRainSamples(samples):[];
@@ -68,9 +87,11 @@ export function createRoleWeatherPins(gl:MapLibreMap):WeatherPinController {
         const marker=create(point);
         current.set(key,{marker,signature});
       }
+      refreshVisibility();
     },
     destroy(){
       destroyed=true;
+      gl.off('move',refreshVisibility);
       for(const key of [...current.keys()])remove(key);
     }
   };
