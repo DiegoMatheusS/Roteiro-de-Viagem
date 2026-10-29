@@ -4,9 +4,9 @@ import type { RouteToll } from '../types/tolls';
 import { fuelPriceLabel, tollPriceLabel } from './mapPriceLabels';
 
 export type RoleVectorMarker =
-  | { kind:'fuel'; id:string; coords:[number,number]; name:string; priceLabel:string|null }
-  | { kind:'toll'; id:string; coords:[number,number]; name:string; priceLabel:string|null; place:Place|null }
-  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string };
+  | { kind:'fuel'; id:string; coords:[number,number]; name:string; priceLabel:string|null;managed?:boolean }
+  | { kind:'toll'; id:string; coords:[number,number]; name:string; priceLabel:string|null; place:Place|null;managed?:boolean }
+  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string; managed?:boolean };
 
 /** Stable identity and visual metadata used by the incremental vector renderer.
  * Moving a place should only call Marker.setLngLat, never recreate its buttons.
@@ -38,8 +38,10 @@ export function selectRoleVectorMarkers(options: {
   tolls: RouteToll[];
   navigationMode: boolean;
   tollVehicleType?: 'car'|'motorcycle';
+  viewportScopedPlaces?:boolean;
 }): RoleVectorMarker[] {
   const entries: RoleVectorMarker[] = [];
+  const freshFuelPlaces=new Map(options.places.filter(place=>place.active&&place.kind==='fuel').map(place=>[place.id,place]));
   const ids = new Set<string>();
   const add = (entry: RoleVectorMarker) => {
     if (validMarkerPosition(entry.coords) && !ids.has(entry.id)) {
@@ -48,9 +50,12 @@ export function selectRoleVectorMarkers(options: {
     }
   };
   {
-    for (const station of options.stations) {
+    for (const source of options.stations) {
+      const fresh=freshFuelPlaces.get(source.id);
+      if(options.viewportScopedPlaces&&source.managed&&!fresh)continue;
+      const station=fresh?{...source,name:fresh.name,lat:fresh.lat,lng:fresh.lng,managed:fresh.managed}:source;
       add({ kind:'fuel',id:station.id,coords:[station.lat,station.lng],
-        name:station.name,priceLabel:fuelPriceLabel(station) });
+        name:station.name,priceLabel:fuelPriceLabel(station),managed:station.managed });
     }
     if (options.tollVehicleType) {
       for (const toll of options.tolls) {
@@ -61,14 +66,17 @@ export function selectRoleVectorMarkers(options: {
   }
   const knownTollIds = new Set(options.tolls.map(toll=>toll.id));
   for (const place of options.places) {
+    if(!place.active)continue;
     // Navigation uses zoom/proximity filtering instead of hiding registered POIs entirely.
     const coords: [number,number] = [place.lat,place.lng];
-    if (place.kind === 'toll') {
-      if (!options.navigationMode && !knownTollIds.has(place.id)) {
-        add({kind:'toll',id:place.id,coords,name:place.name,priceLabel:null,place});
+    if(place.kind==='fuel'){
+      add({kind:'fuel',id:place.id,coords,name:place.name,priceLabel:null,managed:place.managed});
+    }else if (place.kind === 'toll') {
+      if (!knownTollIds.has(place.id)) {
+        add({kind:'toll',id:place.id,coords,name:place.name,priceLabel:null,place,managed:place.managed});
       }
     } else {
-      add({kind:'place',id:place.id,coords,name:place.name,category:place.kind,description:place.description});
+      add({kind:'place',id:place.id,coords,name:place.name,category:place.kind,description:place.description,managed:place.managed});
     }
   }
   return entries;

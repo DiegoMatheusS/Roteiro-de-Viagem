@@ -46,6 +46,7 @@ interface TrackedRoleMarker {
   visible:boolean|null;
   overview:boolean|null;
   expanded:boolean|null;
+  label:boolean|null;
 }
 export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
@@ -94,6 +95,7 @@ export function createRoleMaplibreMarkerController(
       const visible=poiVisibleAtZoom(record.entry,zoom) ||
         (Boolean(context.showRouteServices) && (record.entry.kind==='fuel'||record.entry.kind==='toll'));
       const expanded=visible && (manualKey===key || (!manualKey&&key===preview.expandedKey));
+      const label=visible&&!expanded&&zoom>=16&&Boolean(record.entry.managed||record.entry.id.startsWith('admin:'));
       const element=record.marker.getElement();
       if(record.overview!==overview){
         record.overview=overview;
@@ -108,6 +110,7 @@ export function createRoleMaplibreMarkerController(
         element.dataset.expanded=String(expanded);
         element.setAttribute('aria-expanded',String(expanded));
       }
+      if(record.label!==label){record.label=label;element.dataset.poiLabel=String(label);}
     }
   };
   const buildMarker=(entry:RoleVectorMarker):Marker=>{
@@ -122,6 +125,8 @@ export function createRoleMaplibreMarkerController(
     root.tabIndex=0;
     root.setAttribute('role','button');
     root.setAttribute('aria-label',`Ver ${entry.name}`);
+    const caption=document.createElement('span');caption.className='role-poi-label';
+    caption.textContent=entry.name;caption.setAttribute('aria-hidden','true');root.append(caption);
 
     const details=document.createElement('div');
     details.className='role-poi-details';
@@ -223,7 +228,7 @@ export function createRoleMaplibreMarkerController(
         const marker=buildMarker(entry);
         existing?.marker.remove();
         markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords],entry,
-          visible:null,overview:null,expanded:null});
+          visible:null,overview:null,expanded:null,label:null});
       }
       applyVisibility();
     },
