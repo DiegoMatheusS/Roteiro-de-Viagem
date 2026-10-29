@@ -11,6 +11,7 @@ try{
     args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
   for(const screen of ['home','map']){
   const page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true,isMobile:true});
+  if(screen==='home')await page.clock.install();
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>{
     Object.defineProperty(navigator,'geolocation',{value:{
@@ -89,7 +90,7 @@ try{
     assert.equal(await savedShortcut.getAttribute('aria-expanded'),'false');
     await savedShortcut.tap();
     await page.getByRole('region',{name:'Endereços salvos na busca'}).waitFor();
-    await page.getByText('Entre na sua conta para cadastrar Casa, Trabalho e outros locais.').waitFor();
+    await page.getByText('Entre para acessar os salvos.').waitFor();
     assert.equal(await savedShortcut.getAttribute('aria-expanded'),'true');
     await savedShortcut.tap();
     await page.getByRole('region',{name:'Endereços salvos na busca'}).waitFor({state:'hidden'});
@@ -123,6 +124,37 @@ try{
   await fastCard.waitFor();
   assert.equal(await fastCard.getAttribute('aria-pressed'),'true',`${screen}: direct search must select the fastest route`);
   assert.equal(await touristCard.getAttribute('aria-pressed'),'false');
+  if(screen==='home'){
+    await page.evaluate(()=>{
+      (window as any).__countdownGpsTimer=setInterval(()=>(window as any).__searchGps({
+        coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()
+      }),1000);
+    });
+    await page.clock.pauseAt(new Date(Date.now()+100));
+    await fastCard.tap();
+    await page.clock.runFor(100);
+    assert.equal(await destinationPanel.getByRole('timer').innerText(),'10s');
+    const dimensions=await destinationPanel.locator('.rdv-route-countdown-frame').evaluate(element=>{
+      const svg=element as SVGSVGElement,button=svg.parentElement!;
+      return {width:svg.viewBox.baseVal.width,height:svg.viewBox.baseVal.height,
+        buttonWidth:button.clientWidth,buttonHeight:button.clientHeight,
+        stroke:getComputedStyle(svg.querySelector('.rdv-route-countdown-border')!).strokeWidth};
+    });
+    assert.equal(dimensions.width,dimensions.buttonWidth);
+    assert.equal(dimensions.height,dimensions.buttonHeight);
+    assert.equal(dimensions.stroke,'2.5px');
+    await page.clock.runFor(8900);
+    assert.equal(await page.evaluate(()=>!!(window as any).__startedRouteTrip),false,'must not depart after only 9 seconds');
+    await fastCard.tap();
+    await page.clock.runFor(100);
+    assert.equal(await destinationPanel.getByRole('timer').innerText(),'10s','tapping the selected route restarts the full countdown');
+    await page.clock.runFor(9800);
+    assert.equal(await page.evaluate(()=>!!(window as any).__startedRouteTrip),false);
+    await page.clock.runFor(200);
+    assert.equal(await page.evaluate(()=>(window as any).__startedRouteTrip?.modality),'rapida');
+    await page.evaluate(()=>clearInterval((window as any).__countdownGpsTimer));
+    await page.clock.resume();
+  }
   await destinationPanel.getByRole('button',{name:'Iniciar rota selecionada'}).tap();
   assert.equal(await page.evaluate(()=>(window as any).__startedRouteTrip.modality),'rapida');
   await touristCard.tap();

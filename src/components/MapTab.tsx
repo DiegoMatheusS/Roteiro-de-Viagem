@@ -301,7 +301,6 @@ export function MapTab(props: MapTabProps) {
               <small className="block truncate text-slate-500">{place.address}</small>
               {place.coords&&location.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,location.position)}</small>}
             </button>)}
-            <p className="text-[10px] text-slate-500 px-3 py-1">Distâncias em linha reta. Rota real após selecionar.</p>
           </div>}
           </SearchResultsOverlay>
           <SavedAddressesPanel gps={location.status==='ready'?location.position:null}

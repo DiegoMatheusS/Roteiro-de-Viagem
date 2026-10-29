@@ -5,7 +5,7 @@ import {useAuth} from '../contexts/AuthContext';
 import type {LocationSelection} from '../types/itinerary';
 import {houseNumberNotFoundMessage,searchLocations} from '../services/locationSearch';
 import {SAVED_ADDRESS_TYPES,readSavedAddresses,saveAddress,deleteSavedAddress,
-  matchSavedAddressOrigin,type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
+  type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
 import {formatAddressDistance} from '../services/addressSuggestions';
 
@@ -92,7 +92,6 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
       setItems(next);onChanged?.(next);close();
     }catch(err){setError((err as Error).message);}
   };
-  const match=user?matchSavedAddressOrigin(gps,items):null;
   return <div className="space-y-3" aria-label="Salvos">
     <div className="flex items-center justify-between gap-2">
       <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
@@ -112,7 +111,7 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
             onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();if(!event.repeat)beginHold(item);}}}
             onKeyUp={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();const deleted=suppressClickId.current===item.id;cancelHold();if(!deleted)selectSaved(item);else suppressClickId.current=null;}}}
             onBlur={cancelHold} onContextMenu={event=>event.preventDefault()}
-            aria-label={`Ir para ${item.label}`} aria-describedby="rdv-saved-hold-hint"
+            aria-label={`Ir para ${item.label}`} aria-description="Segure por 2 segundos para excluir"
             className={`min-w-0 min-h-[92px] rounded-2xl border-2 px-3 py-4 flex flex-col justify-center items-center gap-2 text-center transition-colors select-none touch-pan-y
               ${holdingId===item.id?'bg-blue-200 border-blue-600 ring-4 ring-blue-100':'bg-blue-50 border-blue-100 active:bg-blue-100'}`}>
             {item.label==='Casa'?<Home size={27} className="text-blue-700 shrink-0"/>
@@ -122,12 +121,9 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
             <strong className="text-[17px] leading-tight font-extrabold text-blue-900 break-words line-clamp-2">{item.label}</strong>
           </button>)}
         </div>
-        <p id="rdv-saved-hold-hint" className="text-xs text-slate-500">Toque para abrir a rota. Segure por 2 segundos para excluir.</p>
       </>
-      : <p className="text-[11px] text-slate-500">{user?'Cadastre Casa, Trabalho ou outro local para acessar com um toque.':'Entre na sua conta para cadastrar Casa, Trabalho e outros locais.'}</p>}
+      : <p className="text-sm text-slate-500">{user?'Nenhum endereço salvo.':'Entre para acessar os salvos.'}</p>}
     {notice&&<p role="status" className="text-sm text-emerald-700">{notice}</p>}
-    {match&&<p role="status" className="text-[11px] text-emerald-700">Você está perto de {match.label}. Este endereço será sugerido como origem.</p>}
-    {user&&gps&&gps.accuracyMeters>35&&<p className="text-[11px] text-amber-700">Precisão GPS estimada: {Math.round(gps.accuracyMeters)} m. Aguarde um sinal melhor para reconhecer seu local automaticamente.</p>}
     {open&&typeof document!=='undefined'&&createPortal(
       <div className="fixed inset-0 z-[200] bg-slate-950/60 flex items-end sm:items-center justify-center" role="presentation">
         <section role="dialog" aria-modal="true" aria-label="Cadastrar endereço salvo"
@@ -160,7 +156,6 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
             </label>
           </form>
           {busy&&<p role="status" className="text-sm text-slate-600">Buscando sugestões de endereço...</p>}
-          {!busy&&query.trim().length>=3&&results.length===0&&!error&&<p className="text-xs text-slate-500">As sugestões aparecem enquanto você digita.</p>}
           {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
           {results.length>0&&<div className="border rounded-xl divide-y max-h-48 overflow-y-auto" role="group" aria-label="Resultados de endereços">
             {results.map((place,i)=><button key={place.id??i} type="button" onClick={()=>{setChosen(place);setError('');}}
@@ -170,8 +165,6 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
             </button>)}
           </div>}
           {chosen&&<p className="text-xs text-emerald-700">Endereço selecionado: {chosen.address||chosen.name}</p>}
-          {results.length>0&&<p className="text-[11px] text-slate-500">Distância aproximada em linha reta do GPS. O percurso por ruas é calculado ao abrir a rota.</p>}
-          <p className="text-[11px] text-slate-500">Os endereços ficam salvos neste aparelho, separados por conta. Não são sincronizados com outros dispositivos.</p>
           <button type="button" onClick={save} disabled={!chosen?.coords||(type==='Outro'&&!custom.trim())}
             className="w-full p-3 rounded-xl bg-emerald-700 text-white font-bold disabled:opacity-50">
             Salvar local

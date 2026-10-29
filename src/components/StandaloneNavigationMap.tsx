@@ -351,6 +351,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
             navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType});
           registeredBuildings.update(p.navigationMode?[]:drawn);
         }
+        weather.avoidPosition(p.userLiveCoords??p.userLastKnownCoords);
         // The marker controller handles GPS proximity; update only when its
         // inputs change. While driving, skip proximity work for the hidden
         // route-service markers altogether.

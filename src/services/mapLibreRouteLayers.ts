@@ -29,6 +29,7 @@ export interface RoleRouteOptions {
 }
 
 const SOURCE = 'role-verified-routes';
+export const ROLE_TRAVELLED_ROUTE_COLOR='#6b839f';
 
 /** Zoom-responsive strokes keep a long route readable in overview without
  * hiding road names. MapLibre evaluates this paint expression on zoom itself:
@@ -137,7 +138,7 @@ export function buildRoleRouteCollection(options: RoleRouteOptions): RoleRouteCo
     );
     const progress = splitLngLat(active.coordinates, position);
     if (progress.remaining.length >= 2) features.push(lineFeature(progress.remaining, 'remaining', '#67c7ff'));
-    if (progress.travelled.length >= 2) features.push(lineFeature(progress.travelled, 'travelled', '#17479b'));
+    if (progress.travelled.length >= 2) features.push(lineFeature(progress.travelled, 'travelled', ROLE_TRAVELLED_ROUTE_COLOR));
   }
   return { type: 'FeatureCollection', features };
 }
@@ -271,16 +272,15 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
   addLine(layers[1], 'alternative', night?'#718299':'#64748b', routeZoomStroke(2,4,5), 0.78);
   addLine(layers[2], 'active', night?'#2265ac':'#ffffff', routeZoomStroke(5,7.5,10), night?0.8:0.96);
   if (!(options.navigationMode || options.blueRoute)) {
-    addLine(layers[3], 'active', night?'#2b91ff':['get','color'], routeZoomStroke(3,5,7), 0.6,night?1:0);
+    addLine(layers[3], 'active', night?'#2b91ff':['get','color'], routeZoomStroke(3,5,7), 0.6,1);
     addLine(layers[4], 'active', night?'#4ab8ff':['get','color'], routeZoomStroke(2,4,5), 1);
   } else {
     // Styles persist across GPS updates, so remove the inactive preview lines.
     for (const id of [layers[3],layers[4]]) if (gl.getLayer(id)) gl.removeLayer(id);
   }
-  if(night)addLine(layers[5], 'remaining', '#2b91ff', routeZoomStroke(5,9,12), 0.36,1.2);
-  else if(gl.getLayer(layers[5]))gl.removeLayer(layers[5]);
+  addLine(layers[5], 'remaining', night?'#2b91ff':'#38a8ff', routeZoomStroke(5,9,12), night?0.36:0.3,1.2);
   addLine(layers[6], 'remaining', night?'#4ab8ff':'#67c7ff', routeZoomStroke(3,5,7), 1);
-  addLine(layers[7], 'travelled', night?'#366ba5':'#17479b', routeZoomStroke(3,5,7), 1);
+  addLine(layers[7], 'travelled', ROLE_TRAVELLED_ROUTE_COLOR, routeZoomStroke(3,5,7), 1);
   lastRender.set(gl,{routePath:options.routePath,
     alternatives:options.alternatives.map(route=>({id:route.id,routePath:route.routePath})),
     selectedRouteId:options.selectedRouteId,modalityColor:options.modalityColor,

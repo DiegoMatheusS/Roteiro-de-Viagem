@@ -285,6 +285,9 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       {upcoming&&<UpcomingRoadAlertBanner kind={upcoming.alert.kind} distanceKm={upcoming.distanceKm}/>}
 
       <div className="rdv-nav-left-controls">
+        <RoadAlertReporter
+          location={isGpsActive?tracking.position:null} speedKmH={currentSpeed}
+          onSubmitted={()=>{void roadAlerts.reload();}}/>
         <Speedometer position={isGpsActive?tracking.position:null}/>
       </div>
       <div className="rdv-nav-right-controls">
@@ -365,9 +368,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </p>}
         </div>}
         <div className="rdv-nav-extra-buttons">
-          <div className="min-w-0"><RoadAlertReporter
-            location={isGpsActive?tracking.position:null} speedKmH={currentSpeed}
-            onSubmitted={()=>{void roadAlerts.reload();}}/></div>
           <button type="button" onClick={()=>setShowHomeConfirm(true)}
             className="rdv-nav-extra-action"><Home size={17}/> Traçar rota para casa</button>
           <button type="button" onClick={()=>setShowCompletionDialog(true)}

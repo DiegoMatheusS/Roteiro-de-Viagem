@@ -9,6 +9,12 @@ const drops=[
 ] as const;
 const dropPath='M6 0C4.5 3 1.5 6.5 1.5 9.7a4.5 4.5 0 0 0 9 0C10.5 6.5 7.5 3 6 0Z';
 
+/** 44px rain cluster + 36px GPS arrow + a small clear margin, in screen pixels.
+ * Projection keeps the arrow clear at every zoom, bearing and camera pitch. */
+export function rainDropCoversArrow(rain:{x:number;y:number},arrow?:{x:number;y:number}):boolean {
+  return !!arrow&&Math.abs(rain.x-arrow.x)<48&&Math.abs(rain.y-arrow.y)<48;
+}
+
 /** Only show rain symbols where the provider forecast indicates rain. */
 export function isRainForecast(point:{rainProb:number;condition:string}):boolean {
   return point.rainProb>=50||/(chuva|trovoada)/i.test(point.condition);

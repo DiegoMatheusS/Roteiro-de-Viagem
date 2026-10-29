@@ -21,7 +21,7 @@ import { mapContributionIcon } from './mapContributionIcon';
 import { mapPlaceIcon } from './mapPlaceIcon';
 import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
-import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative } from '../services/mapLibreRouteLayers';
+import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative,ROLE_TRAVELLED_ROUTE_COLOR } from '../services/mapLibreRouteLayers';
 import {routeEditPoint} from '../services/mapRouteEditPoint';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
@@ -39,7 +39,7 @@ import { bindMapResumeRefresh } from '../services/mapResumeRefresh';
 import type { TripPinsController } from '../services/mapLibreTripPins';
 import type { WeatherPinController } from '../services/mapLibreWeatherPins';
 import {visibleRainSamples,weatherDisplayTime} from '../services/vectorWeatherData';
-import {rainDropsSvgMarkup} from '../services/rainDropMarkers';
+import {rainDropsSvgMarkup,rainDropCoversArrow} from '../services/rainDropMarkers';
 import {changedStaticLayers,type StaticLayerInputs} from '../services/mapStaticLayerInvalidation';
 import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
 import {MapTrafficControl} from './MapTrafficControl';
@@ -188,8 +188,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [vectorTripPinsReady, setVectorTripPinsReady] = useState(false);
   const [vectorWeatherReady,setVectorWeatherReady] = useState(false);
   const vectorWeatherControllerRef=useRef<WeatherPinController|null>(null);
-  const weatherInputsRef=useRef({weatherPoints,showRainLayer});
-  weatherInputsRef.current={weatherPoints,showRainLayer};
+  const weatherInputsRef=useRef({weatherPoints,showRainLayer,position:markerCoords});
+  weatherInputsRef.current={weatherPoints,showRainLayer,position:markerCoords};
   const tripPinsControllerRef = useRef<TripPinsController|null>(null);
   const tripPinsDataRef = useRef({stops,meetingPoints,convoyParticipants});
   tripPinsDataRef.current={stops,meetingPoints,convoyParticipants};
@@ -201,6 +201,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     live:markerCoords,liveStale:markerStale,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle};
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const refreshRainAvoidanceRef=useRef<(()=>void)|null>(null);
   const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
@@ -1010,6 +1011,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       try{
         controller=createRoleWeatherPins(gl);
         const initial=weatherInputsRef.current;
+        controller.avoidPosition(initial.position);
         controller.update(initial.weatherPoints,initial.showRainLayer);
         vectorWeatherControllerRef.current=controller;
         rainLayerGroupRef.current?.clearLayers();
@@ -1037,6 +1039,35 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       setVectorWeatherReady(false);
     }
   },[weatherPoints,showRainLayer]);
+
+  useEffect(()=>{
+    vectorWeatherControllerRef.current?.avoidPosition(markerCoords);
+  },[markerCoords,vectorWeatherReady]);
+
+  // Hide only rain symbols covering the live arrow; retain all other forecasts.
+  // GPS/camera changes toggle visibility without recreating markers or routes.
+  useEffect(()=>{
+    const map=mapInstanceRef.current,group=rainLayerGroupRef.current;
+    if(!map||!group||vectorWeatherReady)return;
+    const refresh=()=>{
+      const arrow=markerCoords?map.latLngToContainerPoint(markerCoords):undefined;
+      group.eachLayer(layer=>{
+        if(!(layer instanceof L.Marker))return;
+        const element=layer.getElement();
+        if(!element)return;
+        const hidden=rainDropCoversArrow(map.latLngToContainerPoint(layer.getLatLng()),arrow);
+        const visibility=hidden?'hidden':'';
+        if(element.style.visibility!==visibility)element.style.visibility=visibility;
+        if(hidden)layer.closePopup();
+      });
+    };
+    refreshRainAvoidanceRef.current=refresh;refresh();
+    map.on('move zoom',refresh);
+    return()=>{
+      map.off('move zoom',refresh);
+      if(refreshRainAvoidanceRef.current===refresh)refreshRainAvoidanceRef.current=null;
+    };
+  },[markerCoords,vectorWeatherReady,weatherPoints,showRainLayer]);
 
   // GPS position is independent of static trip markers. Only the dynamic marker
   // moves; route stops and convoy meeting pins are NOT recreated per fix.
@@ -1092,11 +1123,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if (vectorRoutesReady || !(navigationMode || blueRoute) || routePath.length<2) return;
     const progress=splitRouteAtPosition(routePath,userLiveCoords,travelledDistanceKm,totalRouteKm);
     if (progress.remaining.length>1) {
-      if(appearanceTheme==='dark')L.polyline(progress.remaining,{color:'#2b91ff',weight:12,opacity:0.36,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.remaining,{color:appearanceTheme==='dark'?'#2b91ff':'#38a8ff',weight:12,opacity:appearanceTheme==='dark'?0.36:0.3,lineCap:'round',lineJoin:'round'}).addTo(group);
       L.polyline(progress.remaining,{color:appearanceTheme==='dark'?'#4ab8ff':'#67c7ff',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
     }
     if (progress.travelled.length>1) {
-      L.polyline(progress.travelled,{color:appearanceTheme==='dark'?'#366ba5':'#17479b',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.travelled,{color:ROLE_TRAVELLED_ROUTE_COLOR,weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
     }
   },[vectorRoutesReady,routePath,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute,appearanceTheme]);
 
@@ -1456,13 +1487,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if(showRainLayer && !vectorWeatherReady && layerChanges.weather)for(const point of visibleRainSamples(weatherPoints)){
       const direction=Number.isFinite(point.windDirectionDegrees) && point.windDirectionDegrees!>=0 &&
         point.windDirectionDegrees!<360 ? ` · direção ${Math.round(point.windDirectionDegrees!)}°` : '';
-      L.marker(point.coords!,{icon:L.divIcon({
+      L.marker(point.coords!,{title:`Previsão em ${point.locationName}`,icon:L.divIcon({
         className:'weather-forecast-marker',html:rainDropsSvgMarkup,
         iconSize:[44,44],iconAnchor:[22,22]
       })}).addTo(rainGroup).bindPopup(
         `<b>${escapeHtml(point.locationName)}</b><br>Previsão: ${escapeHtml(point.condition)} · ${point.tempC}°C<br>Chuva: ${point.rainProb}% · Vento: ${point.windKmH} km/h${direction} · ${escapeHtml(weatherDisplayTime(point))}${point.warning?`<br>${escapeHtml(point.warning)}`:''}<br>Fonte: Open-Meteo (não é radar ao vivo)`
       );
     }
+    refreshRainAvoidanceRef.current?.();
 
     // Fit a NEW journey, never a different selection within the same set
     // of OSRM alternatives. The user controls zoom while comparing options.
