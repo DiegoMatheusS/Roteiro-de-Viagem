@@ -470,7 +470,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       const bounds=map.getBounds();
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
-      // Keep already queried markers anchored while zooming out of search range.\n      if(query||map.getZoom()>=9)setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
+      // Keep already queried markers anchored while zooming out of search range.
+      if(query||map.getZoom()>=9)setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
       if (routePath.length || originCoords) return;
       if (map.getZoom() < 10) { setViewportCenter(null); return; }
       const center = map.getCenter();

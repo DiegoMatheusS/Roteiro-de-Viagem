@@ -21,7 +21,9 @@ export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusK
     let disposed=false;
     let controller:AbortController|null=null;
     let cached=cache.get(key);
-    // A zoom or small pan keeps the last known points inside the new bounds.\n    const startingPlaces=cached?.places??retainedPlacesWithinBounds(view.places,options?.bounds);\n    setView({key,places:startingPlaces});
+    // A zoom or small pan keeps the last known points inside the new bounds.
+    const startingPlaces=cached?.places??retainedPlacesWithinBounds(view.places,options?.bounds);
+    setView({key,places:startingPlaces});
     const pause=()=>{controller?.abort();controller=null;};
     const load=(fresh=false)=>{
       if(disposed||document.hidden||navigator.onLine===false||controller)return;

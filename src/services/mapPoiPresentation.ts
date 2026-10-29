@@ -24,7 +24,12 @@ export function poiAccent(category:string):string {
   if(TOURIST.has(category))return '#15803d';
   return '#0369a1';
 }
-/** Once loaded, each POI stays pinned to its verified coordinates at every zoom.\n * The bounded camera query controls fetch size; do not hide markers on pinch. */\nexport function poiVisibleAtZoom(_marker:RoleVectorMarker,zoom:number):boolean {\n  return Number.isFinite(zoom)&&zoom>=0;\n}\n/** No guessed map point / price. Distances are calculated from real GPS and POI coordinates. */
+/** Once loaded, each POI stays pinned to its verified coordinates at every zoom.
+ * The bounded camera query controls fetch size; do not hide markers on pinch. */
+export function poiVisibleAtZoom(_marker:RoleVectorMarker,zoom:number):boolean {
+  return Number.isFinite(zoom)&&zoom>=0;
+}
+/** No guessed map point / price. Distances are calculated from real GPS and POI coordinates. */
 export function poiDistanceMeters(a:Coordinates,b:Coordinates):number {
   const toRad=Math.PI/180;
   const dLat=(b[0]-a[0])*toRad,dLon=(b[1]-a[1])*toRad;
