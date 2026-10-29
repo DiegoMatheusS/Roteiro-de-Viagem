@@ -50,3 +50,35 @@ test('aplica só propriedades de tinta e tolera uma camada ausente', () => {
     'highway_major_casing:line-color=#bfc6ce',
   ]);
 });
+
+test('night uses navy land and filled light-grey roads, including inner strokes, bridges and tunnels',()=>{
+  const color=(id:string,type:string,paint:string)=>roleVectorPaintForLayer({id,type},'dark')[paint];
+  assert.equal(color('background','background','background-color'),'#1b2d47');
+  for(const id of ['highway_minor','highway_major_casing','highway_major_inner',
+    'highway_major_subtle','highway_motorway_bridge_inner','tunnel_motorway_inner'])
+    assert.equal(color(id,'line','line-color'),'#aebaca',id);
+  for(const id of ['landuse_residential','building','aeroway-area','landcover_glacier'])
+    assert.match(String(color(id,'fill','fill-color')),/^#[123]/,id+' must not keep the white day fill');
+  assert.equal(color('highway-name-minor','symbol','text-opacity'),1);
+  assert.equal(color('highway-name-minor','symbol','text-halo-color'),'#1b2d47');
+  assert.deepEqual(roleVectorPaintForLayer({id:'role-remaining-line',type:'line'},'dark'),{});
+});
+
+test('street names retain local names and become readable at city zoom without overlapping',()=>{
+  for(const theme of ['light','dark'] as const){
+    const layouts=new Map<string,unknown>();
+    const zooms:unknown[][]=[];
+    const map={
+      getStyle:()=>({layers:[{id:'highway-name-minor',type:'symbol',minzoom:15,maxzoom:24}]}),
+      setPaintProperty:()=>{},
+      setLayerZoomRange:(...args:unknown[])=>zooms.push(args),
+      setLayoutProperty:(_id:string,key:string,value:unknown)=>layouts.set(key,value)
+    } as unknown as GlMap;
+    applyRoleVectorPalette(map,theme);
+    assert.deepEqual(zooms,[['highway-name-minor',14,24]]);
+    assert.equal(layouts.get('visibility'),'visible');
+    assert.deepEqual(layouts.get('text-field'),['coalesce',['get','name'],['get','name:latin'],['get','name_en']]);
+    assert.equal(layouts.get('text-pitch-alignment'),'viewport');
+    assert.equal(layouts.get('text-allow-overlap'),false);
+  }
+});

@@ -53,6 +53,7 @@ test('route strokes use MapLibre zoom interpolation, retaining a white outline a
   const source={setData:()=>{uploads++;}};
   const gl={
     isStyleLoaded:()=>true,
+    getStyle:()=>({layers:[]}),
     getSource:()=>sourceCreated?source:undefined,
     addSource:()=>{sourceCreated=true;},
     getLayer:(id:string)=>layers.get(id),
@@ -100,6 +101,7 @@ test('route preview and alternative strokes also scale down at overview zoom',()
   let created=false;
   const gl={
     isStyleLoaded:()=>true,getSource:()=>created?{setData:()=>{}}:undefined,
+    getStyle:()=>({layers:[]}),
     addSource:()=>{created=true;},getLayer:(id:string)=>layers.get(id),
     addLayer:(layer:{id:string;paint:Record<string,unknown>})=>{layers.set(layer.id,layer);},
     removeLayer:(id:string)=>{layers.delete(id);}
@@ -115,4 +117,42 @@ test('route preview and alternative strokes also scale down at overview zoom',()
   assert.deepEqual(layers.get('role-alternative-line')?.paint['line-width'],routeZoomStroke(2,4,5));
   assert.deepEqual(layers.get('role-active-line')?.paint['line-width'],routeZoomStroke(2,4,5));
   assert.deepEqual(layers.get('role-active-line')?.paint['line-color'],['get','color']);
+});
+
+test('night route glows below street labels and day/night switching preserves road geometry and GPS cache',()=>{
+  const layers=new Map<string,{id:string;paint:Record<string,unknown>}>();
+  const placements:{id:string;before?:string}[]=[];
+  let data:ReturnType<typeof buildRoleRouteCollection>|undefined,uploads=0;
+  const source={setData:(next:typeof data)=>{data=next;uploads++;}};
+  const gl={
+    isStyleLoaded:()=>true,
+    getStyle:()=>({layers:[{id:'highway_minor',type:'line'},{id:'highway-name-minor',type:'symbol'}]}),
+    getSource:()=>data?source:undefined,
+    addSource:(_id:string,value:{data:typeof data})=>{data=value.data;},
+    getLayer:(id:string)=>layers.get(id),
+    addLayer:(layer:{id:string;paint:Record<string,unknown>},before?:string)=>{
+      layers.set(layer.id,layer);placements.push({id:layer.id,before});
+    },
+    setPaintProperty:(id:string,key:string,value:unknown)=>{layers.get(id)!.paint[key]=value;},
+    removeLayer:(id:string)=>{layers.delete(id);}
+  } as unknown as Parameters<typeof updateRoleVectorRoutes>[0];
+  const options={...base,alternatives:[],navigationMode:true,blueRoute:true,userLocation:active[1]};
+  updateRoleVectorRoutes(gl,options);
+  const geometry=JSON.stringify(data);
+  updateRoleVectorRoutes(gl,{...options,theme:'dark'});
+  assert.equal(JSON.stringify(data),geometry,'theme change must preserve verified path and actual GPS progress');
+  assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#2265ac');
+  assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#4ab8ff');
+  assert.ok(Number(layers.get('role-remaining-glow')?.paint['line-opacity'])<0.5);
+  assert.ok(placements.every(layer=>layer.before==='highway-name-minor'||
+    layer.id==='role-remaining-glow'&&layer.before==='role-remaining-line'),
+    'route lines must not cover the base street names');
+  const nightUploads=uploads;
+  for(let i=0;i<100;i++)updateRoleVectorRoutes(gl,{...options,theme:'dark'});
+  assert.equal(uploads,nightUploads,'night styling must not defeat the GPS geometry cache');
+  updateRoleVectorRoutes(gl,{...options,theme:'light'});
+  assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#ffffff');
+  assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#67c7ff');
+  assert.equal(layers.has('role-remaining-glow'),false);
+  assert.equal(JSON.stringify(data),geometry);
 });

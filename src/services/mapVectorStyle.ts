@@ -1,23 +1,48 @@
 import type { Map as GlMap } from 'maplibre-gl';
 
 export const ROLE_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/positron';
-export const ROLE_DARK_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/dark';
 export const ROLE_ROAD_COLOR = '#bfc6ce';
+export const ROLE_NIGHT_BACKGROUND = '#1b2d47';
+export const ROLE_NIGHT_ROAD_COLOR = '#aebaca';
 
 /**
- * Paleta clara do Rolê. Mantém as camadas, as larguras de vias e os níveis
- * de zoom do Positron/OpenFreeMap: só altera cores, sem gerar mais geometrias,
- * fontes, tiles ou trabalho durante as atualizações de GPS.
+ * Os dois temas usam as mesmas vias preenchidas e os mesmos nomes do Positron.
+ * A paleta só é aplicada ao carregar/trocar o tema, nunca a cada atualização GPS.
  */
-export function roleVectorPaintForLayer(layer: { id: string; type: string },theme:'light'|'dark'='light'): Record<string, string> {
+export function roleVectorPaintForLayer(layer: { id: string; type: string },theme:'light'|'dark'='light'): Record<string, string|number> {
   const id = layer.id.toLowerCase();
   // As rotas, alertas e marcadores do Rolê nunca devem receber a paleta da base.
   if (id.startsWith('role-')) return {};
   // Matching inner/casing colours keep avenues and motorways filled rather
   // than showing a pale centre surrounded by a thin grey outline.
   if(layer.type==='line'&&/^(highway_|(?:tunnel|bridge)_(?:motorway|trunk|primary|secondary|tertiary|minor|service|street|path))/.test(id))
-    return {'line-color':theme==='dark'?'#7b8492':ROLE_ROAD_COLOR};
-  if(theme==='dark')return {};
+    return {'line-color':theme==='dark'?ROLE_NIGHT_ROAD_COLOR:ROLE_ROAD_COLOR};
+  if(theme==='dark') {
+    if(layer.type==='background')return {'background-color':ROLE_NIGHT_BACKGROUND};
+    if(layer.type==='fill') {
+      if(id==='water')return {'fill-color':'#11243e'};
+      if(id==='park'||id==='landuse_park'||id==='landcover_wood')return {'fill-color':'#233e4b'};
+      if(id==='building')return {'fill-color':'#293f5c','fill-outline-color':'#354d6b'};
+      if(id==='landuse_residential')return {'fill-color':'#20324d'};
+      // Includes ice, piers and airport areas, which otherwise stay almost white.
+      return {'fill-color':'#263b54'};
+    }
+    if(layer.type==='line') {
+      if(id==='waterway')return {'line-color':'#315678'};
+      if(/^boundary_/.test(id))return {'line-color':'#51647d'};
+      if(/^railway.*dashline$/.test(id))return {'line-color':'#263b54'};
+      if(/^railway|^aeroway|^road_pier/.test(id))return {'line-color':'#75869a'};
+    }
+    if(layer.type==='symbol') {
+      if(/^highway-name-/.test(id))return {
+        'text-color':'#f1f5fa','text-halo-color':ROLE_NIGHT_BACKGROUND,
+        'text-halo-width':1.5,'text-halo-blur':0.5,'text-opacity':1
+      };
+      if(/^water_(name|way)/.test(id))return {'text-color':'#9fc9eb','text-halo-color':'#11243e'};
+      if(/^label_|^airport$/.test(id))return {'text-color':'#d8e4f3','text-halo-color':ROLE_NIGHT_BACKGROUND};
+    }
+    return {};
+  }
 
   if (layer.type === 'background' && id === 'background')
     return { 'background-color': '#f5f7f8' };
@@ -82,6 +107,19 @@ export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light'):
       } catch {
         // Atualizações do estilo externo podem retirar ou tornar imutável uma camada.
       }
+    }
+    if(layer.type==='symbol'&&/^highway-name-/.test(layer.id)) {
+      // Show local street names at city zoom as well as during tilted navigation.
+      // Keep collision detection so nearby names do not pile on top of each other.
+      try {
+        map.setLayerZoomRange(layer.id,Math.min(layer.minzoom??0,
+          layer.id==='highway-name-minor'?14:layer.id==='highway-name-major'?12:15.5),layer.maxzoom??24);
+        map.setLayoutProperty(layer.id,'visibility','visible');
+        map.setLayoutProperty(layer.id,'text-field',['coalesce',['get','name'],['get','name:latin'],['get','name_en']]);
+        map.setLayoutProperty(layer.id,'text-size',['interpolate',['linear'],['zoom'],13,13,16,15,19,16]);
+        map.setLayoutProperty(layer.id,'text-pitch-alignment','viewport');
+        map.setLayoutProperty(layer.id,'text-allow-overlap',false);
+      } catch { /* An external style update may remove a label layer. */ }
     }
   }
 }

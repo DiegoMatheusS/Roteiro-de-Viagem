@@ -5,6 +5,8 @@ import {ROLE_VECTOR_STYLE} from '../src/services/mapVectorStyle';
 
 test('light preserves the vector base and satellite preserves the existing raster provider',()=>{
   assert.equal(standaloneBaseStyle('light'),ROLE_VECTOR_STYLE);
+  assert.equal(standaloneBaseStyle('light','dark'),ROLE_VECTOR_STYLE,
+    'day and night must keep the same filled roads and street-name source');
   const satellite=standaloneBaseStyle('satellite');
   assert.equal(typeof satellite,'object');
   if(typeof satellite==='string')throw Error('raster style expected');
