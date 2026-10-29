@@ -93,8 +93,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [centerRequest,setCenterRequest] = useState(0);
   const [cameraMode,setCameraMode]=useState<CameraMode>('following');
   useEffect(()=>{if(!isOpen)setCameraMode('following');},[isOpen,trip.id]);
-  const [manualCompletion, setManualCompletion] = useState(false);
-  const [manualDistance, setManualDistance] = useState('');
   const [unlockedCelebration, setUnlockedCelebration] = useState<Achievement[] | null>(null);
   const rerouted=trip.navigationReroute;
   const navigationPath=rerouted?.routePath||trip.routePath;
@@ -146,8 +144,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
 
   const currentSpeed = tracking.speedKmH;
   const isGpsActive = tracking.status === 'ready';
-  const completionGpsVerified = !manualCompletion && distanceTraveledKm > 0;
-  const actualKm = completionGpsVerified ? distanceTraveledKm : Number(manualDistance.replace(',', '.'));
+  const completionGpsVerified = distanceTraveledKm > 0;
+  const actualKm = distanceTraveledKm;
   const canFinish = Number.isFinite(actualKm) && actualKm > 0;
   const nextStop = outstandingStops[0];
   const canEditStopped=canEditStopsWhileStationary(isGpsActive?tracking.position:null);
@@ -434,10 +432,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
                   <span>Finalizar e Registrar Viagem</span>
                 </h3>
 
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Confirme a distância percorrida para atualizar seu Nível do Viajante, estatísticas do veículo e desbloquear conquistas:
-                </p>
-
                 <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Quilometragem realizada:</span>
@@ -448,24 +442,6 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
                     <strong className="text-slate-900">{vehicle.nickname || vehicle.model}</strong>
                   </div>
                 </div>
-
-                {/* GPS vs Manual verification toggle (Requirement #2 & #7) */}
-                <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={manualCompletion || distanceTraveledKm === 0}
-                    onChange={(e) => setManualCompletion(e.target.checked)}
-                    disabled={distanceTraveledKm === 0}
-                    className="mt-0.5 rounded text-emerald-600"
-                  />
-                  <div>
-                    <span className="font-bold text-emerald-950 block">Informar distância manualmente</span>
-                    <span className="text-[11px] text-slate-600">
-                      {distanceTraveledKm > 0 ? 'Desmarque para usar somente a distância medida pelo GPS nesta sessão.' : 'Nenhum deslocamento foi medido pelo GPS nesta sessão.'}
-                    </span>
-                  </div>
-                </label>
-                {!completionGpsVerified && <label className="block text-xs font-semibold text-slate-700">Distância percorrida (km)<input aria-label="Distância percorrida manualmente" type="number" min="0.001" step="0.001" value={manualDistance} onChange={e => setManualDistance(e.target.value)} className="mt-1 w-full border rounded-xl p-3" placeholder="Informe a distância que percorreu" /></label>}
 
                 <div className="flex items-center gap-2 pt-2">
                   <button

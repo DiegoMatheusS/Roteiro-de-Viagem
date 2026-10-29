@@ -25,10 +25,11 @@ export function ProfileFigmaHome({
   onLogin,onEdit,onAddVehicle,onOpenGarage,onSelectVehicle,onOpenSafety,onOpenSettings
 }:Props){
   const totalKm=Math.max(0,profile.verifiedGpsKm+profile.manualKm);
-  const tier=storageService.calculateTier(totalKm);
+  const gpsKm=Math.max(0,profile.verifiedGpsKm);
+  const tier=storageService.calculateTier(profile);
   const completedTrips=trips.filter(t=>t.status==='completed').length;
   const savedRoutes=trips.filter(t=>t.status==='planned'&&!t.departureAt).length;
-  const progressKm=Math.max(0,totalKm-tier.thresholdMin);
+  const progressKm=Math.max(0,gpsKm-tier.thresholdMin);
   const tierLength=Math.max(1,tier.thresholdMax-tier.thresholdMin);
   const progressDisplay=`${km(progressKm)} / ${km(tierLength)} km`;
 
