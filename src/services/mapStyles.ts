@@ -1,5 +1,5 @@
 import type {StyleSpecification} from 'maplibre-gl';
-import {ROLE_VECTOR_STYLE,ROLE_DARK_VECTOR_STYLE} from './mapVectorStyle';
+import {ROLE_VECTOR_STYLE} from './mapVectorStyle';
 import type {MapTheme} from './mapAppearance';
 
 export type MapStyleType='light'|'satellite'|'topo';
@@ -29,8 +29,10 @@ export const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; a
 
 /** Raster bases use the same providers as the hybrid fallback, with explicit
  * 256px tiles and expanded subdomains supported by MapLibre. */
-export function standaloneBaseStyle(style:MapStyleType,theme:MapTheme='light'):string|StyleSpecification {
-  if(style==='light')return theme==='dark'?ROLE_DARK_VECTOR_STYLE:ROLE_VECTOR_STYLE;
+export function standaloneBaseStyle(style:MapStyleType,_theme:MapTheme='light'):string|StyleSpecification {
+  // Recolour the same complete base: the old dark style had different labels
+  // and road presentation, causing empty-looking streets after a theme change.
+  if(style==='light')return ROLE_VECTOR_STYLE;
   const provider=TILE_PROVIDERS[style];
   const tiles=provider.url.includes('{s}')
     ? ['a','b','c'].map(subdomain=>provider.url.replace('{s}',subdomain)):[provider.url];

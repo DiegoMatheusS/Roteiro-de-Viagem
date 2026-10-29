@@ -1,6 +1,7 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { projectRouteProgress,routeProgressRenderKey,type RouteProjection } from './routeProgress';
 import {routeEditPoint,type EditPoint} from './mapRouteEditPoint';
+import type {MapTheme} from './mapAppearance';
 
 type Coordinates = [number, number]; // latitude, longitude (Leaflet/OSRM contract)
 type Role = 'alternative' | 'active' | 'remaining' | 'travelled';
@@ -24,6 +25,7 @@ export interface RoleRouteOptions {
   totalRouteKm: number;
   navigationMode: boolean;
   blueRoute: boolean;
+  theme?: MapTheme;
 }
 
 const SOURCE = 'role-verified-routes';
@@ -46,6 +48,7 @@ interface RouteRenderSnapshot {
   modalityColor:string;
   navigationMode:boolean;
   blueRoute:boolean;
+  theme:MapTheme;
   progressKey:string|null;
   featureCount:number;
 }
@@ -57,7 +60,8 @@ function sameRouteOptions(a:RoleRouteOptions['alternatives'],b:RoleRouteOptions[
 
 const layers = [
   'role-alternative-outline', 'role-alternative-line', 'role-active-outline',
-  'role-active-glow', 'role-active-line', 'role-remaining-line', 'role-travelled-line'
+  'role-active-glow', 'role-active-line', 'role-remaining-glow',
+  'role-remaining-line', 'role-travelled-line'
 ] as const;
 
 function verified(points: Coordinates[]): boolean {
@@ -227,10 +231,13 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
     ?routeProgressRenderKey(options.routePath,options.userLocation,
       options.travelledDistanceKm,options.totalRouteKm):null;
   const old=lastRender.get(gl);
+  const theme=options.theme??'light';
+  const night=theme==='dark';
   if(existing && old && gl.getLayer(layers[2]) &&
     old.routePath===options.routePath && old.selectedRouteId===options.selectedRouteId &&
     old.modalityColor===options.modalityColor &&
     old.navigationMode===options.navigationMode && old.blueRoute===options.blueRoute &&
+    old.theme===theme &&
     old.progressKey===progressKey &&
     sameRouteOptions(old.alternatives,options.alternatives)){
     return old.featureCount;
@@ -242,32 +249,43 @@ export function updateRoleVectorRoutes(gl: MapLibreMap, options: RoleRouteOption
     gl.addSource(SOURCE, { type:'geojson', data, tolerance:0.35 });
   }
 
+  // Route strokes must sit BELOW the base labels so the selected journey
+  // never paints over street names. Traffic remains below the route itself.
+  const before=gl.getStyle().layers.find(layer=>layer.type==='symbol'&&!layer.id.startsWith('role-'))?.id;
   const addLine = (id: string, role: Role, color: string | ['get', 'color'],
-    width: number | RouteZoomStroke, opacity: number): void => {
-    if (gl.getLayer(id)) return;
+    width: number | RouteZoomStroke, opacity: number,blur=0): void => {
+    const paint={'line-color':color,'line-width':width,'line-opacity':opacity,'line-blur':blur};
+    if (gl.getLayer(id)) {
+      if(old?.theme!==theme)for(const [property,value] of Object.entries(paint))
+        gl.setPaintProperty(id,property as Parameters<MapLibreMap['setPaintProperty']>[1],value);
+      return;
+    }
     gl.addLayer({
       id, type:'line', source:SOURCE,
       filter:['==',['get','role'],role],
       layout:{'line-cap':'round','line-join':'round'},
-      paint:{'line-color':color,'line-width':width,'line-opacity':opacity}
-    });
+      paint
+    },id==='role-remaining-glow'&&gl.getLayer('role-remaining-line')?'role-remaining-line':before);
   };
-  addLine(layers[0], 'alternative', '#ffffff', routeZoomStroke(4,6,9), 0.86);
-  addLine(layers[1], 'alternative', '#64748b', routeZoomStroke(2,4,5), 0.78);
-  addLine(layers[2], 'active', '#ffffff', routeZoomStroke(5,7.5,10), 0.96);
+  addLine(layers[0], 'alternative', night?'#304760':'#ffffff', routeZoomStroke(4,6,9), 0.86);
+  addLine(layers[1], 'alternative', night?'#718299':'#64748b', routeZoomStroke(2,4,5), 0.78);
+  addLine(layers[2], 'active', night?'#2265ac':'#ffffff', routeZoomStroke(5,7.5,10), night?0.8:0.96);
   if (!(options.navigationMode || options.blueRoute)) {
-    addLine(layers[3], 'active', ['get','color'], routeZoomStroke(3,5,7), 0.6);
-    addLine(layers[4], 'active', ['get','color'], routeZoomStroke(2,4,5), 1);
+    addLine(layers[3], 'active', night?'#2b91ff':['get','color'], routeZoomStroke(3,5,7), 0.6,night?1:0);
+    addLine(layers[4], 'active', night?'#4ab8ff':['get','color'], routeZoomStroke(2,4,5), 1);
   } else {
     // Styles persist across GPS updates, so remove the inactive preview lines.
     for (const id of [layers[3],layers[4]]) if (gl.getLayer(id)) gl.removeLayer(id);
   }
-  addLine(layers[5], 'remaining', '#67c7ff', routeZoomStroke(3,5,7), 1);
-  addLine(layers[6], 'travelled', '#17479b', routeZoomStroke(3,5,7), 1);
+  if(night)addLine(layers[5], 'remaining', '#2b91ff', routeZoomStroke(5,9,12), 0.36,1.2);
+  else if(gl.getLayer(layers[5]))gl.removeLayer(layers[5]);
+  addLine(layers[6], 'remaining', night?'#4ab8ff':'#67c7ff', routeZoomStroke(3,5,7), 1);
+  addLine(layers[7], 'travelled', night?'#366ba5':'#17479b', routeZoomStroke(3,5,7), 1);
   lastRender.set(gl,{routePath:options.routePath,
     alternatives:options.alternatives.map(route=>({id:route.id,routePath:route.routePath})),
     selectedRouteId:options.selectedRouteId,modalityColor:options.modalityColor,
     navigationMode:options.navigationMode,blueRoute:options.blueRoute,
+    theme,
     progressKey,featureCount:data.features.length});
   // Report features successfully supplied to the vector source for UI diagnostics.
   return data.features.length;

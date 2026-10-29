@@ -8,10 +8,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 setWorkerUrl(workerUrl);
 
 export {ROLE_VECTOR_STYLE,canRenderVectorMap,applyRoleVectorPalette} from './mapVectorStyle';
-import {ROLE_DARK_VECTOR_STYLE} from './mapVectorStyle';
 import {ROLE_VECTOR_STYLE} from './mapVectorStyle';
 
-export function createRoleVectorLayer(theme:'light'|'dark'='light') {
+export function createRoleVectorLayer(_theme:'light'|'dark'='light') {
   // O adaptador MapLibre/Leaflet agenda um requestAnimationFrame no resize
   // e assume que _map ainda existe. Ao trocar telas rapidamente, a camada
   // pode ser destruída antes do callback, gerando TypeError(getZoom).
@@ -23,7 +22,7 @@ export function createRoleVectorLayer(theme:'light'|'dark'='light') {
     getEvents: () => Record<string, (...args: unknown[]) => void>;
   };
   const layer = maplibreGL({
-    style: theme==='dark'?ROLE_DARK_VECTOR_STYLE:ROLE_VECTOR_STYLE,
+    style: ROLE_VECTOR_STYLE,
     interactive: false, // Gestos e marcadores permanecem sincronizados pelo Leaflet.
     attributionControl: false,
     maxZoom: 19

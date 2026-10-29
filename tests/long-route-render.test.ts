@@ -11,6 +11,7 @@ function fakeMap(){
   const source={setData:()=>{updates++;}};
   const surface={
     isStyleLoaded:()=>true,
+    getStyle:()=>({layers:[]}),
     getSource:()=>existing?source:undefined,
     addSource:()=>{creations++;existing=true;},
     removeSource:()=>{existing=false;},

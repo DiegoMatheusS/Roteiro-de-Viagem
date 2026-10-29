@@ -880,7 +880,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           routePath,alternatives:routeAlternatives,selectedRouteId,
           modalityColor:(MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica).primary,
           userLocation:userLiveCoords,
-          travelledDistanceKm,totalRouteKm,navigationMode,blueRoute
+          travelledDistanceKm,totalRouteKm,navigationMode,blueRoute,theme:appearanceTheme
         });
         if(featureCount>0){
           mapContainerRef.current?.setAttribute('data-role-vector-routes',String(featureCount));
@@ -912,7 +912,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       gl.off('idle',updateWhenStyleReady);
     };
   },[vectorRoutesReady,routePath,routeAlternatives,selectedRouteId,
-    routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
+    routeModality,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute,appearanceTheme]);
 
   // Milestone dots are decoration only. Keep them in one native circle layer,
   // separate from GPS progress updates (which can arrive every second).
@@ -1092,12 +1092,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if (vectorRoutesReady || !(navigationMode || blueRoute) || routePath.length<2) return;
     const progress=splitRouteAtPosition(routePath,userLiveCoords,travelledDistanceKm,totalRouteKm);
     if (progress.remaining.length>1) {
-      L.polyline(progress.remaining,{color:'#67c7ff',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+      if(appearanceTheme==='dark')L.polyline(progress.remaining,{color:'#2b91ff',weight:12,opacity:0.36,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.remaining,{color:appearanceTheme==='dark'?'#4ab8ff':'#67c7ff',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
     }
     if (progress.travelled.length>1) {
-      L.polyline(progress.travelled,{color:'#17479b',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.travelled,{color:appearanceTheme==='dark'?'#366ba5':'#17479b',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
     }
-  },[vectorRoutesReady,routePath,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute]);
+  },[vectorRoutesReady,routePath,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute,appearanceTheme]);
 
 
   // Stable MapLibre marker collections: do not replace other drivers' DOM
@@ -1310,12 +1311,12 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const modalityStyle = MODALITY_COLORS[routeModality] || MODALITY_COLORS.panoramica;
     if (routePath && routePath.length > 1) {
       if (!vectorRoutesReady || !vectorRoutePaintReady) {
-      L.polyline(routePath, { color: '#ffffff', weight: 10, opacity: 0.96,
+      L.polyline(routePath, { color: appearanceTheme==='dark'?'#2265ac':'#ffffff', weight: 10, opacity: 0.96,
         lineCap: 'round', lineJoin: 'round' }).addTo(group);
       if (!(navigationMode || blueRoute)) {
-        L.polyline(routePath, { color: modalityStyle.glow, weight: 7, opacity: 0.6,
+        L.polyline(routePath, { color: appearanceTheme==='dark'?'#2b91ff':modalityStyle.glow, weight: 7, opacity: 0.6,
           lineCap: 'round', lineJoin: 'round' }).addTo(group);
-        L.polyline(routePath, { color: modalityStyle.primary, weight: 5, opacity: 1,
+        L.polyline(routePath, { color: appearanceTheme==='dark'?'#4ab8ff':modalityStyle.primary, weight: 5, opacity: 1,
           lineCap: 'round', lineJoin: 'round' }).addTo(group);
       }
       }
@@ -1508,7 +1509,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     vectorWeatherReady,
     vectorNavigationReady,
     vectorTripPinsReady,
-    vectorRoutePaintReady
+    vectorRoutePaintReady,
+    appearanceTheme
   ]);
 
   useEffect(() => {

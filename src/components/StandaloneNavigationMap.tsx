@@ -307,7 +307,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // `value||[]` in callers creates a new empty list per render; compare
         // empty lists as one instance so GPS fixes do not look like route changes.
         const routeInputs=[stableList(p.routePath),stableList(p.routeAlternatives),p.selectedRouteId,
-          p.routeModality,p.navigationMode,p.blueRoute,p.totalRouteKm];
+          p.routeModality,p.navigationMode,p.blueRoute,p.totalRouteKm,activeTheme];
         const routeChanged=routeInputs.some((value,index)=>value!==lastRouteRenderInputs[index]);
         const now=performance.now();
         // Guidance publishes progress at most every 250 ms (up to 1 s on very
@@ -324,7 +324,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           lastRouteFeatureCount=updateRoleVectorRoutes(map,{routePath:p.routePath||[],alternatives:p.routeAlternatives||[],
             selectedRouteId:p.selectedRouteId,modalityColor:COLORS[p.routeModality||'panoramica'],
             userLocation:p.userLiveCoords,travelledDistanceKm:p.travelledDistanceKm||0,
-            totalRouteKm:p.totalRouteKm||0,navigationMode:p.navigationMode??false,blueRoute:p.blueRoute??false});
+            totalRouteKm:p.totalRouteKm||0,navigationMode:p.navigationMode??false,blueRoute:p.blueRoute??false,theme:activeTheme});
         }
         const featureCount=lastRouteFeatureCount;
         if(featureCount>0)container.current?.setAttribute('data-role-vector-routes',String(featureCount));
