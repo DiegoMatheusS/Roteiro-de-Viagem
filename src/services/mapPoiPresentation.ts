@@ -24,16 +24,10 @@ export function poiAccent(category:string):string {
   if(TOURIST.has(category))return '#15803d';
   return '#0369a1';
 }
-/** Registered places remain discoverable in city overview as well as while
- * driving. Only the large cards/halos are reserved for street-level zoom. */
-export function poiVisibleAtZoom(marker:RoleVectorMarker,zoom:number):boolean {
-  if(!Number.isFinite(zoom))return false;
-  if(marker.managed||marker.id.startsWith('admin:'))return zoom>=9;
-  const category=poiCategory(marker);
-  if(TOURIST.has(category))return zoom>=11;
-  if(category==='toll')return zoom>=13;
-  if(marker.kind==='place')return zoom>=14;
-  return zoom>=15;
+/** Once loaded, each POI stays pinned to its verified coordinates at every zoom.
+ * The bounded camera query controls fetch size; do not hide markers on pinch. */
+export function poiVisibleAtZoom(_marker:RoleVectorMarker,zoom:number):boolean {
+  return Number.isFinite(zoom)&&zoom>=0;
 }
 /** No guessed map point / price. Distances are calculated from real GPS and POI coordinates. */
 export function poiDistanceMeters(a:Coordinates,b:Coordinates):number {

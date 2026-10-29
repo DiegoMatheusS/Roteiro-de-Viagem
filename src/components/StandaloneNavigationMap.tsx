@@ -512,7 +512,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const bounds=map.getBounds();
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
-      setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
+      // Retain loaded markers at their real coordinates on a far zoom-out.
+      if(query||map.getZoom()>=9)setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
       const p=latest.current;
       if(!p.routePath?.length&&!p.originCoords){
         const point:[number,number]|null=map.getZoom()<10?null:

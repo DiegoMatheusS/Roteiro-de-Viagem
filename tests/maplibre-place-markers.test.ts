@@ -148,3 +148,16 @@ test('atualizações de GPS só gravam no DOM os atributos que realmente mudaram
  // A rebuilt marker starts unknown so its first pass writes every attribute.
  assert.match(controller,/visible:null,\s*overview:null,\s*expanded:null/);
 });
+
+test('ícones permanecem georreferenciados e sem nomes fixos abaixo',()=>{
+ const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/role-map-poi.css',import.meta.url),'utf8');
+ const raster=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(controller,/role-poi-label|poiLabel/);
+ assert.doesNotMatch(css,/\.role-poi-label|data-poi-label/);
+ assert.doesNotMatch(raster,/permanent:\s*Boolean\(place\.managed\)/);
+ assert.doesNotMatch(raster,/placeZoom|setPlaceZoom/);
+ assert.match(controller,/\.setLngLat\(toMarkerLngLat\(entry\.coords\)\)/);
+ assert.match(raster,/L\.marker\(\[place\.lat, place\.lng\]/);
+ assert.match(controller,/root\.setAttribute\('aria-label'/);
+});

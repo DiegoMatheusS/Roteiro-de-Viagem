@@ -2,7 +2,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {fuelApi} from '../services/fuelApi';
 import {sampleRoutePath} from '../types/itinerary';
 import type {Place} from '../types/admin';
-import type {PlaceBounds} from '../services/mapPlaceViewport';
+import {retainedPlacesWithinBounds,type PlaceBounds} from '../services/mapPlaceViewport';
 import {bindPlaceRefresh} from '../services/placeRefresh';
 
 // The displayed places belong to one sampled itinerary. A new area must not
@@ -21,7 +21,9 @@ export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusK
     let disposed=false;
     let controller:AbortController|null=null;
     let cached=cache.get(key);
-    setView({key,places:cached?.places||[]});
+    // A zoom or small pan keeps the last known points inside the new bounds.
+    const startingPlaces=cached?.places??retainedPlacesWithinBounds(view.places,options?.bounds);
+    setView({key,places:startingPlaces});
     const pause=()=>{controller?.abort();controller=null;};
     const load=(fresh=false)=>{
       if(disposed||document.hidden||navigator.onLine===false||controller)return;
@@ -40,7 +42,7 @@ export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusK
         setView({key,places});
       }).catch(()=>{
         if(disposed||request.signal.aborted)return;
-        const places=cached?.places||[];
+        const places=cached?.places??startingPlaces;
         cache.set(key,{places,until:Date.now()+FAILURE_TTL});
         if(cache.size>40)cache.delete(cache.keys().next().value!);
         setView({key,places});
@@ -54,5 +56,5 @@ export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusK
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[key,enabled,options?.refreshMs]);
   if(!enabled||!sampled.length)return [];
-  return view.key===key?view.places:initial?.places||[];
+  return view.key===key?view.places:(initial?.places??retainedPlacesWithinBounds(view.places,options?.bounds));
 }
