@@ -161,3 +161,17 @@ test('ícones permanecem georreferenciados e sem nomes fixos abaixo',()=>{
  assert.match(raster,/L\.marker\(\[place\.lat, place\.lng\]/);
  assert.match(controller,/root\.setAttribute\('aria-label'/);
 });
+
+test('posto abre no primeiro toque e o botão de preço salta direto para edição',()=>{
+ const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
+ const modal=readFileSync(new URL('../src/components/FuelStationModal.tsx',import.meta.url),'utf8');
+ const standalone=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
+ const map=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
+ assert.match(controller,/if\(entry\.kind!=='place'\|\|root\.dataset\.expanded==='true'\)/);
+ assert.match(controller,/actions\.onStation\(entry\.id,'prices','edit'\)/);
+ assert.match(controller,/actions\.onToll\(entry\.id,'prices',entry\.place\)/);
+ assert.match(modal,/initialMode='view'/);
+ assert.match(modal,/useState<'view' \| 'edit' \| 'review' \| 'photo'>\(initialMode\)/);
+ assert.match(map,/initialMode=\{stationMode\}/);
+ assert.match(standalone,/initialMode=\{station\.mode\}/);
+});

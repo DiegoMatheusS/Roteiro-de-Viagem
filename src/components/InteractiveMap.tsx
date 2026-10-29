@@ -262,9 +262,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     [nearbyPlaces,showFuelStations]);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [stationSection, setStationSection] = useState<'prices' | 'comments'>('prices');
+  const [stationMode,setStationMode] = useState<'view'|'edit'>('view');
   const [tollSection, setTollSection] = useState<'prices' | 'comments'>('prices');
   const [catalogToll, setCatalogToll] = useState<Place | null>(null);
-  const openStation = (id: string, section: 'prices' | 'comments' = 'prices') => { setStationSection(section); setSelectedStation(id); };
+  const openStation = (id: string, section: 'prices' | 'comments' = 'prices', mode: 'view'|'edit' = 'view') => { setStationSection(section); setStationMode(mode); setSelectedStation(id); };
   const openToll = (id: string, section: 'prices' | 'comments' = 'prices', place: Place | null = null) => { setTollSection(section); setCatalogToll(place); setSelectedTollId(id); };
   const [selectedTollId,setSelectedTollId]=useState<string|null>(null);
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
@@ -274,12 +275,12 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const vectorPlaceInputsRef=useRef({stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces});
   vectorPlaceInputsRef.current={stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces};
   const vectorPlaceActionsRef=useRef<RoleMarkerActions>({
-    onStation:(id,section)=>openStation(id,section),
+    onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);}
   });
   vectorPlaceActionsRef.current={
-    onStation:(id,section)=>openStation(id,section),
+    onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);}
   };
@@ -601,7 +602,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       let controller:RoleMarkerController|null=null;
       try{
         controller=createRoleMaplibreMarkerController(gl,{
-          onStation:(id,section)=>vectorPlaceActionsRef.current.onStation(id,section),
+          onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
           onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
           onPlace:id=>vectorPlaceActionsRef.current.onPlace(id)
         });
@@ -1605,7 +1606,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
-      {selectedStation && <FuelStationModal key={`${selectedStation}:${stationSection}`} stationId={selectedStation} initialSection={stationSection} onClose={() => setSelectedStation(null)} />}
+      {selectedStation && <FuelStationModal key={`${selectedStation}:${stationSection}:${stationMode}`} stationId={selectedStation} initialSection={stationSection} initialMode={stationMode} onClose={() => setSelectedStation(null)} />}
 
       {/* MAP STYLE SWITCHER CONTROL (Requirement: Colorido, Satélite, Relevo) */}
       {!navigationMode && !roadStyle && <div className="absolute bottom-5 left-4 z-30">

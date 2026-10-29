@@ -81,7 +81,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const styleRef=useRef(effectiveStyle);styleRef.current=effectiveStyle;
   const [courseMode,setCourseMode]=useState(Boolean(props.navigationMode));
   const courseModeRef=useRef(courseMode);courseModeRef.current=courseMode;
-  const [station,setStation]=useState<{id:string;section:'prices'|'comments'}|null>(null);
+  const [station,setStation]=useState<{id:string;section:'prices'|'comments';mode?:'view'|'edit'}|null>(null);
   const [place,setPlace]=useState<Place|null>(null);
   const [toll,setToll]=useState<{id:string;section:'prices'|'comments';place:Place|null}|null>(null);
   const [alert,setAlert]=useState<RoadAlert|null>(null);
@@ -271,7 +271,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     });
     const registeredBuildings=createRegisteredBuildingController(map);
     const markers=createRoleMaplibreMarkerController(map,{
-      onStation:(id,section)=>setStation({id,section}),
+      onStation:(id,section,mode)=>setStation({id,section,mode}),
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
       onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null)
     });
@@ -778,7 +778,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         </div>}
       </div>}
     </div>}
-    {station&&<FuelStationModal key={`${station.id}:${station.section}`} stationId={station.id} initialSection={station.section} onClose={()=>setStation(null)}/>}
+    {station&&<FuelStationModal key={`${station.id}:${station.section}:${station.mode??'view'}`} stationId={station.id} initialSection={station.section} initialMode={station.mode} onClose={()=>setStation(null)}/>}
     {place&&<PlaceModal place={place} onClose={()=>setPlace(null)}/>}
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}
     {alert&&<section role="dialog" aria-label="Confirmar ocorrência no mapa" className="absolute left-1/2 top-4 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] bg-white p-4 shadow-xl">
