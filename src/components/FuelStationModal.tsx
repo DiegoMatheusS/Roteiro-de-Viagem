@@ -14,7 +14,7 @@ const editable = (draft?: PriceDraft): EditablePrice => ({ fuelType: draft?.fuel
 const localNow = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const money = (price: number) => `R$ ${price.toFixed(3).replace('.', ',')}`;
 
-export function FuelStationModal({ stationId, onClose, initialSection = 'prices' }: { stationId: string; onClose: () => void; initialSection?: 'prices' | 'comments' }) {
+export function FuelStationModal({ stationId, onClose, initialSection = 'prices', initialMode='view' }: { stationId: string; onClose: () => void; initialSection?: 'prices' | 'comments'; initialMode?:'view'|'edit' }) {
   const auth = useAuth();
   const [section, setSection] = useState(initialSection);
   useModalScrollLock();
@@ -22,7 +22,7 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<'view' | 'edit' | 'review' | 'photo'>('view');
+  const [mode, setMode] = useState<'view' | 'edit' | 'review' | 'photo'>(initialMode);
   const [rows, setRows] = useState<EditablePrice[]>([editable()]);
   const [observedAt, setObservedAt] = useState(localNow);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -79,6 +79,7 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
   const drafts = () => rows.map(row => validatePriceDraft({ fuelType: row.fuelType, price: Number(row.price.replace(',', '.')), customLabel: row.customLabel }));
   const review = (event: React.FormEvent) => {
     event.preventDefault(); setError('');
+    if(!station){setError('Não foi possível carregar os dados deste posto. Confira a conexão e tente novamente.');return;}
     try {
       const values = drafts();
       if (new Set(values.map(p => `${p.fuelType}:${p.customLabel || ''}`)).size !== values.length) throw new Error('Informe cada combustível apenas uma vez.');
@@ -141,7 +142,7 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
               {price.photoId && <details className="text-xs"><summary className="cursor-pointer text-emerald-700">Ver foto revisada</summary><ApiImage path={`/photos/${price.photoId}`} alt="Placa de preços do posto" className="mt-2 rounded-xl max-h-60 object-contain" /><button onClick={() => { if (requireLogin()) setReport({ type: 'photos', id: price.photoId! }); }} className="mt-2 text-rose-700 underline">Denunciar foto ou dados pessoais</button></details>}
             </article>;
           })}
-          <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setRows([editable()]); setMode('edit'); setError(''); } }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Sugerir preço</button><button disabled={busy || !station} onClick={() => { if (requireLogin()) { setMode('photo'); setSelectedFile(null); setError(''); } }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
+          <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { setRows([editable()]); setMode('edit'); setError(''); }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Sugerir preço</button><button disabled={busy || !station} onClick={() => { setMode('photo'); setSelectedFile(null); setError(''); }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
           <p className="text-xs text-slate-500">Fotografe somente com o veículo parado. Evite rostos, placas de veículos e outros dados pessoais. Fotos ficam privadas até a moderação.</p>
         </>}
         {mode === 'photo' && <form onSubmit={photoUpload} className="space-y-4">
@@ -154,6 +155,11 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
           <div className="flex gap-2"><button type="button" onClick={() => { setSelectedFile(null); setMode('view'); }} className="border rounded-xl p-3 text-xs">Voltar</button><button disabled={busy || !selectedFile} className="flex-1 bg-emerald-600 text-white rounded-xl p-3 text-xs font-bold disabled:opacity-50">{busy ? 'Enviando...' : 'Enviar para análise'}</button></div>
         </form>}
         {mode === 'edit' && <form onSubmit={review} className="space-y-4">
+          {!auth.user&&!auth.loading&&<div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+            Entre na sua conta para enviar os preços para análise.
+            <button type="button" onClick={()=>auth.promptLogin()} className="ml-2 font-bold underline">Entrar</button>
+          </div>}
+          <p className="text-xs text-slate-500">Informe os preços verificados neste posto. Eles serão analisados antes da publicação.</p>
 
           {rows.map((row, index) => <div key={index} className="p-3 bg-slate-50 rounded-xl space-y-2">
             <div className="flex gap-2"><select aria-label={`Combustível ${index + 1}`} value={row.fuelType} onChange={e => setRows(current => current.map((r, i) => i === index ? { ...r, fuelType: e.target.value as FuelKind } : r))} className="border rounded-lg p-2 flex-1 min-w-0">{FUEL_OPTIONS.map(fuel => <option key={fuel.id} value={fuel.id}>{fuel.label}</option>)}</select>{rows.length > 1 && <button type="button" aria-label={`Remover combustível ${index + 1}`} onClick={() => setRows(current => current.filter((_, i) => i !== index))}>✕</button>}</div>
@@ -162,7 +168,7 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
           </div>)}
           {rows.length < 8 && <button type="button" className="text-xs font-bold text-emerald-700" onClick={() => setRows(current => [...current, editable()])}>+ Outro combustível</button>}
           <label className="block text-xs font-semibold">Quando você viu estes preços?<input type="datetime-local" required value={observedAt} max={localNow()} onChange={e => setObservedAt(e.target.value)} className="mt-1 border rounded-lg p-3 w-full" /></label>
-          <div className="flex gap-2"><button type="button" onClick={() => setMode('view')} className="border rounded-xl p-3 text-xs">Voltar</button><button className="flex-1 bg-emerald-600 text-white rounded-xl p-3 font-bold text-xs">Revisar preços</button></div>
+          <div className="flex gap-2"><button type="button" onClick={() => setMode('view')} className="border rounded-xl p-3 text-xs">Voltar</button><button disabled={!station} className="flex-1 bg-emerald-600 text-white rounded-xl p-3 font-bold text-xs disabled:opacity-50">Revisar preços</button></div>
         </form>}
         {mode === 'review' && <div className="space-y-4"><h3 className="font-bold">Confira antes de enviar</h3>{rows.map((row, index) => <p key={index} className="flex justify-between text-sm">{row.customLabel || FUEL_OPTIONS.find(f => f.id === row.fuelType)!.label}<strong>{money(Number(row.price.replace(',', '.')))}</strong></p>)}<p className="text-xs text-slate-500">Observado em {new Date(observedAt).toLocaleString('pt-BR')}. Os valores serão analisados pelo administrador.</p><div className="flex gap-2"><button disabled={busy} onClick={() => setMode('edit')} className="border rounded-xl p-3 text-xs">Corrigir</button><button disabled={busy} onClick={publish} className="flex-1 rounded-xl p-3 bg-emerald-600 text-white font-bold text-xs">{busy ? 'Enviando...' : 'Confirmar e enviar para análise'}</button></div></div>}
         {report && <form onSubmit={sendReport} className="space-y-3 border rounded-xl p-3 bg-rose-50"><strong className="text-sm">Denunciar contribuição</strong><select name="reason" aria-label="Motivo da denúncia" className="w-full border rounded-lg p-2"><option value="preco_incorreto">Preço incorreto</option><option value="spam">Spam</option><option value="dados_pessoais">Dados pessoais expostos</option><option value="imagem_inadequada">Imagem inadequada</option><option value="outro">Outro motivo</option></select><textarea name="details" aria-label="Detalhes da denúncia" maxLength={300} placeholder="Descreva o problema sem incluir dados pessoais" className="w-full border rounded-lg p-2" /><div className="flex gap-3"><button disabled={busy} className="text-xs font-bold text-rose-700">Enviar denúncia</button><button type="button" onClick={() => setReport(null)} className="text-xs">Cancelar</button></div></form>}

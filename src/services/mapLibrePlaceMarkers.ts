@@ -10,7 +10,7 @@ import type { Place } from '../types/admin';
 import '../role-map-poi.css';
 
 export interface RoleMarkerActions {
-  onStation: (id:string,section:'prices'|'comments')=>void;
+  onStation: (id:string,section:'prices'|'comments',mode?:'view'|'edit')=>void;
   onToll: (id:string,section:'prices'|'comments',place:Place|null)=>void;
   onPlace: (placeId:string)=>void;
 }
@@ -146,7 +146,9 @@ export function createRoleMaplibreMarkerController(
         button.addEventListener('click',event=>{event.stopPropagation();run();});
         actionsRow.append(button);
       };
-      action('Sugerir preço',()=>openDetails(entry));
+      action(entry.kind==='fuel'?'Sugerir preço':'Informar tarifa',()=>entry.kind==='fuel'
+        ?actions.onStation(entry.id,'prices','edit')
+        :actions.onToll(entry.id,'prices',entry.place));
       action('Comentários',()=>entry.kind==='fuel'
         ?actions.onStation(entry.id,'comments')
         :actions.onToll(entry.id,'comments',entry.kind==='toll'?entry.place:null));
@@ -157,7 +159,8 @@ export function createRoleMaplibreMarkerController(
     const activate=(event:Event)=>{
       if((event.target as HTMLElement).closest('button'))return;
       event.stopPropagation();
-      if(root.dataset.expanded==='true'){
+      // Single tap on fuel/toll pins opens their contribution sheet.
+      if(entry.kind!=='place'||root.dataset.expanded==='true'){
         openDetails(entry);
       }else{
         manualKey=key;applyVisibility();

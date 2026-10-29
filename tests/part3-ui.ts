@@ -67,14 +67,12 @@ try {
   const openTollMarker=async(section:'prices'|'comments')=>{
     const compact=await tollMarker.getAttribute('data-poi-category')==='toll';
     if(compact){
-      if(section==='prices'){
-        // Enter opens details directly from a keyboard-accessible compact POI.
-        await tollMarker.focus();await tollMarker.press('Enter');
-      }else{
-        if(await tollMarker.getAttribute('data-expanded')!=='true'){
-          await tollMarker.focus();await tollMarker.press('Space');
-        }
-        await tollMarker.getByRole('button',{name:/^Comentários:/}).click();
+      // The new compact POI opens the contribution sheet with one action.
+      // Navigate between prices and comments using the sheet's own tabs.
+      await tollMarker.focus();await tollMarker.press('Enter');
+      if(section==='comments'){
+        const sheet=page.getByRole('dialog',{name:'Tarifas do pedágio',exact:true});
+        await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
       }
     }else{
       const button=tollMarker.getByRole('button',section==='prices'

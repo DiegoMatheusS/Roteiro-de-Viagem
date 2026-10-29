@@ -37,8 +37,12 @@ try{
     ];
     await route.fulfill({json:{places}});
   });
+  await page.route('**/api/stations/fuel-live',route=>route.fulfill({json:{
+    id:'fuel-live',name:'Posto cadastrado',lat:-23.5502,lng:-46.6302,address:'Endereço confirmado',
+    source:'OpenStreetMap',sourceUrl:'https://www.openstreetmap.org/node/501',mapUpdatedAt:'2026-10-29',prices:[]
+  }}));
   await page.route('**/api/**',async(route)=>{
-    if(route.request().url().endsWith('/places/search'))return route.fallback();
+    if(route.request().url().endsWith('/places/search')||route.request().url().endsWith('/stations/fuel-live'))return route.fallback();
     await route.fulfill({json:{items:[],places:[],stations:[]}});
   });
   await page.goto('http://127.0.0.1:3000/tests/fixtures/registered-places.html');
@@ -50,6 +54,13 @@ try{
   catalogUnavailable=true;
   await page.getByRole('button',{name:'Alternar postos de teste'}).click();
   await pin('Posto cadastrado').waitFor({state:'visible'});
+  await pin('Posto cadastrado').click();
+  const stationDialog=page.getByRole('dialog',{name:'Preços do posto'});
+  await stationDialog.waitFor({state:'visible'});
+  await stationDialog.getByRole('heading',{name:'Posto cadastrado'}).waitFor({state:'visible'});
+  await stationDialog.getByRole('button',{name:'Sugerir preço'}).click();
+  await stationDialog.getByRole('textbox',{name:'Preço 1'}).waitFor({state:'visible'});
+  await stationDialog.getByRole('button',{name:'Fechar posto'}).click();
   await pin('Shopping cadastrado').waitFor({state:'visible'});
   await page.getByRole('button',{name:'Alternar postos de teste'}).click();
   await pin('Posto cadastrado').waitFor({state:'detached'});
