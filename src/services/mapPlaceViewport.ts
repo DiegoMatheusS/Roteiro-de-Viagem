@@ -41,3 +41,5 @@ export function nearestVisiblePlaces(places:MapVisiblePlace[],center:[number,num
   }
   return [...unique.values()].sort((a,b)=>distanceMeters(a.coords,center)-distanceMeters(b.coords,center)).slice(0,25);
 }
+
+/** Preserve loaded places within the next camera query while a zoom/pan fetches.\n * An empty successful response replaces the stale values. */\nexport function retainedPlacesWithinBounds<T extends {lat:number;lng:number;active?:boolean}>(\n  places:readonly T[],bounds?:PlaceBounds\n):T[]{\n  if(!bounds)return [];\n  const {south,north,west,east}=bounds;\n  return places.filter(place=>place.active!==false&&Number.isFinite(place.lat)&&Number.isFinite(place.lng)&&\n    place.lat>=south&&place.lat<=north&&(west<=east\n      ?place.lng>=west&&place.lng<=east\n      :place.lng>=west||place.lng<=east));\n}\n

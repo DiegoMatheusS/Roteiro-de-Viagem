@@ -6,14 +6,17 @@ import type {RoleVectorMarker} from '../src/services/vectorPlaceData';
 
 const place=(id:string,coords:[number,number],category:'restaurant'|'waterfall'='restaurant'):RoleVectorMarker=>
  ({kind:'place',id,coords,name:id,description:'Local cadastrado',category});
-test('cores por categoria e zoom progressivo evitam poluição visual',()=>{
+test('ícones carregados permanecem visíveis em todas as escalas de zoom válidas',()=>{
  assert.equal(poiAccent('fuel'),'#2563eb');
  assert.equal(poiAccent('hotel'),'#7c3aed');
  assert.equal(poiAccent('waterfall'),'#15803d');
- assert.equal(poiVisibleAtZoom(place('turismo',[-23,-46],'waterfall'),11),true);
- assert.equal(poiVisibleAtZoom(place('resto',[-23,-46]),11),false);
- assert.equal(poiVisibleAtZoom(place('resto',[-23,-46]),14),true);
- assert.equal(poiVisibleAtZoom({kind:'fuel',id:'1',name:'Posto',coords:[-23,-46],priceLabel:null},14),false);
+ for(const zoom of [0,4,8,9,11,14,16,19]){
+  for(const marker of [place('turismo',[-23,-46],'waterfall'),place('resto',[-23,-46]),
+   {kind:'fuel' as const,id:'1',name:'Posto',coords:[-23,-46] as [number,number],priceLabel:null},
+   {...place('admin:local',[-23,-46]),managed:true}])
+   assert.equal(poiVisibleAtZoom(marker,zoom),true,'pin stays at zoom '+zoom);
+ }
+ assert.equal(poiVisibleAtZoom(place('a',[-23,-46]),Number.NaN),false);
 });
 test('apenas o local mais perto abre quando o GPS é confiável',()=>{
  const pins=[place('a',[-23,-46]),place('b',[-23.0005,-46])];

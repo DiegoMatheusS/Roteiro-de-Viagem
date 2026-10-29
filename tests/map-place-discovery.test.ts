@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mapPlaceViewport,sameMapPlaceQuery} from '../src/services/mapPlaceViewport';
+import {mapPlaceViewport,sameMapPlaceQuery,retainedPlacesWithinBounds} from '../src/services/mapPlaceViewport';
 import {bindPlaceRefresh,MAP_PLACES_REFRESH_MS} from '../src/services/placeRefresh';
 import {selectRoleVectorMarkers} from '../src/services/vectorPlaceData';
 import {poiVisibleAtZoom} from '../src/services/mapPoiPresentation';
@@ -42,8 +42,8 @@ test('registered businesses and tolls stay visible in overview and active naviga
     assert.equal(list.length,1,'same name at the same point is still deduplicated');
   }
   const imported=selectRoleVectorMarkers({stations:[],tolls:[],navigationMode:false,places:[{...base,managed:false} ]})[0];
-  assert.equal(poiVisibleAtZoom(imported,10),false,'unmanaged ordinary businesses keep the density threshold');
-  assert.deepEqual(standaloneVisiblePlaces({markers:[imported],stations:[],places:[],stops:[],center:[-23.55,-46.63],contains:()=>true,zoom:10}),[]);
+  assert.equal(poiVisibleAtZoom(imported,10),true,'zoom does not hide a loaded POI');
+  assert.equal(standaloneVisiblePlaces({markers:[imported],stations:[],places:[],stops:[],center:[-23.55,-46.63],contains:()=>true,zoom:10}).length,1);
 });
 
 test('open maps refresh catalog changes, pause in the background and coalesce Android resume events',t=>{
@@ -81,4 +81,18 @@ test('registered fuel pins use fresh catalog positions even when provider discov
   assert.deepEqual(pins[0].coords,[fresh.lat,fresh.lng]);
   assert.equal(selectRoleVectorMarkers({...input,stations:[]}).length,1,'new fuel registrations do not wait for the external provider');
   assert.equal(selectRoleVectorMarkers({...input,places:[]}).length,0,'removed or out-of-view managed stations do not survive through the provider cache');
+});
+
+test('zoom changes retain in-view POIs but not another city or deactivated entries',()=>{
+ const data=[{id:'near',lat:-23.55,lng:-46.63,active:true},
+  {id:'far',lat:-23.4,lng:-46.5,active:true},
+  {id:'inactive',lat:-23.55,lng:-46.63,active:false}];
+ const smaller={south:-23.56,north:-23.54,west:-46.64,east:-46.62};
+ assert.deepEqual(retainedPlacesWithinBounds(data,smaller).map(p=>p.id),['near']);
+ assert.deepEqual(retainedPlacesWithinBounds(data,{south:-23.41,north:-23.39,west:-46.51,east:-46.49}).map(p=>p.id),['far']);
+ assert.deepEqual(retainedPlacesWithinBounds(data,undefined),[]);
+ assert.deepEqual(retainedPlacesWithinBounds([
+  {id:'west',lat:0,lng:-179.8},{id:'east',lat:0,lng:179.8},
+  {id:'unrelated',lat:0,lng:0}
+ ],{south:-1,north:1,west:179.6,east:-179.6}).map(p=>p.id),['west','east']);
 });

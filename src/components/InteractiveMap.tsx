@@ -14,7 +14,6 @@ import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import {mapPlaceViewport,sameMapPlaceQuery,type MapPlaceQuery} from '../services/mapPlaceViewport';
 import {MAP_PLACES_REFRESH_MS} from '../services/placeRefresh';
-import {poiVisibleAtZoom} from '../services/mapPoiPresentation';
 import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import { PlaceModal } from './PlaceModal';
 import { PLACE_KINDS, type Place } from '../types/admin';
@@ -247,7 +246,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const lastCenterRequestRef=useRef(resumeViewport?.centerRequest??0);
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
   const [placeViewport,setPlaceViewport]=useState<MapPlaceQuery|null>(null);
-  const [placeZoom,setPlaceZoom]=useState(0);
   const [viewportRevision, setViewportRevision] = useState(0);
   const visibleCallbackRef = useRef(onVisiblePlacesChange);
   visibleCallbackRef.current = onVisiblePlacesChange;
@@ -469,11 +467,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         root.dataset.mapZoom=String(map.getZoom());
       }
       setViewportRevision(value => value + 1);
-      setPlaceZoom(Math.floor(map.getZoom()));
       const bounds=map.getBounds();
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
-      setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
+      // Keep already queried markers anchored while zooming out of search range.\n      if(query||map.getZoom()>=9)setPlaceViewport(current=>sameMapPlaceQuery(current,query)?current:query);
       if (routePath.length || originCoords) return;
       if (map.getZoom() < 10) { setViewportCenter(null); return; }
       const center = map.getCenter();
@@ -558,7 +555,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       const fresh=freshFuelPlaces.get(source.id);
       if(showPlaces&&source.managed&&!fresh)continue;
       const station=fresh?{...source,name:fresh.name,lat:fresh.lat,lng:fresh.lng,managed:fresh.managed}:source;
-      if(!poiVisibleAtZoom({kind:'fuel',id:station.id,name:station.name,coords:[station.lat,station.lng],priceLabel:null,managed:station.managed},placeZoom)&&!(!navigationMode&&routePath.length>1))continue;
       const icon = navigationMode?mapPlaceIcon('fuel'):mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', priceLabel: fuelPriceLabel(station), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
       const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
@@ -566,7 +562,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       marker.on('click', () => openStation(station.id));
     }
     for (const place of (Array.isArray(places) ? places : []).filter(place=>place.active)) {
-      if(!poiVisibleAtZoom({kind:'place',id:place.id,name:place.name,coords:[place.lat,place.lng],category:place.kind,managed:place.managed},placeZoom))continue;
       if(place.kind==='fuel'){
         if(fuel.stations.some(station=>station.id===place.id))continue;
         const marker=L.marker([place.lat,place.lng],{icon:mapPlaceIcon('fuel'),title:place.name,zIndexOffset:1500}).addTo(group);
@@ -583,13 +578,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
       const tooltip = document.createElement('span'); tooltip.textContent = place.name;
       tooltip.style.cssText='display:block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;';
-      marker.bindTooltip(tooltip,{permanent:Boolean(place.managed)&&placeZoom>=16,direction:'bottom',offset:[0,18],pane:'markerPane'}); marker.on('click', () => setSelectedPlace(place));
+      marker.bindTooltip(tooltip,{direction:'top',offset:[0,-18],pane:'markerPane'}); marker.on('click', () => setSelectedPlace(place));
       marker.on('keypress', event => {
         const original = (event as L.LeafletKeyboardEvent).originalEvent;
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
       });
     }
-  }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady,placeZoom,showPlaces]);
+  }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady,showPlaces]);
 
   // Install MapLibre pins once per vector map lifecycle, not after every
   // station price refresh. The Leaflet fallback remains available until ready.
