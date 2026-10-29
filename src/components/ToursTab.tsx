@@ -1,8 +1,8 @@
 import {useMemo,useRef,useState} from 'react';
-import {Bookmark,Check,ChevronRight,Compass,LocateFixed,Mic,Route,Search,Trees,X} from 'lucide-react';
+import {Bookmark,ChevronRight,Compass,Droplets,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
 import type {TripPlan,Vehicle} from '../types';
-import type {Place} from '../types/admin';
-import {TOURIST_PLACE_KINDS} from '../types/admin';
+import type {ExploreArea,ExploreFilter,ExplorePlace} from '../types/explore';
+import {EXPLORE_AREA_LABELS,exploreDistanceKm,filterExplorePlaces,mergeExplorePlaces} from '../services/explorePlaces';
 import {useDeviceLocation} from '../hooks/useDeviceLocation';
 import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
 import {useGpsPermissionAction} from '../hooks/useGpsPermissionAction';
@@ -12,53 +12,18 @@ import {fetchRouteChoices,choiceToTrip} from '../services/routeChoices';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import '../role-explore-figma.css';
 
-type Coords=[number,number];
-type ExploreFilter='near'|'nature'|'road';
-type ExplorePlace={id:string;name:string;coords:Coords;kind:string;address:string;category:string;photo?:string;photoCredit?:string;photoPage?:string;city:string;curated?:boolean};
 interface ToursTabProps {
   currentVehicle:Vehicle|null;
   onStartTrip:(trip:TripPlan)=>void;
   onSaveTrip:(trip:TripPlan)=>void;
   savedTripIds:string[];
 }
-const natureKinds=new Set<string>(['park','waterfall','nature_reserve','trail','beach','viewpoint']);
-const roadKinds=new Set<string>(['viewpoint','historic','landmark','scenic_road']);
-const touristKinds=new Set<string>(TOURIST_PLACE_KINDS);
-const saoPauloExamples:ExplorePlace[]=[
-  {id:'figma-ibirapuera',name:'Volta no Ibirapuera',coords:[-23.5874,-46.6576],
-    kind:'park',address:'Parque Ibirapuera',category:'Urbano',
-    photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Ibirapuera_Park_panorama.jpg?width=640',
-    photoCredit:'Wilfredor · CC0 1.0',
-    photoPage:'https://commons.wikimedia.org/wiki/File:Ibirapuera_Park_panorama.jpg',
-    city:'São Paulo',curated:true},
-  {id:'figma-romeiros',name:'Estrada dos Romeiros',coords:[-23.457,-46.873],
-    kind:'viewpoint',address:'Trecho próximo a Barueri, SP',category:'Estrada',
-    photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Estrada_dos_Romeiros._-_panoramio_(1).jpg?width=640',
-    photoCredit:'João Batista Shimoto · CC BY-SA 3.0',
-    photoPage:'https://commons.wikimedia.org/wiki/File:Estrada_dos_Romeiros._-_panoramio_(1).jpg',
-    city:'Barueri',curated:true}
-];
-function haversineKm(from:Coords,to:Coords){
-  const rad=Math.PI/180;
-  const dLat=(to[0]-from[0])*rad,dLon=(to[1]-from[1])*rad;
-  const a=Math.sin(dLat/2)**2+Math.cos(from[0]*rad)*Math.cos(to[0]*rad)*Math.sin(dLon/2)**2;
-  return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-function placeCity(address:string){
-  const parts=address.split(',').map(part=>part.trim()).filter(Boolean);
-  return parts.length>1?parts[parts.length-2]||'':parts[0]||'';
-}
-function isSaoPauloArea(coords:Coords) {
+const PAGE_SIZE=20;
+const filterTitles:Record<ExploreFilter,string>={all:'Todos os passeios',near:'Perto de você',
+  nature:'Natureza',culture:'Cultura',road:'Estradas',cities:'Cidades',
+  waterfalls:'Cachoeiras',lakes:'Lagos',parks:'Parques'};
+function isSaoPauloArea(coords:[number,number]) {
   return coords[0]>-23.9&&coords[0]<-23.2&&coords[1]>-47.05&&coords[1]<-46.2;
-}
-function sourceToExplore(place:Place):ExplorePlace{
-  const category=['scenic_road','viewpoint','trail'].includes(place.kind)?'Estrada':
-    ['museum','theatre','historic','landmark'].includes(place.kind)?'Cultura':
-    place.kind==='park'?'Urbano':'Natureza';
-  // Imported places have no verified photo metadata yet. Do not reuse a
-  // generic illustration and misleadingly present it as this location.
-  return {id:place.id,name:place.name,coords:[place.lat,place.lng],kind:place.kind,
-    address:place.address,category,city:placeCity(place.address)};
 }
 export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:ToursTabProps){
   const gps=useDeviceLocation(true,'role-explore-figma');
@@ -66,36 +31,29 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const origin=gps.status==='ready'?gps.position?.coords:undefined;
   // A aba Explorar procura destinos de passeio, não apenas os 5 km do mapa de postos.
   const places=useNearbyPlaces(origin?[origin]:[],Boolean(origin),120);
-  const [filter,setFilter]=useState<ExploreFilter>('near');
+  const [filter,setFilter]=useState<ExploreFilter>('all');
+  const [area,setArea]=useState<ExploreArea>('all');
   const [query,setQuery]=useState('');
+  const [visibleCount,setVisibleCount]=useState(PAGE_SIZE);
+  const updateQuery=(value:string)=>{setQuery(value);setVisibleCount(PAGE_SIZE);};
+  const updateFilter=(value:ExploreFilter)=>{setFilter(value);setVisibleCount(PAGE_SIZE);};
+  const updateArea=(value:ExploreArea)=>{
+    setArea(value);setVisibleCount(PAGE_SIZE);
+    if(filter==='near')setFilter('all');
+  };
   const [busyId,setBusyId]=useState<string|null>(null);
   const [error,setError]=useState('');
   const [preview,setPreview]=useState<TripPlan|null>(null);
   const [voiceError,setVoiceError]=useState('');
   const pending=useRef<AbortController|null>(null);
 
-  const allPlaces=useMemo(()=>{
-    const fromApi=places.filter(p=>p.active&&touristKinds.has(p.kind) &&
-      Number.isFinite(p.lat)&&Number.isFinite(p.lng) &&
-      Math.abs(p.lat)<=90&&Math.abs(p.lng)<=180).map(sourceToExplore);
-    if(!origin)return fromApi;
-    const nearby=fromApi.filter(p=>haversineKm(origin,p.coords)<=120);
-    // As duas atrações do layout servem como sugestões editoriais, apenas na região de SP.
-    // Seus dados rodoviários nunca são presumidos; a rota é calculada ao selecionar.
-    const curated=isSaoPauloArea(origin)?saoPauloExamples.filter(
-      suggestion=>!nearby.some(p=>p.name.toLowerCase().includes(suggestion.name.toLowerCase()))
-    ):[];
-    return [...nearby,...curated].sort((a,b)=>haversineKm(origin,a.coords)-haversineKm(origin,b.coords));
-  },[places,origin?.[0],origin?.[1]]);
-  const filtered=useMemo(()=>allPlaces.filter(place=>{
-    const matchesFilter=filter==='near'||(filter==='nature'&&natureKinds.has(place.kind))||
-      (filter==='road'&&(roadKinds.has(place.kind)||place.category==='Estrada'));
-    const value=query.trim().toLocaleLowerCase('pt-BR');
-    return matchesFilter&&(!value||[place.name,place.city,place.address,place.category].some(text=>text.toLocaleLowerCase('pt-BR').includes(value)));
-  }).slice(0,12),[allPlaces,filter,query]);
+  const allPlaces=useMemo(()=>mergeExplorePlaces(places,origin),[places,origin?.[0],origin?.[1]]);
+  const filtered=useMemo(()=>filterExplorePlaces(allPlaces,filter,query,origin,area),
+    [allPlaces,filter,query,origin?.[0],origin?.[1],area]);
+  const visible=filtered.slice(0,visibleCount);
   const featured=filtered[0];
   const regionLabel=origin&&isSaoPauloArea(origin)?'São Paulo, SP':origin?'Localização atual':'';
-  const nearest=origin&&featured?Math.round(haversineKm(origin,featured.coords)):null;
+  const nearest=origin&&featured?Math.round(exploreDistanceKm(origin,featured.coords)):null;
 
   const loadRoute=async(place:ExplorePlace,saveOnly=false)=>{
     if(!origin){
@@ -129,33 +87,62 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     if(!Recognizer){setVoiceError('Busca por voz indisponível neste dispositivo.');return;}
     const recognition=new Recognizer();
     recognition.lang='pt-BR';
-    recognition.onresult=event=>setQuery(event.results[0][0].transcript);
+    recognition.onresult=event=>updateQuery(event.results[0][0].transcript);
     recognition.onerror=()=>setVoiceError('Não foi possível ouvir a busca. Digite o destino.');
     recognition.start();
   };
 
   return <section className="rdv-explore-page" aria-label="Explorar passeios">
     <header className="rdv-explore-header">
-      <h1>Explorar</h1>
-      <p>Descubra o próximo caminho</p>
+      <div className="rdv-explore-heading">
+        <h1>Explorar</h1>
+        <select aria-label="Região de São Paulo" value={area}
+          onChange={event=>updateArea(event.target.value as ExploreArea)}>
+          {Object.entries(EXPLORE_AREA_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+        </select>
+      </div>
       <div className="rdv-explore-search">
         <Search size={20} strokeWidth={1.5} aria-hidden="true"/>
         <input type="search" aria-label="Buscar passeios" placeholder="Buscar passeios"
-          value={query} onChange={event=>setQuery(event.target.value)}/>
-        {query?<button type="button" aria-label="Limpar busca" onClick={()=>setQuery('')}><X size={19}/></button>:
+          value={query} onChange={event=>updateQuery(event.target.value)}/>
+        {query?<button type="button" aria-label="Limpar busca" onClick={()=>updateQuery('')}><X size={19}/></button>:
           <button type="button" aria-label="Buscar por voz" onClick={speechSearch}><Mic size={19} strokeWidth={1.3}/></button>}
       </div>
       <div role="group" aria-label="Filtrar passeios" className="rdv-explore-filters">
+        <button type="button" aria-pressed={filter==='all'}
+          onClick={()=>updateFilter('all')} className={filter==='all'?'is-selected':''}>
+          <Compass size={17} strokeWidth={1.6}/>Todos
+        </button>
         <button type="button" aria-pressed={filter==='near'}
-          onClick={()=>setFilter('near')} className={filter==='near'?'is-selected':''}>
+          onClick={()=>updateFilter('near')} className={filter==='near'?'is-selected':''}>
           <LocateFixed size={17} strokeWidth={1.7}/>Perto de mim
         </button>
         <button type="button" aria-pressed={filter==='nature'}
-          onClick={()=>setFilter('nature')} className={filter==='nature'?'is-selected':''}>
+          onClick={()=>updateFilter('nature')} className={filter==='nature'?'is-selected':''}>
           <Trees size={17} strokeWidth={1.6}/>Natureza
         </button>
         <button type="button" aria-pressed={filter==='road'}
-          onClick={()=>setFilter('road')} className={filter==='road'?'is-selected':''}>Estrada</button>
+          onClick={()=>updateFilter('road')} className={filter==='road'?'is-selected':''}>Estrada</button>
+        <button type="button" aria-pressed={filter==='waterfalls'}
+          onClick={()=>updateFilter('waterfalls')} className={filter==='waterfalls'?'is-selected':''}>
+          <Droplets size={17} strokeWidth={1.6}/>Cachoeiras
+        </button>
+        <button type="button" aria-pressed={filter==='lakes'}
+          onClick={()=>updateFilter('lakes')} className={filter==='lakes'?'is-selected':''}>
+          <Waves size={17} strokeWidth={1.6}/>Lagos
+        </button>
+        <button type="button" aria-pressed={filter==='parks'}
+          onClick={()=>updateFilter('parks')} className={filter==='parks'?'is-selected':''}>
+          <Trees size={17} strokeWidth={1.6}/>Parques
+        </button>
+        <button type="button" aria-pressed={filter==='culture'}
+          onClick={()=>updateFilter('culture')} className={filter==='culture'?'is-selected':''}>
+          <Landmark size={17} strokeWidth={1.6}/>Cultura
+        </button>
+        <button type="button" aria-pressed={filter==='cities'}
+          onClick={()=>updateFilter('cities')} className={filter==='cities'?'is-selected':''}>
+          <MapPin size={17} strokeWidth={1.6}/>Cidades
+        </button>
       </div>
       {voiceError&&<p role="status" className="rdv-explore-search-note">{voiceError}</p>}
     </header>
@@ -170,23 +157,22 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     <div className="rdv-explore-sheet">
       <div className="rdv-explore-sheet-handle" aria-hidden="true"/>
       <div className="rdv-explore-sheet-title">
-        <h2>Perto de você</h2>
-        <span>{regionLabel}</span>
+        <h2>{query.trim()?'Resultados':filter==='near'&&!origin?'Passeios':filterTitles[filter]}</h2>
+        <span>{filter==='near'?regionLabel:EXPLORE_AREA_LABELS[area]}</span>
       </div>
       {error&&<p role="alert" className="rdv-explore-alert">{error}</p>}
       {gps.status!=='ready'&&<div className="rdv-explore-gps-hint">
-        <p>Permita a localização para encontrar passeios próximos.</p>
         <button type="button" onClick={()=>void permission.request()}>Ativar GPS</button>
       </div>}
       <div className="rdv-explore-list" aria-label="Passeios encontrados">
-        {filtered.map(place=>{
-          const distance=origin?haversineKm(origin,place.coords):null;
+        {visible.map(place=>{
+          const distance=origin?exploreDistanceKm(origin,place.coords):null;
           const preparing=busyId===place.id;
           return <article key={place.id} className="rdv-explore-route-row">
             <div className="rdv-explore-route-photo" aria-label={place.photo?'Fotografia do passeio':'Local sem fotografia verificada'}>
               <Compass size={32} strokeWidth={1.5} aria-hidden="true"/>
               {place.photo && <img src={place.photo} alt={`Fotografia de ${place.name}`}
-                loading="lazy" decoding="async"
+                loading="lazy" decoding="async" width={200} height={200} referrerPolicy="no-referrer"
                 onError={event=>{event.currentTarget.hidden=true;}}/>}
             </div>
             <div className="rdv-explore-route-copy">
@@ -194,7 +180,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
               {place.photoPage && place.photoCredit && <a href={place.photoPage}
                 target="_blank" rel="noopener noreferrer"
                 className="rdv-explore-photo-credit"
-                title="Fotografia e licença no Wikimedia Commons">
+                title={`Fotografia: ${place.photoCredit}`}>
                 Foto: {place.photoCredit}
               </a>}
               <h3>{place.name}</h3>
@@ -214,11 +200,12 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
             </button>
           </article>;
         })}
+        {visible.length<filtered.length&&<button type="button" className="rdv-explore-more"
+          onClick={()=>setVisibleCount(count=>count+PAGE_SIZE)}>Mostrar mais</button>}
         {filtered.length===0&&<div className="rdv-explore-empty">
           <Compass size={24} strokeWidth={1.5}/>
           <strong>{query?'Nenhum passeio encontrado':'Nenhum passeio próximo cadastrado'}</strong>
-          <p>{query?'Tente outro nome ou categoria.':'Novas atrações aparecerão aqui quando disponíveis nesta região.'}</p>
-          {query&&<button type="button" onClick={()=>{setQuery('');setFilter('near');}}>Limpar busca</button>}
+          {query&&<button type="button" onClick={()=>{updateQuery('');updateFilter('all');}}>Limpar busca</button>}
         </div>}
       </div>
     </div>

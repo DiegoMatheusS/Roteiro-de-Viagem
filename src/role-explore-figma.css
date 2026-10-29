@@ -12,11 +12,17 @@
 }
 .rdv-explore-header {
   position:absolute;top:0;left:0;right:0;z-index:18;
-  height:252px;
+  height:224px;
   padding:calc(58px + env(safe-area-inset-top,0px)) 20px 0;
   background:#fff;
 }
 .rdv-explore-header h1 {margin:0;font-size:25px;font-weight:700;line-height:1.13;letter-spacing:-.035em;}
+.rdv-explore-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.rdv-explore-heading select {
+  max-width:178px;min-height:34px;padding:4px 8px;
+  border:1px solid #e0e5ed;border-radius:8px;background:#fff;
+  color:#40556a;font-size:12px;font-weight:550;
+}
 .rdv-explore-header > p:not(.rdv-explore-search-note) {
   margin:8px 0 0;color:#687b8d;font-size:14px;font-weight:400;
 }
@@ -60,7 +66,7 @@
   font-size:10px;color:#8a5715;
 }
 .rdv-explore-map {
-  position:absolute;top:252px;left:0;right:0;height:220px;z-index:1;
+  position:absolute;top:224px;left:0;right:0;height:248px;z-index:1;
   background:#e9efe7;overflow:hidden;
 }
 .rdv-explore-distance-badge {
@@ -116,6 +122,7 @@
   font-size:9px;color:#526c83;
   text-decoration:underline;text-underline-offset:2px;
   margin:2px 0 0;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .rdv-explore-route-copy {
   flex:1;min-width:0;align-self:stretch;
@@ -158,6 +165,11 @@
   display:flex;align-items:center;gap:8px;flex-shrink:0;margin:-8px 0 10px;
   padding:7px;border-radius:9px;background:#fff8ec;
 }
+.rdv-explore-more {
+  display:block;width:100%;min-height:44px;margin:4px 0 18px;
+  border:1px solid #dce5f5;border-radius:10px;background:#f0f5ff;
+  color:#235ddd;font-size:13px;font-weight:650;
+}
 .rdv-explore-gps-hint p {flex:1;min-width:0;font-size:11px;color:#835b1d;margin:0;}
 .rdv-explore-gps-hint button {font-size:11px;font-weight:700;color:#235ddd;}
 .rdv-explore-empty {
@@ -169,10 +181,11 @@
 .rdv-explore-empty p {font-size:12px;max-width:280px;}
 .rdv-explore-empty button {color:#265de9;font-size:13px;font-weight:700;}
 .rdv-explore-page button:focus-visible,
-.rdv-explore-page input:focus-visible {outline:2px solid #265de9;outline-offset:2px;}
+.rdv-explore-page input:focus-visible,
+.rdv-explore-page select:focus-visible {outline:2px solid #265de9;outline-offset:2px;}
 @media (max-height:760px) {
-  .rdv-explore-header {height:231px;padding-top:calc(39px + env(safe-area-inset-top,0px));}
-  .rdv-explore-map {top:231px;}
+  .rdv-explore-header {height:203px;padding-top:calc(39px + env(safe-area-inset-top,0px));}
+  .rdv-explore-map {top:203px;}
   .rdv-explore-sheet {top:49dvh;}
   .rdv-explore-sheet-title {margin-bottom:14px;}
 }

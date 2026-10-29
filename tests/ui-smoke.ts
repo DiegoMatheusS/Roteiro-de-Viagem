@@ -124,8 +124,15 @@ try {
   await exploring.getByPlaceholder('Buscar passeios').waitFor();
   await page.getByRole('button',{name:'Aba Explorar'}).getAttribute('aria-current')
     .then(current=>assert.equal(current,'page'));
-  await exploring.getByRole('heading',{name:'Volta no Ibirapuera'}).waitFor();
-  await exploring.getByRole('heading',{name:'Estrada dos Romeiros'}).waitFor();
+  await exploring.getByRole('button',{name:'Todos',exact:true}).click();
+  assert.equal(await exploring.locator('.rdv-explore-route-row').count(),20);
+  await exploring.getByRole('button',{name:'Mostrar mais',exact:true}).click();
+  assert.equal(await exploring.locator('.rdv-explore-route-row').count(),40);
+  await exploring.getByPlaceholder('Buscar passeios').fill('Ibirapuera');
+  await exploring.getByRole('heading',{name:'Parque Ibirapuera',exact:true}).waitFor();
+  const parkPhoto=exploring.getByRole('img',{name:'Fotografia de Parque Ibirapuera',exact:true,includeHidden:true});
+  assert.match((await parkPhoto.getAttribute('src'))!,/^https:\/\//);
+  await exploring.getByPlaceholder('Buscar passeios').fill('');
   const exploreBox=await exploring.boundingBox();
   const exploreSheet=await exploring.locator('.rdv-explore-sheet').boundingBox();
   assert.ok(exploreBox&&exploreSheet&&exploreBox.height>=840&&
@@ -134,11 +141,37 @@ try {
   await page.screenshot({path:'test-results/figma-tela-5-explorar.png'});
   await exploring.getByRole('button',{name:'Estrada',exact:true}).click();
   await exploring.getByRole('heading',{name:'Estrada dos Romeiros'}).waitFor();
-  assert.equal(await exploring.getByRole('heading',{name:'Volta no Ibirapuera'}).count(),0);
+  assert.equal(await exploring.getByRole('heading',{name:'Parque Ibirapuera',exact:true}).count(),0);
   await exploring.getByRole('button',{name:'Perto de mim'}).click();
   await exploring.getByPlaceholder('Buscar passeios').fill('Ibirapuera');
   assert.equal(await exploring.getByRole('heading',{name:'Estrada dos Romeiros'}).count(),0);
+  await exploring.getByPlaceholder('Buscar passeios').fill('campos do jordao');
+  await exploring.getByRole('heading',{name:'Campos do Jordão',exact:true}).waitFor();
   await exploring.getByPlaceholder('Buscar passeios').fill('');
+  await exploring.getByRole('button',{name:'Cultura',exact:true}).click();
+  await exploring.getByPlaceholder('Buscar passeios').fill('pinacoteca');
+  await exploring.getByRole('heading',{name:'Pinacoteca de São Paulo',exact:true}).waitFor();
+  await exploring.getByPlaceholder('Buscar passeios').fill('');
+  await exploring.getByRole('button',{name:'Cidades',exact:true}).click();
+  assert.equal(await exploring.locator('.rdv-explore-route-row').count(),14);
+  await exploring.getByRole('heading',{name:'Campos do Jordão',exact:true}).waitFor();
+  await exploring.getByLabel('Região de São Paulo').selectOption('inland');
+  await exploring.getByRole('button',{name:'Todos',exact:true}).click();
+  await exploring.getByPlaceholder('Buscar passeios').fill('bauru');
+  await exploring.getByRole('heading',{name:'Jardim Botânico Municipal de Bauru',exact:true}).waitFor();
+  await exploring.getByPlaceholder('Buscar passeios').fill('');
+  await exploring.getByLabel('Região de São Paulo').selectOption('coast');
+  await exploring.getByPlaceholder('Buscar passeios').fill('rio santos');
+  await exploring.getByRole('heading',{name:'Rodovia Rio–Santos',exact:true}).waitFor();
+  await exploring.getByPlaceholder('Buscar passeios').fill('');
+  await exploring.getByLabel('Região de São Paulo').selectOption('all');
+  await exploring.getByRole('button',{name:'Cachoeiras',exact:true}).click();
+  await exploring.getByRole('heading',{name:'Cachoeira dos Pretos',exact:true}).waitFor();
+  await exploring.getByRole('button',{name:'Lagos',exact:true}).click();
+  await exploring.getByRole('heading',{name:'Lago do Taboão',exact:true}).waitFor();
+  await exploring.getByRole('button',{name:'Parques',exact:true}).click();
+  await exploring.getByPlaceholder('Buscar passeios').fill('juquery');
+  await exploring.getByRole('heading',{name:'Parque Estadual do Juquery',exact:true}).waitFor();
   await page.getByRole('button',{name:'Aba Início'}).click();
   await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
 
