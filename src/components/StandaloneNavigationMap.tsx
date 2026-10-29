@@ -395,6 +395,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // moveend publishes visibility after pan/zoom; changed overlays
         // publish immediately even if the camera stays still.
         if(overlaysChanged||viewportDirty){publishPlaces();viewportDirty=false;}
+        // Catalog/DOM-pin updates do not necessarily schedule a MapLibre frame.
+        // Do not leave a fully loaded stationary map marked busy waiting for an
+        // idle event that only fires after another actual map render.
+        if(!map.isMoving()&&map.loaded())publishIdle();
       }catch{fail();}
     };
     const mapUpdates=createMapGestureUpdates(render);
