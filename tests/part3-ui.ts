@@ -30,7 +30,7 @@ await new Promise<void>(resolve => server.once('listening',resolve));
 const vite = await createServer({server:{host:'127.0.0.1',port:3000,strictPort:true}});
 await vite.listen();
 const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
-const browser = await chromium.launch({headless:true,executablePath,args:executablePath?['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--single-process','--no-zygote']:[]});
+const browser = await chromium.launch({headless:true,executablePath,args:executablePath?['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']:[]});
 const context = await browser.newContext({viewport:{width:390,height:844},permissions:['geolocation'],geolocation:{latitude:0,longitude:0,accuracy:3}});
 const adminContext = await browser.newContext({viewport:{width:1365,height:900}});
 const page = await context.newPage(), admin = await adminContext.newPage();

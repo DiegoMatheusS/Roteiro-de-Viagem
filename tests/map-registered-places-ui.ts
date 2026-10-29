@@ -21,9 +21,10 @@ try{
   await page.route('https://**',route=>route.abort());
   await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}}));
   await page.route('https://*.tile.openstreetmap.org/**',route=>route.fulfill({contentType:'image/png',body:png}));
-  let phase=0,calls=0,otherArea=false;
+  let phase=0,calls=0,otherArea=false,catalogUnavailable=false;
   await page.route('**/api/places/search',async route=>{
     calls++;const body=route.request().postDataJSON();
+    if(catalogUnavailable){await route.fulfill({status:503,json:{error:'Temporarily offline'}});return;}
     assert.ok(body.bounds,'map requests must be scoped to the camera');
     assert.equal(body.points.length,1);
     otherArea=body.points[0][0]>-23.48;
@@ -31,6 +32,7 @@ try{
       ...(phase<2?[base]:[]),
       {...base,id:'osm:node:101',name:'Shopping cadastrado',kind:'shopping',lat:-23.55,lng:-46.63015},
       {...base,id:'osm:node:102',name:'Café cadastrado',kind:'cafe',lat:-23.55,lng:-46.62985},
+      ...(body.includeFuel?[{...base,id:'fuel-live',name:'Posto cadastrado',kind:'fuel',lat:-23.5502,lng:-46.6302}]:[]),
       ...(phase>0?[{...base,id:'new-live',name:'Museu cadastrado agora',kind:'museum',lat:-23.5499,lng:-46.63}]:[])
     ];
     await route.fulfill({json:{places}});
@@ -44,6 +46,16 @@ try{
   await pin('Shopping cadastrado').waitFor({state:'visible'});
   await pin('Café cadastrado').waitFor({state:'visible'});
   await pin('Parque cadastrado').waitFor({state:'visible'});
+  assert.equal(await pin('Posto cadastrado').count(),0);
+  catalogUnavailable=true;
+  await page.getByRole('button',{name:'Alternar postos de teste'}).click();
+  await pin('Posto cadastrado').waitFor({state:'visible'});
+  await pin('Shopping cadastrado').waitFor({state:'visible'});
+  await page.getByRole('button',{name:'Alternar postos de teste'}).click();
+  await pin('Posto cadastrado').waitFor({state:'detached'});
+  await pin('Shopping cadastrado').waitFor({state:'visible'});
+  catalogUnavailable=false;
+
   if(!raster){
     await page.waitForFunction(()=>document.querySelector('[data-map-engine="maplibre-standalone"]')?.getAttribute('data-map-ready')==='true');
     await page.evaluate(()=>{(window as any).__registeredShop=document.querySelector('[title="Shopping cadastrado"]');});

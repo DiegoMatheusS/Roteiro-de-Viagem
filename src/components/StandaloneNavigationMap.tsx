@@ -93,9 +93,11 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const path=props.routePath || EMPTY_POINTS;
   const discovery=path.length?path:props.originCoords?[props.originCoords]:viewportCenter?[viewportCenter]:EMPTY_POINTS;
   const fuel=useFuelStations(discovery,props.showFuelStations??true);
-  const places=useNearbyPlaces(placeViewport?.points||EMPTY_POINTS,
+  const nearbyPlaces=useNearbyPlaces(placeViewport?.points||EMPTY_POINTS,
     (props.showPlaces??true)&&Boolean(placeViewport),placeViewport?.radiusKm??5,
-    {bounds:placeViewport?.bounds,refreshMs:MAP_PLACES_REFRESH_MS,includeFuel:props.showFuelStations??true});
+    {bounds:placeViewport?.bounds,refreshMs:MAP_PLACES_REFRESH_MS,includeFuel:true});
+  const places=useMemo(()=>props.showFuelStations===false?nearbyPlaces.filter(place=>place.kind!=='fuel'):nearbyPlaces,
+    [nearbyPlaces,props.showFuelStations]);
   const data=useRef({stations:fuel.stations,places});data.current={stations:fuel.stations,places};
   const runtime=useRef<{render:()=>void;orient:()=>void;
     setBaseStyle:(style:MapStyleType)=>void;

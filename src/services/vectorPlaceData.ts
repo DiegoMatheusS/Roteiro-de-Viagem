@@ -2,6 +2,7 @@ import type { Place } from '../types/admin';
 import type { FuelStation } from '../types/fuel';
 import type { RouteToll } from '../types/tolls';
 import { fuelPriceLabel, tollPriceLabel } from './mapPriceLabels';
+import { distanceBetweenKm } from './gpsTracking';
 
 export type RoleVectorMarker =
   | { kind:'fuel'; id:string; coords:[number,number]; name:string; priceLabel:string|null;managed?:boolean }
@@ -26,6 +27,13 @@ export function validMarkerPosition(position: [number, number]): boolean {
 }
 export function toMarkerLngLat([lat,lon]:[number,number]): [number,number] {
   return [lon,lat];
+}
+
+/** Route tariffs already combine the lane nodes of a plaza within 200 m.
+ * Keep that same plaza as one marker instead of adding an unpriced lane. */
+export function isRouteTollPlace(place:Place,tolls:readonly RouteToll[]):boolean {
+  return place.kind==='toll'&&tolls.some(toll=>toll.id===place.id||
+    distanceBetweenKm(toll.coords,[place.lat,place.lng])<0.2);
 }
 
 /**
@@ -64,7 +72,6 @@ export function selectRoleVectorMarkers(options: {
       }
     }
   }
-  const knownTollIds = new Set(options.tolls.map(toll=>toll.id));
   for (const place of options.places) {
     if(!place.active)continue;
     // Navigation uses zoom/proximity filtering instead of hiding registered POIs entirely.
@@ -72,7 +79,7 @@ export function selectRoleVectorMarkers(options: {
     if(place.kind==='fuel'){
       add({kind:'fuel',id:place.id,coords,name:place.name,priceLabel:null,managed:place.managed});
     }else if (place.kind === 'toll') {
-      if (!knownTollIds.has(place.id)) {
+      if (!isRouteTollPlace(place,options.tolls)) {
         add({kind:'toll',id:place.id,coords,name:place.name,priceLabel:null,place,managed:place.managed});
       }
     } else {

@@ -29,7 +29,7 @@ import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternati
 import {routeEditPoint} from '../services/mapRouteEditPoint';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
-import { selectRoleVectorMarkers,validMarkerPosition } from '../services/vectorPlaceData';
+import { selectRoleVectorMarkers,validMarkerPosition,isRouteTollPlace } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement,roadAlertMarkerChange } from '../services/mapRoadAlerts';
 import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
@@ -258,8 +258,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     : viewportCenter ? [viewportCenter] : [];
 
   const fuel = useFuelStations(discoveryPoints, showFuelStations);
-  const places = useNearbyPlaces(placeViewport?.points||EMPTY_ROUTE,showPlaces&&Boolean(placeViewport),
-    placeViewport?.radiusKm??5,{bounds:placeViewport?.bounds,refreshMs:MAP_PLACES_REFRESH_MS,includeFuel:showFuelStations});
+  const nearbyPlaces = useNearbyPlaces(placeViewport?.points||EMPTY_ROUTE,showPlaces&&Boolean(placeViewport),
+    placeViewport?.radiusKm??5,{bounds:placeViewport?.bounds,refreshMs:MAP_PLACES_REFRESH_MS,includeFuel:true});
+  const places=useMemo(()=>showFuelStations?nearbyPlaces:nearbyPlaces.filter(place=>place.kind!=='fuel'),
+    [nearbyPlaces,showFuelStations]);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [stationSection, setStationSection] = useState<'prices' | 'comments'>('prices');
   const [tollSection, setTollSection] = useState<'prices' | 'comments'>('prices');
@@ -511,10 +513,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const group=tollLayerGroupRef.current;
     if(!group)return;group.clearLayers();
     if (vectorMarkersReady || !tollVehicleType) return;
-    for(const toll of navigationMode ? [] : (Array.isArray(tolls) ? tolls : [])) {
-      const icon=mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
+    for(const toll of (Array.isArray(tolls) ? tolls : [])) {
+      const icon=navigationMode?mapPlaceIcon('toll'):mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
       const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
-      const tip=document.createElement('span');tip.textContent=`${toll.name} · Ver tarifas / contribuir`;marker.bindTooltip(tip);
+      const tip=document.createElement('span');tip.textContent=toll.name;marker.bindTooltip(tip);
       marker.on('click',() => openToll(toll.id));
     }
   },[tolls,tollVehicleType,navigationMode,vectorMarkersReady]);
@@ -572,15 +574,16 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         continue;
       }
       if (place.kind === 'toll') {
-        if (tolls.some(toll => toll.id === place.id)) continue;
+        if (isRouteTollPlace(place,tolls)) continue;
         const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
         L.marker([place.lat, place.lng], { icon, title: place.name, keyboard: false, zIndexOffset: 1700 }).addTo(group);
         continue;
       }
       const icon = mapPlaceIcon(place.kind);
       const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
-      const tooltip = document.createElement('span'); tooltip.textContent = `${place.name} · Ver estabelecimento`;
-      marker.bindTooltip(tooltip,{permanent:Boolean(place.managed)&&placeZoom>=16,direction:'bottom',offset:[0,18]}); marker.on('click', () => setSelectedPlace(place));
+      const tooltip = document.createElement('span'); tooltip.textContent = place.name;
+      tooltip.style.cssText='display:block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;';
+      marker.bindTooltip(tooltip,{permanent:Boolean(place.managed)&&placeZoom>=16,direction:'bottom',offset:[0,18],pane:'markerPane'}); marker.on('click', () => setSelectedPlace(place));
       marker.on('keypress', event => {
         const original = (event as L.LeafletKeyboardEvent).originalEvent;
         if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
