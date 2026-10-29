@@ -16,6 +16,7 @@ export function ManualPlaceForm({ busy, onSave, touristOnly = false, onImportRef
   const [lookupMessage, setLookupMessage] = useState('');
   const [showAllKinds, setShowAllKinds] = useState(false);
   const generation = useRef(0);
+  const selectedLookup = useRef('');
   const update = (key: keyof ReturnType<typeof blank>, value: string) => {
     setDraft(current => ({ ...current, [key]: value }));
     setConfirmed(false);
@@ -26,7 +27,7 @@ export function ManualPlaceForm({ busy, onSave, touristOnly = false, onImportRef
 
   useEffect(() => {
     const query = lookup.trim();
-    if (query.length < 4 || parsed || /^https?:\/\//i.test(query)) {
+    if (query === selectedLookup.current || query.length < 4 || parsed || /^https?:\/\//i.test(query)) {
       setLookupBusy(false);
       return;
     }
@@ -52,6 +53,7 @@ export function ManualPlaceForm({ busy, onSave, touristOnly = false, onImportRef
   }, [lookup]);
 
   const updateLookup = (text: string) => {
+    selectedLookup.current = '';
     generation.current++;
     setLookup(text); setSuggestions([]); setLookupBusy(false); setLookupMessage('');
     const parsedInput = parseAdminLocationInput(text);
@@ -76,6 +78,7 @@ export function ManualPlaceForm({ busy, onSave, touristOnly = false, onImportRef
       kind: kinds.some(kind => kind.id === place.category) ? place.category! : current.kind
     }));
     setConfirmed(false);
+    selectedLookup.current = place.name;
     setLookup(place.name); setSuggestions([]);
     setLookupMessage('Local preenchido. Confira todos os dados e escolha o ícone antes de publicar.');
   };
