@@ -23,8 +23,9 @@ test('Rolê opens a real map during account hydration, never a blocking loading 
 });
 test('Explore photos are real, credited and unknown places do not inherit generic images',()=>{
   const explore=readFileSync(new URL('../src/components/ToursTab.tsx',import.meta.url),'utf8');
-  assert.ok(explore.includes('commons.wikimedia.org'));
-  assert.match(explore,/photoCredit:/);
+  const catalog=readFileSync(new URL('../src/catalogs/saoPauloExplore.ts',import.meta.url),'utf8');
+  assert.ok(catalog.includes('commons.wikimedia.org'));
+  assert.match(catalog,/photoCredit/);
   assert.match(explore,/place\.photoPage && place\.photoCredit/);
   assert.match(explore,/onError=\{event=>\{event\.currentTarget\.hidden=true/);
   assert.doesNotMatch(explore,/figma-ibirapuera\.svg|figma-romeiros\.svg/);
