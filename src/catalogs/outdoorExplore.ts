@@ -580,7 +580,8 @@ export const OUTDOOR_EXPLORE_CATALOG: readonly ExplorePlace[] = [
     "name": "Estrada Parque Carlos Botelho",
     "aliases": [
       "SP-139",
-      "Rodovia Nequinho Fogaça"
+      "Rodovia Nequinho Fogaça",
+      "Serra da Macaca"
     ],
     "coords": [
       -24.0613464,

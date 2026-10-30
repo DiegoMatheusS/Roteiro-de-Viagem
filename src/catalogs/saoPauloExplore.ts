@@ -1641,6 +1641,7 @@ export const SAO_PAULO_EXPLORE_CATALOG: readonly ExplorePlace[] = [
   {
     "id": "sp-estrada-dos-romeiros",
     "name": "Estrada dos Romeiros",
+    "aliases": ["SP-312", "Santana de Parnaíba a Itu"],
     "coords": [
       -23.457,
       -46.873

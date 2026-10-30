@@ -1,5 +1,5 @@
 import {useMemo,useRef,useState} from 'react';
-import {Bookmark,ChevronRight,Compass,Droplets,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
+import {Bookmark,ChevronRight,Compass,Droplets,Flag,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
 import type {TripPlan,Vehicle} from '../types';
 import type {ExploreArea,ExploreFilter,ExplorePlace} from '../types/explore';
 import {EXPLORE_AREA_LABELS,exploreDistanceKm,filterExplorePlaces,mergeExplorePlaces} from '../services/explorePlaces';
@@ -21,7 +21,7 @@ interface ToursTabProps {
 const PAGE_SIZE=20;
 const filterTitles:Record<ExploreFilter,string>={all:'Todos os passeios',near:'Perto de você',
   nature:'Natureza',culture:'Cultura',road:'Estradas',cities:'Cidades',
-  waterfalls:'Cachoeiras',lakes:'Lagos',parks:'Parques'};
+  waterfalls:'Cachoeiras',lakes:'Lagos',parks:'Parques',racetracks:'Autódromos'};
 function isSaoPauloArea(coords:[number,number]) {
   return coords[0]>-23.9&&coords[0]<-23.2&&coords[1]>-47.05&&coords[1]<-46.2;
 }
@@ -123,6 +123,10 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
         </button>
         <button type="button" aria-pressed={filter==='road'}
           onClick={()=>updateFilter('road')} className={filter==='road'?'is-selected':''}>Estrada</button>
+        <button type="button" aria-pressed={filter==='racetracks'}
+          onClick={()=>updateFilter('racetracks')} className={filter==='racetracks'?'is-selected':''}>
+          <Flag size={17} strokeWidth={1.6}/>Autódromos
+        </button>
         <button type="button" aria-pressed={filter==='waterfalls'}
           onClick={()=>updateFilter('waterfalls')} className={filter==='waterfalls'?'is-selected':''}>
           <Droplets size={17} strokeWidth={1.6}/>Cachoeiras

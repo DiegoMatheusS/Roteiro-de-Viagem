@@ -90,6 +90,7 @@ export function filterExplorePlaces(
     if (filter === 'waterfalls' && place.kind !== 'waterfall') return false;
     if (filter === 'lakes' && place.kind !== 'lake') return false;
     if (filter === 'parks' && place.kind !== 'park' && place.kind !== 'nature_reserve') return false;
+    if (filter === 'racetracks' && place.category !== 'Autódromos') return false;
     if (filter === 'culture' && place.category !== 'Cultura' && !cultureKinds.has(place.kind)) return false;
     if (filter === 'road' && place.kind !== 'scenic_road' && place.category !== 'Estrada') return false;
     if (filter === 'cities' && place.kind !== 'city') return false;
