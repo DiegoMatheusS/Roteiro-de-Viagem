@@ -153,15 +153,21 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   app.patch('/api/admin/places/:id', (req, res) => {
     const previous = db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id) as any;
     if (!previous) throw new ApiError('Estabelecimento não encontrado.', 404);
+    const kind = req.body.kind === undefined ? previous.kind : req.body.kind;
+    if (!PLACE_KINDS.some(option => option.id === kind)) throw new ApiError('Escolha uma categoria válida.');
     const name = text(req.body.name, 150, true), address = text(req.body.address, 250), description = text(req.body.description || '', 1000), phone = text(req.body.phone || '', 50), website = websiteUrl(req.body.website), hours = text(req.body.openingHours || '', 200);
     const [[lat, lng]] = validate(() => validateCoordinates([[req.body.lat === undefined ? previous.lat : req.body.lat, req.body.lng === undefined ? previous.lng : req.body.lng]]));
     const sourceUrl = previous.id.startsWith('admin:') ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : previous.source_url;
     if (typeof req.body.active !== 'boolean') throw new ApiError('Confirme se o cadastro está ativo.');
+    if (req.body.active && (kind !== previous.kind || !previous.active)) {
+      const duplicate = nearbyPlaceRows(db, [[lat, lng]], 0.03).some(row => row.id !== previous.id && row.kind === kind && row.name.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'));
+      if (duplicate) throw new ApiError('Já existe um cadastro ativo desse local nesta categoria. Use o cadastro existente.', 409);
+    }
     transaction(() => {
-      db.prepare('UPDATE stations SET name=?,address=?,description=?,website=?,phone=?,opening_hours=?,hours_verified_at=?,active=?,lat=?,lng=?,source_url=?,managed=1 WHERE id=?')
-        .run(name, address, description, website, phone, hours || null, req.body.hoursVerified === true && hours ? now() : previous.opening_hours === hours ? previous.hours_verified_at : null, Number(req.body.active), lat, lng, sourceUrl, req.params.id);
+      db.prepare('UPDATE stations SET name=?,address=?,description=?,website=?,phone=?,opening_hours=?,hours_verified_at=?,active=?,lat=?,lng=?,source_url=?,kind=?,managed=1 WHERE id=?')
+        .run(name, address, description, website, phone, hours || null, req.body.hoursVerified === true && hours ? now() : previous.opening_hours === hours ? previous.hours_verified_at : null, Number(req.body.active), lat, lng, sourceUrl, kind, req.params.id);
       syncToll(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id)));
-      audit(user(res).id, 'places', req.params.id, 'update', JSON.stringify({ before: { name: previous.name, active: previous.active }, after: { name, active: req.body.active } }));
+      audit(user(res).id, 'places', req.params.id, 'update', JSON.stringify({ before: { name: previous.name, kind: previous.kind, active: previous.active }, after: { name, kind, active: req.body.active } }));
     });
     res.json(placeDto(db.prepare('SELECT * FROM stations WHERE id=?').get(req.params.id)));
   });
