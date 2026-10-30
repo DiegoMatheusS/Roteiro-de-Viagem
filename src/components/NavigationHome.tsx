@@ -6,6 +6,7 @@ import { TOURIST_PLACE_KINDS } from '../types/admin';
 import type { LocationSelection } from '../types/itinerary';
 import {fetchRouteChoices,choiceToTrip,type RoutePreference,type VerifiedRouteChoice} from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
+import {useTouristDiscoveryAnchor} from '../hooks/useTouristDiscoveryAnchor';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
@@ -63,11 +64,12 @@ export function NavigationHome(props: NavigationHomeProps) {
   const gps = useDeviceLocation(true, 'role-home');
   const locationAccess = useGpsPermissionAction(gps.retry);
   const liveCoords = gps.status === 'ready' ? gps.position?.coords : undefined;
+  const touristOrigin=useTouristDiscoveryAnchor(liveCoords);
   const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
-  const nearbyCircuitPlaces = useNearbyPlaces(liveCoords?[liveCoords]:[],Boolean(liveCoords)&&Boolean(sheet==='km'||sheet==='hours'),120);
+  const nearbyCircuitPlaces = useNearbyPlaces(touristOrigin?[touristOrigin]:[],Boolean(touristOrigin)&&Boolean(sheet==='km'||sheet==='hours'),120);
   const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
   const [travelMode,setTravelMode] = useState<'car'|'motorcycle'>(props.currentVehicle?.type==='motorcycle'?'motorcycle':'car');
   useEffect(()=>{if(props.currentVehicle)setTravelMode(props.currentVehicle.type);},[props.currentVehicle?.id,props.currentVehicle?.type]);
@@ -173,17 +175,17 @@ export function NavigationHome(props: NavigationHomeProps) {
   // Show real catalog POIs near GPS before generating the selected distance/time.
   // These distances are straight-line hints only; the selected route uses OSRM.
   const nearbySuggestions=useMemo(()=>{
-    if(!liveCoords)return [];
+    if(!touristOrigin)return [];
     const mode=sheet==='hours'?'hours':'km';
     const amount=parseTouristTarget(mode==='km'?km:hours) || 20;
     const approxKm=mode==='km'?amount:amount*45;
     const radius=Math.max(3,Math.min(120,approxKm*(tripType==='round_trip'?0.48:0.92)));
     return nearbyCircuitPlaces
       .filter(p=>p.active&&touristKinds.includes(p.kind)&&Number.isFinite(p.lat)&&Number.isFinite(p.lng))
-      .map(p=>({id:p.id,name:p.name,kind:p.kind,distanceKm:distanceBetweenKm(liveCoords,[p.lat,p.lng])}))
+      .map(p=>({id:p.id,name:p.name,kind:p.kind,distanceKm:distanceBetweenKm(touristOrigin,[p.lat,p.lng])}))
       .filter(p=>p.distanceKm<=radius)
       .sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,3);
-  },[nearbyCircuitPlaces,liveCoords?.[0],liveCoords?.[1],km,hours,tripType,sheet]);
+  },[nearbyCircuitPlaces,touristOrigin?.[0],touristOrigin?.[1],km,hours,tripType,sheet]);
   const completedTrips=useMemo(()=>[...props.trips]
     .filter(trip=>trip.status==='completed' && (trip.planningLimits?.mode==='km'||trip.planningLimits?.mode==='hours'))
     .sort((a,b)=>Date.parse(b.completedAt||b.createdAt)-Date.parse(a.completedAt||a.createdAt)),[props.trips]);
