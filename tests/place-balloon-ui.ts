@@ -44,9 +44,9 @@ try{
     const pin=page.getByRole('button',{name:'Ver Posto do balão',exact:true});await pin.waitFor();
     await pin.press('Enter');
     const balloon=page.getByRole('region',{name:'Detalhes de Posto do balão'});
-    await balloon.getByText('R$ 5,899/L',{exact:true}).waitFor();
-    await balloon.getByText('R$ 3,799/L',{exact:true}).waitFor();
-    await balloon.getByText('R$ 6,199/L',{exact:true}).waitFor();
+    await balloon.getByText('R$ 5,899',{exact:true}).waitFor();
+    await balloon.getByText('R$ 3,799',{exact:true}).waitFor();
+    await balloon.getByText('R$ 6,199',{exact:true}).waitFor();
     await balloon.getByRole('img',{name:'Avaliação 4,2 de 5, 7 avaliações'}).waitFor();
     await page.waitForFunction(()=>[...document.querySelectorAll('.role-place-balloon-popup')].every(el=>Number(getComputedStyle(el).opacity)>.99));
     assert.equal(await page.getByRole('dialog').count(),0,'first tap stays in a speech balloon on the map');
