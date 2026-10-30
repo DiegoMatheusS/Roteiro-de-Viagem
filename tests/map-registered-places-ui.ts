@@ -63,7 +63,7 @@ try{
   const stationDialog=page.getByRole('dialog',{name:'Preços do posto'});
   await stationDialog.waitFor({state:'visible'});
   await stationDialog.getByRole('heading',{name:'Posto cadastrado'}).waitFor({state:'visible'});
-  await stationDialog.getByRole('textbox',{name:'Preço 1'}).waitFor({state:'visible'});
+  await stationDialog.getByRole('textbox',{name:'Preço de Gasolina comum',exact:true}).waitFor({state:'visible'});
   await stationDialog.getByRole('button',{name:'Fechar posto'}).click();
   await pin('Shopping cadastrado').waitFor({state:'visible'});
   await page.getByRole('button',{name:'Alternar postos de teste'}).click();
