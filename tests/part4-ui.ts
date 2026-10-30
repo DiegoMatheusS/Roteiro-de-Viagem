@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import sharp from 'sharp';
 import { chromium, type BrowserContext } from 'playwright';
 import { createServer } from 'vite';
 import { openDatabase } from '../server/db';
@@ -13,7 +14,8 @@ const trip={...createRoadDraft({originName:'Origem de teste',originCoords:path[0
 const db=openDatabase(':memory:');
 const server=createApi({db,mapFetch:async()=>new Response('{"elements":[]}'),weatherFetch:async()=>new Response('{}',{status:503})}).listen(3001,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));
 const vite=await createServer({server:{host:'127.0.0.1',port:3000,strictPort:true}});await vite.listen();
-const executablePath=process.env.PLAYWRIGHT_EXECUTABLE_PATH;const browser=await chromium.launch({headless:true,executablePath,args:executablePath?['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--single-process','--no-zygote']:[]});
+const executablePath=process.env.PLAYWRIGHT_EXECUTABLE_PATH;const browser=await chromium.launch({headless:true,executablePath,args:executablePath?['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']:[]});
+const mapTile=await sharp({create:{width:256,height:256,channels:3,background:'#eaf0ef'}}).png().toBuffer();
 const contexts=await Promise.all([0,1,2].map(()=>browser.newContext({viewport:{width:390,height:844},permissions:['geolocation'],geolocation:{latitude:0,longitude:0.002,accuracy:3}})));
 const [owner,second,rider]=await Promise.all(contexts.map(c=>c.newPage()));const errors:string[]=[];
 const testGps=contexts.map(()=>({latitude:0,longitude:0.002,accuracy:3}));
@@ -25,7 +27,11 @@ const moveTestGps=async(index:number,coords:{latitude:number;longitude:number;ac
  testGps[index]=coords;
  await contexts[index].setGeolocation(coords);
 };
-for(const page of [owner,second,rider]){page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push(e.message));await page.route('https://**',r=>r.abort());}
+for(const page of [owner,second,rider]){
+ page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push(e.message));
+ await page.route(/^https:\/\//,route=>route.request().resourceType()==='image'?route.fulfill({contentType:'image/png',body:mapTile}):route.abort());
+ await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}}));
+}
 const register=async(email:string,name:string)=>{const response=await fetch('http://127.0.0.1:3001/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,displayName:name,password:'test-password-long'})});assert.equal(response.status,201);return {user:(await response.json() as any).user,cookie:response.headers.get('set-cookie')!.split(';')[0]};};
 const login=async(context:BrowserContext,cookie:string)=>{const index=cookie.indexOf('=');await context.addCookies([{name:cookie.slice(0,index),value:cookie.slice(index+1),domain:'127.0.0.1',path:'/api',httpOnly:true,sameSite:'Lax'}]);};
 const save=async(account:any)=>{const state={...emptyTravelerSnapshot(account.user.id,account.user.displayName),vehicles:[vehicle],trips:[trip],selectedVehicleId:vehicle.id};const response=await fetch('http://127.0.0.1:3001/api/me/state',{method:'PUT',headers:{'Content-Type':'application/json',Cookie:account.cookie},body:JSON.stringify({state,revision:0})});assert.equal(response.status,200);};
