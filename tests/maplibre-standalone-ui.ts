@@ -175,7 +175,7 @@ try{
     const el=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
     if(!el?.dataset.mapCenter)return false;
     const [lat,lon]=JSON.parse(el.dataset.mapCenter);
-    return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(el.dataset.mapZoom)===15;
+    return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(el.dataset.mapZoom)===17;
   });
   await page.waitForFunction(()=>document.querySelector('[data-testid="visible"]')?.textContent==='');
   // Detail/convoy maps retain native markers and camera across base changes.
@@ -330,7 +330,7 @@ try{
       const root=document.querySelector<HTMLElement>('[data-map-engine]');
       if(!root?.dataset.mapCenter)return false;
       const [lat,lon]=JSON.parse(root.dataset.mapCenter);
-      return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(root.dataset.mapZoom)===15;
+      return Math.abs(lat+23.555)<0.00001 && Math.abs(lon+46.625)<0.00001 && Number(root.dataset.mapZoom)===17;
     });
     const completedCenter=await camera.getAttribute('data-map-center');
     const livePin=page.locator('.user-live-marker').first();await livePin.waitFor();
