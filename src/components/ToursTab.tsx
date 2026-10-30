@@ -4,10 +4,12 @@ import type {TripPlan,Vehicle} from '../types';
 import type {ExploreArea,ExploreFilter,ExplorePlace} from '../types/explore';
 import {EXPLORE_AREA_LABELS,exploreDistanceKm,filterExplorePlaces,mergeExplorePlaces} from '../services/explorePlaces';
 import {useDeviceLocation} from '../hooks/useDeviceLocation';
+import {useTouristDiscoveryAnchor} from '../hooks/useTouristDiscoveryAnchor';
 import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
 import {useGpsPermissionAction} from '../hooks/useGpsPermissionAction';
 import {InteractiveMap} from './InteractiveMap';
 import {TripPreviewScreen} from './TripPreviewScreen';
+import {TouristCategoryIcon} from './TouristCategoryIcon';
 import {fetchRouteChoices,choiceToTrip} from '../services/routeChoices';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import '../role-explore-figma.css';
@@ -29,8 +31,9 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const gps=useDeviceLocation(true,'role-explore-figma');
   const permission=useGpsPermissionAction(gps.retry);
   const origin=gps.status==='ready'?gps.position?.coords:undefined;
+  const touristOrigin=useTouristDiscoveryAnchor(origin);
   // A aba Explorar procura destinos de passeio, não apenas os 5 km do mapa de postos.
-  const places=useNearbyPlaces(origin?[origin]:[],Boolean(origin),120);
+  const places=useNearbyPlaces(touristOrigin?[touristOrigin]:[],Boolean(touristOrigin),120);
   const [filter,setFilter]=useState<ExploreFilter>('all');
   const [area,setArea]=useState<ExploreArea>('all');
   const [query,setQuery]=useState('');
@@ -47,13 +50,13 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const [voiceError,setVoiceError]=useState('');
   const pending=useRef<AbortController|null>(null);
 
-  const allPlaces=useMemo(()=>mergeExplorePlaces(places,origin),[places,origin?.[0],origin?.[1]]);
-  const filtered=useMemo(()=>filterExplorePlaces(allPlaces,filter,query,origin,area),
-    [allPlaces,filter,query,origin?.[0],origin?.[1],area]);
+  const allPlaces=useMemo(()=>mergeExplorePlaces(places,touristOrigin),[places,touristOrigin?.[0],touristOrigin?.[1]]);
+  const filtered=useMemo(()=>filterExplorePlaces(allPlaces,filter,query,touristOrigin,area),
+    [allPlaces,filter,query,touristOrigin?.[0],touristOrigin?.[1],area]);
   const visible=filtered.slice(0,visibleCount);
   const featured=filtered[0];
-  const regionLabel=origin&&isSaoPauloArea(origin)?'São Paulo, SP':origin?'Localização atual':'';
-  const nearest=origin&&featured?Math.round(exploreDistanceKm(origin,featured.coords)):null;
+  const regionLabel=touristOrigin&&isSaoPauloArea(touristOrigin)?'São Paulo, SP':touristOrigin?'Localização atual':'';
+  const nearest=touristOrigin&&featured?Math.round(exploreDistanceKm(touristOrigin,featured.coords)):null;
 
   const loadRoute=async(place:ExplorePlace,saveOnly=false)=>{
     if(!origin){
@@ -170,11 +173,11 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
       </div>}
       <div className="rdv-explore-list" aria-label="Passeios encontrados">
         {visible.map(place=>{
-          const distance=origin?exploreDistanceKm(origin,place.coords):null;
+          const distance=touristOrigin?exploreDistanceKm(touristOrigin,place.coords):null;
           const preparing=busyId===place.id;
           return <article key={place.id} className="rdv-explore-route-row">
             <div className="rdv-explore-route-photo" aria-label={place.photo?'Fotografia do passeio':'Local sem fotografia verificada'}>
-              <Compass size={32} strokeWidth={1.5} aria-hidden="true"/>
+              <TouristCategoryIcon kind={place.kind} name={place.name} size={32}/>
               {place.photo && <img src={place.photo} alt={`Fotografia de ${place.name}`}
                 loading="lazy" decoding="async" width={200} height={200} referrerPolicy="no-referrer"
                 onError={event=>{event.currentTarget.hidden=true;}}/>}
