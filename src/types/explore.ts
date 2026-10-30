@@ -1,5 +1,5 @@
 export type ExploreCoords = [number, number];
-export type ExploreFilter = 'all' | 'near' | 'nature' | 'culture' | 'road' | 'cities' | 'waterfalls' | 'lakes' | 'parks';
+export type ExploreFilter = 'all' | 'near' | 'nature' | 'culture' | 'road' | 'cities' | 'waterfalls' | 'lakes' | 'parks' | 'racetracks';
 export type ExploreArea = 'all' | 'metropolitan' | 'inland' | 'coast';
 
 export interface ExplorePlace {
