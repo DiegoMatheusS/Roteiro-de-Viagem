@@ -27,6 +27,9 @@ test('Home nearby and Explore catalog share stable GPS anchor; routes use live G
   assert.match(explore,/mergeExplorePlaces\(places,touristOrigin\)/);
   assert.match(explore,/filterExplorePlaces\(allPlaces,filter,query,touristOrigin,area\)/);
   assert.match(explore,/fetchRouteChoices\(origin,place\.coords/);
+  const circuit=readFileSync(new URL('../src/components/CreateTouristCircuitScreen.tsx',import.meta.url),'utf8');
+  assert.doesNotMatch(circuit,/nearbySuggestions\.length\?'Pontos próximos/);
+  assert.match(circuit,/>Pontos próximos para seu rolê</);
 });
 
 test('verified type has its icon; legacy generic names get the correct glyph without changing data',()=>{
