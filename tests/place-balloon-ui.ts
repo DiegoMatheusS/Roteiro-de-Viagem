@@ -69,7 +69,7 @@ try{
     assert.notEqual(tone.color,tone.background,'balloon foreground differs from its surface');
     await page.screenshot({path:`test-results/place-balloon-${raster?'raster':'native'}-${theme}.png`});
     await balloon.getByRole('button',{name:'Indicar preço',exact:true}).click();
-    const prices=page.getByRole('dialog',{name:'Preços do posto'});await prices.getByRole('textbox',{name:'Preço 1',exact:true}).waitFor();
+    const prices=page.getByRole('dialog',{name:'Preços do posto'});await prices.getByRole('textbox',{name:'Preço de Gasolina comum',exact:true}).waitFor();
     await prices.getByRole('button',{name:'Fechar posto'}).click();
     await pin.press('Space');
     await balloon.getByRole('button',{name:'Avaliar ou informar problema no estabelecimento'}).click();
