@@ -29,7 +29,9 @@ test('balão utiliza grade de duas colunas sem perder os preços nem a acessibil
  assert.match(balloon,/label\.textContent=row\.shortLabel/);
  assert.match(balloon,/label\.title=row\.label/);
  assert.match(balloon,/label\.setAttribute\('aria-label',row\.label\)/);
- assert.match(balloon,/value\.textContent=row\.value/);
+ assert.match(balloon,/value\.textContent=row\.value\?row\.value\.replace/);
+ assert.match(balloon,/value\.title=completeValue/);
+ assert.match(css,/align-items:center;justify-content:space-between/);
  assert.match(balloon,/footer\.append\(contribute,info\)/);
 });
 test('seleção múltipla percorre interface, request e validador de pontos reais',()=>{
