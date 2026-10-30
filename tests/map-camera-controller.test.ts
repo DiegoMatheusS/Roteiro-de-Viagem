@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHybridCameraPort,createStandaloneMapLibreCameraPort,nextCameraMode,recenterZoom} from '../src/services/mapCameraController';
 
+test('opening screen hides the temporary map and attribution until account setup ends',()=>{
+  const startup=readFileSync(new URL('../src/components/StartupMap.tsx',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
+  assert.match(app,/if \(auth\.loading \|\| !accountReady\) return <StartupMap/);
+  assert.doesNotMatch(startup,/InteractiveMap|MapTrafficControl|useDeviceLocation|roteiro-logo|OpenFreeMap/);
+  assert.match(startup,/aria-label="Abrindo o Rolê"/);
+});
+
 test('camera mode is deterministic: gestures pause, GPS resumes and trip exit resets',()=>{
   assert.equal(nextCameraMode('following','drag'),'exploring');
   assert.equal(nextCameraMode('exploring','recenter'),'following');
@@ -36,7 +44,7 @@ test('hybrid controller uses only Leaflet camera commands and supports reduced m
   assert.deepEqual(calls[0].args[1],17);
   assert.deepEqual(calls[1].args[1],{animate:true,duration:0.45,easeLinearity:0.3});
   assert.deepEqual(calls[2].args[1],{animate:false});
-  assert.deepEqual(calls[3].args[1],15);
+  assert.deepEqual(calls[3].args[1],17);
 });
 test('standalone MapLibre adapter uses correct longitude/latitude only when explicitly selected',()=>{
   const calls:Array<{name:string;options:unknown}>=[];
