@@ -99,7 +99,7 @@ export function CreateTouristCircuitScreen({
 
         <section aria-label="Destinos próximos" className="mt-1 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
           <p className="text-[12px] font-semibold text-blue-900">
-            {nearbySuggestions.length?'Pontos próximos para seu rolê':'Passeio pela cidade'}
+            Pontos próximos para seu rolê
           </p>
           {nearbySuggestions.length?<div className="mt-2 flex gap-2 overflow-x-auto pb-1" data-testid="nearby-tourist-points">
             {nearbySuggestions.slice(0,3).map(place=><span key={place.id}
