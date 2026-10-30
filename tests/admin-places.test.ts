@@ -66,7 +66,7 @@ test('pedágio manual publica tarifas por categoria, atualiza posição e respei
     assert.equal((await f.call('/tolls/route', route)).body.knownCost, 12.5);
     assert.equal((await f.call('/tolls/route', { ...route, vehicleType: 'motorcycle' })).body.tolls[0].price, 0);
     const edit = `/admin/places/${encodeURIComponent(place.id)}`;
-    const body = { ...draft, name: 'Pedágio revisado', active: true, lat: 0, lng: 0.011 };
+    const body = { ...draft, kind: 'toll', name: 'Pedágio revisado', active: true, lat: 0, lng: 0.011 };
     assert.equal((await f.call(edit, body, f.cookie, 'PATCH')).status, 200);
     const updated = (await f.call('/tolls/route', route)).body.tolls[0];
     assert.equal(updated.name, body.name); assert.deepEqual(updated.coords, [0, 0.011]);
@@ -112,5 +112,85 @@ test('admin pode cadastrar, filtrar e publicar novos tipos de pontos turísticos
     assert.equal(response.status, 200);
     assert.equal(response.body.total, 10);
     assert.ok(response.body.items.every((item: any) => item.kind !== 'fuel'));
+  } finally { await f.close(); }
+});
+
+test('troca de categoria preserva identidade, fotos, comentários e histórico de preços', async () => {
+  const f = await fixture();
+  try {
+    const place = (await f.call('/admin/places', draft, f.cookie)).body;
+    const path = `/admin/places/${encodeURIComponent(place.id)}`;
+    const account = f.db.prepare('SELECT id FROM users').get() as any;
+    f.db.prepare('INSERT INTO photos(id,station_id,user_id,filename,created_at,image_data) VALUES(?,?,?,?,?,?)')
+      .run('photo-category', place.id, account.id, 'existing.jpg', new Date().toISOString(), Buffer.from([1, 2, 3]));
+    assert.equal((await f.call(`/places/${encodeURIComponent(place.id)}/comments`, { body: 'Comentário existente' }, f.cookie)).status, 201);
+    assert.equal((await f.call(`/admin/stations/${encodeURIComponent(place.id)}/prices`, {
+      confirmed: true, observedAt: new Date().toISOString(), prices: [{ fuelType: 'gasolina_comum', price: 5.99 }]
+    }, f.cookie)).status, 201);
+    const before = ['photos', 'comments', 'prices'].map(table => f.db.prepare(`SELECT * FROM ${table}`).all());
+    for (const kind of ['viewpoint', 'shopping', 'fuel']) {
+      const changed = await f.call(path, { ...draft, kind, active: true }, f.cookie, 'PATCH');
+      assert.equal(changed.status, 200, JSON.stringify(changed.body));
+      assert.equal(changed.body.id, place.id);
+      assert.equal(changed.body.kind, kind);
+      assert.equal(changed.body.sourceUrl, place.sourceUrl);
+      assert.deepEqual([changed.body.lat, changed.body.lng], [place.lat, place.lng]);
+      assert.equal((await f.call(`/places/${encodeURIComponent(place.id)}`)).body.kind, kind);
+      const stations = (await f.call('/stations/search', { points: [[draft.lat, draft.lng]] })).body.stations;
+      assert.equal(stations.some((item: any) => item.id === place.id), kind === 'fuel');
+      const places = (await f.call('/places/search', { points: [[draft.lat, draft.lng]] })).body.places;
+      assert.equal(places.some((item: any) => item.id === place.id && item.kind === kind), kind !== 'fuel');
+    }
+    assert.equal((f.db.prepare('SELECT COUNT(*) AS total FROM stations').get() as any).total, 1);
+    assert.deepEqual(['photos', 'comments', 'prices'].map(table => f.db.prepare(`SELECT * FROM ${table}`).all()), before);
+    assert.equal((await f.call(`${path}/history`, undefined, f.cookie)).body.items[0].price, 5.99);
+    const changes = f.db.prepare("SELECT notes FROM moderation_actions WHERE target_type='places' AND target_id=? AND action='update' ORDER BY rowid").all(place.id) as any[];
+    assert.deepEqual(changes.map(row => {
+      const note = JSON.parse(row.notes); return [note.before.kind, note.after.kind];
+    }), [['fuel', 'viewpoint'], ['viewpoint', 'shopping'], ['shopping', 'fuel']]);
+  } finally { await f.close(); }
+});
+
+test('edição de categoria exige admin, rejeita valores inválidos e evita duplicatas sem alterar dados', async () => {
+  const f = await fixture();
+  try {
+    const place = (await f.call('/admin/places', { ...draft, kind: 'viewpoint' }, f.cookie)).body;
+    await f.call('/admin/places', { ...draft, kind: 'shopping' }, f.cookie);
+    const path = `/admin/places/${encodeURIComponent(place.id)}`;
+    const patch = { ...draft, kind: 'shopping', active: true };
+    assert.equal((await f.call(path, patch, '', 'PATCH')).status, 401);
+    const traveler = await f.call('/auth/register', { email: 'category-traveler@example.test', displayName: 'Viajante', password: 'test-password-long-123' });
+    assert.equal((await f.call(path, patch, traveler.cookie, 'PATCH')).status, 403);
+    const before = f.db.prepare('SELECT * FROM stations WHERE id=?').get(place.id);
+    for (const kind of ['invalid', '', null, false, 1, {}, []]) {
+      assert.equal((await f.call(path, { ...patch, kind, description: 'Não deve ser gravado' }, f.cookie, 'PATCH')).status, 400);
+      assert.deepEqual(f.db.prepare('SELECT * FROM stations WHERE id=?').get(place.id), before);
+    }
+    assert.equal((await f.call(path, patch, f.cookie, 'PATCH')).status, 409);
+    assert.deepEqual(f.db.prepare('SELECT * FROM stations WHERE id=?').get(place.id), before);
+    assert.equal((f.db.prepare("SELECT COUNT(*) AS total FROM moderation_actions WHERE action='update'").get() as any).total, 0);
+    // Uma cópia pode ser reclassificada enquanto desativada, mas não duplicar o ponto ao reativar.
+    assert.equal((await f.call(path, { ...patch, active: false }, f.cookie, 'PATCH')).status, 200);
+    assert.equal((await f.call(path, patch, f.cookie, 'PATCH')).status, 409);
+    const { kind: _kind, ...legacy } = draft;
+    const edited = await f.call(path, { ...legacy, name: 'Nome revisado', active: false }, f.cookie, 'PATCH');
+    assert.equal(edited.status, 200);
+    assert.equal(edited.body.kind, 'shopping', 'clientes anteriores que omitem kind preservam a categoria');
+  } finally { await f.close(); }
+});
+
+test('pedágio reclassificado deixa a cobrança da rota e recupera as tarifas ao voltar à categoria', async () => {
+  const f = await fixture();
+  try {
+    const place = (await f.call('/admin/places', { ...draft, kind: 'toll', lat: 0, lng: 0.01 }, f.cookie)).body;
+    const path = `/admin/places/${encodeURIComponent(place.id)}`;
+    assert.equal((await f.call(`${path}/tariffs`, { confirmed: true, vehicleType: 'car', price: 12.5, observedAt: new Date().toISOString() }, f.cookie)).status, 201);
+    const route = { routePath: [[0, 0], [0, 0.02]], vehicleType: 'car' };
+    assert.equal((await f.call('/tolls/route', route)).body.knownCost, 12.5);
+    assert.equal((await f.call(path, { ...place, kind: 'landmark', active: true }, f.cookie, 'PATCH')).status, 200);
+    assert.equal((await f.call('/tolls/route', route)).body.tolls.length, 0);
+    assert.equal((await f.call(path, { ...place, kind: 'toll', active: true }, f.cookie, 'PATCH')).status, 200);
+    assert.equal((await f.call('/tolls/route', route)).body.knownCost, 12.5);
+    assert.equal((f.db.prepare('SELECT COUNT(*) AS total FROM toll_entries').get() as any).total, 1);
   } finally { await f.close(); }
 });

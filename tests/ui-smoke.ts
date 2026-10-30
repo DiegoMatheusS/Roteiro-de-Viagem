@@ -819,6 +819,16 @@ try {
   await adminPage.screenshot({ path: 'test-results/admin-cadastro-mobile.png', fullPage: true });
   assert.equal(await adminPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
   await adminPage.setViewportSize({ width: 1365, height: 900 });
+  const categoryEditor = adminPage.getByRole('region', { name: 'Editar Cachoeira cadastrada no painel', exact: true });
+  await categoryEditor.getByLabel('Categoria do local', { exact: true }).selectOption('viewpoint');
+  await categoryEditor.getByRole('button', { name: 'Salvar cadastro', exact: true }).click();
+  await categoryEditor.getByText('Dados salvos.', { exact: true }).waitFor();
+  assert.equal((db.prepare('SELECT kind FROM stations WHERE id=?').get(waterfall.id) as any).kind, 'viewpoint');
+  await categoryEditor.getByRole('button', { name: 'Fechar edição', exact: true }).click();
+  const revisedCategoryRow = adminPage.getByRole('row').filter({ hasText: 'Cachoeira cadastrada no painel' });
+  await revisedCategoryRow.getByRole('cell', { name: 'Mirante', exact: true }).waitFor();
+  await revisedCategoryRow.getByRole('button', { name: 'Editar', exact: true }).click();
+  assert.equal(await categoryEditor.getByLabel('Categoria do local', { exact: true }).evaluate((element: HTMLSelectElement) => element.value), 'viewpoint');
   await adminPage.getByRole('button', { name: 'Fechar edição', exact: true }).click();
   await adminPage.getByRole('button', { name: 'Importar do OpenStreetMap', exact: true }).click();
   await adminPage.getByLabel('Link do estabelecimento no OpenStreetMap').fill('https://www.openstreetmap.org/node/456');
