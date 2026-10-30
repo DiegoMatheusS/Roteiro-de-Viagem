@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import {nextTouristDiscoveryAnchor} from '../src/hooks/useTouristDiscoveryAnchor';
 import {placeIconKind} from '../src/services/placeIconKind';
 import {poiCategory} from '../src/services/mapPoiPresentation';
+import {mergeExplorePlaces} from '../src/services/explorePlaces';
+import type {Place} from '../src/types/admin';
 
 test('suggested and Explore places do not change on ordinary GPS jitter or temporary loss',()=>{
   const first:[number,number]=[-23.55,-46.63];
@@ -30,6 +32,17 @@ test('Home nearby and Explore catalog share stable GPS anchor; routes use live G
   const circuit=readFileSync(new URL('../src/components/CreateTouristCircuitScreen.tsx',import.meta.url),'utf8');
   assert.doesNotMatch(circuit,/nearbySuggestions\.length\?'Pontos próximos/);
   assert.match(circuit,/>Pontos próximos para seu rolê</);
+});
+
+test('legacy generic tourist records appear in Explore with the inferred visual category',()=>{
+  const oldPlace:Place={id:'old-theatre',name:'Teatro Municipal',kind:'other',
+    lat:-23.55,lng:-46.63,address:'São Paulo, SP',sourceUrl:'',description:'',
+    website:'',phone:'',active:true};
+  const found=mergeExplorePlaces([oldPlace],undefined,[]);
+  assert.equal(found.length,1);
+  assert.equal(found[0].kind,'theatre');
+  assert.equal(found[0].category,'Cultura');
+  assert.equal(oldPlace.kind,'other','do not rewrite the catalogued classification');
 });
 
 test('verified type has its icon; legacy generic names get the correct glyph without changing data',()=>{
