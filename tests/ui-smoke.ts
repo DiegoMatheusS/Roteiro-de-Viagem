@@ -867,11 +867,20 @@ try {
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
   await page.mouse.down();
   await page.mouse.move(grab!.x+grab!.width/2,grab!.y-110,{steps:6});
-  const draggingBounds=await mapPanel.boundingBox();
-  const mapViewportBottom=await page.locator('.rdv-flat-map').first().evaluate(el=>el.getBoundingClientRect().bottom);
-  assert.ok(draggingBounds && Math.abs(draggingBounds.y+draggingBounds.height-mapViewportBottom)<2,
-    'Enquanto o usuário arrasta, o painel do Mapa não pode se soltar do rodapé');
-  assert.ok(draggingBounds.height>initialMapBounds!.height+70,
+  await page.waitForFunction(height=>{
+    const sheet=document.querySelector('[data-testid="map-explore-sheet"]')?.getBoundingClientRect();
+    return !!sheet&&sheet.height>height+70;
+  },initialMapBounds.height);
+  // Compare both rectangles in the same animation frame. Separate browser
+  // round trips can sample the entering screen at two different positions.
+  const dragging=await page.evaluate(()=>{
+    const sheet=document.querySelector('[data-testid="map-explore-sheet"]')!.getBoundingClientRect();
+    const viewport=document.querySelector('.rdv-flat-map')!.getBoundingClientRect();
+    return {height:sheet.height,bottomDelta:sheet.bottom-viewport.bottom};
+  });
+  assert.ok(Math.abs(dragging.bottomDelta)<2,
+    `Enquanto o usuário arrasta, o painel do Mapa não pode se soltar do rodapé (${dragging.bottomDelta}px)`);
+  assert.ok(dragging.height>initialMapBounds.height+70,
     'O painel do Mapa precisa acompanhar o dedo crescendo para cima');
   await page.mouse.up();
   await page.getByRole('button', { name: 'Recolher painel do mapa' }).waitFor();
