@@ -31,7 +31,7 @@ test('Home nearby and Explore catalog share stable GPS anchor; routes use live G
   assert.match(explore,/fetchRouteChoices\(origin,place\.coords/);
   const circuit=readFileSync(new URL('../src/components/CreateTouristCircuitScreen.tsx',import.meta.url),'utf8');
   assert.doesNotMatch(circuit,/nearbySuggestions\.length\?'Pontos próximos/);
-  assert.match(circuit,/>Pontos próximos para seu rolê</);
+  assert.match(circuit,/Pontos próximos para seu rolê\s*</);
 });
 
 test('legacy generic tourist records appear in Explore with the inferred visual category',()=>{
