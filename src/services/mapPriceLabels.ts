@@ -34,15 +34,15 @@ export function tollPriceLabel(toll: Pick<RouteToll, 'price' | 'validUntil'>, no
 
 /** Show every named fuel independently; never mix premium/S10 with common prices. */
 export const FUEL_BALLOON_TYPES = [
-  {label:'Gasolina comum',fuelType:'gasolina_comum'},
-  {label:'Gasolina aditivada',fuelType:'gasolina_aditivada'},
-  {label:'Gasolina premium',customLabel:'Gasolina premium'},
-  {label:'Shell V-Power',customLabel:'Shell V-Power'},
-  {label:'Etanol',fuelType:'etanol'},
-  {label:'Etanol aditivado',customLabel:'Etanol aditivado'},
-  {label:'Diesel comum / S500',fuelType:'diesel_comum'},
-  {label:'Diesel S10',fuelType:'diesel_s10'},
-  {label:'GNV',fuelType:'gnv'}
+  {label:'Gasolina comum',shortLabel:'Gasol. Com.',fuelType:'gasolina_comum'},
+  {label:'Gasolina aditivada',shortLabel:'Gasol. Ad.',fuelType:'gasolina_aditivada'},
+  {label:'Gasolina premium',shortLabel:'Gasol. Prem.',customLabel:'Gasolina premium'},
+  {label:'Shell V-Power',shortLabel:'V-Power',customLabel:'Shell V-Power'},
+  {label:'Etanol',shortLabel:'Etanol',fuelType:'etanol'},
+  {label:'Etanol aditivado',shortLabel:'Etanol Ad.',customLabel:'Etanol aditivado'},
+  {label:'Diesel comum / S500',shortLabel:'Diesel S500',fuelType:'diesel_comum'},
+  {label:'Diesel S10',shortLabel:'Diesel S10',fuelType:'diesel_s10'},
+  {label:'GNV',shortLabel:'GNV',fuelType:'gnv'}
 ] as const;
 export function fuelBalloonRows(prices:readonly FuelPrice[]){
   const current=prices.filter(p=>Number.isFinite(p.price)&&p.price>0&&!p.stale&&!p.disputed)
@@ -50,6 +50,6 @@ export function fuelBalloonRows(prices:readonly FuelPrice[]){
   return FUEL_BALLOON_TYPES.map(group=>{
     const price=current.find(p=>'fuelType' in group?p.fuelType===group.fuelType:
       p.fuelType==='outro'&&p.customLabel?.trim().toLocaleLowerCase('pt-BR')===group.customLabel.toLocaleLowerCase('pt-BR'));
-    return {label:group.label,value:price?`R$ ${price.price.toFixed(3).replace('.',',')}/${price.fuelType==='gnv'?'m³':'L'}`:null};
+    return {label:group.label,shortLabel:group.shortLabel,value:price?`R$ ${price.price.toFixed(3).replace('.',',')}/${price.fuelType==='gnv'?'m³':'L'}`:null};
   });
 }
