@@ -36,7 +36,7 @@ await new Promise<void>(resolve => server.once('listening', resolve));
 const vite = await createServer({ server: { host: '127.0.0.1', port: 3000, strictPort: true } });
 await vite.listen();
 const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
-const browser = await chromium.launch({ headless: true, executablePath, args: executablePath ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] : [] });
+const browser = await chromium.launch({ headless: true, executablePath, args: executablePath ? ['--no-sandbox', '--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : [] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'], geolocation: { latitude: -23.551, longitude: -46.629, accuracy: 3 } });
 // Stable GPS fixture confined to the main smoke-test context. Chromium's
 // native mock can time out when a busy CI runner repeatedly mounts the map.
@@ -73,7 +73,7 @@ const stableGeolocationScript = `(() => {
 })();`;
 await context.addInitScript({ content:stableGeolocationScript });
 const page = await context.newPage();
-const adminBrowser = executablePath ? await chromium.launch({ headless: true, executablePath, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] }) : browser;
+const adminBrowser = executablePath ? await chromium.launch({ headless: true, executablePath, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }) : browser;
 const adminContext = await adminBrowser.newContext({ viewport: { width: 1365, height: 900 } });
 const adminPage = await adminContext.newPage();
 adminPage.setDefaultTimeout(15000);
@@ -84,7 +84,14 @@ adminPage.on('pageerror', error => errors.push(error.message));
 fs.mkdirSync('test-results', { recursive: true });
 try {
   // Keep this deterministic and offline except the local API: tile/font services are not under test.
-  await page.route('https://**', route => route.abort());
+  const blankMapTile=await sharp({create:{width:256,height:256,channels:3,background:'#eaf0ef'}}).png().toBuffer();
+  await page.route(/^https:\/\//,route=>{
+    const url=route.request().url();
+    if(url.startsWith('https://tiles.openfreemap.org/'))return route.fulfill({json:{version:8,sources:{},
+      layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}});
+    if(/tile\.openstreetmap\.org\//.test(url))return route.fulfill({contentType:'image/png',body:blankMapTile});
+    return route.abort();
+  });
   await page.goto('http://127.0.0.1:3000');
   await page.goto('http://127.0.0.1:3000/admin');
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
@@ -691,42 +698,22 @@ try {
   // Afaste o marcador dela com gestos reais até o botão receber toques;
   // não use force:true, que esconderia problemas reais de hit-testing.
   const tapFuelMarker=async(name:string)=>{
-    const compact=(await fuelMarker.getAttribute('class'))?.includes('role-poi-marker')??false;
-    // Native MapLibre marker opens the station sheet in one tap. Keep the
-    // existing gesture-recovery path for overlapping GPS/route overlays.
-    if(compact){
-      for(let attempt=0;attempt<4;attempt++){
-        try { await fuelMarker.click({trial:true,timeout:1200});break; }
-        catch {
-          const view=await preview.boundingBox();assert.ok(view);
-          await page.mouse.move(view.x+view.width*.48,view.y+view.height*.7);
-          await page.mouse.down();
-          await page.mouse.move(view.x+view.width*.33,view.y+view.height*.28,{steps:12});
-          await page.mouse.up();
-        }
-      }
-      await fuelMarker.click();
-      if(name.startsWith('Comentários')){
-        const sheet=page.getByRole('dialog',{name:'Preços do posto'});
-        await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
-      }
-      return;
-    }
-    // Leaflet fallback may still expose explicit contribution buttons.
-    const button=fuelMarker.getByRole('button',{name,exact:true});
+    // Both renderers use compact pins; prices and comments live in the sheet.
     for(let attempt=0;attempt<4;attempt++){
-      try { await button.click({trial:true,timeout:1200});break; }
+      try { await fuelMarker.click({trial:true,timeout:1200});break; }
       catch {
-        const view=await preview.boundingBox();
-        assert.ok(view,'O mapa de prévia precisa continuar acessível');
+        const view=await preview.boundingBox();assert.ok(view);
         await page.mouse.move(view.x+view.width*.48,view.y+view.height*.7);
         await page.mouse.down();
         await page.mouse.move(view.x+view.width*.33,view.y+view.height*.28,{steps:12});
         await page.mouse.up();
-        await page.waitForTimeout(120);
       }
     }
-    await button.click();
+    await fuelMarker.click();
+    if(name.startsWith('Comentários')){
+      const sheet=page.getByRole('dialog',{name:'Preços do posto'});
+      await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
+    }
   };
   await tapFuelMarker('Comentários de Posto de teste de interface');
   const station = page.getByRole('dialog', { name: 'Preços do posto' });
@@ -755,7 +742,7 @@ try {
   const administrator = await fetch('http://127.0.0.1:3001/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'Admin de teste', email: 'admin-ui@example.test', password: 'admin-ui-test-password' }) });
   const registered = await administrator.json() as any;
   db.prepare("UPDATE users SET role='admin' WHERE id=?").run(registered.user.id);
-  await adminPage.route('https://**', route => route.abort());
+  await adminPage.route(/^https:\/\//, route => route.abort());
   await adminPage.goto('http://127.0.0.1:3000/admin');
   await adminPage.getByRole('button', { name: 'Entrar como administrador', exact: true }).click();
   const adminAccount = adminPage.getByRole('dialog', { name: 'Conta do viajante', exact: true });
@@ -957,7 +944,7 @@ try {
   await establishmentsSection.getByRole('button',{name:/Restaurante revisado pela administração/}).click();
   const nativeMap=page.locator('[data-map-engine="maplibre-standalone"]:visible').first();
   const restaurantPin=(await nativeMap.count()?nativeMap:page)
-    .locator('.managed-place-marker[title="Restaurante revisado pela administração"]').first();
+    .locator('.managed-place-marker[aria-label="Ver Restaurante revisado pela administração"]').first();
   if(await nativeMap.count())await page.waitForFunction(()=>{
     const map=document.querySelector('[data-map-engine="maplibre-standalone"]');
     return Number((map as HTMLElement)?.dataset.mapZoom)>=14;
@@ -1139,10 +1126,10 @@ try {
   assert.deepEqual(errors, []);
   console.log('UI: paradas reais, drag, recálculo, compartilhamento entre dispositivos, envio privado sem OCR, revisão manual no admin, publicação, cadastro real, comentários, exclusão de usuário, comparação, orçamento, circuito e consentimento passaram.');
 } catch (error) {
-  await page.screenshot({ path: 'test-results/failure.png', fullPage: true });
-  await adminPage.screenshot({ path: 'test-results/admin-failure.png', fullPage: true });
-  console.error('Admin no erro:', (await adminPage.locator('body').innerText()).slice(-6000));
-  console.error('Tela no erro:', (await page.locator('body').innerText()).slice(-6000));
+  await page.screenshot({ path: 'test-results/failure.png', fullPage: true }).catch(()=>{});
+  await adminPage.screenshot({ path: 'test-results/admin-failure.png', fullPage: true }).catch(()=>{});
+  console.error('Admin no erro:', (await adminPage.locator('body').innerText().catch(()=>'' )).slice(-6000));
+  console.error('Tela no erro:', (await page.locator('body').innerText().catch(()=>'' )).slice(-6000));
   console.error('Erros JS:', JSON.stringify(errors), 'URL:',page.url());
   throw error;
 } finally {

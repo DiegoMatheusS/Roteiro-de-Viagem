@@ -82,7 +82,8 @@ test('incremental keys preserve marker identity across coordinate refreshes',()=
  const repriced={...base,priceLabel:'R$ 5,99'};
  assert.equal(rolePlaceMarkerKey(base),rolePlaceMarkerKey(moved));
  assert.equal(rolePlaceMarkerSignature(base),rolePlaceMarkerSignature(moved));
- assert.notEqual(rolePlaceMarkerSignature(base),rolePlaceMarkerSignature(repriced));
+ assert.equal(rolePlaceMarkerSignature(base),rolePlaceMarkerSignature(repriced),'price refresh keeps the compact pin');
+ assert.notEqual(rolePlaceMarkerSignature(base),rolePlaceMarkerSignature({...base,name:'Outro posto'}));
  assert.notEqual(rolePlaceMarkerKey(base),rolePlaceMarkerKey({...base,kind:'place',category:place.kind} as never));
 });
 test('a fuel/toll update does not recreate all native MapLibre markers',()=>{
@@ -104,49 +105,17 @@ test('a fuel/toll update does not recreate all native MapLibre markers',()=>{
  assert.match(map,/if \(vectorMarkersReady\) return;/);
 });
 
-test('locais cadastrados recebem halo de categoria sem fabricar a geometria dos prédios',()=>{
- const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
- const css=readFileSync(new URL('../src/role-map-poi.css',import.meta.url),'utf8');
- assert.match(controller,/root\.dataset\.poiKind=entry\.kind/);
- assert.match(css,/\.role-poi-marker\[data-poi-kind="place"\]::before/);
- assert.match(css,/var\(--role-poi-accent\)/);
- assert.match(css,/pointer-events:none/);
- assert.match(controller,/existing\.entry=entry/,
-   'Ícones movidos precisam atualizar a posição usada pelo cálculo da proximidade');
-});
-test('visualização rápida encerra no tempo, ao sair do zoom, tocar fora e desmontar mapa',()=>{
- const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
- assert.match(controller,/resolvePoiPreview\(proximityPreview,nearest,performance\.now\(\)\)/);
- assert.match(controller,/previewTimeout=setTimeout/);
- assert.match(controller,/if\(!chosenVisible\)manualKey=null/);
- assert.match(controller,/gl\.on\('click',onMapClick\)/);
- assert.match(controller,/gl\.off\('click',onMapClick\)/);
- assert.match(controller,/clearPreviewTimeout\(\);[\s\S]*for\(const record of markers\.values\(\)\)record\.marker\.remove\(\)/);
-});
-
-test('zoom geral esconde apenas o halo grande, sem reduzir a área tocável dos ícones',()=>{
- const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
- const css=readFileSync(new URL('../src/role-map-poi.css',import.meta.url),'utf8');
- assert.match(controller,/const overview=zoom<15/);
- assert.match(controller,/element\.dataset\.poiOverview=String\(overview\)/);
- assert.match(css,/\.role-poi-marker\[data-poi-overview="true"\]::before\{opacity:0;\}/);
- assert.match(css,/transform:scale\(\.84\)/);
- assert.match(css,/\.role-poi-marker\s*\{[^}]*width:38px/s);
-});
-
 test('atualizações de GPS só gravam no DOM os atributos que realmente mudaram',()=>{
  const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
  const apply=controller.slice(controller.indexOf('const applyVisibility'),controller.indexOf('const buildMarker'));
  // Every DOM write inside the per-marker loop must sit behind a change check.
- assert.match(apply,/if\(record\.overview!==overview\)\{[^}]*element\.dataset\.poiOverview=/);
  assert.match(apply,/if\(record\.visible!==visible\)\{[^}]*element\.style\.display=/);
- assert.match(apply,/if\(record\.expanded!==expanded\)\{[^}]*element\.dataset\.expanded=[^}]*aria-expanded/);
- const loop=apply.slice(apply.indexOf('for(const [key,record] of markers)'));
+ const loop=apply.slice(apply.indexOf('for(const record of markers.values())'));
  const unguarded=loop.replace(/if\(record\.\w+!==\w+\)\{[^}]*\}/g,'');
  assert.doesNotMatch(unguarded,/element\.(dataset\.|style\.|setAttribute)/,
    'uma escrita no elemento ficou fora da verificação de mudança');
  // A rebuilt marker starts unknown so its first pass writes every attribute.
- assert.match(controller,/visible:null,\s*overview:null,\s*expanded:null/);
+ assert.match(controller,/visible:null/);
 });
 
 test('ícones permanecem georreferenciados e sem nomes fixos abaixo',()=>{
@@ -162,13 +131,13 @@ test('ícones permanecem georreferenciados e sem nomes fixos abaixo',()=>{
  assert.match(controller,/root\.setAttribute\('aria-label'/);
 });
 
-test('posto abre no primeiro toque e o botão de preço salta direto para edição',()=>{
+test('ponto compacto abre a ficha no primeiro toque e preserva a edição de preços',()=>{
  const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
  const modal=readFileSync(new URL('../src/components/FuelStationModal.tsx',import.meta.url),'utf8');
  const standalone=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
  const map=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
- assert.match(controller,/if\(entry\.kind!=='place'\|\|root\.dataset\.expanded==='true'\)/);
- assert.match(controller,/actions\.onStation\(entry\.id,'prices','edit'\)/);
+ assert.match(controller,/if\(current\)openDetails\(current\)/);
+ assert.match(controller,/actions\.onStation\(entry\.id,'prices'\)/);
  assert.match(controller,/actions\.onToll\(entry\.id,'prices',entry\.place\)/);
  assert.match(modal,/initialMode='view'/);
  assert.match(modal,/useState<'view' \| 'edit' \| 'review' \| 'photo'>\(initialMode\)/);
