@@ -34,6 +34,7 @@ import { destinationExploreKey } from '../services/destinationIdentity';
 import { CreateConvoyModal } from './CreateConvoyModal';
 import { ConvoyActionModal } from './ConvoyActionModal';
 import { CreateTouristCircuitScreen } from './CreateTouristCircuitScreen';
+import {TouristCategoryIcon} from './TouristCategoryIcon';
 import { TripPreviewScreen } from './TripPreviewScreen';
 
 interface NavigationHomeProps {
@@ -515,7 +516,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <div className="flex items-center justify-between gap-3"><h2 className="text-[16px] font-extrabold tracking-tight text-slate-950">Viagens sugeridas</h2><button type="button" className="text-blue-600 text-xs font-semibold shrink-0" onClick={props.onOpenAllSuggestions}>Ver todas <ChevronRight size={14} className="inline"/></button></div>
           {suggested.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-2xl p-4">{liveCoords?'Ainda não há pontos turísticos cadastrados próximos.':'Ative o GPS para descobrir pontos turísticos reais próximos.'}</p>}
           {suggested.map(place=><button type="button" key={place.id} disabled={busy} onClick={()=>void suggestDestination(place)} className="w-full p-3 border rounded-[18px] border-slate-200 bg-white shadow-[0_2px_7px_rgba(15,23,42,.035)] flex gap-3 text-left items-center min-h-[68px] disabled:opacity-50">
-            <span className="w-12 h-12 bg-emerald-50 rounded-[13px] text-emerald-700 flex shrink-0 items-center justify-center"><Compass size={23}/></span>
+            <span className="w-12 h-12 bg-emerald-50 rounded-[13px] text-emerald-700 flex shrink-0 items-center justify-center"><TouristCategoryIcon kind={place.kind} name={place.name}/></span>
             <span className="flex-1 min-w-0"><strong className="text-[13px] truncate block text-slate-900">{place.name}</strong><small className="text-[11px] text-slate-500 truncate block">{place.address||'Atração turística cadastrada'}</small></span><ChevronRight size={17} className="text-slate-400"/>
           </button>)}
         </section>
