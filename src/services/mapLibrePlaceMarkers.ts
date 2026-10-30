@@ -83,7 +83,9 @@ export function createRoleMaplibreMarkerController(
   };
   const buildMarker=(entry:RoleVectorMarker):Marker=>{
     const category=poiCategory(entry);
-    const root=iconElement(mapPlaceIcon(category as Place['kind']),'role-poi-marker managed-place-marker');
+    // Keep the registered name for legacy category-specific glyphs too.
+    const iconKind=entry.kind==='place'?entry.category:category as Place['kind'];
+    const root=iconElement(mapPlaceIcon(iconKind,entry.name),'role-poi-marker managed-place-marker');
     root.dataset.poiCategory=category;
     root.dataset.poiKind=entry.kind;
     root.dataset.poiId=entry.id;
