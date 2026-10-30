@@ -176,6 +176,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [tripType, setTripType] = useState<'round_trip'|'one_way'>('round_trip');
   // Show real catalog POIs near GPS before generating the selected distance/time.
   // These distances are straight-line hints only; the selected route uses OSRM.
+  const [selectedNearbyIds,setSelectedNearbyIds]=useState<string[]>([]);
+  const toggleNearby=(id:string)=>setSelectedNearbyIds(current=>current.includes(id)?current.filter(v=>v!==id):current.length<3?[...current,id]:current);
   const nearbySuggestions=useMemo(()=>{
     if(!touristOrigin)return [];
     const mode=sheet==='hours'?'hours':'km';
@@ -186,7 +188,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       .filter(p=>p.active&&touristKinds.includes(placeIconKind(p.kind,p.name))&&Number.isFinite(p.lat)&&Number.isFinite(p.lng))
       .map(p=>({id:p.id,name:p.name,kind:p.kind,distanceKm:distanceBetweenKm(touristOrigin,[p.lat,p.lng])}))
       .filter(p=>p.distanceKm<=radius)
-      .sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,3);
+      .sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,12);
   },[nearbyCircuitPlaces,touristOrigin?.[0],touristOrigin?.[1],km,hours,tripType,sheet]);
   const completedTrips=useMemo(()=>[...props.trips]
     .filter(trip=>trip.status==='completed' && (trip.planningLimits?.mode==='km'||trip.planningLimits?.mode==='hours'))
@@ -224,7 +226,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const showSheet = (value:'km'|'hours'|'destination') => {
     setError('');setSheet(value);
     if(value==='destination')setDestinationRoutePreference('tourist');
-    if(value==='km'||value==='hours') {circuitHistory.current=[];circuitPlaceHistory.current=[];}
+    if(value==='km'||value==='hours') {circuitHistory.current=[];circuitPlaceHistory.current=[];setSelectedNearbyIds([]);}
   };
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
   const currentValue = sheet === 'km' ? km : hours;
@@ -272,7 +274,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       const avoided = regenerate ? circuitHistory.current : [];
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
         originName:savedOriginName.current,originCoords:coords,
-        interests,avoidWaypoints:avoided,
+        interests,selectedPlaceIds:selectedNearbyIds,avoidWaypoints:avoided,
         visitedWaypoints,visitedPlaceIds,
         excludePlaceIds:regenerate?circuitPlaceHistory.current:[],
         vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
@@ -548,6 +550,9 @@ export function NavigationHome(props: NavigationHomeProps) {
       mode={sheet} km={km} hours={hours} travelMode={travelMode} coords={liveCoords}
       tripType={tripType} preference={preference} busy={busy}
       nearbySuggestions={nearbySuggestions}
+      selectedNearbyIds={selectedNearbyIds}
+      onToggleNearby={toggleNearby}
+      onClearNearby={()=>setSelectedNearbyIds([])}
       warning={warning} validation={validation} error={error}
       onClose={closeSheet} onModeChange={setSheet}
       onKmChange={setKm} onHoursChange={setHours} onStep={stepValue}
