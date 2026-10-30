@@ -1,5 +1,6 @@
 import type {Place} from '../types/admin';
 import {TOURIST_PLACE_KINDS} from '../types/admin';
+import {placeIconKind} from './placeIconKind';
 import type {ExploreArea, ExploreCoords, ExploreFilter, ExplorePlace} from '../types/explore';
 import {EXPLORE_CATALOG} from '../catalogs/explore';
 
@@ -42,12 +43,13 @@ export function exploreDistanceKm(from: ExploreCoords, to: ExploreCoords): numbe
 }
 
 function sourceToExplore(place: Place): ExplorePlace {
+  const resolvedKind=placeIconKind(place.kind,place.name);
   const parts = place.address.split(',').map(part => part.trim()).filter(Boolean);
   const city = parts.length > 1 ? parts[parts.length - 2] : parts[0] || '';
-  const category = place.kind === 'scenic_road' ? 'Estrada' :
-    cultureKinds.has(place.kind) || place.kind === 'landmark' ? 'Cultura' : 'Natureza';
+  const category = resolvedKind === 'scenic_road' ? 'Estrada' :
+    cultureKinds.has(resolvedKind) || resolvedKind === 'landmark' ? 'Cultura' : 'Natureza';
   return {id: place.id, name: place.name, coords: [place.lat, place.lng],
-    kind: place.kind, address: place.address, category, city, sourceUrl: place.sourceUrl};
+    kind: resolvedKind, address: place.address, category, city, sourceUrl: place.sourceUrl};
 }
 
 /** Prefer verified editorial photos without duplicating the same imported attraction. */
@@ -64,7 +66,7 @@ export function mergeExplorePlaces(
     }
   }
   for (const source of imported) {
-    if (!source.active || !touristKinds.has(source.kind) ||
+    if (!source.active || !touristKinds.has(placeIconKind(source.kind,source.name)) ||
       !Number.isFinite(source.lat) || !Number.isFinite(source.lng) ||
       Math.abs(source.lat) > 90 || Math.abs(source.lng) > 180) continue;
     const place = sourceToExplore(source);
