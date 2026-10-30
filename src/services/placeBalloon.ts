@@ -46,11 +46,17 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
   heading.setAttribute('aria-label',`Ver detalhes de ${entry.name}`);heading.textContent=entry.name;heading.addEventListener('click',details);
   element.append(rating,heading);
   const priceList=document.createElement('dl');priceList.className='role-place-balloon-prices';
+  priceList.setAttribute('aria-label','Preços por combustível');
   const renderPrices=(prices:readonly FuelPrice[],state:'ready'|'loading'|'error'='ready')=>{
     priceList.replaceChildren();
     for(const row of fuelBalloonRows(prices)){
       const wrap=document.createElement('div'),label=document.createElement('dt'),value=document.createElement('dd');
-      label.textContent=row.label;value.textContent=row.value??(state==='loading'?'…':state==='error'?'Indisponível':'Não informado');
+      label.textContent=row.shortLabel;label.title=row.label;
+      label.setAttribute('aria-label',row.label);
+      const completeValue=row.value??(state==='loading'?'Carregando':state==='error'?'Indisponível':'Não informado');
+      value.textContent=row.value?row.value.replace(/\/(?:L|m³)$/,''):(state==='loading'?'…':state==='error'?'N/D':'—');
+      value.title=completeValue;
+      value.setAttribute('aria-label',`${row.label}: ${completeValue}`);
       wrap.append(label,value);priceList.append(wrap);
     }
   };

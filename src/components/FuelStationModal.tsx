@@ -11,6 +11,18 @@ import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
 type EditablePrice = { fuelType: FuelKind; price: string; customLabel: string };
 const editable = (draft?: PriceDraft): EditablePrice => ({ fuelType: draft?.fuelType || 'gasolina_comum', price: draft ? String(draft.price) : '', customLabel: draft?.customLabel || '' });
+const SUGGESTED_FUELS: {label:string;fuelType:FuelKind;customLabel:string}[]=[
+  {label:'Gasolina comum',fuelType:'gasolina_comum',customLabel:''},
+  {label:'Gasolina aditivada',fuelType:'gasolina_aditivada',customLabel:''},
+  {label:'Gasolina premium',fuelType:'outro',customLabel:'Gasolina premium'},
+  {label:'Shell V-Power',fuelType:'outro',customLabel:'Shell V-Power'},
+  {label:'Etanol',fuelType:'etanol',customLabel:''},
+  {label:'Etanol aditivado',fuelType:'outro',customLabel:'Etanol aditivado'},
+  {label:'Diesel comum / S500',fuelType:'diesel_comum',customLabel:''},
+  {label:'Diesel S10',fuelType:'diesel_s10',customLabel:''},
+  {label:'GNV',fuelType:'gnv',customLabel:''}
+];
+const emptySuggestedRows=():EditablePrice[]=>SUGGESTED_FUELS.map(item=>({...item,price:''}));
 const localNow = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const money = (price: number) => `R$ ${price.toFixed(3).replace('.', ',')}`;
 
@@ -23,7 +35,7 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'view' | 'edit' | 'review' | 'photo'>(initialMode);
-  const [rows, setRows] = useState<EditablePrice[]>([editable()]);
+  const [rows, setRows] = useState<EditablePrice[]>(emptySuggestedRows);
   const [observedAt, setObservedAt] = useState(localNow);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
@@ -76,12 +88,14 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
       setSelectedFile(null); setMessage(result.message); setMode('view');
     } catch (error) { handleError(error); } finally { setBusy(false); }
   };
-  const drafts = () => rows.map(row => validatePriceDraft({ fuelType: row.fuelType, price: Number(row.price.replace(',', '.')), customLabel: row.customLabel }));
+  const drafts = () => rows.filter(row=>row.price.trim()).map(row => validatePriceDraft({ fuelType: row.fuelType, price: Number(row.price.replace(',', '.')), customLabel: row.customLabel }));
   const review = (event: React.FormEvent) => {
     event.preventDefault(); setError('');
     if(!station){setError('Não foi possível carregar os dados deste posto. Confira a conexão e tente novamente.');return;}
     try {
       const values = drafts();
+      if(!values.length)throw new Error('Preencha ao menos um preço.');
+      if(!selectedFile)throw new Error('Tire uma foto da placa de preços antes de enviar.');
       if (new Set(values.map(p => `${p.fuelType}:${p.customLabel || ''}`)).size !== values.length) throw new Error('Informe cada combustível apenas uma vez.');
       if (!Number.isFinite(Date.parse(observedAt))) throw new Error('Informe quando você viu os preços.');
       setMode('review');
@@ -89,11 +103,18 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
   };
   const publish = async () => {
     if (!requireLogin()) return;
+    if(!selectedFile){setError('Tire uma foto antes de enviar.');setMode('edit');return;}
     setBusy(true); setError('');
     try {
+      const photoData=new FormData();
+      photoData.append('photo',selectedFile);
+      photoData.append('confirmedStation','true');
+      photoData.append('observedAt',new Date(observedAt).toISOString());
+      await fuelApi(`/stations/${encodeURIComponent(stationId)}/photos`,{method:'POST',body:photoData});
+      setSelectedFile(null);
       const result = await fuelApi<{ station: FuelStation; entries: { status: string }[] }>(`/stations/${encodeURIComponent(stationId)}/prices`, { method: 'POST', body: JSON.stringify({ prices: drafts(), observedAt: new Date(observedAt).toISOString(), confirmed: true }) });
       setStation(result.station); setMode('view');
-      setMessage('Preços enviados para análise. A publicação depende da aprovação do administrador.');
+      setMessage('Foto e preços enviados para análise. A publicação depende da aprovação do administrador.');
     } catch (error) { handleError(error); }
     finally { setBusy(false); }
   };
@@ -142,7 +163,7 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
               {price.photoId && <details className="text-xs"><summary className="cursor-pointer text-emerald-700">Ver foto revisada</summary><ApiImage path={`/photos/${price.photoId}`} alt="Placa de preços do posto" className="mt-2 rounded-xl max-h-60 object-contain" /><button onClick={() => { if (requireLogin()) setReport({ type: 'photos', id: price.photoId! }); }} className="mt-2 text-rose-700 underline">Denunciar foto ou dados pessoais</button></details>}
             </article>;
           })}
-          <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { setRows([editable()]); setMode('edit'); setError(''); }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Sugerir preço</button><button disabled={busy || !station} onClick={() => { setMode('photo'); setSelectedFile(null); setError(''); }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
+          <div className="flex gap-2"><button disabled={busy || !station} onClick={() => { setRows(emptySuggestedRows());setSelectedFile(null);setMode('edit');setError(''); }} className="flex-1 rounded-xl bg-emerald-600 text-white p-3 font-bold text-xs">Sugerir preço</button><button disabled={busy || !station} onClick={() => { setMode('photo'); setSelectedFile(null); setError(''); }} className="flex-1 rounded-xl border p-3 font-bold text-xs flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Enviar foto dos preços</button></div>
           <p className="text-xs text-slate-500">Fotografe somente com o veículo parado. Evite rostos, placas de veículos e outros dados pessoais. Fotos ficam privadas até a moderação.</p>
         </>}
         {mode === 'photo' && <form onSubmit={photoUpload} className="space-y-4">
@@ -159,18 +180,28 @@ export function FuelStationModal({ stationId, onClose, initialSection = 'prices'
             Entre na sua conta para enviar os preços para análise.
             <button type="button" onClick={()=>auth.promptLogin()} className="ml-2 font-bold underline">Entrar</button>
           </div>}
-          <p className="text-xs text-slate-500">Informe os preços verificados neste posto. Eles serão analisados antes da publicação.</p>
+          <p className="text-xs text-slate-500">Preencha somente os combustíveis que viu no posto. Foto da placa obrigatória antes de enviar. A administração revisará o envio.</p>
 
-          {rows.map((row, index) => <div key={index} className="p-3 bg-slate-50 rounded-xl space-y-2">
-            <div className="flex gap-2"><select aria-label={`Combustível ${index + 1}`} value={row.fuelType} onChange={e => setRows(current => current.map((r, i) => i === index ? { ...r, fuelType: e.target.value as FuelKind } : r))} className="border rounded-lg p-2 flex-1 min-w-0">{FUEL_OPTIONS.map(fuel => <option key={fuel.id} value={fuel.id}>{fuel.label}</option>)}</select>{rows.length > 1 && <button type="button" aria-label={`Remover combustível ${index + 1}`} onClick={() => setRows(current => current.filter((_, i) => i !== index))}>✕</button>}</div>
-            {row.fuelType === 'outro' && <input aria-label="Nome do combustível" placeholder="Nome do combustível" required maxLength={50} value={row.customLabel} onChange={e => setRows(current => current.map((r, i) => i === index ? { ...r, customLabel: e.target.value } : r))} className="border rounded-lg p-2 w-full" />}
-            <label className="block text-xs font-semibold">Preço por {FUEL_OPTIONS.find(f => f.id === row.fuelType)!.unit}<input aria-label={`Preço ${index + 1}`} inputMode="decimal" required value={row.price} onChange={e => setRows(current => current.map((r, i) => i === index ? { ...r, price: e.target.value } : r))} placeholder="Ex.: 5,899" className="mt-1 border rounded-lg p-3 w-full" /></label>
-          </div>)}
-          {rows.length < 8 && <button type="button" className="text-xs font-bold text-emerald-700" onClick={() => setRows(current => [...current, editable()])}>+ Outro combustível</button>}
+          <div className="space-y-2">{rows.map((row,index)=><label key={index} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <span className="flex-1 text-[13px] font-semibold text-slate-800">{SUGGESTED_FUELS[index].label}</span>
+            <span className="text-[12px] text-slate-500">R$</span>
+            <input type="text" inputMode="decimal" aria-label={`Preço de ${SUGGESTED_FUELS[index].label}`}
+              placeholder="0,000" value={row.price} onChange={event=>setRows(current=>current.map((item,i)=>i===index?{...item,price:event.target.value}:item))}
+              className="w-[94px] min-w-0 rounded-lg border border-slate-200 px-2 py-2 text-right tabular-nums text-sm"/>
+          </label>)}</div>
+          <div className="space-y-2 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+            <strong className="text-[13px] text-slate-800">Foto da placa de preços</strong>
+            <p className="text-xs text-slate-500">Fotografe com o veículo parado. Evite rostos, placas e dados pessoais.</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={()=>cameraRef.current?.click()} className="flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-xs font-bold"><Camera size={16}/>Tirar foto</button>
+              <button type="button" onClick={()=>fileRef.current?.click()} className="rounded-xl border bg-white px-4 py-2 text-xs font-bold">Galeria</button>
+            </div>
+            {preview&&<img src={preview} alt="Foto dos preços pronta para envio" className="max-h-48 rounded-xl object-contain"/>}
+          </div>
           <label className="block text-xs font-semibold">Quando você viu estes preços?<input type="datetime-local" required value={observedAt} max={localNow()} onChange={e => setObservedAt(e.target.value)} className="mt-1 border rounded-lg p-3 w-full" /></label>
           <div className="flex gap-2"><button type="button" onClick={() => setMode('view')} className="border rounded-xl p-3 text-xs">Voltar</button><button disabled={!station} className="flex-1 bg-emerald-600 text-white rounded-xl p-3 font-bold text-xs disabled:opacity-50">Revisar preços</button></div>
         </form>}
-        {mode === 'review' && <div className="space-y-4"><h3 className="font-bold">Confira antes de enviar</h3>{rows.map((row, index) => <p key={index} className="flex justify-between text-sm">{row.customLabel || FUEL_OPTIONS.find(f => f.id === row.fuelType)!.label}<strong>{money(Number(row.price.replace(',', '.')))}</strong></p>)}<p className="text-xs text-slate-500">Observado em {new Date(observedAt).toLocaleString('pt-BR')}. Os valores serão analisados pelo administrador.</p><div className="flex gap-2"><button disabled={busy} onClick={() => setMode('edit')} className="border rounded-xl p-3 text-xs">Corrigir</button><button disabled={busy} onClick={publish} className="flex-1 rounded-xl p-3 bg-emerald-600 text-white font-bold text-xs">{busy ? 'Enviando...' : 'Confirmar e enviar para análise'}</button></div></div>}
+        {mode === 'review' && <div className="space-y-4"><h3 className="font-bold">Confira antes de enviar</h3>{rows.filter(row=>row.price.trim()).map((row, index) => <p key={index} className="flex justify-between text-sm">{row.customLabel || FUEL_OPTIONS.find(f => f.id === row.fuelType)!.label}<strong>{money(Number(row.price.replace(',', '.')))}</strong></p>)}<p className="text-xs text-slate-500">Observado em {new Date(observedAt).toLocaleString('pt-BR')}. Os valores serão analisados pelo administrador.</p><div className="flex gap-2"><button disabled={busy} onClick={() => setMode('edit')} className="border rounded-xl p-3 text-xs">Corrigir</button><button disabled={busy} onClick={publish} className="flex-1 rounded-xl p-3 bg-emerald-600 text-white font-bold text-xs">{busy ? 'Enviando...' : 'Confirmar e enviar para análise'}</button></div></div>}
         {report && <form onSubmit={sendReport} className="space-y-3 border rounded-xl p-3 bg-rose-50"><strong className="text-sm">Denunciar contribuição</strong><select name="reason" aria-label="Motivo da denúncia" className="w-full border rounded-lg p-2"><option value="preco_incorreto">Preço incorreto</option><option value="spam">Spam</option><option value="dados_pessoais">Dados pessoais expostos</option><option value="imagem_inadequada">Imagem inadequada</option><option value="outro">Outro motivo</option></select><textarea name="details" aria-label="Detalhes da denúncia" maxLength={300} placeholder="Descreva o problema sem incluir dados pessoais" className="w-full border rounded-lg p-2" /><div className="flex gap-3"><button disabled={busy} className="text-xs font-bold text-rose-700">Enviar denúncia</button><button type="button" onClick={() => setReport(null)} className="text-xs">Cancelar</button></div></form>}
         {myPhotos.length > 0 && <details className="text-xs border-t pt-3"><summary className="cursor-pointer text-slate-600 font-semibold">Minhas fotos neste posto</summary>{myPhotos.map(item => <div key={item.id} className="mt-2 flex items-center justify-between gap-3"><span>{new Date(item.created_at).toLocaleDateString('pt-BR')} · {item.status === 'approved' ? 'aprovada' : item.status === 'rejected' ? 'rejeitada' : item.status === 'new_requested' ? 'nova foto solicitada' : 'aguardando revisão'}{item.reviewNote && <span className="block text-amber-800">{item.reviewNote}</span>}</span><button disabled={busy} onClick={() => removePhoto(item.id)} className="text-rose-700 underline">Remover minha foto</button></div>)}</details>}
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={choosePhoto} />

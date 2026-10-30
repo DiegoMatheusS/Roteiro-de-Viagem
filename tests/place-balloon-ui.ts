@@ -44,9 +44,9 @@ try{
     const pin=page.getByRole('button',{name:'Ver Posto do balão',exact:true});await pin.waitFor();
     await pin.press('Enter');
     const balloon=page.getByRole('region',{name:'Detalhes de Posto do balão'});
-    await balloon.getByText('R$ 5,899/L',{exact:true}).waitFor();
-    await balloon.getByText('R$ 3,799/L',{exact:true}).waitFor();
-    await balloon.getByText('R$ 6,199/L',{exact:true}).waitFor();
+    await balloon.getByText('R$ 5,899',{exact:true}).waitFor();
+    await balloon.getByText('R$ 3,799',{exact:true}).waitFor();
+    await balloon.getByText('R$ 6,199',{exact:true}).waitFor();
     await balloon.getByRole('img',{name:'Avaliação 4,2 de 5, 7 avaliações'}).waitFor();
     await page.waitForFunction(()=>[...document.querySelectorAll('.role-place-balloon-popup')].every(el=>Number(getComputedStyle(el).opacity)>.99));
     assert.equal(await page.getByRole('dialog').count(),0,'first tap stays in a speech balloon on the map');
@@ -69,7 +69,7 @@ try{
     assert.notEqual(tone.color,tone.background,'balloon foreground differs from its surface');
     await page.screenshot({path:`test-results/place-balloon-${raster?'raster':'native'}-${theme}.png`});
     await balloon.getByRole('button',{name:'Indicar preço',exact:true}).click();
-    const prices=page.getByRole('dialog',{name:'Preços do posto'});await prices.getByRole('textbox',{name:'Preço 1',exact:true}).waitFor();
+    const prices=page.getByRole('dialog',{name:'Preços do posto'});await prices.getByRole('textbox',{name:'Preço de Gasolina comum',exact:true}).waitFor();
     await prices.getByRole('button',{name:'Fechar posto'}).click();
     await pin.press('Space');
     await balloon.getByRole('button',{name:'Avaliar ou informar problema no estabelecimento'}).click();

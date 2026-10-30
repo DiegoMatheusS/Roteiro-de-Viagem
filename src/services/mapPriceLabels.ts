@@ -32,16 +32,24 @@ export function tollPriceLabel(toll: Pick<RouteToll, 'price' | 'validUntil'>, no
   return `Pedágio ${currency(toll.price)}`;
 }
 
+/** Show every named fuel independently; never mix premium/S10 with common prices. */
+export const FUEL_BALLOON_TYPES = [
+  {label:'Gasolina comum',shortLabel:'Gasol. Com.',fuelType:'gasolina_comum'},
+  {label:'Gasolina aditivada',shortLabel:'Gasol. Ad.',fuelType:'gasolina_aditivada'},
+  {label:'Gasolina premium',shortLabel:'Gasol. Prem.',customLabel:'Gasolina premium'},
+  {label:'Shell V-Power',shortLabel:'V-Power',customLabel:'Shell V-Power'},
+  {label:'Etanol',shortLabel:'Etanol',fuelType:'etanol'},
+  {label:'Etanol aditivado',shortLabel:'Etanol Ad.',customLabel:'Etanol aditivado'},
+  {label:'Diesel comum / S500',shortLabel:'Diesel S500',fuelType:'diesel_comum'},
+  {label:'Diesel S10',shortLabel:'Diesel S10',fuelType:'diesel_s10'},
+  {label:'GNV',shortLabel:'GNV',fuelType:'gnv'}
+] as const;
 export function fuelBalloonRows(prices:readonly FuelPrice[]){
   const current=prices.filter(p=>Number.isFinite(p.price)&&p.price>0&&!p.stale&&!p.disputed)
     .slice().sort((a,b)=>Date.parse(b.observedAt)-Date.parse(a.observedAt));
-  return [
-    {label:'Gasolina',types:['gasolina_comum','gasolina_aditivada']},
-    {label:'Etanol',types:['etanol']},
-    {label:'Diesel',types:['diesel_comum','diesel_s10']}
-  ].map(group=>{
-    const price=group.types.map(type=>current.find(p=>p.fuelType===type)).find(Boolean);
-    const label=price?.fuelType==='gasolina_aditivada'?'Gasolina aditivada':price?.fuelType==='diesel_s10'?'Diesel S10':group.label;
-    return {label,value:price?`R$ ${price.price.toFixed(3).replace('.',',')}/L`:null};
+  return FUEL_BALLOON_TYPES.map(group=>{
+    const price=current.find(p=>'fuelType' in group?p.fuelType===group.fuelType:
+      p.fuelType==='outro'&&p.customLabel?.trim().toLocaleLowerCase('pt-BR')===group.customLabel.toLocaleLowerCase('pt-BR'));
+    return {label:group.label,shortLabel:group.shortLabel,value:price?`R$ ${price.price.toFixed(3).replace('.',',')}/${price.fuelType==='gnv'?'m³':'L'}`:null};
   });
 }
