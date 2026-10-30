@@ -3,6 +3,7 @@ import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation,
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
+import {placeIconKind} from '../services/placeIconKind';
 import type { LocationSelection } from '../types/itinerary';
 import {fetchRouteChoices,choiceToTrip,type RoutePreference,type VerifiedRouteChoice} from '../services/routeChoices';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
@@ -68,7 +69,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const touristOrigin=useTouristDiscoveryAnchor(liveCoords);
   const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
-  const suggested = useMemo(() => places.filter(place => touristKinds.includes(place.kind)).slice(0,5), [places]);
+  const suggested = useMemo(() => places.filter(place => touristKinds.includes(placeIconKind(place.kind,place.name))).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
   const nearbyCircuitPlaces = useNearbyPlaces(touristOrigin?[touristOrigin]:[],Boolean(touristOrigin)&&Boolean(sheet==='km'||sheet==='hours'),120);
   const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
@@ -182,7 +183,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     const approxKm=mode==='km'?amount:amount*45;
     const radius=Math.max(3,Math.min(120,approxKm*(tripType==='round_trip'?0.48:0.92)));
     return nearbyCircuitPlaces
-      .filter(p=>p.active&&touristKinds.includes(p.kind)&&Number.isFinite(p.lat)&&Number.isFinite(p.lng))
+      .filter(p=>p.active&&touristKinds.includes(placeIconKind(p.kind,p.name))&&Number.isFinite(p.lat)&&Number.isFinite(p.lng))
       .map(p=>({id:p.id,name:p.name,kind:p.kind,distanceKm:distanceBetweenKm(touristOrigin,[p.lat,p.lng])}))
       .filter(p=>p.distanceKm<=radius)
       .sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,3);
