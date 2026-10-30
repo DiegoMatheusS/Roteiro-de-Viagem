@@ -16,6 +16,21 @@ test('balão lista tipos separadamente e nunca atribui preço comum a V-Power',(
  assert.equal(rows.find(p=>p.label==='Gasolina premium')?.value,null);
  assert.equal(rows.find(p=>p.label==='Diesel S10')?.value,'R$ 6,290/L');
  assert.equal(rows.find(p=>p.label==='Diesel comum / S500')?.value,null);
+ assert.equal(rows.find(p=>p.label==='Gasolina aditivada')?.shortLabel,'Gasol. Ad.');
+ assert.equal(rows.find(p=>p.label==='Gasolina premium')?.shortLabel,'Gasol. Prem.');
+ assert.equal(rows.find(p=>p.label==='Diesel comum / S500')?.shortLabel,'Diesel S500');
+});
+
+test('balão utiliza grade de duas colunas sem perder os preços nem a acessibilidade',()=>{
+ const css=file('src/role-place-balloon.css');
+ const balloon=file('src/services/placeBalloon.ts');
+ assert.match(css,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(css,/max-height:158px;overflow-y:auto/);
+ assert.match(balloon,/label\.textContent=row\.shortLabel/);
+ assert.match(balloon,/label\.title=row\.label/);
+ assert.match(balloon,/label\.setAttribute\('aria-label',row\.label\)/);
+ assert.match(balloon,/value\.textContent=row\.value/);
+ assert.match(balloon,/footer\.append\(contribute,info\)/);
 });
 test('seleção múltipla percorre interface, request e validador de pontos reais',()=>{
  const home=file('src/components/NavigationHome.tsx');
