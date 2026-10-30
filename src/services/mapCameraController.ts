@@ -16,7 +16,7 @@ export function recenterZoom(currentZoom:number,navigation:boolean,restoreNaviga
   // continental view must still zoom in to make navigation usable.
   if(navigation&&restoreNavigationView)return NAVIGATION_START_ZOOM;
   return navigation && Number.isFinite(currentZoom) && currentZoom>=10
-    ? Math.min(currentZoom,19) : navigation?NAVIGATION_START_ZOOM:15;
+    ? Math.min(currentZoom,19) : navigation?NAVIGATION_START_ZOOM:17;
 }
 export interface CameraFitPadding {
   topLeft:[number,number];
