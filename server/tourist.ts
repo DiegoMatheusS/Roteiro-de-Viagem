@@ -143,7 +143,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         category: adminTouristKinds[row.kind].category, interest: adminTouristKinds[row.kind].interest,
         address: row.address, sourceUrl: row.source_url
       }))
-      .filter(place => distanceKm(origin, place.coords) >= 0.05);
+      .filter(place => distanceKm(origin, place.coords) >= 0.05 || selectedPlaceIds.includes(place.id));
     // Grow a shared index from previously discovered OSM attractions, not private addresses.
     const span = localRadiusKm / 111;
     const localAttractions = (db.prepare(`SELECT * FROM locations WHERE lat BETWEEN ? AND ?
