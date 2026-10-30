@@ -125,6 +125,8 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
     };
     const visitedIds=new Set(parseIds(req.body.visitedPlaceIds,40));
     const excludedIds=new Set(parseIds(req.body.excludePlaceIds,15));
+    const selectedPlaceIds=parseIds(req.body.selectedPlaceIds,3);
+    if(new Set(selectedPlaceIds).size!==selectedPlaceIds.length)throw new ApiError('Selecione pontos diferentes.');
     const oldRoute=(path:Coordinates[])=>visitedWaypoints.some(previous=>
       previous.length===path.length &&
       previous.every((point,index)=>distanceKm(point,path[index])<1.2));
@@ -205,6 +207,9 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       place.coords[0],place.coords[1],place.sourceUrl,place.category,discoveredAt);
     const candidates = [...new Map([...adminCandidates.filter(place => selected.has(place.interest)), ...localAttractions.filter(place => selected.has(place.interest)), ...osmCandidates]
       .map((place: Candidate) => [place.id, place] as const)).values()];
+    // Explicit choices are verified against our nearby catalog, never trusted coordinates from the client.
+    const chosen=selectedPlaceIds.map(id=>adminCandidates.find(place=>place.id===id));
+    if(chosen.some(place=>!place))throw new ApiError('Um dos pontos selecionados não está mais disponível nessa região.');
     // Spread shortlisted candidates across interests and directions instead of taking the first OSM results.
     const idealDistance = Math.min(radiusM / 1000, estimatedKm * (tripType === 'round_trip' ? 0.27 : 0.72));
     // New destinations first, then closest to the requested KM / time budget.
@@ -223,8 +228,8 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
       if (shortlist.length >= 9) break;
     }
     // Each candidate is verified by the road router; there is no straight-line fallback.
-    const attempts: Candidate[][] = shortlist.slice(0, 6).map(place => [place]);
-    for (let a = 0; a < Math.min(5, shortlist.length); a++) {
+    const attempts: Candidate[][] = selectedPlaceIds.length?[chosen as Candidate[]]:shortlist.slice(0, 6).map(place => [place]);
+    for (let a = 0; !selectedPlaceIds.length && a < Math.min(5, shortlist.length); a++) {
       const other = shortlist.find((place, index) => index !== a && distanceKm(place.coords, shortlist[a].coords) > 2 &&
         place.interest !== shortlist[a].interest);
       if (other) attempts.push([shortlist[a], other]);
@@ -250,6 +255,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
         if (!best || score < best.score) best = { selected: points, score, road, totalMinutes, path };
       } catch { /* Skip candidates unreachable using the real road router. */ }
     }
+    if(selectedPlaceIds.length&&!best)throw new ApiError('Não foi possível montar uma rota rodoviária com todos os pontos selecionados dentro da distância ou duração escolhida. Aumente o limite ou remova um ponto.');
     // Sem pontos turísticos suficientes, busca alternativas de estradas reais.
     // Os pontos de passagem são apenas alvos geométricos: o OSRM calcula e valida
     // todo o percurso rodoviário. Nenhuma atração fictícia é criada.
