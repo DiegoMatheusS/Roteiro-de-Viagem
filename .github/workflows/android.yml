@@ -125,6 +125,7 @@ jobs:
         run: node scripts/android-artifact-info.mjs
         env:
           RDV_DISTRIBUTION: ${{ inputs.distribution || 'debug' }}
+          RDV_REQUIRE_STABLE_SIGNING: ${{ github.event_name != 'pull_request' && '1' || '0' }}
       - name: Disponibilizar pacote conectado ao backend
         uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request' && (inputs.distribution == 'release' || steps.signing.outputs.persistent == 'true')
