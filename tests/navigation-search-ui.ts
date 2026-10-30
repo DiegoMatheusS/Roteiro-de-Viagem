@@ -130,7 +130,10 @@ try{
         coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()
       }),1000);
     });
-    await page.clock.pauseAt(new Date(Date.now()+100));
+    // Use the browser's simulated clock, not the runner's real Date.now().
+    // A short lead keeps pauseAt in the future despite CI/Playwright RPC delays.
+    const browserNow=await page.evaluate(()=>Date.now());
+    await page.clock.pauseAt(browserNow+5_000);
     await fastCard.tap();
     await page.clock.runFor(100);
     assert.equal(await destinationPanel.getByRole('timer').innerText(),'10s');
