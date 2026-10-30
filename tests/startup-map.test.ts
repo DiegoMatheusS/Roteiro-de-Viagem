@@ -2,21 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-test('Rolê opens a real map during account hydration, never a blocking loading card',()=>{
+test('Rolê waits for account hydration without flashing an interim map',()=>{
   const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
   const startup=readFileSync(new URL('../src/components/StartupMap.tsx',import.meta.url),'utf8');
   assert.doesNotMatch(app,/Carregando seus dados de viagem/);
   assert.match(app,/if \(auth\.loading \|\| !accountReady\) return <StartupMap/);
-  assert.match(startup,/<InteractiveMap roadStyle/);
-  assert.match(startup,/userLiveCoords=\{position\}/);
-  assert.match(startup,/centerOnUserRequest=\{centerRequest\}/);
-  assert.ok(startup.includes('src="/roteiro-logo.png"'),'use the original Rolê logo rather than the example pin icon');
-  assert.ok(startup.includes('rdv-start-brand-wave'),'brand pulse appears over the map');
-  assert.ok(startup.includes('setShowBrand(false),2100'),'brand does not persist while the API is offline');
-  const styles=readFileSync(new URL('../src/role-figma.css',import.meta.url),'utf8');
-  assert.ok(styles.includes('.rdv-start-brand-logo'));
-  assert.ok(styles.includes('pointer-events:none'),'logo never intercepts map gestures');
-  assert.ok(styles.includes('prefers-reduced-motion:reduce'),'respect accessibility animation preferences');
+  assert.match(startup,/aria-label="Preparando o Rolê"/);
+  assert.match(startup,/aria-label="Abrindo o Rolê"/);
+  assert.doesNotMatch(startup,/<InteractiveMap|useDeviceLocation|MapTrafficControl|roteiro-logo\.png|rdv-start-brand/);
   assert.match(app,/syncState==='conflict' && <SyncConflictPanel/);
   assert.match(app,/syncState==='error' && <button/);
   assert.doesNotMatch(startup,/saveTrip|saveProfile|replaceSnapshot|setScope/);
