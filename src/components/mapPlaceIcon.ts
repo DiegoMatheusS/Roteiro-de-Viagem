@@ -24,7 +24,8 @@ const paths: Record<string, string> = {
   beach: '<path d="M3 20h18M12 18V4M12 4a8 8 0 0 0-8 8c4-2 6-2 8 0 2-2 4-2 8 0a8 8 0 0 0-8-8Z"/>',
   trail: '<circle cx="13" cy="4" r="2"/><path d="m11 8-3 5 4 3-3 6m2-14 5 5h5M12 16l4 6M19 12v10M7 8l-3 6 3 1"/>',
   nature_reserve: '<path d="M12 22V9M12 15C4 15 3 8 5 3c7 0 12 3 12 10M12 18c6 0 9-5 8-10-3 0-6 1-8 4"/>',
-  attraction: '<path d="M12 22s8-6 8-13a8 8 0 1 0-16 0c0 7 8 13 8 13ZM12 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>'
+  attraction: '<path d="m12 2 2.9 6 6.6 1-4.8 4.7 1.1 6.6L12 17.2l-5.8 3.1 1.1-6.6L2.5 9l6.6-1L12 2Z"/>',
+  other: '<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M9 21v-5h6v5M8 9h2m4 0h2m-8 4h2m4 0h2"/>'
 };
 const tourist = new Set(['waterfall', 'viewpoint', 'park', 'square', 'museum', 'landmark', 'historic', 'beach', 'trail', 'nature_reserve', 'attraction', 'theatre','scenic_road']);
 
