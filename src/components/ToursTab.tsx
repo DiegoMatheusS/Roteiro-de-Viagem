@@ -9,6 +9,7 @@ import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
 import {useGpsPermissionAction} from '../hooks/useGpsPermissionAction';
 import {InteractiveMap} from './InteractiveMap';
 import {TripPreviewScreen} from './TripPreviewScreen';
+import {TouristCategoryIcon} from './TouristCategoryIcon';
 import {fetchRouteChoices,choiceToTrip} from '../services/routeChoices';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import '../role-explore-figma.css';
@@ -176,7 +177,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           const preparing=busyId===place.id;
           return <article key={place.id} className="rdv-explore-route-row">
             <div className="rdv-explore-route-photo" aria-label={place.photo?'Fotografia do passeio':'Local sem fotografia verificada'}>
-              <Compass size={32} strokeWidth={1.5} aria-hidden="true"/>
+              <TouristCategoryIcon kind={place.kind} name={place.name} size={32}/>
               {place.photo && <img src={place.photo} alt={`Fotografia de ${place.name}`}
                 loading="lazy" decoding="async" width={200} height={200} referrerPolicy="no-referrer"
                 onError={event=>{event.currentTarget.hidden=true;}}/>}
