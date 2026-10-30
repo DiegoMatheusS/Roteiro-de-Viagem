@@ -53,7 +53,10 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
       const wrap=document.createElement('div'),label=document.createElement('dt'),value=document.createElement('dd');
       label.textContent=row.shortLabel;label.title=row.label;
       label.setAttribute('aria-label',row.label);
-      value.textContent=row.value??(state==='loading'?'…':state==='error'?'Indisponível':'Não informado');
+      const completeValue=row.value??(state==='loading'?'Carregando':state==='error'?'Indisponível':'Não informado');
+      value.textContent=row.value?row.value.replace(/\/(?:L|m³)$/,''):(state==='loading'?'…':state==='error'?'N/D':'—');
+      value.title=completeValue;
+      value.setAttribute('aria-label',`${row.label}: ${completeValue}`);
       wrap.append(label,value);priceList.append(wrap);
     }
   };
