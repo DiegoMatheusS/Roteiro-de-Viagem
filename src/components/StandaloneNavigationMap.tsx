@@ -41,6 +41,7 @@ import {mapPlaceViewport,sameMapPlaceQuery,type MapPlaceQuery} from '../services
 import {MAP_PLACES_REFRESH_MS} from '../services/placeRefresh';
 import {FuelStationModal} from './FuelStationModal';
 import {PlaceModal} from './PlaceModal';
+import {PlaceFeedbackModal} from './PlaceFeedbackModal';
 import {TollModal} from './TollModal';
 import type {Place} from '../types/admin';
 import type {RoadAlert} from '../types/roadAlerts';
@@ -83,6 +84,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const courseModeRef=useRef(courseMode);courseModeRef.current=courseMode;
   const [station,setStation]=useState<{id:string;section:'prices'|'comments';mode?:'view'|'edit'}|null>(null);
   const [place,setPlace]=useState<Place|null>(null);
+  const [feedbackPlace,setFeedbackPlace]=useState<RoleVectorMarker|null>(null);
   const [toll,setToll]=useState<{id:string;section:'prices'|'comments';place:Place|null}|null>(null);
   const [alert,setAlert]=useState<RoadAlert|null>(null);
   const [checking,setChecking]=useState(false);
@@ -273,7 +275,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const markers=createRoleMaplibreMarkerController(map,{
       onStation:(id,section,mode)=>setStation({id,section,mode}),
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
-      onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null)
+      onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null),
+      onReport:setFeedbackPlace
     });
     // DOM GPS pins and camera commands do not depend on tile/style sources.
     // Keep them live even before the first map load, while zoom fetches new
@@ -780,6 +783,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     </div>}
     {station&&<FuelStationModal key={`${station.id}:${station.section}:${station.mode??'view'}`} stationId={station.id} initialSection={station.section} initialMode={station.mode} onClose={()=>setStation(null)}/>}
     {place&&<PlaceModal place={place} onClose={()=>setPlace(null)}/>}
+    {feedbackPlace&&<PlaceFeedbackModal key={feedbackPlace.id} place={feedbackPlace} onClose={()=>setFeedbackPlace(null)}/>}
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}
     {alert&&<section role="dialog" aria-label="Confirmar ocorrência no mapa" className="absolute left-1/2 top-4 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] bg-white p-4 shadow-xl">
       <div className="flex justify-between gap-3"><div>

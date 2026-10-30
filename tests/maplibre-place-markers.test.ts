@@ -69,10 +69,10 @@ test('componentes MapLibre mantêm botão de preços, acessibilidade e fallback 
  assert.match(gl,/setAttribute\('aria-label'/);
  assert.match(gl,/disableClickPropagation\(root\)/);
  assert.match(gl,/marker\.remove\(\)/);
- assert.match(map,/if \(vectorMarkersReady\) return;/);
+ assert.match(map,/vectorMarkersReady\)return;/);
  assert.match(map,/setVectorMarkersReady\(false\)/);
  assert.match(map,/vectorPlaceControllerRef\.current\?\.destroy\(\)/);
- assert.match(map,/L\.marker\(\[station\.lat, station\.lng\]/);
+ assert.match(map,/createLeafletPlaceMarkerController/);
 });
 
 test('incremental keys preserve marker identity across coordinate refreshes',()=>{
@@ -102,7 +102,7 @@ test('a fuel/toll update does not recreate all native MapLibre markers',()=>{
  const install=map.slice(map.indexOf('// Install MapLibre pins once'),map.indexOf('// Incremental updates:'));
  assert.match(install,/\},\[vectorRoutesReady\]\)/);
  assert.doesNotMatch(install,/\[vectorRoutesReady,\s*fuel\.stations/);
- assert.match(map,/if \(vectorMarkersReady\) return;/);
+ assert.match(map,/vectorMarkersReady\)return;/);
 });
 
 test('atualizações de GPS só gravam no DOM os atributos que realmente mudaram',()=>{
@@ -127,20 +127,6 @@ test('ícones permanecem georreferenciados e sem nomes fixos abaixo',()=>{
  assert.doesNotMatch(raster,/permanent:\s*Boolean\(place\.managed\)/);
  assert.doesNotMatch(raster,/placeZoom|setPlaceZoom/);
  assert.match(controller,/\.setLngLat\(toMarkerLngLat\(entry\.coords\)\)/);
- assert.match(raster,/L\.marker\(\[place\.lat, place\.lng\]/);
+ assert.match(raster,/createLeafletPlaceMarkerController/);
  assert.match(controller,/root\.setAttribute\('aria-label'/);
-});
-
-test('ponto compacto abre a ficha no primeiro toque e preserva a edição de preços',()=>{
- const controller=readFileSync(new URL('../src/services/mapLibrePlaceMarkers.ts',import.meta.url),'utf8');
- const modal=readFileSync(new URL('../src/components/FuelStationModal.tsx',import.meta.url),'utf8');
- const standalone=readFileSync(new URL('../src/components/StandaloneNavigationMap.tsx',import.meta.url),'utf8');
- const map=readFileSync(new URL('../src/components/InteractiveMap.tsx',import.meta.url),'utf8');
- assert.match(controller,/if\(current\)openDetails\(current\)/);
- assert.match(controller,/actions\.onStation\(entry\.id,'prices'\)/);
- assert.match(controller,/actions\.onToll\(entry\.id,'prices',entry\.place\)/);
- assert.match(modal,/initialMode='view'/);
- assert.match(modal,/useState<'view' \| 'edit' \| 'review' \| 'photo'>\(initialMode\)/);
- assert.match(map,/initialMode=\{stationMode\}/);
- assert.match(standalone,/initialMode=\{station\.mode\}/);
 });

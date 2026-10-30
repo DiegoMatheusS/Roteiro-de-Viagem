@@ -31,3 +31,17 @@ export function tollPriceLabel(toll: Pick<RouteToll, 'price' | 'validUntil'>, no
   }
   return `Pedágio ${currency(toll.price)}`;
 }
+
+export function fuelBalloonRows(prices:readonly FuelPrice[]){
+  const current=prices.filter(p=>Number.isFinite(p.price)&&p.price>0&&!p.stale&&!p.disputed)
+    .slice().sort((a,b)=>Date.parse(b.observedAt)-Date.parse(a.observedAt));
+  return [
+    {label:'Gasolina',types:['gasolina_comum','gasolina_aditivada']},
+    {label:'Etanol',types:['etanol']},
+    {label:'Diesel',types:['diesel_comum','diesel_s10']}
+  ].map(group=>{
+    const price=group.types.map(type=>current.find(p=>p.fuelType===type)).find(Boolean);
+    const label=price?.fuelType==='gasolina_aditivada'?'Gasolina aditivada':price?.fuelType==='diesel_s10'?'Diesel S10':group.label;
+    return {label,value:price?`R$ ${price.price.toFixed(3).replace('.',',')}/L`:null};
+  });
+}

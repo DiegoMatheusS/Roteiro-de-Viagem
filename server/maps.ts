@@ -71,7 +71,7 @@ export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fet
   const tags = element?.tags;
   const lat = element?.lat ?? element?.center?.lat;
   const lng = element?.lon ?? element?.center?.lon;
-  if (!tags || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !(tags.amenity || tags.tourism || tags.leisure || tags.shop || tags.waterway === 'waterfall' || tags.barrier === 'toll_booth' || tags.highway === 'toll_gantry' || tags.natural === 'beach' || tags.historic)) throw new Error('Esse ponto não identifica um estabelecimento ou atração válida.');
+  if (!tags || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !(tags.amenity || tags.tourism || tags.leisure || tags.shop || tags.place === 'square' || tags.waterway === 'waterfall' || tags.barrier === 'toll_booth' || tags.highway === 'toll_gantry' || tags.natural === 'beach' || tags.historic)) throw new Error('Esse ponto não identifica um estabelecimento ou atração válida.');
   const kind: Place['kind'] = tags.amenity === 'fuel' ? 'fuel'
     : tags.barrier === 'toll_booth' || tags.highway === 'toll_gantry' ? 'toll'
     : tags.waterway === 'waterfall' ? 'waterfall'
@@ -88,6 +88,7 @@ export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fet
     : tags.tourism === 'attraction' ? 'attraction'
     : tags.historic ? 'historic'
     : tags.leisure === 'nature_reserve' ? 'nature_reserve'
+    : tags.place === 'square' || tags.leisure === 'playground' ? 'square'
     : tags.leisure === 'park' ? 'park'
     : tags.natural === 'beach' ? 'beach'
     : tags.highway === 'path' ? 'trail'

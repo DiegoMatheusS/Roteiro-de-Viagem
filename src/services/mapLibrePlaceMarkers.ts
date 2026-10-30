@@ -1,4 +1,4 @@
-import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
+import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import L from 'leaflet';
 import { mapPlaceIcon } from '../components/mapPlaceIcon';
 import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSignature,
@@ -6,12 +6,8 @@ import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSi
 import {poiCategory,poiVisibleAtZoom,type PoiVisibilityContext} from './mapPoiPresentation';
 import type { Place } from '../types/admin';
 import '../role-map-poi.css';
-
-export interface RoleMarkerActions {
-  onStation: (id:string,section:'prices'|'comments',mode?:'view'|'edit')=>void;
-  onToll: (id:string,section:'prices'|'comments',place:Place|null)=>void;
-  onPlace: (placeId:string)=>void;
-}
+import {createPlaceBalloon,placeBalloonSignature,type RoleMarkerActions} from './placeBalloon';
+export type {RoleMarkerActions} from './placeBalloon';
 
 /** Leaflet-generated SVG glyphs are DOM nodes, never HTML derived from user data. */
 function iconElement(icon: L.DivIcon, className: string): HTMLDivElement {
@@ -50,10 +46,26 @@ export function createRoleMaplibreMarkerController(
   const markers=new Map<string,TrackedRoleMarker>();
   let destroyed=false;
   let context:PoiVisibilityContext={zoom:gl.getZoom(),navigationMode:false};
-  const openDetails=(entry:RoleVectorMarker)=>{
-    if(entry.kind==='place')actions.onPlace(entry.id);
-    else if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
-    else actions.onToll(entry.id,'prices',entry.place);
+  let active:{key:string;popup:Popup;content:ReturnType<typeof createPlaceBalloon>;signature:string}|null=null;
+  const closeBalloon=()=>{active?.popup.remove();};
+  const closeOnBack=(event:Event)=>{
+    if(!active)return;event.preventDefault();event.stopImmediatePropagation();closeBalloon();
+  };
+  window.addEventListener('rdv:close-overlay',closeOnBack,true);
+  const openBalloon=(entry:RoleVectorMarker)=>{
+    const key=rolePlaceMarkerKey(entry);
+    if(active?.key===key){closeBalloon();return;}
+    closeBalloon();
+    const content=createPlaceBalloon(entry,actions,closeBalloon);
+    const popup=new Popup({className:'role-place-balloon-popup',offset:22,maxWidth:'300px',focusAfterOpen:false})
+      .setLngLat(toMarkerLngLat(entry.coords)).setDOMContent(content.element).addTo(gl);
+    const record={key,popup,content,signature:placeBalloonSignature(entry)};
+    active=record;markers.get(key)?.marker.getElement().setAttribute('aria-expanded','true');
+    popup.on('close',()=>{
+      record.content.dispose();
+      markers.get(key)?.marker.getElement().setAttribute('aria-expanded','false');
+      if(active===record)active=null;
+    });
   };
   const applyVisibility=()=>{
     if(destroyed)return;
@@ -66,6 +78,7 @@ export function createRoleMaplibreMarkerController(
         record.visible=visible;
         element.style.display=visible?'':'none';
       }
+      if(!visible&&active?.key===rolePlaceMarkerKey(record.entry))closeBalloon();
     }
   };
   const buildMarker=(entry:RoleVectorMarker):Marker=>{
@@ -77,6 +90,7 @@ export function createRoleMaplibreMarkerController(
     root.tabIndex=0;
     root.setAttribute('role','button');
     root.setAttribute('aria-label',`Ver ${entry.name}`);
+    root.setAttribute('aria-expanded','false');
 
     const key=rolePlaceMarkerKey(entry);
     const activate=(event:Event)=>{
@@ -84,13 +98,13 @@ export function createRoleMaplibreMarkerController(
       // The pin stays compact. Read live metadata without rebuilding its DOM
       // when a price, description or registered coordinate changes.
       const current=markers.get(key)?.entry;
-      if(current)openDetails(current);
+      if(current)openBalloon(current);
     };
     root.addEventListener('click',activate);
     root.addEventListener('keydown',event=>{
       if(event.target!==root)return;
       if(event.key==='Enter'||event.key===' '){
-        event.preventDefault();activate(event);
+        event.preventDefault();if(!event.repeat)activate(event);
       }
     });
     const anchor:'center'='center',offset:[number,number]=[0,0];
@@ -111,7 +125,7 @@ export function createRoleMaplibreMarkerController(
         if(!wanted.has(key))wanted.set(key,entry);
       }
       for(const [key,record] of markers){
-        if(!wanted.has(key)){record.marker.remove();markers.delete(key);}
+        if(!wanted.has(key)){if(active?.key===key)closeBalloon();record.marker.remove();markers.delete(key);}
       }
       for(const [key,entry] of wanted){
         const signature=rolePlaceMarkerSignature(entry);
@@ -123,9 +137,18 @@ export function createRoleMaplibreMarkerController(
           }
           // Keep the same marker and the metadata used by its click handler.
           existing.entry=entry;
+          if(active?.key===key){
+            active.popup.setLngLat(toMarkerLngLat(entry.coords));
+            const contentSignature=placeBalloonSignature(entry);
+            if(active.signature!==contentSignature){
+              active.content.dispose();active.content=createPlaceBalloon(entry,actions,closeBalloon);
+              active.popup.setDOMContent(active.content.element);active.signature=contentSignature;
+            }
+          }
           continue;
         }
         const marker=buildMarker(entry);
+        if(active?.key===key)closeBalloon();
         existing?.marker.remove();
         markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords],entry,
           visible:null});
@@ -136,6 +159,8 @@ export function createRoleMaplibreMarkerController(
     destroy(){
       if(destroyed)return;
       destroyed=true;
+      window.removeEventListener('rdv:close-overlay',closeOnBack,true);
+      closeBalloon();
       gl.off('zoomend',onZoom);
       for(const record of markers.values())record.marker.remove();
       markers.clear();

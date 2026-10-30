@@ -21,6 +21,7 @@ const adminTouristKinds: Record<string, { category: RouteStop['category']; inter
   waterfall: { category: 'parque', interest: 'natureza' },
   viewpoint: { category: 'mirante', interest: 'panoramico' },
   park: { category: 'parque', interest: 'natureza' },
+  square: { category: 'parque', interest: 'natureza' },
   nature_reserve: { category: 'parque', interest: 'natureza' },
   trail: { category: 'parque', interest: 'natureza' },
   beach: { category: 'parque', interest: 'natureza' },
@@ -155,6 +156,7 @@ export function registerTouristRoutes(app: Express, options: { db: FuelDatabase;
           restaurant: { category: 'restaurante', interest: 'gastronomico' },
           cafe: { category: 'restaurante', interest: 'gastronomico' },
           park: { category: 'parque', interest: 'natureza' },
+          square: { category: 'parque', interest: 'natureza' },
           nature_reserve: { category: 'parque', interest: 'natureza' },
           attraction: { category: 'monumento', interest: 'historico' },
           historic: { category: 'monumento', interest: 'historico' }

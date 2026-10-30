@@ -710,6 +710,7 @@ try {
       }
     }
     await fuelMarker.click();
+    await page.getByRole('region',{name:'Detalhes de Posto de teste de interface'}).getByRole('button',{name:'Ver detalhes de Posto de teste de interface',exact:true}).click();
     if(name.startsWith('Comentários')){
       const sheet=page.getByRole('dialog',{name:'Preços do posto'});
       await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
@@ -963,6 +964,7 @@ try {
   assert.equal(await restaurantPin.evaluate(el=>document.activeElement===el),true,
     'O marcador visível deve ser acessível pelo teclado');
   await restaurantPin.press('Enter');
+  await page.getByRole('region',{name:'Detalhes de Restaurante revisado pela administração'}).getByRole('button',{name:'Ver detalhes de Restaurante revisado pela administração',exact:true}).click();
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
   await restaurant.getByRole('heading', { name: /Restaurante revisado pela administração/ }).waitFor();
   await restaurant.getByLabel('Seu comentário', { exact: true }).fill('Comentário de teste da interface.');

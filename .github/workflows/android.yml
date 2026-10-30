@@ -51,6 +51,7 @@ jobs:
           RDV_API_URL: ${{ inputs.api_url || vars.RDV_API_URL }}
       - run: chmod +x android/gradlew
       - name: Preparar assinatura persistente do APK de teste
+        id: signing
         # Não expor chaves privadas aos workflows de PR: somente main ou execução manual.
         if: github.event_name != 'pull_request' && inputs.distribution != 'release'
         env:
@@ -64,9 +65,14 @@ jobs:
             chmod 600 "$RUNNER_TEMP/rdv-debug-stable.jks"
             echo "RDV_KEYSTORE_FILE=$RUNNER_TEMP/rdv-debug-stable.jks" >> "$GITHUB_ENV"
             echo "RDV_USE_STABLE_DEBUG_SIGNING=1" >> "$GITHUB_ENV"
+            echo "persistent=true" >> "$GITHUB_OUTPUT"
             echo "::notice::APK debug com assinatura persistente. Registre SHA-1 e pacote .debug no OAuth Android."
           else
-            echo "::warning::APK debug com assinatura descartável: login Google código 10 até configurar uma chave persistente e registrar SHA-1 no Google Cloud."
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "::error::Atualização recusada: configure os quatro secrets com a chave persistente do proprietário."
+              exit 1
+            fi
+            echo "::notice::Validação com chave temporária. Nenhum APK de atualização será disponibilizado até configurar a chave persistente."
           fi
       - name: Compilar APK de teste
         if: inputs.distribution != 'release'
@@ -126,7 +132,7 @@ jobs:
           RDV_DISTRIBUTION: ${{ inputs.distribution || 'debug' }}
       - name: Disponibilizar pacote conectado ao backend
         uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && (inputs.distribution == 'release' || steps.signing.outputs.persistent == 'true')
         with:
           retention-days: 3
           name: roteiro-android-${{ inputs.distribution || 'debug' }}

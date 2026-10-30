@@ -265,6 +265,10 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   app.get('/api/admin/reports', (req, res) => {
     const result = pageResult(req, "SELECT id,target_type AS targetType,target_id AS targetId,reason,details,created_at AS createdAt FROM reports WHERE status='open' ORDER BY created_at DESC,rowid DESC", "SELECT COUNT(*) AS count FROM reports WHERE status='open'");
     result.items = (result.items as any[]).map(report => {
+      if(report.targetType==='places'){
+        const place=db.prepare('SELECT name,address FROM stations WHERE id=?').get(report.targetId) as {name:string;address:string}|undefined;
+        return {...report,placeName:place?.name,content:place?.address};
+      }
       const table = ['prices', 'photos', 'comments'].includes(report.targetType) ? report.targetType : 'comments';
       const target = db.prepare(`SELECT * FROM ${table} WHERE id=?`).get(report.targetId) as any;
       const place = target && db.prepare('SELECT name FROM stations WHERE id=?').get(target.station_id || target.place_id) as any;

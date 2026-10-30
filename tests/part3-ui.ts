@@ -66,6 +66,7 @@ try {
   const tollMarker=page.locator('.role-poi-marker[data-poi-category="toll"], .toll-marker').first();
   const openTollMarker=async(section:'prices'|'comments')=>{
     await tollMarker.focus();await tollMarker.press('Enter');
+    await page.locator('.role-place-balloon').getByRole('button',{name:'Indicar tarifa',exact:true}).click();
     if(section==='comments'){
       const sheet=page.getByRole('dialog',{name:'Tarifas do pedágio',exact:true});
       await sheet.getByRole('button',{name:'Comentários',exact:true}).click();

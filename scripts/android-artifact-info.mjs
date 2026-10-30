@@ -2,6 +2,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {appendFileSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {verifyRoleSigningCertificate} from './android-signing-policy.mjs';
 
 // Only public APK/build data belongs in the artifact or the Actions summary.
 const distribution=process.env.RDV_DISTRIBUTION||'debug';
@@ -34,6 +35,7 @@ const info={
   workflowRun:Number(process.env.GITHUB_RUN_NUMBER)||null,
   workflowRunId:process.env.GITHUB_RUN_ID||null,
 };
+verifyRoleSigningCertificate(info.certificateSha256,info.persistentSigning);
 mkdirSync('android-dist',{recursive:true});
 writeFileSync('android-dist/apk-info.json',JSON.stringify(info,null,2)+'\n');
 if(process.env.GITHUB_STEP_SUMMARY){

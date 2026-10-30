@@ -8,6 +8,7 @@ import { PlacesManager } from './PlacesManager';
 import { ReviewManager, UsersManager } from './CommunityManager';
 import { PasswordSettings } from './PasswordSettings';
 import { EmailSettings } from './EmailSettings';
+import { FeedbackEmailStatus } from './FeedbackEmailStatus';
 
 const tabs = [ ['places', 'Cadastro'], ['requests', 'Solicitações'], ['users', 'Usuários'], ['audit', 'Histórico de ações'], ['settings', 'Configurações'] ] as const;
 const requestTabs = [ ['fuel', 'Combustíveis e fotos'], ['tolls', 'Tarifas de pedágio'], ['roadAlerts', 'Alertas de estrada'], ['comments', 'Comentários'], ['reports', 'Denúncias'] ] as const;
@@ -26,7 +27,7 @@ export default function AdminPage({ standalone = false }: { standalone?: boolean
       <nav aria-label="Seções administrativas" className="flex flex-wrap gap-2 border-b pb-4">{tabs.map(([id, title]) => <button key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => { setTab(id); setError(''); }} className={`rounded-xl px-4 py-3 text-sm font-semibold ${tab === id ? 'bg-emerald-600 text-white' : 'bg-white border text-slate-600'}`}>{title}</button>)}</nav>
       {error && <p role="alert" className="bg-rose-50 text-rose-700 p-3 rounded-xl text-sm">{error}</p>}
       {tab === 'requests' && <section className="space-y-5"><div><h2 className="text-xl font-bold">Solicitações</h2><p className="text-sm text-slate-500 mt-1">Confira as contribuições dos viajantes antes de publicar.</p></div><nav aria-label="Tipos de solicitação" className="flex flex-wrap gap-2">{requestTabs.map(([id, title]) => <button key={id} aria-current={requestTab === id ? 'page' : undefined} onClick={() => setRequestTab(id)} className={`rounded-xl px-4 py-3 text-sm font-semibold ${requestTab === id ? 'bg-slate-800 text-white' : 'bg-white border text-slate-600'}`}>{title}{` (${id === 'fuel' ? (counts.photos || 0) + (counts.prices || 0) : counts[id] || 0})`}</button>)}</nav>{requestTab === 'tolls' && <TollQueue onChange={refresh} />}{requestTab === 'fuel' && <FuelQueue onChange={refresh} />}{requestTab === 'roadAlerts' && <RoadAlertsQueue onChange={refresh} />}{['comments', 'reports'].includes(requestTab) && <ReviewManager key={requestTab} section={requestTab as 'comments' | 'reports'} onChange={refresh} />}</section>}
-      {tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{tab === 'audit' && <ReviewManager section="audit" onChange={refresh} />}{tab === 'settings' && <><PasswordSettings onPasswordChanged={message => { setNotice(message); auth.clearSession(); }} /><EmailSettings onEmailChanged={message => { setNotice(message); auth.clearSession(); }} /></>}
+      {tab === 'places' && <PlacesManager onChange={refresh} />}{tab === 'users' && <UsersManager onChange={refresh} />}{tab === 'audit' && <ReviewManager section="audit" onChange={refresh} />}{tab === 'settings' && <><FeedbackEmailStatus/><PasswordSettings onPasswordChanged={message => { setNotice(message); auth.clearSession(); }} /><EmailSettings onEmailChanged={message => { setNotice(message); auth.clearSession(); }} /></>}
     </main>}
   </div>;
 }
