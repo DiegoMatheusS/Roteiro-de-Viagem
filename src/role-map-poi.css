@@ -1,46 +1,10 @@
-/* MapLibre POI cards: category-accented, collapsed until tapped or GPS proximity.
- * No card is created for ratings/photos the public API does not provide. */
-.role-poi-marker {position:relative;display:flex;align-items:center;justify-content:center;
-  width:38px;max-width:none!important;min-height:38px;pointer-events:auto;
-  --role-poi-surface:#fff;--role-poi-text:#233244;--role-poi-muted:#607184;
-  transition:opacity 180ms ease;}
-/* API-confirmed coordinates get a category-colored footprint *indicator*.
- * It is intentionally a halo around the point, NOT a fabricated building shape. */
-.role-poi-marker[data-poi-kind="place"]::before{
-  content:"";position:absolute;z-index:0;width:51px;height:51px;
-  border-radius:16px;border:1px solid var(--role-poi-accent);
-  background:color-mix(in srgb,var(--role-poi-accent) 20%,transparent);
-  pointer-events:none;
+/* MapLibre positions each pin from its real coordinate. Relative positioning
+ * would stack siblings in document flow and shift every later pin by 38 px. */
+.role-poi-marker {
+  position:absolute;top:0;left:0;display:grid;place-items:center;
+  width:38px;height:38px;max-width:none!important;pointer-events:auto;
 }
-.role-poi-marker > .rdv-map-place-icon {position:relative;z-index:1;
-  border-color:var(--role-poi-surface)!important;
-  box-shadow:0 2px 9px #0f172a44!important;}
-/* City / long-route overview: the pin stays tappable at 38px, but its visual
- * clutter is reduced until street-level zoom restores the category halo. */
-.role-poi-marker[data-poi-overview="true"]::before{opacity:0;}
-.role-poi-marker[data-poi-overview="true"] > .rdv-map-place-icon{
-  transform:scale(.84);transform-origin:center;}
-.role-poi-marker[data-poi-overview="false"] > .rdv-map-place-icon{transform:none;}
-.role-poi-marker .role-poi-details {position:absolute;z-index:3;left:43px;bottom:1px;
-  display:none;flex-direction:column;gap:4px;width:206px;max-width:calc(80vw - 48px);
-  padding:10px 11px;border:1px solid color-mix(in srgb,var(--role-poi-accent),white 50%);
-  border-left:4px solid var(--role-poi-accent);border-radius:14px;
-  background:var(--role-poi-surface);color:var(--role-poi-text);
-  box-shadow:0 5px 18px #0f172a3a;white-space:normal;text-align:left;
-  font:500 11px/1.4 Inter,system-ui,sans-serif;cursor:pointer;animation:role-poi-enter 220ms ease-out;}
-/* Raised at the marker layer, not just inside its own card: MapLibre pins
-   and route-stop markers are siblings, so a nested z-index alone cannot prevent
-   an overlapping stop from intercepting taps on the expanded card. */
-.role-poi-marker[data-expanded="true"]{z-index:1500!important;}
-.role-poi-marker[data-expanded="true"] .role-poi-details{display:flex;}
-.role-poi-marker .role-poi-name{font-size:12px;line-height:1.3;font-weight:600;overflow-wrap:anywhere;}
-.role-poi-marker .role-poi-description{font-size:11px;line-height:1.35;color:var(--role-poi-muted);
-  overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;}
-.role-poi-marker .role-poi-price{font-weight:600;color:var(--role-poi-accent);font-size:11px;}
-.role-poi-marker .role-poi-actions{display:flex;gap:5px;flex-wrap:wrap;}
-.role-poi-marker .role-poi-action{min-height:34px;border-radius:9px;padding:6px 8px;
-  font:600 11px Inter,system-ui,sans-serif;border:1px solid var(--role-poi-accent);
-  background:var(--role-poi-surface);color:var(--role-poi-accent);}
-[data-role-theme="dark"] .role-poi-marker{--role-poi-surface:#1e293b;--role-poi-text:#f1f5f9;--role-poi-muted:#c0cbd7;}
-@keyframes role-poi-enter {from{opacity:0;transform:translateX(-6px) scale(.97)}to{opacity:1;transform:translateX(0) scale(1)}}
-@media(prefers-reduced-motion:reduce){.role-poi-marker,.role-poi-details{transition:none!important;animation:none!important}}
+.role-poi-marker > .rdv-map-place-icon {
+  position:relative;border-color:#fff!important;
+  box-shadow:0 2px 9px #0f172a44!important;
+}

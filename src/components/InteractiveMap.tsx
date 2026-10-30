@@ -22,7 +22,6 @@ import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { mapPlaceIcon } from './mapPlaceIcon';
-import { fuelPriceLabel, tollPriceLabel } from '../services/mapPriceLabels';
 import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative,ROLE_TRAVELLED_ROUTE_COLOR } from '../services/mapLibreRouteLayers';
 import {routeEditPoint} from '../services/mapRouteEditPoint';
@@ -119,6 +118,16 @@ export interface InteractiveMapProps {
 }
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+function bindPlaceMarkerAction(marker:L.Marker,name:string,activate:()=>void){
+  const element=marker.getElement();
+  element?.setAttribute('aria-label',`Ver ${name}`);
+  marker.on('click',activate);
+  element?.addEventListener('keydown',event=>{
+    if(event.target!==element||(event.key!=='Enter'&&event.key!==' '))return;
+    event.preventDefault();event.stopPropagation();activate();
+  });
+}
 
 // Mapa claro padrão: MapLibre/OpenFreeMap vetorial com fallback raster OSM sem chave. Satélite e relevo preservados.
 // Vibrant modality colors
@@ -513,12 +522,12 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if(!group)return;group.clearLayers();
     if (vectorMarkersReady || !tollVehicleType) return;
     for(const toll of (Array.isArray(tolls) ? tolls : [])) {
-      const icon=navigationMode?mapPlaceIcon('toll'):mapContributionIcon({className:'toll-marker',name:toll.name,emoji:'🛣️',color:'#0e7490',priceLabel:tollPriceLabel(toll),onPrices:()=>openToll(toll.id),onComments:()=>openToll(toll.id,'comments')});
-      const marker=L.marker(toll.coords,{icon,title:toll.name,keyboard:false,zIndexOffset:1700}).addTo(group);
-      const tip=document.createElement('span');tip.textContent=toll.name;marker.bindTooltip(tip);
-      marker.on('click',() => openToll(toll.id));
+      const icon=mapPlaceIcon('toll');
+      const marker=L.marker(toll.coords,{icon,keyboard:true,zIndexOffset:1700}).addTo(group);
+      bindPlaceMarkerAction(marker,toll.name,()=>openToll(toll.id));
+      marker.getElement()?.classList.add('toll-marker');
     }
-  },[tolls,tollVehicleType,navigationMode,vectorMarkersReady]);
+  },[tolls,tollVehicleType,vectorMarkersReady]);
 
   useEffect(() => {
     const map=mapInstanceRef.current;
@@ -557,36 +566,32 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       const fresh=freshFuelPlaces.get(source.id);
       if(showPlaces&&source.managed&&!fresh)continue;
       const station=fresh?{...source,name:fresh.name,lat:fresh.lat,lng:fresh.lng,managed:fresh.managed}:source;
-      const icon = navigationMode?mapPlaceIcon('fuel'):mapContributionIcon({ className: 'fuel-station-marker', name: station.name, emoji: '⛽', color: '#047857', priceLabel: fuelPriceLabel(station), onPrices: () => openStation(station.id), onComments: () => openStation(station.id, 'comments') });
-      const marker = L.marker([station.lat, station.lng], { icon, title: station.name, keyboard: false, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
-      const tooltip = document.createElement('span'); tooltip.textContent = `${station.name} · Ver preços`;
-      marker.bindTooltip(tooltip);
-      marker.on('click', () => openStation(station.id));
+      const icon = mapPlaceIcon('fuel');
+      const marker = L.marker([station.lat, station.lng], { icon, keyboard: true, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
+      bindPlaceMarkerAction(marker,station.name,()=>openStation(station.id));
+      marker.getElement()?.classList.add('fuel-station-marker');
     }
     for (const place of (Array.isArray(places) ? places : []).filter(place=>place.active)) {
       if(place.kind==='fuel'){
         if(fuel.stations.some(station=>station.id===place.id))continue;
-        const marker=L.marker([place.lat,place.lng],{icon:mapPlaceIcon('fuel'),title:place.name,zIndexOffset:1500}).addTo(group);
-        marker.on('click',()=>openStation(place.id));
+        const marker=L.marker([place.lat,place.lng],{icon:mapPlaceIcon('fuel'),zIndexOffset:1500}).addTo(group);
+        bindPlaceMarkerAction(marker,place.name,()=>openStation(place.id));
+        marker.getElement()?.classList.add('fuel-station-marker');
         continue;
       }
       if (place.kind === 'toll') {
         if (isRouteTollPlace(place,tolls)) continue;
-        const icon = mapContributionIcon({ className: 'toll-marker managed-toll-marker', name: place.name, emoji: '🛣️', color: '#0e7490', onPrices: () => openToll(place.id, 'prices', place), onComments: () => openToll(place.id, 'comments', place) });
-        L.marker([place.lat, place.lng], { icon, title: place.name, keyboard: false, zIndexOffset: 1700 }).addTo(group);
+        const icon = mapPlaceIcon('toll');
+        const marker=L.marker([place.lat, place.lng], { icon, keyboard: true, zIndexOffset: 1700 }).addTo(group);
+        bindPlaceMarkerAction(marker,place.name,()=>openToll(place.id,'prices',place));
+        marker.getElement()?.classList.add('toll-marker');
         continue;
       }
       const icon = mapPlaceIcon(place.kind);
-      const marker = L.marker([place.lat, place.lng], { icon, title: place.name, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
-      const tooltip = document.createElement('span'); tooltip.textContent = place.name;
-      tooltip.style.cssText='display:block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;';
-      marker.bindTooltip(tooltip,{direction:'top',offset:[0,-18],pane:'markerPane'}); marker.on('click', () => setSelectedPlace(place));
-      marker.on('keypress', event => {
-        const original = (event as L.LeafletKeyboardEvent).originalEvent;
-        if (original.key === 'Enter' || original.key === ' ') { original.preventDefault(); setSelectedPlace(place); }
-      });
+      const marker = L.marker([place.lat, place.lng], { icon, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
+      bindPlaceMarkerAction(marker,place.name,()=>setSelectedPlace(place));
     }
-  }, [fuel.stations, places, tolls, navigationMode, vectorMarkersReady,showPlaces]);
+  }, [fuel.stations, places, tolls, vectorMarkersReady,showPlaces]);
 
   // Install MapLibre pins once per vector map lifecycle, not after every
   // station price refresh. The Leaflet fallback remains available until ready.

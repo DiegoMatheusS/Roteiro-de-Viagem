@@ -16,9 +16,9 @@ export function rolePlaceMarkerKey(entry: RoleVectorMarker): string {
   return `${entry.kind}:${entry.id}`;
 }
 export function rolePlaceMarkerSignature(entry: RoleVectorMarker): string {
-  const {coords: _coords,...visualMetadata}=entry;
-  void _coords;
-  return JSON.stringify(visualMetadata);
+  // Only the category glyph and accessible name are drawn on the pin.
+  // Price/description refreshes belong to the sheet and must not replace it.
+  return JSON.stringify([entry.kind,entry.name,entry.kind==='place'?entry.category:entry.kind]);
 }
 
 export function validMarkerPosition(position: [number, number]): boolean {

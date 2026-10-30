@@ -46,10 +46,14 @@ try{
     await route.fulfill({json:{items:[],places:[],stations:[]}});
   });
   await page.goto('http://127.0.0.1:3000/tests/fixtures/registered-places.html');
-  const pin=(name:string)=>page.locator(`.managed-place-marker[title="${name}"]`);
+  const pin=(name:string)=>page.locator(`.managed-place-marker[aria-label="Ver ${name}"]`);
   await pin('Shopping cadastrado').waitFor({state:'visible'});
   await pin('Café cadastrado').waitFor({state:'visible'});
   await pin('Parque cadastrado').waitFor({state:'visible'});
+  for(const marker of await page.locator('.managed-place-marker').all()){
+    assert.equal((await marker.textContent())?.trim(),'','registered places are symbols only');
+    assert.equal(await marker.getAttribute('title'),null,'no name tooltip over the map');
+  }
   assert.equal(await pin('Posto cadastrado').count(),0);
   catalogUnavailable=true;
   await page.getByRole('button',{name:'Alternar postos de teste'}).click();
@@ -69,12 +73,12 @@ try{
 
   if(!raster){
     await page.waitForFunction(()=>document.querySelector('[data-map-engine="maplibre-standalone"]')?.getAttribute('data-map-ready')==='true');
-    await page.evaluate(()=>{(window as any).__registeredShop=document.querySelector('[title="Shopping cadastrado"]');});
+    await page.evaluate(()=>{(window as any).__registeredShop=document.querySelector('[aria-label="Ver Shopping cadastrado"]');});
   }else assert.ok(await page.locator('.leaflet-container').count());
   await page.screenshot({path:`test-results/registered-places-${raster?'raster':'native'}-home.png`});
   phase=1;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await pin('Museu cadastrado agora').waitFor({state:'visible'});
-  if(!raster)assert.equal(await page.evaluate(()=>(window as any).__registeredShop===document.querySelector('[title="Shopping cadastrado"]')),true,'unchanged POIs keep their marker and handlers');
+  if(!raster)assert.equal(await page.evaluate(()=>(window as any).__registeredShop===document.querySelector('[aria-label="Ver Shopping cadastrado"]')),true,'unchanged POIs keep their marker and handlers');
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
   const beforePause=calls;await page.waitForTimeout(600);assert.equal(calls,beforePause,'background maps stop polling');
   phase=2;

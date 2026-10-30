@@ -65,20 +65,10 @@ try {
   assert.ok(await page.locator('.weather-forecast-marker').count()>=2);
   const tollMarker=page.locator('.role-poi-marker[data-poi-category="toll"], .toll-marker').first();
   const openTollMarker=async(section:'prices'|'comments')=>{
-    const compact=await tollMarker.getAttribute('data-poi-category')==='toll';
-    if(compact){
-      // The new compact POI opens the contribution sheet with one action.
-      // Navigate between prices and comments using the sheet's own tabs.
-      await tollMarker.focus();await tollMarker.press('Enter');
-      if(section==='comments'){
-        const sheet=page.getByRole('dialog',{name:'Tarifas do pedágio',exact:true});
-        await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
-      }
-    }else{
-      const button=tollMarker.getByRole('button',section==='prices'
-        ?{name:'Sugerir preço',exact:true}:{name:/^Comentários de /});
-      if(section==='prices'){await button.focus();await button.press('Enter');}
-      else await button.click();
+    await tollMarker.focus();await tollMarker.press('Enter');
+    if(section==='comments'){
+      const sheet=page.getByRole('dialog',{name:'Tarifas do pedágio',exact:true});
+      await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
     }
   };
   await openTollMarker('comments');

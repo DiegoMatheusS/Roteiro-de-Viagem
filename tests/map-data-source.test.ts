@@ -16,8 +16,9 @@ test('fluxo público usa OSRM e geradores fictícios não existem mais',()=>{
 test('mapa público não desenha valores inventados e prioriza ícones vetoriais',()=>{
   const map=read('src/components/InteractiveMap.tsx');
   const markers=read('src/components/mapContributionIcon.ts');
-  assert.match(map,/priceLabel: fuelPriceLabel\(station\)/);
-  assert.match(map,/priceLabel:tollPriceLabel\(toll\)/);
+  const data=read('src/services/vectorPlaceData.ts');
+  assert.match(data,/priceLabel:fuelPriceLabel\(station\)/);
+  assert.match(data,/priceLabel:tollPriceLabel\(toll\)/);
   assert.match(map,/mapPlaceIcon\(place.kind\)/);
   assert.match(markers,/textContent = options.priceLabel/);
   assert.doesNotMatch(markers,/innerHTML\s*=\s*options.priceLabel/);

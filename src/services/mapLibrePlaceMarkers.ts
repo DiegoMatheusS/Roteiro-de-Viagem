@@ -3,9 +3,7 @@ import L from 'leaflet';
 import { mapPlaceIcon } from '../components/mapPlaceIcon';
 import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSignature,
   type RoleVectorMarker } from './vectorPlaceData';
-import {nearestPoiToExpand,poiAccent,poiCategory,poiVisibleAtZoom,
-  resolvePoiPreview,EMPTY_POI_PREVIEW,POI_AUTO_PREVIEW_MS,
-  type PoiPreviewState,type PoiVisibilityContext} from './mapPoiPresentation';
+import {poiCategory,poiVisibleAtZoom,type PoiVisibilityContext} from './mapPoiPresentation';
 import type { Place } from '../types/admin';
 import '../role-map-poi.css';
 
@@ -19,7 +17,7 @@ export interface RoleMarkerActions {
 function iconElement(icon: L.DivIcon, className: string): HTMLDivElement {
   const root=document.createElement('div');
   root.className=className;
-  root.style.cssText='width:max-content;max-width:165px;cursor:pointer;pointer-events:auto;';
+  root.style.cssText='width:38px;height:38px;cursor:pointer;pointer-events:auto;';
   const html=icon.options.html;
   if (html instanceof HTMLElement) root.append(html);
   else if (typeof html === 'string') root.textContent = html;
@@ -44,8 +42,6 @@ interface TrackedRoleMarker {
   // times a minute; rewriting identical attributes on every marker restyles the
   // whole overlay and competes with the user's pan and zoom gestures.
   visible:boolean|null;
-  overview:boolean|null;
-  expanded:boolean|null;
 }
 export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
@@ -54,12 +50,6 @@ export function createRoleMaplibreMarkerController(
   const markers=new Map<string,TrackedRoleMarker>();
   let destroyed=false;
   let context:PoiVisibilityContext={zoom:gl.getZoom(),navigationMode:false};
-  let manualKey:string|null=null;
-  let proximityPreview:PoiPreviewState=EMPTY_POI_PREVIEW;
-  let previewTimeout:ReturnType<typeof setTimeout>|null=null;
-  const clearPreviewTimeout=()=>{
-    if(previewTimeout!==null){clearTimeout(previewTimeout);previewTimeout=null;}
-  };
   const openDetails=(entry:RoleVectorMarker)=>{
     if(entry.kind==='place')actions.onPlace(entry.id);
     else if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
@@ -67,116 +57,40 @@ export function createRoleMaplibreMarkerController(
   };
   const applyVisibility=()=>{
     if(destroyed)return;
-    const entries=[...markers.values()].map(record=>record.entry);
-    const nearest=nearestPoiToExpand(entries,{...context,zoom:gl.getZoom()});
-    const preview=resolvePoiPreview(proximityPreview,nearest,performance.now());
-    // Refreshing GPS or map data must not restart an already-seen preview.
-    if(preview.state.nearbyKey!==proximityPreview.nearbyKey)clearPreviewTimeout();
-    proximityPreview=preview.state;
-    if(preview.remainingMs!==null&&previewTimeout===null){
-      previewTimeout=setTimeout(()=>{
-        previewTimeout=null;
-        applyVisibility();
-      },preview.remainingMs);
-    }
-    if(preview.remainingMs===null)clearPreviewTimeout();
-    if(manualKey){
-      const chosen=markers.get(manualKey);
-      const chosenVisible=chosen&&(poiVisibleAtZoom(chosen.entry,gl.getZoom())||
-        (Boolean(context.showRouteServices)&&(chosen.entry.kind==='fuel'||chosen.entry.kind==='toll')));
-      if(!chosenVisible)manualKey=null;
-    }
     const zoom=gl.getZoom();
-    // At city-scale zoom, keep category icons but suppress the large halo
-    // so verified route lines and street labels remain easy to read.
-    const overview=zoom<15;
-    for(const [key,record] of markers){
+    for(const record of markers.values()){
       const visible=poiVisibleAtZoom(record.entry,zoom) ||
         (Boolean(context.showRouteServices) && (record.entry.kind==='fuel'||record.entry.kind==='toll'));
-      const expanded=visible && (manualKey===key || (!manualKey&&key===preview.expandedKey));
       const element=record.marker.getElement();
-      if(record.overview!==overview){
-        record.overview=overview;
-        element.dataset.poiOverview=String(overview);
-      }
       if(record.visible!==visible){
         record.visible=visible;
         element.style.display=visible?'':'none';
-      }
-      if(record.expanded!==expanded){
-        record.expanded=expanded;
-        element.dataset.expanded=String(expanded);
-        element.setAttribute('aria-expanded',String(expanded));
       }
     }
   };
   const buildMarker=(entry:RoleVectorMarker):Marker=>{
     const category=poiCategory(entry);
-    const color=poiAccent(category);
     const root=iconElement(mapPlaceIcon(category as Place['kind']),'role-poi-marker managed-place-marker');
-    root.style.setProperty('--role-poi-accent',color);
-    root.dataset.expanded='false';
     root.dataset.poiCategory=category;
     root.dataset.poiKind=entry.kind;
-    root.title=entry.name;
+    root.dataset.poiId=entry.id;
     root.tabIndex=0;
     root.setAttribute('role','button');
     root.setAttribute('aria-label',`Ver ${entry.name}`);
 
-    const details=document.createElement('div');
-    details.className='role-poi-details';
-    const heading=document.createElement('strong');
-    heading.className='role-poi-name';heading.textContent=entry.name;
-    details.append(heading);
-    if(entry.kind==='place' && entry.description){
-      const desc=document.createElement('span');
-      desc.className='role-poi-description';
-      desc.textContent=entry.description;details.append(desc);
-    }
-    if(entry.kind!=='place' && entry.priceLabel){
-      const price=document.createElement('span');price.className='role-poi-price';
-      price.textContent=entry.priceLabel;details.append(price);
-    }
-    if(entry.kind==='fuel'||entry.kind==='toll'){
-      const actionsRow=document.createElement('div');actionsRow.className='role-poi-actions';
-      const action=(label:string,run:()=>void)=>{
-        const button=document.createElement('button');
-        button.type='button';button.className='role-poi-action';
-        button.textContent=label;button.setAttribute('aria-label',`${label}: ${entry.name}`);
-        button.addEventListener('click',event=>{event.stopPropagation();run();});
-        actionsRow.append(button);
-      };
-      action(entry.kind==='fuel'?'Sugerir preço':'Informar tarifa',()=>entry.kind==='fuel'
-        ?actions.onStation(entry.id,'prices','edit')
-        :actions.onToll(entry.id,'prices',entry.place));
-      action('Comentários',()=>entry.kind==='fuel'
-        ?actions.onStation(entry.id,'comments')
-        :actions.onToll(entry.id,'comments',entry.kind==='toll'?entry.place:null));
-      details.append(actionsRow);
-    }
-    root.append(details);
     const key=rolePlaceMarkerKey(entry);
     const activate=(event:Event)=>{
-      if((event.target as HTMLElement).closest('button'))return;
       event.stopPropagation();
-      // Single tap on fuel/toll pins opens their contribution sheet.
-      if(entry.kind!=='place'||root.dataset.expanded==='true'){
-        openDetails(entry);
-      }else{
-        manualKey=key;applyVisibility();
-      }
+      // The pin stays compact. Read live metadata without rebuilding its DOM
+      // when a price, description or registered coordinate changes.
+      const current=markers.get(key)?.entry;
+      if(current)openDetails(current);
     };
     root.addEventListener('click',activate);
     root.addEventListener('keydown',event=>{
-      // Keyboard Enter should open the place in one action, rather than merely
-      // expanding a visual card. Space keeps the explicit expand interaction.
       if(event.target!==root)return;
-      if(event.key==='Enter'){
-        event.preventDefault();event.stopPropagation();openDetails(entry);
-      }else if(event.key===' '){
+      if(event.key==='Enter'||event.key===' '){
         event.preventDefault();activate(event);
-      }else if(event.key==='Escape'&&manualKey===key){
-        event.preventDefault();manualKey=null;applyVisibility();
       }
     });
     const anchor:'center'='center',offset:[number,number]=[0,0];
@@ -185,17 +99,7 @@ export function createRoleMaplibreMarkerController(
     return marker;
   };
   const onZoom=()=>applyVisibility();
-  const onMapClick=()=>{
-    // Tapping an empty section dismisses both manual and automatic cards.
-    manualKey=null;
-    proximityPreview=proximityPreview.nearbyKey
-      ?{...proximityPreview,sinceMs:performance.now()-POI_AUTO_PREVIEW_MS}
-      :EMPTY_POI_PREVIEW;
-    clearPreviewTimeout();
-    applyVisibility();
-  };
   gl.on('zoomend',onZoom);
-  gl.on('click',onMapClick);
   return {
     update(descriptors,inputs){
       if(destroyed)return;
@@ -209,7 +113,6 @@ export function createRoleMaplibreMarkerController(
       for(const [key,record] of markers){
         if(!wanted.has(key)){record.marker.remove();markers.delete(key);}
       }
-      if(manualKey&&!wanted.has(manualKey))manualKey=null;
       for(const [key,entry] of wanted){
         const signature=rolePlaceMarkerSignature(entry);
         const existing=markers.get(key);
@@ -218,15 +121,14 @@ export function createRoleMaplibreMarkerController(
             existing.marker.setLngLat(toMarkerLngLat(entry.coords));
             existing.coords=[...entry.coords];
           }
-          // The same marker can move without a visual rebuild. Keep the live
-          // coordinates in sync for proximity calculations too.
+          // Keep the same marker and the metadata used by its click handler.
           existing.entry=entry;
           continue;
         }
         const marker=buildMarker(entry);
         existing?.marker.remove();
         markers.set(key,{marker,visualSignature:signature,coords:[...entry.coords],entry,
-          visible:null,overview:null,expanded:null});
+          visible:null});
       }
       applyVisibility();
     },
@@ -235,8 +137,6 @@ export function createRoleMaplibreMarkerController(
       if(destroyed)return;
       destroyed=true;
       gl.off('zoomend',onZoom);
-      gl.off('click',onMapClick);
-      clearPreviewTimeout();
       for(const record of markers.values())record.marker.remove();
       markers.clear();
     }
