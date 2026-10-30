@@ -4,7 +4,7 @@ import type {ExploreArea, ExploreCoords, ExploreFilter, ExplorePlace} from '../t
 import {EXPLORE_CATALOG} from '../catalogs/explore';
 
 const touristKinds = new Set<string>(TOURIST_PLACE_KINDS);
-const natureKinds = new Set(['park', 'waterfall', 'lake', 'nature_reserve', 'trail', 'beach', 'viewpoint']);
+const natureKinds = new Set(['park', 'square', 'waterfall', 'lake', 'nature_reserve', 'trail', 'beach', 'viewpoint']);
 const cultureKinds = new Set(['museum', 'theatre', 'historic']);
 const metropolitanCities = new Set(['São Paulo','Arujá','Barueri','Biritiba Mirim','Caieiras','Cajamar',
   'Carapicuíba','Cotia','Diadema','Embu das Artes','Embu-Guaçu','Ferraz de Vasconcelos',
@@ -89,7 +89,7 @@ export function filterExplorePlaces(
     if (filter === 'nature' && !natureKinds.has(place.kind)) return false;
     if (filter === 'waterfalls' && place.kind !== 'waterfall') return false;
     if (filter === 'lakes' && place.kind !== 'lake') return false;
-    if (filter === 'parks' && place.kind !== 'park' && place.kind !== 'nature_reserve') return false;
+    if (filter === 'parks' && !['park','square','nature_reserve'].includes(place.kind)) return false;
     if (filter === 'racetracks' && place.category !== 'Autódromos') return false;
     if (filter === 'culture' && place.category !== 'Cultura' && !cultureKinds.has(place.kind)) return false;
     if (filter === 'road' && place.kind !== 'scenic_road' && place.category !== 'Estrada') return false;

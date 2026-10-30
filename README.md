@@ -95,6 +95,8 @@ Comentários de estabelecimentos são armazenados no servidor e aguardam aprova�
 
 O administrador pode bloquear/desbloquear ou excluir contas. Bloqueio e exclusão revogam sessões; exclusão remove fotos, votos e conteúdo de comentários, elimina nome/e-mail/senha e mantém preços aprovados no histórico sem identificação pessoal. Sua própria conta e o último administrador ativo são protegidos. Exclusões exigem confirmação na interface e no servidor. As ações ficam na auditoria.
 
+Os pontos do mapa usam balões ancorados ao ícone, preços por combustível, avaliações e relatos pelo botão ⓘ. Veja [o fluxo e a configuração dos e-mails](docs/estabelecimentos-mapa.md).
+
 Fotos têm limite de envio de 8 MB/24 MP, são redimensionadas até 1600 px e comprimidas em JPEG sem EXIF/GPS/nome original (máximo de 1 MB armazenado). Há limite de 3 tentativas por 10 minutos e 10 fotos por dia por conta, além de bloqueio de duplicatas recentes. Filas são paginadas em 20 registros, indexadas, e não carregam os bytes da imagem até sua visualização. Fotografe somente com o veículo parado e não publique dados pessoais.
 
 ## Configuração e execução em servidor

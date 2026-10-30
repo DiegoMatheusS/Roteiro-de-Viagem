@@ -46,6 +46,19 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
     CREATE INDEX IF NOT EXISTS road_alerts_geo ON road_alerts(status,expires_at,lat,lng);
     CREATE INDEX IF NOT EXISTS road_alerts_user ON road_alerts(user_id,created_at);
     CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, place_id TEXT NOT NULL REFERENCES stations(id), user_id TEXT NOT NULL REFERENCES users(id), body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS place_ratings (
+      place_id TEXT NOT NULL REFERENCES stations(id), user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5), updated_at TEXT NOT NULL,
+      PRIMARY KEY(place_id,user_id)
+    );
+    CREATE TABLE IF NOT EXISTS place_feedback_mail (
+      id TEXT PRIMARY KEY, report_id TEXT NOT NULL REFERENCES reports(id),
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL, request_hash TEXT NOT NULL,
+      subject TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL,
+      sent_at TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL,
+      last_error TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS place_feedback_mail_pending ON place_feedback_mail(sent_at,next_attempt_at);
     CREATE TABLE IF NOT EXISTS locations (id TEXT PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, source_url TEXT NOT NULL, category TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS geocoding_queries (id TEXT PRIMARY KEY, location_ids TEXT NOT NULL, updated_at TEXT NOT NULL);
     -- Public POIs continue in locations/stations. Personal selections must not enter the shared search index.

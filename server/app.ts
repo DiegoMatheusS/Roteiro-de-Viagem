@@ -26,9 +26,11 @@ import { registerRoadAlertRoutes } from './roadAlerts';
 import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from './googleAuth';
 import { stationOpeningStatus } from './openingHours';
 import {registerTrafficRoutes,type TrafficOptions} from './traffic';
+import {createPlaceFeedbackMailQueue,type PlaceFeedbackMailOptions} from './placeFeedbackMail';
+import {registerPlaceFeedbackRoutes} from './placeFeedback';
 
 const scryptAsync = promisify(scrypt);
-export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; traffic?:TrafficOptions; requestLimitPerMinute?: number }) {
+export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; traffic?:TrafficOptions; feedbackMail?:PlaceFeedbackMailOptions; requestLimitPerMinute?: number }) {
   const { db } = options;
   const photosDir = path.resolve(options.photoDirectory || process.env.PHOTO_DIRECTORY || './data/photos');
   fs.mkdirSync(photosDir, { recursive: true, mode: 0o700 });
@@ -94,6 +96,9 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerTollRoutes(app, db, options.mapFetch || fetch, limit);
   registerRoadAlertRoutes(app, db, limit);
   registerTrafficRoutes(app,limit,options.traffic);
+  const feedbackMail=createPlaceFeedbackMailQueue(db,options.feedbackMail);
+  app.locals.feedbackMail=feedbackMail;
+  registerPlaceFeedbackRoutes(app,db,limit,feedbackMail);
 
   app.get('/api/public-config', (_req, res) => res.json({
     appOrigin: process.env.PUBLIC_APP_URL || 'http://localhost:3000',

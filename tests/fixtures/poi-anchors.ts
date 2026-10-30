@@ -20,7 +20,8 @@ map.once('load',()=>{
   const controller=createRoleMaplibreMarkerController(map,{
     onStation:(id,section,mode)=>actions.push({kind:'fuel',id,section,mode}),
     onToll:(id,section,place)=>actions.push({kind:'toll',id,section,place}),
-    onPlace:id=>actions.push({kind:'place',id})
+    onPlace:id=>actions.push({kind:'place',id}),
+    onReport:entry=>actions.push({kind:'report',id:entry.id})
   });
   controller.update(entries,{zoom:map.getZoom(),navigationMode:true,location:coords,accuracyMeters:3});
   (window as any).__poiAnchors={map,controller,entries,actions};

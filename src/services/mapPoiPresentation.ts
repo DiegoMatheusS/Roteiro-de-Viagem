@@ -1,4 +1,5 @@
 import type {RoleVectorMarker} from './vectorPlaceData';
+import {placeIconKind} from './placeIconKind';
 
 export type Coordinates=[number,number];
 export interface PoiVisibilityContext {
@@ -9,11 +10,11 @@ export interface PoiVisibilityContext {
   location?:Coordinates;
   accuracyMeters?:number;
 }
-const TOURIST=new Set(['waterfall','viewpoint','park','museum','theatre','scenic_road',
+const TOURIST=new Set(['waterfall','viewpoint','park','square','museum','theatre','scenic_road',
   'landmark','historic','beach','trail','nature_reserve','attraction']);
 
 export function poiCategory(marker:RoleVectorMarker):string {
-  return marker.kind==='place'?marker.category:marker.kind;
+  return marker.kind==='place'?placeIconKind(marker.category,marker.name):marker.kind;
 }
 export function poiAccent(category:string):string {
   if(category==='fuel')return '#2563eb';

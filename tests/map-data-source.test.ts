@@ -14,12 +14,12 @@ test('fluxo público usa OSRM e geradores fictícios não existem mais',()=>{
   assert.doesNotMatch(presets,/INITIAL_COMMUNITY_ROUTES|INITIAL_STOPS_MAP|authorTier/);
 });
 test('mapa público não desenha valores inventados e prioriza ícones vetoriais',()=>{
-  const map=read('src/components/InteractiveMap.tsx');
+  const pins=read('src/services/leafletPlaceMarkers.ts');
   const markers=read('src/components/mapContributionIcon.ts');
   const data=read('src/services/vectorPlaceData.ts');
   assert.match(data,/priceLabel:fuelPriceLabel\(station\)/);
   assert.match(data,/priceLabel:tollPriceLabel\(toll\)/);
-  assert.match(map,/mapPlaceIcon\(place.kind\)/);
+  assert.match(pins,/mapPlaceIcon\(category,entry.name\)/);
   assert.match(markers,/textContent = options.priceLabel/);
   assert.doesNotMatch(markers,/innerHTML\s*=\s*options.priceLabel/);
 });

@@ -68,7 +68,9 @@ try{
   assert.notDeepEqual(after,before,'the map was actually dragged');
   await checkAnchors();
   await page.getByRole('button',{name:'Ver Posto do teste',exact:true}).press('Enter');
+  await page.getByRole('region',{name:'Detalhes de Posto do teste'}).getByRole('button',{name:'Indicar preço',exact:true}).click();
   await page.getByRole('button',{name:'Ver Museu do teste',exact:true}).press('Space');
+  await page.getByRole('region',{name:'Detalhes de Museu do teste'}).getByRole('button',{name:'Ver detalhes',exact:true}).click();
   const actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
   assert.equal(actions[0].kind,'fuel');assert.equal(actions[0].section,'prices');
   assert.equal(actions[1].kind,'place');assert.equal(actions[1].id,'admin:museum');

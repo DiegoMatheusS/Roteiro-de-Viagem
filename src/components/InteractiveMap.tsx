@@ -16,18 +16,19 @@ import {mapPlaceViewport,sameMapPlaceQuery,type MapPlaceQuery} from '../services
 import {MAP_PLACES_REFRESH_MS} from '../services/placeRefresh';
 import {standaloneVisiblePlaces} from '../services/standaloneVisiblePlaces';
 import { PlaceModal } from './PlaceModal';
+import { PlaceFeedbackModal } from './PlaceFeedbackModal';
+import { createLeafletPlaceMarkerController } from '../services/leafletPlaceMarkers';
 import { PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
-import { mapPlaceIcon } from './mapPlaceIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
 import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative,ROLE_TRAVELLED_ROUTE_COLOR } from '../services/mapLibreRouteLayers';
 import {routeEditPoint} from '../services/mapRouteEditPoint';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
-import { selectRoleVectorMarkers,validMarkerPosition,isRouteTollPlace } from '../services/vectorPlaceData';
+import { selectRoleVectorMarkers,validMarkerPosition,type RoleVectorMarker } from '../services/vectorPlaceData';
 import { selectVisibleRoadAlerts, createRoadAlertIconElement,roadAlertMarkerChange } from '../services/mapRoadAlerts';
 import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers';
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
@@ -119,16 +120,6 @@ export interface InteractiveMapProps {
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-function bindPlaceMarkerAction(marker:L.Marker,name:string,activate:()=>void){
-  const element=marker.getElement();
-  element?.setAttribute('aria-label',`Ver ${name}`);
-  marker.on('click',activate);
-  element?.addEventListener('keydown',event=>{
-    if(event.target!==element||(event.key!=='Enter'&&event.key!==' '))return;
-    event.preventDefault();event.stopPropagation();activate();
-  });
-}
-
 // Mapa claro padrão: MapLibre/OpenFreeMap vetorial com fallback raster OSM sem chave. Satélite e relevo preservados.
 // Vibrant modality colors
 const MODALITY_COLORS: Record<RouteModality, { primary: string; glow: string; border: string }> = {
@@ -217,8 +208,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const refreshRainAvoidanceRef=useRef<(()=>void)|null>(null);
-  const fuelLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const tollLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
   const roadAlertFallbackMarkersRef=useRef<Map<string,{marker:L.Marker;alert:RoadAlert}>>(new Map());
   const vectorRoadAlertControllerRef=useRef<RoadAlertPinController|null>(null);
@@ -279,6 +268,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [selectedTollId,setSelectedTollId]=useState<string|null>(null);
   const selectedToll: RouteToll | undefined = tolls.find(t => t.id === selectedTollId) || (catalogToll && selectedTollId === catalogToll.id ? { id: catalogToll.id, name: catalogToll.name, coords: [catalogToll.lat, catalogToll.lng], sourceUrl: catalogToll.sourceUrl, passages: 1, price: null } : undefined);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [feedbackPlace,setFeedbackPlace]=useState<RoleVectorMarker|null>(null);
   // Keep the current data/actions available to async MapLibre initialization.
   // Changing one confirmed fuel price must not rebuild every other pin.
   const vectorPlaceInputsRef=useRef({stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces});
@@ -286,12 +276,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const vectorPlaceActionsRef=useRef<RoleMarkerActions>({
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
-    onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);}
+    onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
+    onReport:setFeedbackPlace
   });
   vectorPlaceActionsRef.current={
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
-    onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);}
+    onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
+    onReport:setFeedbackPlace
   };
 
 
@@ -347,8 +339,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 
     const rainGroup = L.layerGroup().addTo(map);
     rainLayerGroupRef.current = rainGroup;
-    fuelLayerGroupRef.current = L.layerGroup().addTo(map);
-    tollLayerGroupRef.current = L.layerGroup().addTo(map);
     roadAlertGroupRef.current = L.layerGroup().addTo(map);
     navigationPinGroupRef.current = L.layerGroup().addTo(map);
     livePinGroupRef.current = L.layerGroup().addTo(map);
@@ -517,17 +507,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   }, [centerOnUserRequest,userLiveCoords?.[0],userLiveCoords?.[1],hasMapReady]);
 
 
-  useEffect(() => {
-    const group=tollLayerGroupRef.current;
-    if(!group)return;group.clearLayers();
-    if (vectorMarkersReady || !tollVehicleType) return;
-    for(const toll of (Array.isArray(tolls) ? tolls : [])) {
-      const icon=mapPlaceIcon('toll');
-      const marker=L.marker(toll.coords,{icon,keyboard:true,zIndexOffset:1700}).addTo(group);
-      bindPlaceMarkerAction(marker,toll.name,()=>openToll(toll.id));
-      marker.getElement()?.classList.add('toll-marker');
-    }
-  },[tolls,tollVehicleType,vectorMarkersReady]);
 
   useEffect(() => {
     const map=mapInstanceRef.current;
@@ -556,42 +535,23 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     return ()=>{map.off('click',handleClick);};
   },[onSelectCoordinates,vectorRoutesReady,routePath,navigationMode]);
 
-  useEffect(() => {
-    const group = fuelLayerGroupRef.current;
-    if (!group) return;
-    group.clearLayers();
-    if (vectorMarkersReady) return;
-    const freshFuelPlaces=new Map(places.filter(place=>place.active&&place.kind==='fuel').map(place=>[place.id,place]));
-    for (const source of (Array.isArray(fuel.stations) ? fuel.stations : [])) {
-      const fresh=freshFuelPlaces.get(source.id);
-      if(showPlaces&&source.managed&&!fresh)continue;
-      const station=fresh?{...source,name:fresh.name,lat:fresh.lat,lng:fresh.lng,managed:fresh.managed}:source;
-      const icon = mapPlaceIcon('fuel');
-      const marker = L.marker([station.lat, station.lng], { icon, keyboard: true, zIndexOffset: 1500, riseOnHover: true }).addTo(group);
-      bindPlaceMarkerAction(marker,station.name,()=>openStation(station.id));
-      marker.getElement()?.classList.add('fuel-station-marker');
-    }
-    for (const place of (Array.isArray(places) ? places : []).filter(place=>place.active)) {
-      if(place.kind==='fuel'){
-        if(fuel.stations.some(station=>station.id===place.id))continue;
-        const marker=L.marker([place.lat,place.lng],{icon:mapPlaceIcon('fuel'),zIndexOffset:1500}).addTo(group);
-        bindPlaceMarkerAction(marker,place.name,()=>openStation(place.id));
-        marker.getElement()?.classList.add('fuel-station-marker');
-        continue;
-      }
-      if (place.kind === 'toll') {
-        if (isRouteTollPlace(place,tolls)) continue;
-        const icon = mapPlaceIcon('toll');
-        const marker=L.marker([place.lat, place.lng], { icon, keyboard: true, zIndexOffset: 1700 }).addTo(group);
-        bindPlaceMarkerAction(marker,place.name,()=>openToll(place.id,'prices',place));
-        marker.getElement()?.classList.add('toll-marker');
-        continue;
-      }
-      const icon = mapPlaceIcon(place.kind);
-      const marker = L.marker([place.lat, place.lng], { icon, zIndexOffset: 1400, riseOnHover: true }).addTo(group);
-      bindPlaceMarkerAction(marker,place.name,()=>setSelectedPlace(place));
-    }
-  }, [fuel.stations, places, tolls, vectorMarkersReady,showPlaces]);
+  const rasterPlaceControllerRef=useRef<ReturnType<typeof createLeafletPlaceMarkerController>|null>(null);
+  useEffect(()=>{
+    const map=mapInstanceRef.current;
+    if(!hasMapReady||!map||vectorMarkersReady)return;
+    const controller=createLeafletPlaceMarkerController(map,{
+      onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
+      onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
+      onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
+      onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
+    });
+    rasterPlaceControllerRef.current=controller;
+    controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
+    return()=>{controller.destroy();if(rasterPlaceControllerRef.current===controller)rasterPlaceControllerRef.current=null;};
+  },[hasMapReady,vectorMarkersReady]);
+  useEffect(()=>{
+    rasterPlaceControllerRef.current?.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
+  },[fuel.stations,places,tolls,tollVehicleType,showPlaces,vectorMarkersReady]);
 
   // Install MapLibre pins once per vector map lifecycle, not after every
   // station price refresh. The Leaflet fallback remains available until ready.
@@ -609,12 +569,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         controller=createRoleMaplibreMarkerController(gl,{
           onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
           onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
-          onPlace:id=>vectorPlaceActionsRef.current.onPlace(id)
+          onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
+          onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
         });
         controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
         vectorPlaceControllerRef.current=controller;
-        fuelLayerGroupRef.current?.clearLayers();
-        tollLayerGroupRef.current?.clearLayers();
         setVectorMarkersReady(true);
       }catch{
         controller?.destroy();
@@ -1611,6 +1570,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
+      {feedbackPlace&&<PlaceFeedbackModal key={feedbackPlace.id} place={feedbackPlace} onClose={()=>setFeedbackPlace(null)}/>}
       {selectedStation && <FuelStationModal key={`${selectedStation}:${stationSection}:${stationMode}`} stationId={selectedStation} initialSection={stationSection} initialMode={stationMode} onClose={() => setSelectedStation(null)} />}
 
       {/* MAP STYLE SWITCHER CONTROL (Requirement: Colorido, Satélite, Relevo) */}

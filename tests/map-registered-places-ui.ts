@@ -59,10 +59,10 @@ try{
   await page.getByRole('button',{name:'Alternar postos de teste'}).click();
   await pin('Posto cadastrado').waitFor({state:'visible'});
   await pin('Posto cadastrado').click();
+  await page.getByRole('region',{name:'Detalhes de Posto cadastrado'}).getByRole('button',{name:'Indicar preço',exact:true}).click();
   const stationDialog=page.getByRole('dialog',{name:'Preços do posto'});
   await stationDialog.waitFor({state:'visible'});
   await stationDialog.getByRole('heading',{name:'Posto cadastrado'}).waitFor({state:'visible'});
-  await stationDialog.getByRole('button',{name:'Sugerir preço'}).click();
   await stationDialog.getByRole('textbox',{name:'Preço 1'}).waitFor({state:'visible'});
   await stationDialog.getByRole('button',{name:'Fechar posto'}).click();
   await pin('Shopping cadastrado').waitFor({state:'visible'});
@@ -73,12 +73,18 @@ try{
 
   if(!raster){
     await page.waitForFunction(()=>document.querySelector('[data-map-engine="maplibre-standalone"]')?.getAttribute('data-map-ready')==='true');
-    await page.evaluate(()=>{(window as any).__registeredShop=document.querySelector('[aria-label="Ver Shopping cadastrado"]');});
   }else assert.ok(await page.locator('.leaflet-container').count());
+  await page.evaluate(()=>{(window as any).__registeredShop=document.querySelector('[aria-label="Ver Shopping cadastrado"]');});
+  await pin('Shopping cadastrado').press('Enter');
+  const selectedBalloon=page.getByRole('region',{name:'Detalhes de Shopping cadastrado',exact:true});
+  await selectedBalloon.waitFor();
   await page.screenshot({path:`test-results/registered-places-${raster?'raster':'native'}-home.png`});
   phase=1;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await pin('Museu cadastrado agora').waitFor({state:'visible'});
-  if(!raster)assert.equal(await page.evaluate(()=>(window as any).__registeredShop===document.querySelector('[aria-label="Ver Shopping cadastrado"]')),true,'unchanged POIs keep their marker and handlers');
+  assert.equal(await page.evaluate(()=>(window as any).__registeredShop===document.querySelector('[aria-label="Ver Shopping cadastrado"]')),true,'unchanged POIs keep their marker and handlers in both engines');
+  await selectedBalloon.waitFor();
+  await pin('Shopping cadastrado').press('Enter');
+  await selectedBalloon.waitFor({state:'hidden'});
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
   const beforePause=calls;await page.waitForTimeout(600);assert.equal(calls,beforePause,'background maps stop polling');
   phase=2;

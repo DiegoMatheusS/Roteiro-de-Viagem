@@ -66,7 +66,8 @@ jobs:
             echo "RDV_USE_STABLE_DEBUG_SIGNING=1" >> "$GITHUB_ENV"
             echo "::notice::APK debug com assinatura persistente. Registre SHA-1 e pacote .debug no OAuth Android."
           else
-            echo "::warning::APK debug com assinatura descartável: login Google código 10 até configurar uma chave persistente e registrar SHA-1 no Google Cloud."
+            echo "::error::Atualização recusada: configure os quatro secrets com a chave persistente do proprietário. APK temporário fica restrito à validação de PR."
+            exit 1
           fi
       - name: Compilar APK de teste
         if: inputs.distribution != 'release'

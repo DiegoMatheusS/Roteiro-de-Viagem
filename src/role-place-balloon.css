@@ -1,0 +1,36 @@
+.role-place-balloon-popup {z-index:25;pointer-events:auto;}
+.role-place-balloon-popup .maplibregl-popup-content,
+.role-place-balloon-popup .leaflet-popup-content-wrapper {background:#fff;color:#17243b;border-radius:18px;box-shadow:0 5px 24px #0f172a40;padding:0;}
+.role-place-balloon-popup .maplibregl-popup-close-button {width:34px;height:34px;font-size:22px;right:2px;top:1px;color:#52617a;border-radius:50%;}
+.role-place-balloon-popup .leaflet-popup-close-button {width:34px;height:34px;line-height:32px;color:#52617a;font-size:22px;}
+.role-place-balloon-popup .leaflet-popup-content {margin:0;width:auto!important;}
+.role-place-balloon-popup .leaflet-popup-tip {background:#fff;}
+.role-place-balloon {width:276px;max-width:calc(100vw - 42px);padding:14px 16px 8px;font:14px/1.4 Inter,system-ui,sans-serif;color:#17243b;}
+.role-place-balloon button {cursor:pointer;}
+.role-place-rating {display:flex;align-items:center;gap:7px;min-height:24px;font-size:12px;color:#57667e;padding-right:18px;}
+.role-place-stars {display:inline-flex;flex-shrink:0;gap:1px;}
+.role-star-empty {fill:#e2e8f0;stroke:#94a3b8;stroke-width:1;}
+.role-star-filled {fill:#e8a612;stroke:#bd8005;stroke-width:1;}
+.role-place-balloon-name {display:block;width:100%;margin-top:6px;text-align:left;font-size:15px;line-height:1.3;font-weight:750;background:transparent;border:0;padding:0;overflow-wrap:anywhere;color:inherit;}
+.role-place-balloon-prices {margin:10px 0 3px;}
+.role-place-balloon-prices > div {display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:5px 0;}
+.role-place-balloon-prices dt {font-size:13px;color:#4b5c73;}
+.role-place-balloon-prices dd {margin:0;font-size:14px;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.role-place-balloon-category {margin:8px 0 4px!important;color:#57667e;font-size:13px;}
+.role-place-balloon-actions {display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #e2e8f0;margin-top:7px;padding-top:3px;}
+.role-place-balloon-actions > button {background:transparent;border:0;min-height:38px;padding:3px 0;font-size:12px;font-weight:700;color:#205bc0;}
+.role-place-balloon-actions > .role-place-balloon-info {width:38px;height:38px;display:grid;place-items:center;}
+.role-place-balloon-info > span {border:1.8px solid currentColor;border-radius:50%;width:21px;height:21px;display:grid;place-items:center;font-size:14px;line-height:1;font-family:Georgia,serif;font-weight:bold;}
+.role-place-balloon button:focus-visible {outline:3px solid #60a5fa;outline-offset:2px;border-radius:6px;}
+[data-role-theme="dark"] .role-place-balloon-popup .maplibregl-popup-content,
+[data-role-theme="dark"] .role-place-balloon-popup .leaflet-popup-content-wrapper,
+[data-role-theme="dark"] .role-place-balloon-popup .leaflet-popup-tip {background:#23354c;color:#f1f5f9;}
+[data-role-theme="dark"] .role-place-balloon-popup:is(.maplibregl-popup-anchor-bottom,.maplibregl-popup-anchor-bottom-left,.maplibregl-popup-anchor-bottom-right) .maplibregl-popup-tip {border-top-color:#23354c;}
+[data-role-theme="dark"] .role-place-balloon-popup:is(.maplibregl-popup-anchor-top,.maplibregl-popup-anchor-top-left,.maplibregl-popup-anchor-top-right) .maplibregl-popup-tip {border-bottom-color:#23354c;}
+[data-role-theme="dark"] .role-place-balloon-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {border-right-color:#23354c;}
+[data-role-theme="dark"] .role-place-balloon-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {border-left-color:#23354c;}
+[data-role-theme="dark"] .role-place-balloon-popup :is(.maplibregl-popup-close-button,.leaflet-popup-close-button) {color:#cbd5e1;}
+[data-role-theme="dark"] .role-place-balloon {color:#f1f5f9;}
+[data-role-theme="dark"] .role-place-balloon :is(dt,.role-place-rating,.role-place-balloon-category) {color:#cbd5e1;}
+[data-role-theme="dark"] .role-place-balloon-actions {border-color:#4b5f78;}
+[data-role-theme="dark"] .role-place-balloon-actions > button {color:#93c5fd;}
