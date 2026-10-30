@@ -23,7 +23,7 @@ const SUGGESTED_FUELS: {label:string;fuelType:FuelKind;customLabel:string}[]=[
   {label:'GNV',fuelType:'gnv',customLabel:''}
 ];
 const emptySuggestedRows=():EditablePrice[]=>SUGGESTED_FUELS.map(item=>({...item,price:''}));
-const localNow = () new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+const localNow = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const money = (price: number) => `R$ ${price.toFixed(3).replace('.', ',')}`;
 
 export function FuelStationModal({ stationId, onClose, initialSection = 'prices', initialMode='view' }: { stationId: string; onClose: () => void; initialSection?: 'prices' | 'comments'; initialMode?:'view'|'edit' }) {
