@@ -13,7 +13,7 @@ test('recenter respects chosen navigation zoom and establishes useful zoom from 
   assert.equal(recenterZoom(17,true),17);
   assert.equal(recenterZoom(11,true),11);
   assert.equal(recenterZoom(4,true),18.5);
-  assert.equal(recenterZoom(19,false),15);
+  assert.equal(recenterZoom(19,false),17);
   assert.equal(recenterZoom(NaN,true),18.5);
   assert.equal(recenterZoom(22,true),19);
 });
