@@ -49,7 +49,7 @@ public class TravelNativePlugin extends Plugin {
     return origin.replaceAll("/+$", "");
   }
   @PluginMethod public void request(PluginCall call) {
-    io.execute(() -> {
+    try { io.execute(() -> {
       HttpURLConnection connection = null;
       try {
         String base = origin(), path = call.getString("path", ""), method = call.getString("method", "GET");
@@ -82,7 +82,10 @@ public class TravelNativePlugin extends Plugin {
         JSObject result=new JSObject(); result.put("status",status); result.put("body",Boolean.TRUE.equals(call.getBoolean("binary",false)) ? android.util.Base64.encodeToString(bytes.toByteArray(),android.util.Base64.NO_WRAP) : bytes.toString("UTF-8")); call.resolve(result);
       } catch(Exception error) { call.reject(error.getMessage()); }
       finally { if(connection!=null) connection.disconnect(); }
-    });
+    }); } catch (java.util.concurrent.RejectedExecutionException closed) {
+      // A queued bridge call can arrive after the Activity destroyed this plugin.
+      call.reject("A tela foi encerrada. Tente novamente.");
+    }
   }
   static boolean preciseLocationGranted(Context context) { return context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED; }
   private boolean permissions(PluginCall call) {

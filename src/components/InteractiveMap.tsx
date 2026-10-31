@@ -600,14 +600,15 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     }
   },[fuel.stations,places,tolls,navigationMode,tollVehicleType]);
 
-  // Location updates may expand a nearby POI; never rebuild map markers or reload tiles.
+  // Update presentation context without rebuilding pins or reloading tiles.
   useEffect(()=>{
     const gl=vectorMapRef.current;
-    if(!gl)return;
-    vectorPlaceControllerRef.current?.setContext({zoom:gl.getZoom(),navigationMode,
+    const inputs={zoom:gl?.getZoom()??mapInstanceRef.current?.getZoom()??0,navigationMode,
       location:userLiveCoords,accuracyMeters:userGpsAccuracyMeters,
-      showRouteServices:!navigationMode&&routePath.length>1});
-  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady]);
+      showRouteServices:!navigationMode&&routePath.length>1};
+    vectorPlaceControllerRef.current?.setContext(inputs);
+    rasterPlaceControllerRef.current?.setContext(inputs);
+  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady,hasMapReady,routePath.length]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.

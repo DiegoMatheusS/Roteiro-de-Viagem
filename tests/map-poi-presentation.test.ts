@@ -6,7 +6,7 @@ import type {RoleVectorMarker} from '../src/services/vectorPlaceData';
 
 const place=(id:string,coords:[number,number],category:'restaurant'|'waterfall'='restaurant'):RoleVectorMarker=>
  ({kind:'place',id,coords,name:id,description:'Local cadastrado',category});
-test('ícones carregados permanecem visíveis em todas as escalas de zoom válidas',()=>{
+test('pontos em zoom válido são candidatos à seleção por importância e espaço',()=>{
  assert.equal(poiAccent('fuel'),'#2563eb');
  assert.equal(poiAccent('hotel'),'#7c3aed');
  assert.equal(poiAccent('waterfall'),'#15803d');

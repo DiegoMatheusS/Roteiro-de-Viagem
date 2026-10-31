@@ -17,10 +17,15 @@ try{
   for(const fallback of [false,true]){
     const page:Page=await browser.newPage({viewport:{width:420,height:850},hasTouch:true,isMobile:true});
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
-    await page.route('https://**',route=>route.fulfill({contentType:'image/png',body:tile}));
+    await page.route(/^https:\/\//,route=>route.fulfill({contentType:'image/png',body:tile}));
     await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{
       version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]
     }}));
+    await page.route('**/api/places/search',route=>{
+      const point=route.request().postDataJSON().points[0];
+      return route.fulfill({json:{places:[{id:'touch-poi',name:'Parque do teste de toque',kind:'park',
+        lat:point[0]+.00025,lng:point[1],active:true,address:'',sourceUrl:'',description:'',phone:'',website:''}]}});
+    });
     await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-map.html');
     await page.waitForFunction(()=>document.querySelector<HTMLElement>(
       '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
@@ -113,6 +118,23 @@ try{
     await recenter();
     assert.equal(await zoom(),18.5,'GPS restores close zoom after both pinch directions');
     if(!fallback)assert.ok(Math.abs(Number(await map.getAttribute('data-map-pitch'))-55)<0.01,'GPS restores pitch after manual exploration');
+    const poi=page.locator('.managed-place-marker:visible').first();await poi.waitFor();
+    const poiBox=await poi.boundingBox();assert.ok(poiBox);
+    point={x:poiBox.x+poiBox.width/2,y:poiBox.y+poiBox.height/2};
+    assert.equal(await page.evaluate(point=>!!document.elementFromPoint(point.x,point.y)?.closest('.managed-place-marker'),point),true,
+      'the first finger really lands on a POI, not an empty map pixel');
+    const originalPoiView=JSON.parse((await map.getAttribute('data-map-center'))!) as [number,number];
+    const poiScreenBefore=await map.evaluate(mapScreenPoint,originalPoiView);
+    await touch('touchStart',[point]);await click('Mover GPS');await page.waitForTimeout(100);
+    const poiHeld=await map.evaluate(mapScreenPoint,originalPoiView);
+    assert.ok(Math.hypot(poiHeld.x-poiScreenBefore.x,poiHeld.y-poiScreenBefore.y)<=1,'contact on POI pauses GPS before the drag threshold');
+    for(let i=1;i<=10;i++){
+      await touch('touchMove',[{x:point.x+i*7,y:point.y+i*3}]);await page.waitForTimeout(25);
+    }
+    await touch('touchEnd',[]);await page.waitForTimeout(500);
+    const poiScreenAfter=await map.evaluate(mapScreenPoint,originalPoiView);
+    assert.ok(Math.hypot(poiScreenAfter.x-poiScreenBefore.x,poiScreenAfter.y-poiScreenBefore.y)>50,'POI does not swallow map pan');
+    assert.equal(await page.locator('.role-place-balloon').count(),0,'drag does not become a tap');
     assert.deepEqual(errors,[]);
     await page.close();
   }

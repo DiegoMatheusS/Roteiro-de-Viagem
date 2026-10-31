@@ -8,3 +8,6 @@
   position:relative;border-color:#fff!important;
   box-shadow:0 2px 9px #0f172a44!important;
 }
+.managed-place-marker > .rdv-map-place-icon {
+  transform:scale(var(--role-poi-scale,1));transform-origin:center;
+}

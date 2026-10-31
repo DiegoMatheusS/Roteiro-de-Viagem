@@ -25,8 +25,8 @@ export function poiAccent(category:string):string {
   if(TOURIST.has(category))return '#15803d';
   return '#0369a1';
 }
-/** Once loaded, each POI stays pinned to its verified coordinates at every zoom.
- * The bounded camera query controls fetch size; do not hide markers on pinch. */
+/** Eligible candidates at a valid zoom. Screen-space density then chooses
+ * which ones can be drawn without crowding; coordinates never change. */
 export function poiVisibleAtZoom(_marker:RoleVectorMarker,zoom:number):boolean {
   return Number.isFinite(zoom)&&zoom>=0;
 }

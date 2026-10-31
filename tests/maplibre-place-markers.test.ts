@@ -67,7 +67,7 @@ test('componentes MapLibre mantêm botão de preços, acessibilidade e fallback 
  assert.match(gl,/new Marker\(\{element:root,anchor,offset\}\)/);
  assert.match(gl,/\.setLngLat\(toMarkerLngLat\(entry\.coords\)\)/);
  assert.match(gl,/setAttribute\('aria-label'/);
- assert.match(gl,/disableClickPropagation\(root\)/);
+ assert.match(gl,/bindMapMarkerActivation\(root,activate\)/);
  assert.match(gl,/marker\.remove\(\)/);
  assert.match(map,/vectorMarkersReady\)return;/);
  assert.match(map,/setVectorMarkersReady\(false\)/);
@@ -94,7 +94,7 @@ test('a fuel/toll update does not recreate all native MapLibre markers',()=>{
  assert.match(controller,/existing\?\.visualSignature===signature/);
  assert.match(controller,/existing\.marker\.setLngLat\(toMarkerLngLat\(entry\.coords\)\)/);
  assert.match(controller,/existing\?\.marker\.remove\(\)/);
- assert.match(controller,/const marker=buildMarker\(entry\)/);
+ assert.match(controller,/const \{marker,unbind\}=buildMarker\(entry\)/);
  assert.match(controller,/if\(destroyed\)return/);
  assert.match(map,/controller\.update\(selectRoleVectorMarkers\(vectorPlaceInputsRef\.current\)\)/);
  assert.match(map,/vectorPlaceActionsRef\.current\.onStation/);
@@ -111,7 +111,7 @@ test('atualizações de GPS só gravam no DOM os atributos que realmente mudaram
  // Every DOM write inside the per-marker loop must sit behind a change check.
  assert.match(apply,/if\(record\.visible!==visible\)\{[^}]*element\.style\.display=/);
  const loop=apply.slice(apply.indexOf('for(const record of markers.values())'));
- const unguarded=loop.replace(/if\(record\.\w+!==\w+\)\{[^}]*\}/g,'');
+ const unguarded=loop.replace(/if\(record\.\w+!==[^)]+\)\{[^}]*\}/g,'');
  assert.doesNotMatch(unguarded,/element\.(dataset\.|style\.|setAttribute)/,
    'uma escrita no elemento ficou fora da verificação de mudança');
  // A rebuilt marker starts unknown so its first pass writes every attribute.
