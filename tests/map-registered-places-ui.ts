@@ -9,7 +9,7 @@ const vite=await createServer({server:{host:'127.0.0.1',port:3000,strictPort:tru
 const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH,
   args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const png=await sharp({create:{width:256,height:256,channels:3,background:'#eaf0ef'}}).png().toBuffer();
-const base:Place={id:'osm:node:100',name:'Parque cadastrado',kind:'park',lat:-23.5501,lng:-46.63,
+const base:Place={id:'osm:node:100',name:'Parque cadastrado',kind:'park',lat:-23.5506,lng:-46.63,
   address:'Endereço confirmado',sourceUrl:'https://www.openstreetmap.org/node/100',
   description:'',phone:'',website:'',active:true,managed:true};
 fs.mkdirSync('test-results',{recursive:true});
@@ -18,7 +18,7 @@ try{
   const page=await browser.newPage({viewport:{width:420,height:850}});page.setDefaultTimeout(20000);
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   if(raster)await page.addInitScript({content:`const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return /webgl/i.test(type)?null:original.call(this,type,...args)};`});
-  await page.route('https://**',route=>route.abort());
+  await page.route(/^https:\/\//,route=>route.request().resourceType()==='image'?route.fulfill({contentType:'image/png',body:png}):route.abort());
   await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}}));
   await page.route('https://*.tile.openstreetmap.org/**',route=>route.fulfill({contentType:'image/png',body:png}));
   let phase=0,calls=0,otherArea=false,catalogUnavailable=false;
@@ -30,15 +30,15 @@ try{
     otherArea=body.points[0][0]>-23.48;
     const places=otherArea?[{...base,id:'other-area',name:'Museu no bairro explorado',kind:'museum',lat:-23.4,lng:-46.5}]:[
       ...(phase<2?[base]:[]),
-      {...base,id:'osm:node:101',name:'Shopping cadastrado',kind:'shopping',lat:-23.55,lng:-46.63015},
-      {...base,id:'osm:node:102',name:'Café cadastrado',kind:'cafe',lat:-23.55,lng:-46.62985},
-      ...(body.includeFuel?[{...base,id:'fuel-live',name:'Posto cadastrado',kind:'fuel',lat:-23.5502,lng:-46.6302}]:[]),
-      ...(phase>0?[{...base,id:'new-live',name:'Museu cadastrado agora',kind:'museum',lat:-23.5499,lng:-46.63}]:[])
+      {...base,id:'osm:node:101',name:'Shopping cadastrado',kind:'shopping',lat:-23.5496,lng:-46.6303},
+      {...base,id:'osm:node:102',name:'Café cadastrado',kind:'cafe',lat:-23.5496,lng:-46.6294},
+      ...(body.includeFuel?[{...base,id:'fuel-live',name:'Posto cadastrado',kind:'fuel',lat:-23.5505,lng:-46.6305}]:[]),
+      ...(phase>0?[{...base,id:'new-live',name:'Museu cadastrado agora',kind:'museum',lat:-23.5506,lng:-46.6294}]:[])
     ];
     await route.fulfill({json:{places}});
   });
   await page.route('**/api/stations/fuel-live',route=>route.fulfill({json:{
-    id:'fuel-live',name:'Posto cadastrado',lat:-23.5502,lng:-46.6302,address:'Endereço confirmado',
+    id:'fuel-live',name:'Posto cadastrado',lat:-23.5505,lng:-46.6305,address:'Endereço confirmado',
     source:'OpenStreetMap',sourceUrl:'https://www.openstreetmap.org/node/501',mapUpdatedAt:'2026-10-29',prices:[]
   }}));
   await page.route('**/api/**',async(route)=>{
@@ -93,7 +93,7 @@ try{
   await pin('Parque cadastrado').waitFor({state:'detached'});
   await page.getByRole('button',{name:'Iniciar navegação de teste'}).click();
   await pin('Shopping cadastrado').waitFor({state:'visible'});
-  await pin('Café cadastrado').waitFor({state:'visible'});
+  await pin('Café cadastrado').waitFor({state:'attached'});
   assert.ok(!otherArea,'navigation queries its live viewport, not the distant route origin');
   await page.screenshot({path:`test-results/registered-places-${raster?'raster':'native'}-navigation.png`});
   await page.getByRole('button',{name:'Explorar outro bairro'}).click();

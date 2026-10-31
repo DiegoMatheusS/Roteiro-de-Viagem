@@ -78,26 +78,25 @@ test('Leaflet remains the single camera owner and existing follow button resumes
 });
 
 
-test('typing and marker or popup interaction never suspend GPS following',()=>{
+test('typing and popup controls preserve GPS following; gestures on POIs explore the map',()=>{
   const oldElement=Object.getOwnPropertyDescriptor(globalThis,'Element');
   const oldHTMLElement=Object.getOwnPropertyDescriptor(globalThis,'HTMLElement');
   class TestElement extends EventTarget {
     tagName='DIV';
     isContentEditable=false;
-    overlay=false;
+    overlay=false;poi=false;
     closest(selector:string){
-      assert.ok(selector.includes('.maplibregl-popup'));
-      return this.overlay?this:null;
+      return selector.includes('.role-poi-marker')?(this.poi?this:null):this.overlay?this:null;
     }
   }
   Object.defineProperty(globalThis,'Element',{value:TestElement,configurable:true});
   Object.defineProperty(globalThis,'HTMLElement',{value:TestElement,configurable:true});
   try{
-    for(const kind of ['INPUT','TEXTAREA','SELECT','editable','overlay','map']){
+    for(const kind of ['INPUT','TEXTAREA','SELECT','editable','overlay','poi','map']){
       const target=new TestElement();
       target.tagName=['INPUT','TEXTAREA','SELECT'].includes(kind)?kind:'DIV';
       target.isContentEditable=kind==='editable';
-      target.overlay=kind==='overlay';
+      target.overlay=kind==='overlay';target.poi=kind==='poi';
       let calls=0;
       const cleanup=bindManualMapZoom(target as unknown as HTMLElement,()=>calls++);
       for(const key of ['ArrowUp','ArrowLeft','+','-']){
@@ -105,7 +104,7 @@ test('typing and marker or popup interaction never suspend GPS following',()=>{
         Object.defineProperty(event,'key',{value:key});
         target.dispatchEvent(event);
       }
-      assert.equal(calls,kind==='map'?4:0,kind);
+      assert.equal(calls,(kind==='map'||kind==='poi')?4:0,kind);
       if(kind==='overlay'){
         for(const [id,overlay] of [[1,true],[2,false]] as const){
           target.overlay=overlay;

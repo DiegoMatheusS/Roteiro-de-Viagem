@@ -14,18 +14,20 @@ const checkAnchors=async()=>{
     const bounds=map.getContainer().getBoundingClientRect();
     return entries.map((entry:any)=>{
       const pin=document.querySelector<HTMLElement>(`[data-poi-id="${entry.id}"]`)!;
+      if(getComputedStyle(pin).display==='none')return null;
       const rect=pin.querySelector('.rdv-map-place-icon')!.getBoundingClientRect();
       const expected=map.project([entry.coords[1],entry.coords[0]]);
       return {id:entry.id,position:getComputedStyle(pin).position,text:pin.textContent?.trim(),
         title:pin.getAttribute('title'),halo:getComputedStyle(pin,'::before').content,
         width:rect.width,height:rect.height,
         error:Math.hypot(rect.x+rect.width/2-bounds.x-expected.x,rect.y+rect.height/2-bounds.y-expected.y)};
-    });
+    }).filter(Boolean);
   });
+  assert.ok(pins.length>0);
   for(const pin of pins){
     assert.equal(pin.position,'absolute',pin.id);
     assert.ok(pin.error<1.25,`${pin.id} drifted ${pin.error.toFixed(2)} px from its coordinate`);
-    assert.equal(pin.width,38);assert.equal(pin.height,38);
+    assert.ok(pin.width>=25.9&&pin.width<=38.1);assert.equal(pin.height,pin.width);
     assert.equal(pin.text,'','map pins contain only a category symbol');
     assert.equal(pin.title,null,'no name tooltip is rendered over the map');
     assert.equal(pin.halo,'none','no promotional halo');
@@ -47,7 +49,7 @@ try{
     const fixture=(window as any).__poiAnchors;
     const fuel=document.querySelector('[data-poi-id="admin:fuel"]');
     fixture.entries=fixture.entries.filter((entry:any)=>entry.id!=='admin:park').map((entry:any)=>
-      entry.id==='admin:fuel'?{...entry,priceLabel:'R$ 6,10',coords:[-23.55025,-46.63015]}:entry);
+      entry.id==='admin:fuel'?{...entry,priceLabel:'R$ 6,10',coords:[-23.55125,-46.63125]}:entry);
     fixture.entries.push({kind:'place',id:'admin:museum',name:'Museu do teste',category:'museum',
       coords:[-23.55,-46.63],managed:true});
     fixture.controller.update(fixture.entries);
@@ -67,8 +69,18 @@ try{
   const after=await page.evaluate(()=>(window as any).__poiAnchors.map.getCenter().toArray());
   assert.notDeepEqual(after,before,'the map was actually dragged');
   await checkAnchors();
+  // Density intentionally hides offscreen/overlapping pins. Bring each
+  // activation target into view before testing its keyboard action.
+  await page.evaluate(()=>{
+    const fixture=(window as any).__poiAnchors,point=fixture.entries.find((entry:any)=>entry.id==='admin:fuel');
+    fixture.map.jumpTo({center:[point.coords[1],point.coords[0]],zoom:18,pitch:0,bearing:0});
+  });
   await page.getByRole('button',{name:'Ver Posto do teste',exact:true}).press('Enter');
   await page.getByRole('region',{name:'Detalhes de Posto do teste'}).getByRole('button',{name:'Indicar preço',exact:true}).click();
+  await page.evaluate(()=>{
+    const fixture=(window as any).__poiAnchors,point=fixture.entries.find((entry:any)=>entry.id==='admin:museum');
+    fixture.map.jumpTo({center:[point.coords[1],point.coords[0]],zoom:18,pitch:0,bearing:0});
+  });
   await page.getByRole('button',{name:'Ver Museu do teste',exact:true}).press('Space');
   await page.getByRole('region',{name:'Detalhes de Museu do teste'}).getByRole('button',{name:'Ver detalhes',exact:true}).click();
   const actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);

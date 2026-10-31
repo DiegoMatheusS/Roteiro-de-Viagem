@@ -4,10 +4,11 @@ import type { RouteToll } from '../types/tolls';
 import { fuelPriceLabel, tollPriceLabel } from './mapPriceLabels';
 import { distanceBetweenKm } from './gpsTracking';
 
-export type RoleVectorMarker =
+export type RoleVectorMarker = (
   | { kind:'fuel'; id:string; coords:[number,number]; name:string; priceLabel:string|null;prices?:readonly FuelPrice[];managed?:boolean }
   | { kind:'toll'; id:string; coords:[number,number]; name:string; priceLabel:string|null; place:Place|null;managed?:boolean }
-  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string; managed?:boolean };
+  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string; managed?:boolean }
+) & {routeService?:boolean};
 
 /** Stable identity and visual metadata used by the incremental vector renderer.
  * Moving a place should only call Marker.setLngLat, never recreate its buttons.
@@ -63,12 +64,12 @@ export function selectRoleVectorMarkers(options: {
       if(options.viewportScopedPlaces&&source.managed&&!fresh)continue;
       const station=fresh?{...source,name:fresh.name,lat:fresh.lat,lng:fresh.lng,managed:fresh.managed}:source;
       add({ kind:'fuel',id:station.id,coords:[station.lat,station.lng],
-        name:station.name,priceLabel:fuelPriceLabel(station),prices:station.prices,managed:station.managed });
+        name:station.name,priceLabel:fuelPriceLabel(station),prices:station.prices,managed:station.managed,routeService:true });
     }
     if (options.tollVehicleType) {
       for (const toll of options.tolls) {
         add({kind:'toll',id:toll.id,coords:toll.coords,
-          name:toll.name,priceLabel:tollPriceLabel(toll),place:null});
+          name:toll.name,priceLabel:tollPriceLabel(toll),place:null,routeService:true});
       }
     }
   }

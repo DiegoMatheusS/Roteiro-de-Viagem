@@ -21,6 +21,7 @@ export function isManualMapZoom(gesture:MapZoomGesture):boolean {
 
 function isMarkerOrPopup(event:Event):boolean {
   const target=event.target;
+  if(typeof Element!=='undefined'&&target instanceof Element&&target.closest('.role-poi-marker,.managed-place-marker'))return false;
   return typeof Element!=='undefined' && target instanceof Element &&
     Boolean(target.closest('.leaflet-marker-icon,.maplibregl-marker,.leaflet-popup,.maplibregl-popup,.leaflet-control'));
 }

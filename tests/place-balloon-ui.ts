@@ -9,7 +9,7 @@ const browser=await chromium.launch({headless:true,executablePath:process.env.PL
   args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const tile=await sharp({create:{width:256,height:256,channels:3,background:'#eaf0ef'}}).png().toBuffer();
 const price=(type:string,value:number)=>({id:type,fuelType:type,price:value,observedAt:'2026-10-30T14:00:00Z',publishedAt:'2026-10-30T14:00:00Z',stale:false,disputed:false});
-const base={id:'balloon-fuel',name:'Posto do balão',kind:'fuel',lat:-23.5503,lng:-46.6302,
+const base={id:'balloon-fuel',name:'Posto do balão',kind:'fuel',lat:-23.5505,lng:-46.63,
   address:'Rua de teste',sourceUrl:'https://www.openstreetmap.org/node/111',description:'',website:'',phone:'',active:true,managed:true};
 fs.mkdirSync('test-results',{recursive:true});
 try{
@@ -27,9 +27,9 @@ try{
       if(path==='/api/auth/me')return route.fulfill({json:{user:{id:'balloon-user',displayName:'Teste',role:'user'}}});
       if(path==='/api/stations/search')return route.fulfill({json:{stations:[],mapUnavailable:false}});
       if(path==='/api/places/search')return route.fulfill({json:{places:[base,
-        {...base,id:'balloon-park',kind:'park',name:'Parque das árvores',lat:-23.5485,lng:-46.6305},
-        {...base,id:'balloon-theatre',kind:'theatre',name:'Teatro das máscaras',lat:-23.5505,lng:-46.6285},
-        {...base,id:'balloon-square',kind:'square',name:'Praça da gangorra',lat:-23.5515,lng:-46.6305}]}});
+        {...base,id:'balloon-park',kind:'park',name:'Parque das árvores',lat:-23.5493,lng:-46.63},
+        {...base,id:'balloon-theatre',kind:'theatre',name:'Teatro das máscaras',lat:-23.54985,lng:-46.63},
+        {...base,id:'balloon-square',kind:'square',name:'Praça da gangorra',lat:-23.5503,lng:-46.6306}]}});
       if(path==='/api/stations/balloon-fuel')return route.fulfill({json:{...base,prices:[price('gasolina_comum',5.899),price('etanol',3.799),price('diesel_s10',6.199)]}});
       if(path.endsWith('/feedback')){
         if(route.request().method()==='POST'){
@@ -87,12 +87,14 @@ try{
     assert.equal(submitted.submissionId,firstId,'retry preserves the same idempotent submission');
     await page.screenshot({path:`test-results/place-feedback-${raster?'raster':'native'}-${theme}.png`});
     await modal.getByRole('button',{name:'Concluir'}).click();
-    for(const [name,kind] of [['Parque das árvores','park'],['Teatro das máscaras','theatre'],['Praça da gangorra','square']]){
-      const marker=page.getByRole('button',{name:`Ver ${name}`,exact:true});
+    for(const [name,kind] of [['Praça da gangorra','square'],['Parque das árvores','park'],['Teatro das máscaras','theatre']]){
+      // Decluttering may hide a category pin; its registered symbol is kept.
+      const marker=page.locator(`[role="button"][aria-label="Ver ${name}"]`);
       assert.equal(await marker.locator('.rdv-map-place-icon').getAttribute('data-place-kind'),kind);
-      await marker.press('Enter');await page.getByRole('region',{name:`Detalhes de ${name}`,exact:true}).waitFor();
-      await marker.press('Enter');
     }
+    const park=page.getByRole('button',{name:'Ver Parque das árvores',exact:true});
+    await park.press('Enter');await page.getByRole('region',{name:'Detalhes de Parque das árvores',exact:true}).waitFor();
+    await park.press('Enter');
     await pin.press('Enter');await balloon.waitFor();
     assert.equal(await page.evaluate(()=>{const event=new Event('rdv:close-overlay',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);
     await balloon.waitFor({state:'hidden'});

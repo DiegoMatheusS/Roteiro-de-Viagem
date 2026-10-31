@@ -9,8 +9,8 @@ setWorkerUrl(workerUrl);
 const coords:[number,number]=[-23.55,-46.63];
 const entries:RoleVectorMarker[]=[
   {kind:'place',id:'admin:park',name:'Parque do teste',category:'park',coords,managed:true},
-  {kind:'fuel',id:'admin:fuel',name:'Posto do teste',coords:[-23.5502,-46.6301],priceLabel:'R$ 5,80',managed:true},
-  {kind:'toll',id:'admin:toll',name:'Pedágio do teste',coords:[-23.5499,-46.6298],priceLabel:'R$ 4,00',place:null,managed:true}
+  {kind:'fuel',id:'admin:fuel',name:'Posto do teste',coords:[-23.5512,-46.6312],priceLabel:'R$ 5,80',managed:true},
+  {kind:'toll',id:'admin:toll',name:'Pedágio do teste',coords:[-23.5488,-46.6288],priceLabel:'R$ 4,00',place:null,managed:true}
 ];
 const map=new Map({container:'map',center:[coords[1],coords[0]],zoom:17,
   style:{version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]},
