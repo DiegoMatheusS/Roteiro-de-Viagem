@@ -8,6 +8,8 @@ import {SAVED_ADDRESS_TYPES,readSavedAddresses,saveAddress,deleteSavedAddress,
   type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
 import {formatAddressDistance} from '../services/addressSuggestions';
+import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 
 export function SavedAddressesPanel({onSelect,gps,onChanged}:{
   onSelect:(place:LocationSelection)=>void;gps?:DeviceLocation|null;
@@ -23,6 +25,7 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
   const [chosen,setChosen]=useState<LocationSelection|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const [showManualMap,setShowManualMap]=useState(false);
   const [holdingId,setHoldingId]=useState<string|null>(null);
   const [notice,setNotice]=useState('');
   const request=useRef<AbortController|null>(null);
@@ -57,7 +60,7 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
   };
   const clear=()=>{
     request.current?.abort();request.current=null;lastQuery.current='';
-    setBusy(false);setError('');setQuery('');setResults([]);setChosen(null);
+    setBusy(false);setError('');setQuery('');setResults([]);setChosen(null);setShowManualMap(false);
     setType('Casa');setCustom('');
   };
   const close=()=>{clear();setOpen(false);};
@@ -146,7 +149,7 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
             <label className="block text-sm font-bold text-slate-700">Endereço
               <div className="flex gap-2 mt-1">
                 <input value={query} maxLength={150} enterKeyHint="search"
-                  onChange={e=>{request.current?.abort();request.current=null;lastQuery.current='';setBusy(false);setResults([]);setChosen(null);setError('');setQuery(e.target.value);}}
+                  onChange={e=>{request.current?.abort();request.current=null;lastQuery.current='';setBusy(false);setResults([]);setChosen(null);setShowManualMap(false);setError('');setQuery(e.target.value);}}
                   placeholder="Rua, número, bairro e cidade" aria-label="Endereço para salvar"
                   className="border rounded-xl p-3 min-w-0 flex-1 font-normal"/>
                 <button type="submit" disabled={busy||query.trim().length<3}
@@ -157,6 +160,11 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
           </form>
           {busy&&<p role="status" className="text-sm text-slate-600">Buscando sugestões de endereço...</p>}
           {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
+          {error.includes('Não localizamos o imóvel')&&streetQueryForManualPin(query)&&
+            <button type="button" onClick={()=>setShowManualMap(true)}
+              className="w-full min-h-11 rounded-xl border-2 border-blue-500 text-blue-800 font-bold">
+              Marcar número do imóvel no mapa
+            </button>}
           {results.length>0&&<div className="border rounded-xl divide-y max-h-48 overflow-y-auto" role="group" aria-label="Resultados de endereços">
             {results.map((place,i)=><button key={place.id??i} type="button" onClick={()=>{setChosen(place);setError('');}}
               aria-pressed={chosen===place} className={`block w-full text-left p-3 text-sm ${chosen===place?'bg-blue-50 text-blue-800':'text-slate-700'}`}>
@@ -164,12 +172,17 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
               {gps&&place.coords&&<span className="text-[11px] text-blue-700">{formatAddressDistance(place.coords,gps)}</span>}
             </button>)}
           </div>}
-          {chosen&&<p className="text-xs text-emerald-700">Endereço selecionado: {chosen.address||chosen.name}</p>}
+          {chosen&&<p className="text-xs text-emerald-700">Endereço selecionado: {chosen.address||chosen.name}
+            {chosen.category==='manual'&&<span className="block text-amber-800">Posição marcada manualmente; número não verificado no cadastro.</span>}
+          </p>}
           <button type="button" onClick={save} disabled={!chosen?.coords||(type==='Outro'&&!custom.trim())}
             className="w-full p-3 rounded-xl bg-emerald-700 text-white font-bold disabled:opacity-50">
             Salvar local
           </button>
         </section>
+        {showManualMap&&<ManualAddressMapPicker query={query} bias={gps?.coords}
+          onCancel={()=>setShowManualMap(false)}
+          onConfirm={place=>{setChosen(place);setResults([]);setError('');setShowManualMap(false);}}/>}
       </div>,document.body)}
   </div>;
 }
