@@ -1,7 +1,7 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
-import {isStreetOnlyReference,streetQueryForManualPin} from '../services/manualAddressPin';
+import {isStreetOnlyReference,isStreetAddressQuery,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
@@ -161,9 +161,9 @@ export function MapTab(props: MapTabProps) {
       const bias=location.status==='ready' ? location.position?.coords : undefined;
       const result=await searchLocations(query,bias,controller.signal);
       if(generation!==searchGeneration.current)return;
-      const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
+      const found=(isStreetAddressQuery(query)?result.results.find(isStreetOnlyReference):undefined)??result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
       if(found){chooseSearchPlace(found);return;}
-      if(streetQueryForManualPin(query)){openStreetPicker(result.streetResults[0]);return;}
+      if(isStreetAddressQuery(query)||result.streetResults.length>0){openStreetPicker(result.streetResults[0]);return;}
       throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
         :'Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
