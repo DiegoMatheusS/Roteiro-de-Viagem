@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, Check, Clock3, Crosshair, Repeat2, Route } from 'lucide-react';
 import { InteractiveMap } from './InteractiveMap';
 import { parseTouristTarget } from '../services/touristTargetInput';
+import {TouristCategoryIcon} from './TouristCategoryIcon';
 
 type CircuitMode = 'km' | 'hours';
 type CircuitPreference = 'tranquila' | 'curvas' | 'cidades';
@@ -28,6 +29,9 @@ interface CreateTouristCircuitScreenProps {
   onTravelModeChange: (value: 'car'|'motorcycle') => void;
   onSubmit: () => void;
   nearbySuggestions?: {id:string;name:string;kind:string;distanceKm:number}[];
+  selectedNearbyIds?: string[];
+  onToggleNearby?:(id:string)=>void;
+  onClearNearby?:()=>void;
 }
 
 /**
@@ -39,7 +43,7 @@ export function CreateTouristCircuitScreen({
   mode, km, hours, travelMode, coords, tripType, preference, busy, warning,
   validation, error, onClose, onModeChange, onKmChange, onHoursChange,
   onStep, onTripTypeChange, onPreferenceChange, onTravelModeChange, onSubmit,
-  nearbySuggestions = []
+  nearbySuggestions = [], selectedNearbyIds = [], onToggleNearby, onClearNearby
 }: CreateTouristCircuitScreenProps) {
   const value=mode==='km'?km:hours;
   const options=mode==='km'?[10,20,30,50]:[1,2,3,4];
@@ -101,15 +105,21 @@ export function CreateTouristCircuitScreen({
           <p className="text-[12px] font-semibold text-blue-900">
             Pontos próximos para seu rolê
           </p>
-          {nearbySuggestions.length?<div className="mt-2 flex gap-2 overflow-x-auto pb-1" data-testid="nearby-tourist-points">
-            {nearbySuggestions.slice(0,3).map(place=><span key={place.id}
-              className="max-w-[185px] shrink-0 rounded-full border border-blue-200 bg-white px-3 py-2 text-[12px] text-slate-800 shadow-sm"
-              title="Distância em linha reta, não distância por estrada">
-              {place.name} · {Math.round(place.distanceKm)} km
-            </span>)}
+          {nearbySuggestions.length?<div className="mt-3 space-y-2 max-h-56 overflow-y-auto" data-testid="nearby-tourist-points">
+            {nearbySuggestions.map(place=>{
+              const selected=selectedNearbyIds.includes(place.id);
+              return <button key={place.id} type="button" onClick={()=>onToggleNearby?.(place.id)}
+                aria-pressed={selected} disabled={!selected&&selectedNearbyIds.length>=3}
+                className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors ${selected?'border-blue-500 bg-blue-50':'border-slate-200 bg-white'} disabled:opacity-50`}>
+                <span className="shrink-0 grid place-items-center w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700"><TouristCategoryIcon kind={place.kind} name={place.name} size={21}/></span>
+                <span className="min-w-0 flex-1"><strong className="block text-[13px] leading-5 text-slate-900 line-clamp-2">{place.name}</strong><small className="block text-[11px] text-slate-500">{Math.round(place.distanceKm)} km em linha reta</small></span>
+                <span aria-hidden="true" className={`w-6 h-6 shrink-0 grid place-items-center rounded-full border ${selected?'bg-blue-600 text-white border-blue-600':'border-slate-300'}`}>{selected&&<Check size={15}/>}</span>
+              </button>;
+            })}
           </div>:<p className="mt-1 text-xs text-slate-600">
             Se não houver pontos próximos disponíveis, vamos procurar ruas reais para passear.
           </p>}
+          {selectedNearbyIds.length>0&&<div className="mt-2 flex justify-between items-center text-xs"><span className="font-semibold text-blue-700">{selectedNearbyIds.length} de 3 selecionados para o trajeto</span><button type="button" className="underline text-slate-600" onClick={onClearNearby}>Limpar seleção</button></div>}
         </section>
 
         <div className="rdv-create-vehicle-row">

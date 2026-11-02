@@ -13,9 +13,14 @@ test('named squares from older generic park imports use a seesaw without overrid
   assert.equal(placeIconKind('theatre','Praça das Artes'),'theatre');
   assert.equal(placeIconKind('museum','Museu da Praça'),'museum');
 });
-test('three fuel rows preserve actual variants and never turn missing/stale/disputed prices into current values',()=>{
+test('all fuel variants remain distinct; stale and disputed prices are not displayed',()=>{
   const p=(fuelType:FuelPrice['fuelType'],price:number,other={})=>({fuelType,price,observedAt:'2026-10-30T12:00:00Z',...other}) as FuelPrice;
   const rows=fuelBalloonRows([p('gasolina_comum',5.799),p('gasolina_aditivada',6.199),p('etanol',3.799,{stale:true}),p('diesel_comum',5.99,{disputed:true}),p('diesel_s10',6.199)]);
-  assert.deepEqual(rows,[{label:'Gasolina',value:'R$ 5,799/L'},{label:'Etanol',value:null},{label:'Diesel S10',value:'R$ 6,199/L'}]);
-  assert.deepEqual(fuelBalloonRows([]).map(row=>row.value),[null,null,null]);
+  assert.equal(rows.find(row=>row.label==='Gasolina comum')?.value,'R$ 5,799/L');
+  assert.equal(rows.find(row=>row.label==='Gasolina aditivada')?.value,'R$ 6,199/L');
+  assert.equal(rows.find(row=>row.label==='Etanol')?.value,null);
+  assert.equal(rows.find(row=>row.label==='Diesel comum / S500')?.value,null);
+  assert.equal(rows.find(row=>row.label==='Diesel S10')?.value,'R$ 6,199/L');
+  assert.equal(rows.find(row=>row.label==='Shell V-Power')?.value,null);
+  assert.ok(fuelBalloonRows([]).every(row=>row.value===null));
 });
