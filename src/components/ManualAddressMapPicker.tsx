@@ -23,7 +23,7 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
   const [error,setError]=useState('');
   const container=useRef<HTMLDivElement|null>(null);
   useEffect(()=>{
-    if(!streetQuery){setError('Informe rua e número antes de marcar no mapa.');return;}
+    if(!streetQuery){setError('Informe ao menos o nome da rua antes de marcar no mapa.');return;}
     const controller=new AbortController();
     setBusy(true);setError('');setReferences([]);setAnchor(null);setPoint(null);
     void searchLocations(streetQuery,bias,controller.signal).then(result=>{
