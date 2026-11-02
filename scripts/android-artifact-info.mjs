@@ -35,6 +35,8 @@ const info={
   workflowRun:Number(process.env.GITHUB_RUN_NUMBER)||null,
   workflowRunId:process.env.GITHUB_RUN_ID||null,
 };
+if(process.env.RDV_REQUIRE_STABLE_SIGNING==='1' && !info.persistentSigning)
+  throw new Error('APK instalável recusado: assinatura temporária não pode ser distribuída como atualização.');
 verifyRoleSigningCertificate(info.certificateSha256,info.persistentSigning);
 mkdirSync('android-dist',{recursive:true});
 writeFileSync('android-dist/apk-info.json',JSON.stringify(info,null,2)+'\n');
