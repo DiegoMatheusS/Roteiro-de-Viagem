@@ -612,8 +612,8 @@ export function NavigationHome(props: NavigationHomeProps) {
             </label>
           </fieldset>
           <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)}/> Sair da minha localização (GPS)</label>
-          {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords}/>}
-          <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} placeholder="Cidade, endereço, parque ou restaurante"/>
+          {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords} allowManualPin/>}
+          <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} allowManualPin placeholder="Cidade, endereço, parque ou restaurante"/>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
           {!props.currentVehicle && <button type="button" className="text-xs font-bold underline text-blue-700" onClick={()=>{closeSheet();props.onOpenProfile();}}>Cadastrar meu veículo no Perfil</button>}
           <button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
