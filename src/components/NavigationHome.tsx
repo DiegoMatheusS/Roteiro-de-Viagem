@@ -25,7 +25,7 @@ import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
-import {isStreetOnlyReference,streetQueryForManualPin} from '../services/manualAddressPin';
+import {isStreetOnlyReference,isStreetAddressQuery,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { formatAddressDistance } from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
@@ -370,9 +370,9 @@ export function NavigationHome(props: NavigationHomeProps) {
     try {
       const result=await searchLocations(query,liveCoords,controller.signal);
       if(generation!==searchGeneration.current)return;
-      const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
+      const found=(isStreetAddressQuery(query)?result.results.find(isStreetOnlyReference):undefined)??result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
       if(found){chooseSearchPlace(found);return;}
-      if(streetQueryForManualPin(query)){
+      if(isStreetAddressQuery(query)||result.streetResults.length>0){
         openStreetPicker(result.streetResults[0]);return;
       }
       throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
