@@ -1,6 +1,8 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
+import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
 import {formatAddressDistance} from '../services/addressSuggestions';
@@ -49,6 +51,7 @@ export function MapTab(props: MapTabProps) {
   const [searchDestination, setSearchDestination] = useState<LocationSelection>({ name: '' });
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
+  const [showManualMap,setShowManualMap] = useState(false);
   const searchGeneration=useRef(0);
   const searchRequest=useRef<AbortController|null>(null);
   const suggestionsRequest=useRef<AbortController|null>(null);
@@ -281,13 +284,22 @@ export function MapTab(props: MapTabProps) {
             <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off"
               aria-label="Para onde quer ir?" placeholder="Para onde quer ir?" maxLength={150}
               value={searchDestination.name}
-              onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchDestination({name:event.target.value});}}
+              onChange={event=>{cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setShowManualMap(false);setSearchDestination({name:event.target.value});}}
               onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
               className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-800 placeholder:text-slate-500"/>
             <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchDestination.name.trim().length<3}
               className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
               {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
           </form>
+          {!mapTarget&&streetQueryForManualPin(searchDestination.name)&&
+            <button type="button" onClick={()=>{searchInputRef.current?.blur();cancelTypeahead();searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setShowManualMap(true);}}
+              className="text-sm text-blue-700 font-semibold underline underline-offset-2">
+              Não sabe o número? Marcar endereço no mapa
+            </button>}
+          {showManualMap&&<ManualAddressMapPicker query={searchDestination.name}
+            bias={location.status==='ready'?location.position?.coords:undefined}
+            onCancel={()=>setShowManualMap(false)}
+            onConfirm={place=>{setShowManualMap(false);focusDestination(place);}}/>}
           <SearchResultsOverlay anchorRef={searchFormRef}
             visible={searchBusy||Boolean(searchError)||(!mapTarget&&(suggestionsBusy||showAddressSuggestions))}
             onDismiss={()=>{cancelTypeahead();setSearchError('');}}>
