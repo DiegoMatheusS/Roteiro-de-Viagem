@@ -3,12 +3,15 @@ import { fuelApi } from '../services/fuelApi';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
 import { useAuth } from '../contexts/AuthContext';
 import type { LocationSelection } from '../types/itinerary';
+import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 
 export function LocationSearch({ label, value, onChange, bias, placeholder }: { label: string; value: LocationSelection; onChange: (value: LocationSelection) => void; bias?: [number, number]; placeholder?: string }) {
   const { user } = useAuth();
   const [results, setResults] = useState<LocationSelection[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [showManualMap,setShowManualMap]=useState(false);
   const selectPlace = (place: LocationSelection) => {
-    generation.current++; setResults([]); setError(''); onChange(place);
+    generation.current++; setResults([]); setError('');setShowManualMap(false); onChange(place);
     // Explicit selection, not every keystroke, is stored privately for the signed-in traveler.
     if (user && place.id) void fuelApi('/me/locations', {
       method: 'POST', body: JSON.stringify({ locationId: place.id })
@@ -37,10 +40,16 @@ export function LocationSearch({ label, value, onChange, bias, placeholder }: { 
     } catch (error) { if (current === generation.current) setError((error as Error).message); }
     finally { if (current === generation.current) setBusy(false); }
   };
-  return <div className="space-y-2"><label className="block text-xs font-bold text-slate-700">{label}<div className="flex gap-2 mt-1"><input aria-label={label} value={value.name} placeholder={placeholder || 'Cidade, endereço ou estabelecimento'} maxLength={150} onChange={e => { generation.current++; setBusy(false); setResults([]); setError(''); onChange({ name: e.target.value }); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); search(); } }} className="border border-slate-200 rounded-xl p-3 text-sm w-full min-w-0" /><button type="button" disabled={busy || value.name.trim().length < 3} onClick={search} aria-label={`Buscar ${label.toLowerCase()}`} className="border rounded-xl px-3 text-xs font-bold text-emerald-700 disabled:opacity-50">{busy ? '...' : 'Buscar'}</button></div></label>
+  return <div className="space-y-2"><label className="block text-xs font-bold text-slate-700">{label}<div className="flex gap-2 mt-1"><input aria-label={label} value={value.name} placeholder={placeholder || 'Cidade, endereço ou estabelecimento'} maxLength={150} onChange={e => { generation.current++; setBusy(false); setResults([]); setError('');setShowManualMap(false); onChange({ name: e.target.value }); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); search(); } }} className="border border-slate-200 rounded-xl p-3 text-sm w-full min-w-0" /><button type="button" disabled={busy || value.name.trim().length < 3} onClick={search} aria-label={`Buscar ${label.toLowerCase()}`} className="border rounded-xl px-3 text-xs font-bold text-emerald-700 disabled:opacity-50">{busy ? '...' : 'Buscar'}</button></div></label>
     {user && <button type="button" onClick={() => void myPlaces()} className="text-xs text-blue-700 underline">Meus locais salvos</button>}
     {value.coords && <p className="text-[11px] text-emerald-700">✓ Localização definida {value.sourceUrl && <a href={value.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline ml-1">Ver no mapa</a>}</p>}
     {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
+    {!value.coords&&streetQueryForManualPin(value.name)&&<button type="button" onClick={()=>setShowManualMap(true)}
+      className="w-full rounded-xl border border-blue-500 px-3 py-2 text-sm font-bold text-blue-800">
+      Marcar endereço no mapa (sem número ou não encontrado)
+    </button>}
+    {showManualMap&&<ManualAddressMapPicker query={value.name} bias={bias}
+      onCancel={()=>setShowManualMap(false)} onConfirm={selectPlace}/>}
     {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id} type="button" onClick={() => selectPlace(result)} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span></button>)}<p className="text-[10px] p-2 text-slate-500">Locais © OpenStreetMap · índice do app e Photon quando necessário</p></div>}
   </div>;
 }
