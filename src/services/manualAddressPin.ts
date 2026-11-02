@@ -37,7 +37,7 @@ export function manuallySelectedAddress(query:string,coords:[number,number],hous
 export function isStreetOnlyReference(place:LocationSelection):boolean {
   const label=place.name.trim();
   if(!/^(?:rua|r\.?|avenida|av\.?|alameda|travessa|estrada|rodovia|praça|praca|viela|largo)\s+/i.test(label))return false;
-  return !requestedHouseNumber(place.address||place.name);
+  return !requestedHouseNumber(place.name)&&!requestedHouseNumber(place.address||'');
 }
 
 /** Distinguish a street query from a city, venue or business name. */
