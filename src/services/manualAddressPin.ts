@@ -8,7 +8,10 @@ export function streetQueryForManualPin(query:string):string|null {
   if(cleaned.length<3||cleaned.length>150)return null;
   const number=requestedHouseNumber(cleaned);
   if(!number)return cleaned;
-  const candidates=[...cleaned.matchAll(/(?:,\s*|\s+)(\d{1,6}[a-z]?)(?=\s*(?:,|$))/gi)];
+  const candidates=[
+    ...cleaned.matchAll(/(?:,\s*|\s+)(?:n[º°.]?|número|numero|#)\s*(\d{1,6}[a-z]?)(?=\s*(?:,|$))/gi),
+    ...cleaned.matchAll(/(?:,\s*|\s+)(\d{1,6}[a-z]?)(?=\s*(?:,|$))/gi)
+  ];
   const numberPart=candidates.reverse().find(match=>match[1].toLowerCase()===number);
   if(!numberPart||numberPart.index===undefined)return cleaned;
   const street=(cleaned.slice(0,numberPart.index)+cleaned.slice(numberPart.index+numberPart[0].length))
