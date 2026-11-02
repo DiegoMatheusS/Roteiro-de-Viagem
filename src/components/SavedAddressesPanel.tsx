@@ -160,10 +160,10 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
           </form>
           {busy&&<p role="status" className="text-sm text-slate-600">Buscando sugestões de endereço...</p>}
           {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
-          {error.includes('Não localizamos o imóvel')&&streetQueryForManualPin(query)&&
+          {streetQueryForManualPin(query)&&!chosen&&!busy&&
             <button type="button" onClick={()=>setShowManualMap(true)}
               className="w-full min-h-11 rounded-xl border-2 border-blue-500 text-blue-800 font-bold">
-              Marcar número do imóvel no mapa
+              Marcar endereço no mapa (sem número ou não encontrado)
             </button>}
           {results.length>0&&<div className="border rounded-xl divide-y max-h-48 overflow-y-auto" role="group" aria-label="Resultados de endereços">
             {results.map((place,i)=><button key={place.id??i} type="button" onClick={()=>{setChosen(place);setError('');}}
