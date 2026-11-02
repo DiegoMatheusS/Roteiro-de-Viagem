@@ -6,7 +6,7 @@ import type { LocationSelection } from '../types/itinerary';
 import {streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 
-export function LocationSearch({ label, value, onChange, bias, placeholder }: { label: string; value: LocationSelection; onChange: (value: LocationSelection) => void; bias?: [number, number]; placeholder?: string }) {
+export function LocationSearch({ label, value, onChange, bias, placeholder, allowManualPin=false }: { label: string; value: LocationSelection; onChange: (value: LocationSelection) => void; bias?: [number, number]; placeholder?: string; allowManualPin?:boolean }) {
   const { user } = useAuth();
   const [results, setResults] = useState<LocationSelection[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [showManualMap,setShowManualMap]=useState(false);
@@ -44,7 +44,7 @@ export function LocationSearch({ label, value, onChange, bias, placeholder }: { 
     {user && <button type="button" onClick={() => void myPlaces()} className="text-xs text-blue-700 underline">Meus locais salvos</button>}
     {value.coords && <p className="text-[11px] text-emerald-700">✓ Localização definida {value.sourceUrl && <a href={value.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline ml-1">Ver no mapa</a>}</p>}
     {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-    {!value.coords&&streetQueryForManualPin(value.name)&&<button type="button" onClick={()=>setShowManualMap(true)}
+    {allowManualPin&&!value.coords&&streetQueryForManualPin(value.name)&&<button type="button" onClick={()=>setShowManualMap(true)}
       className="w-full rounded-xl border border-blue-500 px-3 py-2 text-sm font-bold text-blue-800">
       Marcar endereço no mapa (sem número ou não encontrado)
     </button>}
