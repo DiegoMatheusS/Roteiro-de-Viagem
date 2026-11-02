@@ -28,11 +28,11 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
       if(controller.signal.aborted)return;
       const candidates=result.results.filter(item=>item.coords).slice(0,8);
       setReferences(candidates);setAnchor(candidates[0]??null);
-      if(!candidates.length)setError('Não encontramos a rua para abrir o mapa. Inclua a cidade na busca e tente novamente.');
+      if(!candidates.length)setError('Não encontramos essa rua. Inclua a cidade no endereço e tente novamente.');
     }).catch(err=>{if(!controller.signal.aborted)setError((err as Error).message);})
       .finally(()=>{if(!controller.signal.aborted)setBusy(false);});
     return ()=>controller.abort();
-  },[streetQuery,bias?.[0],bias?.[1]]);
+  },[streetQuery]);
 
   useEffect(()=>{
     if(!anchor?.coords||!container.current)return;
@@ -54,16 +54,16 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
   return createPortal(
     <div className="fixed inset-0 z-[310] bg-slate-950/70 flex items-center justify-center p-3"
       role="presentation">
-      <section role="dialog" aria-modal="true" aria-label="Marcar número do imóvel no mapa"
+      <section role="dialog" aria-modal="true" aria-label="Marcar endereço no mapa"
         className="bg-white w-full max-w-xl rounded-2xl p-4 shadow-2xl space-y-3 max-h-[95dvh] overflow-y-auto">
         <header className="flex justify-between gap-3 items-center">
-          <h2 className="font-extrabold text-lg text-slate-900">Marcar imóvel no mapa</h2>
+          <h2 className="font-extrabold text-lg text-slate-900">Marcar endereço no mapa</h2>
           <button type="button" onClick={onCancel} aria-label="Fechar mapa"
             className="rounded-lg border px-3 py-2 font-bold">Fechar</button>
         </header>
         <p className="text-sm text-slate-700">
-          O número não foi confirmado no cadastro. Escolha a rua correta e toque na posição
-          exata do imóvel no mapa. A localização será marcada por você, não verificada automaticamente.
+          Caso não saiba o número ou ele não apareça na pesquisa, escolha a rua correta
+          e toque no ponto exato do endereço. A posição será marcada por você, não verificada automaticamente.
         </p>
         <p className="text-xs font-semibold text-slate-800 break-words">Endereço informado: {query}</p>
         {busy&&<p role="status" className="text-sm">Procurando a rua no mapa...</p>}
