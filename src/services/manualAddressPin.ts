@@ -16,11 +16,17 @@ export function streetQueryForManualPin(query:string):string|null {
   return street.length>=3?street:cleaned;
 }
 
-/** A manually confirmed location is never presented as an independently verified house number. */
-export function manuallySelectedAddress(query:string,coords:[number,number]):LocationSelection {
-  if(!streetQueryForManualPin(query)||!coords.every(Number.isFinite)||
+/** Add the house number only after the user has placed the pin.
+ * Keep any supplied city/bairro and never claim the number was verified. */
+export function manuallySelectedAddress(query:string,coords:[number,number],houseNumber?:string):LocationSelection {
+  const street=streetQueryForManualPin(query);
+  if(!street||!coords.every(Number.isFinite)||
     Math.abs(coords[0])>90||Math.abs(coords[1])>180)
     throw new Error('Informe o endereço e marque um ponto válido no mapa.');
-  const label=query.trim().replace(/\s+/g,' ');
+  const number=(houseNumber??requestedHouseNumber(query)??'').trim();
+  if(number&&!/^\d{1,6}[a-z]?$/i.test(number))
+    throw new Error('Informe um número válido ou deixe o campo vazio.');
+  const pieces=street.split(',').map(v=>v.trim()).filter(Boolean);
+  const label=number?[pieces[0],number,...pieces.slice(1)].join(', '):street;
   return {name:label,address:label,coords,category:'manual'};
 }
