@@ -46,7 +46,9 @@ try{
         {id:'near-namesake',name:'Avenida Paulista, 1000',address:'Centro, Campinas, SP',coords:[-23.55,-46.63]},
         {id:'correct-city',name:'Avenida Paulista, 1000',address:'Bela Vista, São Paulo, SP',coords:[-23.54,-46.62]},
         {id:'duplicate',name:'Avenida Paulista, 1000',address:'Bela Vista, São Paulo, SP',coords:[-23.54,-46.62]}
-      ]:[{id:'osm:way:1',name:'Rua de teste',address:'Cidade de teste',coords:[-23.54,-46.62]}]}});
+      ]:queries.at(-1)!.startsWith('Rua das Flores')?[
+        {id:'street-only',name:'Rua das Flores',address:'Rua das Flores, São Paulo',coords:[-23.55,-46.63]}
+      ]:[{id:'osm:way:1',name:'Museu de teste',address:'Cidade de teste',coords:[-23.54,-46.62]}]}});
   });
   await page.goto('http://127.0.0.1:3000/tests/fixtures/navigation-home-search.html?screen='+screen);
   await page.waitForFunction(()=>typeof (window as any).__searchGps==='function');
@@ -96,7 +98,7 @@ try{
     await page.getByRole('region',{name:'Endereços salvos na busca'}).waitFor({state:'hidden'});
     assert.equal(await savedShortcut.getAttribute('aria-expanded'),'false');
   }
-  await input.fill('Rua de teste');
+  await input.fill('Museu de teste');
   await submit.tap();
   const progress=page.getByRole('status').filter({hasText:'Pesquisando endereço...'});
   await progress.waitFor();await page.waitForTimeout(350);
@@ -118,7 +120,7 @@ try{
   mode='success';
   await submit.tap();
   const destinationPanel=page.getByRole('region',{name:'Destino no mapa'});
-  await destinationPanel.getByRole('heading',{name:'Rua de teste'}).waitFor();
+  await destinationPanel.getByRole('heading',{name:'Museu de teste'}).waitFor();
   const fastCard=destinationPanel.getByRole('button',{name:/^Rota mais rápida/});
   const touristCard=destinationPanel.getByRole('button',{name:/^Rota turística/});
   await fastCard.waitFor();
@@ -165,12 +167,12 @@ try{
   assert.equal(await touristCard.getAttribute('aria-pressed'),'true',`${screen}: GPS updates must preserve manual route selection`);
   await destinationPanel.getByRole('button',{name:'Iniciar rota selecionada'}).tap();
   assert.equal(await page.evaluate(()=>(window as any).__startedRouteTrip.modality),'turistica');
-  assert.deepEqual(queries,['Rua de teste','Rua de teste','Rua de teste'],'one request per tap or keyboard submit');
+  assert.deepEqual(queries,['Museu de teste','Museu de teste','Museu de teste'],'one request per tap or keyboard submit');
   assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')==='Para onde quer ir?'),false,'close the keyboard after locating the address');
   await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
   await input.fill('Outra rua próxima');
   const results=page.getByRole('group',{name:'Sugestões de endereços'});
-  const choice=results.getByRole('button',{name:/^Escolher destino Rua de teste/});
+  const choice=results.getByRole('button',{name:/^Escolher destino Museu de teste/});
   await choice.waitFor();
   assert.match(await results.innerText(),/km em linha reta/,
     `${screen}: suggestions must distinguish geodesic distance from driving kilometres`);
@@ -183,7 +185,7 @@ try{
   await page.waitForTimeout(650);
   assert.equal(queries.length,requestsAfterTyping,`${screen}: GPS ticks must not repeat a text query`);
   await choice.tap();
-  await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Rua de teste'}).waitFor();
+  await page.getByRole('region',{name:'Destino no mapa'}).getByRole('heading',{name:'Museu de teste'}).waitFor();
   assert.equal(queries.length,requestsAfterTyping,`${screen}: choosing a suggestion must not search it again`);
   assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')==='Para onde quer ir?'),false);
   await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
@@ -192,6 +194,19 @@ try{
   await page.waitForTimeout(650);
   assert.equal(queries.length,requestsAfterTyping,`${screen}: short text cancels the pending suggestion request`);
   assert.equal(await results.count(),0);
+  // Street-only results must open a fixed-center pin instead of routing to a centroid.
+  await input.fill('Rua das Flores');
+  await submit.tap();
+  const picker=page.getByRole('dialog',{name:'Marcar endereço no mapa'});
+  await picker.waitFor();
+  const mapPicker=picker.getByTestId('manual-address-map');
+  await mapPicker.waitFor();
+  assert.equal(await picker.getByRole('button',{name:'Confirmar local do pino'}).isDisabled(),true,
+    'opening the road center must not create a confirmed house position');
+  assert.equal(await page.getByRole('region',{name:'Destino no mapa'}).count(),0,
+    'street-level search must not start navigation before the user chooses a point');
+  await picker.getByRole('button',{name:'Fechar mapa'}).click();
+  await picker.waitFor({state:'hidden'});
   if(screen==='home'){
     await input.fill('Av. Paulista São Paulo');
     await results.waitFor();
@@ -208,9 +223,9 @@ try{
     await openPlanning.click();
     const form=page.getByRole('dialog',{name:'Escolher origem e destino'});
     assert.equal(await form.getByRole('radio',{name:'Mais turística',exact:true}).isChecked(),true);
-    await form.getByRole('textbox',{name:'Destino',exact:true}).fill('Rua de teste');
+    await form.getByRole('textbox',{name:'Destino',exact:true}).fill('Museu de teste');
     await form.getByRole('button',{name:'Buscar destino',exact:true}).click();
-    await form.getByRole('button',{name:/Rua de teste Cidade de teste/}).click();
+    await form.getByRole('button',{name:/Museu de teste Cidade de teste/}).click();
     await form.getByRole('button',{name:'Ver percurso',exact:true}).click();
     let preview=page.getByRole('dialog',{name:'Visualizar viagem'});
     await preview.waitFor();
