@@ -1,7 +1,7 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
-import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {isStreetOnlyReference,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
@@ -52,6 +52,7 @@ export function MapTab(props: MapTabProps) {
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
   const [showManualMap,setShowManualMap] = useState(false);
+  const [manualReference,setManualReference]=useState<LocationSelection|null>(null);
   const searchGeneration=useRef(0);
   const searchRequest=useRef<AbortController|null>(null);
   const suggestionsRequest=useRef<AbortController|null>(null);
@@ -78,7 +79,7 @@ export function MapTab(props: MapTabProps) {
       setSuggestionsBusy(true);
       const bias=location.status==='ready'?location.position?.coords:undefined;
       void searchLocations(query,bias,controller.signal).then(result=>{
-        if(!controller.signal.aborted)setAddressSuggestions(result.results.slice(0,5));
+        if(!controller.signal.aborted)setAddressSuggestions((result.results.length?result.results:result.streetResults).slice(0,5));
       }).catch(()=>{if(!controller.signal.aborted)setAddressSuggestions([]);})
         .finally(()=>{if(suggestionsRequest.current===controller){suggestionsRequest.current=null;setSuggestionsBusy(false);}});
     },550);
@@ -137,6 +138,16 @@ export function MapTab(props: MapTabProps) {
     setMapTarget(target);setExploreRoute(null);setFocusedCoords(target.coords);
     setSheetExpanded(false);setSearchError('');
   };
+  const openStreetPicker=(reference?:LocationSelection)=>{
+    searchInputRef.current?.blur();cancelTypeahead();
+    searchRequest.current?.abort();searchRequest.current=null;
+    setSearchBusy(false);setSearchError('');
+    setManualReference(reference??null);setShowManualMap(true);
+  };
+  const chooseSearchPlace=(place:LocationSelection)=>{
+    if(isStreetOnlyReference(place)){openStreetPicker(place);return;}
+    focusDestination(place);
+  };
   const submitQuickSearch = async () => {
     const query=(searchInputRef.current?.value??searchDestination.name).trim();
     if(query.length<3){setSearchError('Digite pelo menos 3 caracteres do destino.');return;}
@@ -151,9 +162,10 @@ export function MapTab(props: MapTabProps) {
       const result=await searchLocations(query,bias,controller.signal);
       if(generation!==searchGeneration.current)return;
       const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
-      if(!found)throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
+      if(found){chooseSearchPlace(found);return;}
+      if(streetQueryForManualPin(query)){openStreetPicker(result.streetResults[0]);return;}
+      throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
         :'Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
-      focusDestination(found);
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
     finally{if(searchRequest.current===controller)searchRequest.current=null;if(generation===searchGeneration.current)setSearchBusy(false);}
   };
@@ -292,11 +304,11 @@ export function MapTab(props: MapTabProps) {
               {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}</button>
           </form>
           {!mapTarget&&streetQueryForManualPin(searchDestination.name)&&
-            <button type="button" onClick={()=>{searchInputRef.current?.blur();cancelTypeahead();searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setShowManualMap(true);}}
+            <button type="button" onClick={()=>openStreetPicker()}
               className="text-sm text-blue-700 font-semibold underline underline-offset-2">
               Não sabe o número? Marcar endereço no mapa
             </button>}
-          {showManualMap&&<ManualAddressMapPicker query={searchDestination.name}
+          {showManualMap&&<ManualAddressMapPicker query={searchDestination.name} reference={manualReference??undefined}
             bias={location.status==='ready'?location.position?.coords:undefined}
             onCancel={()=>setShowManualMap(false)}
             onConfirm={place=>{setShowManualMap(false);focusDestination(place);}}/>}
@@ -307,10 +319,11 @@ export function MapTab(props: MapTabProps) {
             {searchError&&<p role="alert" className="text-rose-700 text-sm bg-rose-50 p-3">{searchError}</p>}
             {!searchBusy&&!searchError&&suggestionsBusy&&<p role="status" className="text-slate-500 text-sm p-3">Buscando sugestões...</p>}
             {!searchBusy&&!searchError&&showAddressSuggestions&&<div role="group" aria-label="Sugestões de endereços" className="divide-y bg-white">
-            {addressSuggestions.map((place,index)=><button key={place.id??index} type="button" onClick={()=>focusDestination(place)}
+            {addressSuggestions.map((place,index)=><button key={place.id??index} type="button" onClick={()=>chooseSearchPlace(place)}
               className="w-full text-left px-3 py-2 text-sm" aria-label={`Escolher destino ${place.name}`}>
               <strong className="block truncate text-slate-900">{place.name}</strong>
               <small className="block truncate text-slate-500">{place.address}</small>
+               {isStreetOnlyReference(place)&&<small className="block font-semibold text-blue-700">Selecionar ponto nesta rua</small>}
               {place.coords&&location.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,location.position)}</small>}
             </button>)}
           </div>}
