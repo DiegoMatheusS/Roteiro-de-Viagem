@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import L from 'leaflet';
+import type L from 'leaflet';
 import type {LocationSelection} from '../types/itinerary';
 import {searchLocations} from '../services/locationSearch';
 import {manuallySelectedAddress,streetQueryForManualPin} from '../services/manualAddressPin';
@@ -38,19 +38,27 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
 
   useEffect(()=>{
     if(!anchor?.coords||!container.current)return;
-    const map=L.map(container.current,{zoomControl:true}).setView(anchor.coords,17);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap contributors',maxZoom:19
-    }).addTo(map);
-    let pin:L.CircleMarker|null=null;
-    map.on('click',event=>{
-      const coords:[number,number]=[event.latlng.lat,event.latlng.lng];
-      pin?.remove();
-      pin=L.circleMarker(coords,{radius:9,color:'#1d4ed8',weight:3,fillColor:'#60a5fa',fillOpacity:0.9}).addTo(map);
-      setPoint(coords);
-    });
-    const resize=setTimeout(()=>map.invalidateSize(),100);
-    return ()=>{clearTimeout(resize);map.remove();};
+    let disposed=false;
+    let map:L.Map|null=null;
+    let resize:ReturnType<typeof setTimeout>|undefined;
+    // Import Leaflet only in the browser: server-side and Node tests have no window.
+    void import('leaflet').then(({default:leaflet})=>{
+      if(disposed||!container.current)return;
+      const active=leaflet.map(container.current,{zoomControl:true}).setView(anchor.coords!,17);
+      map=active;
+      leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'© OpenStreetMap contributors',maxZoom:19
+      }).addTo(active);
+      let pin:L.CircleMarker|null=null;
+      active.on('click',event=>{
+        const coords:[number,number]=[event.latlng.lat,event.latlng.lng];
+        pin?.remove();
+        pin=leaflet.circleMarker(coords,{radius:9,color:'#1d4ed8',weight:3,fillColor:'#60a5fa',fillOpacity:0.9}).addTo(active);
+        setPoint(coords);
+      });
+      resize=setTimeout(()=>active.invalidateSize(),100);
+    }).catch(()=>{if(!disposed)setError('Não foi possível abrir o mapa agora. Tente novamente.');});
+    return ()=>{disposed=true;if(resize)clearTimeout(resize);map?.remove();};
   },[anchor?.coords?.[0],anchor?.coords?.[1]]);
 
   return createPortal(
