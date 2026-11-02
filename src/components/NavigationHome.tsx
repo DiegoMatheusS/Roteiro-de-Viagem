@@ -25,6 +25,8 @@ import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
+import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { formatAddressDistance } from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
 import {readSavedAddresses,matchSavedAddressOrigin,type SavedAddress} from '../services/savedAddresses';
@@ -88,6 +90,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [showSavedDestinations,setShowSavedDestinations]=useState(false);
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
+  const [showManualMap,setShowManualMap] = useState(false);
   const searchGeneration = React.useRef(0);
   const searchRequest = React.useRef<AbortController|null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -437,7 +440,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <Search size={21} strokeWidth={2} className="shrink-0 text-slate-600" aria-hidden="true"/>
           <input ref={searchInputRef} type="search" enterKeyHint="search" autoComplete="off" maxLength={150}
             aria-label="Para onde quer ir?" placeholder="Buscar destino ou lugar" value={searchPlace.name}
-            onChange={event=>{setShowSavedDestinations(false);cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setSearchPlace({name:event.target.value});}}
+            onChange={event=>{setShowSavedDestinations(false);cancelTypeahead();suppressedQuery.current='';searchGeneration.current++;searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setSearchError('');setShowManualMap(false);setSearchPlace({name:event.target.value});}}
             onKeyDown={event=>{if(event.key==='Enter'&&!event.nativeEvent.isComposing){event.preventDefault();void submitQuickSearch();}}}
             onFocus={()=>{setCollapsed(false);setSheetExpanded(true);}}
             className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
@@ -446,6 +449,11 @@ export function NavigationHome(props: NavigationHomeProps) {
             {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
           </button>
         </form>
+          {!mapTarget&&streetQueryForManualPin(searchPlace.name)&&
+            <button type="button" onClick={()=>{searchInputRef.current?.blur();cancelTypeahead();searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setShowManualMap(true);}}
+              className="mt-2 text-sm text-blue-700 font-semibold underline underline-offset-2">
+              Não sabe o número? Marcar endereço no mapa
+            </button>}
           <div className="mt-2 flex items-center">
             <button type="button" aria-label="Salvos" aria-expanded={showSavedDestinations}
               aria-controls="rdv-home-saved-destinations"
@@ -484,6 +492,9 @@ export function NavigationHome(props: NavigationHomeProps) {
                 </button>)}
               </div>}
           </SearchResultsOverlay>
+          {showManualMap&&<ManualAddressMapPicker query={searchPlace.name} bias={liveCoords}
+            onCancel={()=>setShowManualMap(false)}
+            onConfirm={place=>{setShowManualMap(false);selectMapTarget(place);}}/>}
         </div>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
