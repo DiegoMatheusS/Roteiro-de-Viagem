@@ -25,7 +25,7 @@ import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
-import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {isStreetOnlyReference,isStreetAddressQuery,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { formatAddressDistance } from '../services/addressSuggestions';
 import { useAuth } from '../contexts/AuthContext';
@@ -91,6 +91,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [searchBusy,setSearchBusy] = useState(false);
   const [searchError,setSearchError] = useState('');
   const [showManualMap,setShowManualMap] = useState(false);
+  const [manualReference,setManualReference]=useState<LocationSelection|null>(null);
   const searchGeneration = React.useRef(0);
   const searchRequest = React.useRef<AbortController|null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -120,8 +121,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       setSuggestionsBusy(true);setSuggestionsError('');
       void searchLocations(query,liveCoords,controller.signal).then(result=>{
         if(!controller.signal.aborted){
-          setAddressSuggestions(result.results.slice(0,8));
-          if(!result.results.length)setSuggestionsError(result.unmatchedHouseNumber
+          setAddressSuggestions((result.results.length?result.results:result.streetResults).slice(0,8));
+          if(!result.results.length&&!result.streetResults.length)setSuggestionsError(result.unmatchedHouseNumber
             ?houseNumberNotFoundMessage(result.unmatchedHouseNumber):'Nenhum endereço encontrado. Inclua bairro ou cidade.');
         }
       }).catch(error=>{if(!controller.signal.aborted){setAddressSuggestions([]);setSuggestionsError(error.message);}})
@@ -345,6 +346,16 @@ export function NavigationHome(props: NavigationHomeProps) {
     searchInputRef.current?.blur();
     setMapTarget(place);setDisplayRoute(null);setSheet(null);setSheetExpanded(false);setCollapsed(true);setError('');setSearchError('');
   };
+  const openStreetPicker=(reference?:LocationSelection)=>{
+    searchInputRef.current?.blur();cancelTypeahead();
+    searchRequest.current?.abort();searchRequest.current=null;
+    setSearchBusy(false);setSearchError('');
+    setManualReference(reference??null);setShowManualMap(true);
+  };
+  const chooseSearchPlace=(place:LocationSelection)=>{
+    if(isStreetOnlyReference(place)){openStreetPicker(place);return;}
+    selectMapTarget(place);
+  };
   const submitQuickSearch = async () => {
     // Read the committed input too: Android IME can submit before React has
     // rendered its final onChange (especially after choosing a suggestion).
@@ -359,10 +370,13 @@ export function NavigationHome(props: NavigationHomeProps) {
     try {
       const result=await searchLocations(query,liveCoords,controller.signal);
       if(generation!==searchGeneration.current)return;
-      const found=result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
-      if(!found)throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
+      const found=(isStreetAddressQuery(query)?result.results.find(isStreetOnlyReference):undefined)??result.results.find(place=>place.coords && place.coords.length===2 && place.coords.every(Number.isFinite));
+      if(found){chooseSearchPlace(found);return;}
+      if(isStreetAddressQuery(query)||result.streetResults.length>0){
+        openStreetPicker(result.streetResults[0]);return;
+      }
+      throw new Error(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
         :'Nenhum destino encontrado. Informe também a cidade ou um endereço mais completo.');
-      selectMapTarget(found);
     }catch(err){if(generation===searchGeneration.current)setSearchError((err as Error).message);}
     finally{if(searchRequest.current===controller)searchRequest.current=null;if(generation===searchGeneration.current)setSearchBusy(false);}
   };
@@ -450,7 +464,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           </button>
         </form>
           {!mapTarget&&streetQueryForManualPin(searchPlace.name)&&
-            <button type="button" onClick={()=>{searchInputRef.current?.blur();cancelTypeahead();searchRequest.current?.abort();searchRequest.current=null;setSearchBusy(false);setShowManualMap(true);}}
+            <button type="button" onClick={()=>openStreetPicker()}
               className="mt-2 text-sm text-blue-700 font-semibold underline underline-offset-2">
               Não sabe o número? Marcar endereço no mapa
             </button>}
@@ -484,15 +498,16 @@ export function NavigationHome(props: NavigationHomeProps) {
               {!searchBusy&&!searchError&&suggestionsError&&<p role="status" className="text-xs text-slate-600 p-3">{suggestionsError}</p>}
               {!searchBusy&&!searchError&&addressSuggestions.length>0&&<div role="group" aria-label="Sugestões de endereços" className="divide-y">
                 {addressSuggestions.map((place,index)=><button key={place.id??index} type="button"
-                  onClick={()=>selectMapTarget(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
+                  onClick={()=>chooseSearchPlace(place)} aria-label={`Escolher destino ${place.name}${place.address?`, ${place.address}`:''}`}
                   className="block w-full text-left px-3 py-2.5 hover:bg-blue-50">
                   <strong className="block truncate text-sm text-slate-900">{place.name}</strong>
                   <small className="block line-clamp-2 text-xs leading-relaxed text-slate-500">{place.address}</small>
+                  {isStreetOnlyReference(place)&&<small className="block font-semibold text-blue-700">Selecionar ponto nesta rua</small>}
                   {place.coords&&gps.status==='ready'&&<small className="text-blue-700">{formatAddressDistance(place.coords,gps.position)}</small>}
                 </button>)}
               </div>}
           </SearchResultsOverlay>
-          {showManualMap&&<ManualAddressMapPicker query={searchPlace.name} bias={liveCoords}
+          {showManualMap&&<ManualAddressMapPicker query={searchPlace.name} bias={liveCoords} reference={manualReference??undefined}
             onCancel={()=>setShowManualMap(false)}
             onConfirm={place=>{setShowManualMap(false);selectMapTarget(place);}}/>}
         </div>

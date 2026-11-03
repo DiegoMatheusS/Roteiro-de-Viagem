@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {manuallySelectedAddress,streetQueryForManualPin} from '../src/services/manualAddressPin';
+import {isStreetAddressQuery,isStreetOnlyReference,manuallySelectedAddress,streetQueryForManualPin} from '../src/services/manualAddressPin';
 
 test('busca usa a rua sem o número e preserva bairro e cidade',()=>{
   assert.equal(streetQueryForManualPin('Rua Professor Custódio de Faria, 188, São Paulo'),
@@ -35,4 +35,15 @@ test('não aceita localização inválida, números não plausíveis ou inventa 
   const record=manuallySelectedAddress('Rua das Flores',[-23,-46],'99');
   assert.equal(record.id,undefined);
   assert.equal(record.sourceUrl,undefined);
+});
+
+test('rua sem número exige pino; imóvel com número continua selecionável diretamente',()=>{
+  assert.equal(isStreetAddressQuery('Rua das Flores, São Paulo'),true);
+  assert.equal(isStreetAddressQuery('Rua das Flores, 188, São Paulo'),true);
+  assert.equal(isStreetAddressQuery('Shopping Center Norte'),false);
+  assert.equal(isStreetOnlyReference({name:'Rua das Flores',address:'Rua das Flores, São Paulo',coords:[-23.5,-46.6]}),true);
+  assert.equal(isStreetOnlyReference({name:'Rua 25 de Março',address:'Rua 25 de Março, São Paulo'}),true);
+  assert.equal(isStreetOnlyReference({name:'Rua das Flores, 188',address:'Rua das Flores, 188, São Paulo'}),false);
+  assert.equal(isStreetOnlyReference({name:'Avenida Paulista, 1000',address:'Bela Vista, São Paulo'}),false);
+  assert.equal(isStreetOnlyReference({name:'Museu de Arte',address:'Avenida Paulista, 1578'}),false);
 });

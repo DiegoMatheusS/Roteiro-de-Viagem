@@ -3,13 +3,15 @@ import { fuelApi } from '../services/fuelApi';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
 import { useAuth } from '../contexts/AuthContext';
 import type { LocationSelection } from '../types/itinerary';
-import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {isStreetOnlyReference,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 
 export function LocationSearch({ label, value, onChange, bias, placeholder, allowManualPin=false }: { label: string; value: LocationSelection; onChange: (value: LocationSelection) => void; bias?: [number, number]; placeholder?: string; allowManualPin?:boolean }) {
   const { user } = useAuth();
   const [results, setResults] = useState<LocationSelection[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [showManualMap,setShowManualMap]=useState(false);
+  const [manualReference,setManualReference]=useState<LocationSelection|null>(null);
+  const openStreetMap=(reference?:LocationSelection)=>{setManualReference(reference??null);setShowManualMap(true);};
   const selectPlace = (place: LocationSelection) => {
     generation.current++; setResults([]); setError('');setShowManualMap(false); onChange(place);
     // Explicit selection, not every keystroke, is stored privately for the signed-in traveler.
@@ -33,8 +35,8 @@ export function LocationSearch({ label, value, onChange, bias, placeholder, allo
     try {
       const result = await searchLocations(value.name,bias);
       if (current !== generation.current) return;
-      setResults(result.results);
-      if (!result.results.length) setError(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
+      setResults(result.results.length?result.results:result.streetResults);
+      if (!result.results.length&&!result.streetResults.length) setError(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
         :'Nenhum local encontrado. Inclua a cidade ou o endereço.');
       else if (result.unavailable) setError('Busca externa indisponível; exibindo locais já verificados.');
     } catch (error) { if (current === generation.current) setError((error as Error).message); }
@@ -44,12 +46,12 @@ export function LocationSearch({ label, value, onChange, bias, placeholder, allo
     {user && <button type="button" onClick={() => void myPlaces()} className="text-xs text-blue-700 underline">Meus locais salvos</button>}
     {value.coords && <p className="text-[11px] text-emerald-700">✓ Localização definida {value.sourceUrl && <a href={value.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline ml-1">Ver no mapa</a>}</p>}
     {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-    {allowManualPin&&!value.coords&&streetQueryForManualPin(value.name)&&<button type="button" onClick={()=>setShowManualMap(true)}
+    {allowManualPin&&!value.coords&&streetQueryForManualPin(value.name)&&<button type="button" onClick={()=>openStreetMap()}
       className="w-full rounded-xl border border-blue-500 px-3 py-2 text-sm font-bold text-blue-800">
       Marcar endereço no mapa (sem número ou não encontrado)
     </button>}
-    {showManualMap&&<ManualAddressMapPicker query={value.name} bias={bias}
+    {showManualMap&&<ManualAddressMapPicker query={value.name} bias={bias} reference={manualReference??undefined}
       onCancel={()=>setShowManualMap(false)} onConfirm={selectPlace}/>}
-    {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id} type="button" onClick={() => selectPlace(result)} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span></button>)}<p className="text-[10px] p-2 text-slate-500">Locais © OpenStreetMap · índice do app e Photon quando necessário</p></div>}
+    {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id} type="button" onClick={() => isStreetOnlyReference(result)?openStreetMap(result):selectPlace(result)} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span>{isStreetOnlyReference(result)&&<span className="block text-blue-700 mt-1 font-semibold">Selecionar ponto nesta rua</span>}</button>)}<p className="text-[10px] p-2 text-slate-500">Locais © OpenStreetMap · índice do app e Photon quando necessário</p></div>}
   </div>;
 }

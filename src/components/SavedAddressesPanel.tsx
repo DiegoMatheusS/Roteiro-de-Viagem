@@ -8,7 +8,7 @@ import {SAVED_ADDRESS_TYPES,readSavedAddresses,saveAddress,deleteSavedAddress,
   type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
 import {formatAddressDistance} from '../services/addressSuggestions';
-import {streetQueryForManualPin} from '../services/manualAddressPin';
+import {isStreetOnlyReference,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 
 export function SavedAddressesPanel({onSelect,gps,onChanged}:{
@@ -26,6 +26,8 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [showManualMap,setShowManualMap]=useState(false);
+  const [manualReference,setManualReference]=useState<LocationSelection|null>(null);
+  const openStreetPicker=(reference?:LocationSelection)=>{setManualReference(reference??null);setShowManualMap(true);};
   const [holdingId,setHoldingId]=useState<string|null>(null);
   const [notice,setNotice]=useState('');
   const request=useRef<AbortController|null>(null);
@@ -74,8 +76,8 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
     try{
       const found=await searchLocations(query.trim(),gps?.coords,controller.signal);
       if(controller.signal.aborted)return;
-      setResults(found.results.slice(0,6));
-      if(!found.results.length)setError(found.unmatchedHouseNumber?houseNumberNotFoundMessage(found.unmatchedHouseNumber)
+      setResults((found.results.length?found.results:found.streetResults).slice(0,6));
+      if(!found.results.length&&!found.streetResults.length)setError(found.unmatchedHouseNumber?houseNumberNotFoundMessage(found.unmatchedHouseNumber)
         :'Nenhum endereço encontrado. Inclua a rua, número e cidade.');
     }catch(err){if(!controller.signal.aborted)setError((err as Error).message);}
     finally{if(request.current===controller){request.current=null;setBusy(false);}}
@@ -161,14 +163,15 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
           {busy&&<p role="status" className="text-sm text-slate-600">Buscando sugestões de endereço...</p>}
           {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
           {streetQueryForManualPin(query)&&!chosen&&!busy&&
-            <button type="button" onClick={()=>setShowManualMap(true)}
+            <button type="button" onClick={()=>openStreetPicker()}
               className="w-full min-h-11 rounded-xl border-2 border-blue-500 text-blue-800 font-bold">
               Marcar endereço no mapa (sem número ou não encontrado)
             </button>}
           {results.length>0&&<div className="border rounded-xl divide-y max-h-48 overflow-y-auto" role="group" aria-label="Resultados de endereços">
-            {results.map((place,i)=><button key={place.id??i} type="button" onClick={()=>{setChosen(place);setError('');}}
+            {results.map((place,i)=><button key={place.id??i} type="button" onClick={()=>{if(isStreetOnlyReference(place)){openStreetPicker(place);return;}setChosen(place);setError('');}}
               aria-pressed={chosen===place} className={`block w-full text-left p-3 text-sm ${chosen===place?'bg-blue-50 text-blue-800':'text-slate-700'}`}>
               <strong className="block">{place.name}</strong><span className="text-xs block">{place.address}</span>
+              {isStreetOnlyReference(place)&&<span className="block text-xs font-semibold text-blue-700">Selecionar ponto nesta rua</span>}
               {gps&&place.coords&&<span className="text-[11px] text-blue-700">{formatAddressDistance(place.coords,gps)}</span>}
             </button>)}
           </div>}
@@ -180,7 +183,7 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
             Salvar local
           </button>
         </section>
-        {showManualMap&&<ManualAddressMapPicker query={query} bias={gps?.coords}
+        {showManualMap&&<ManualAddressMapPicker query={query} bias={gps?.coords} reference={manualReference??undefined}
           onCancel={()=>setShowManualMap(false)}
           onConfirm={place=>{setChosen(place);setResults([]);setError('');setShowManualMap(false);}}/>}
       </div>,document.body)}

@@ -32,3 +32,16 @@ export function manuallySelectedAddress(query:string,coords:[number,number],hous
   const label=number?[pieces[0],number,...pieces.slice(1)].join(', '):street;
   return {name:label,address:label,coords,category:'manual'};
 }
+
+/** A street reference is only a map starting point, never an exact house location. */
+export function isStreetOnlyReference(place:LocationSelection):boolean {
+  const label=place.name.trim();
+  if(!/^(?:rua|r\.?|avenida|av\.?|alameda|travessa|estrada|rodovia|praça|praca|viela|largo)\s+/i.test(label))return false;
+  return !requestedHouseNumber(place.name)&&!requestedHouseNumber(place.address||'');
+}
+
+/** Distinguish a street query from a city, venue or business name. */
+export function isStreetAddressQuery(query:string):boolean {
+  const street=streetQueryForManualPin(query);
+  return Boolean(street&&/^(?:rua|r\.?|avenida|av\.?|alameda|travessa|estrada|rodovia|praça|praca|viela|largo)\s+/i.test(street));
+}

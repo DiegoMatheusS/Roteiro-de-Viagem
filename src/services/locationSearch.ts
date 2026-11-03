@@ -1,6 +1,7 @@
 import {fuelApi,FuelApiError} from './fuelApi';
 import type {LocationSelection} from '../types/itinerary';
 import {matchingHouseNumber,rankLocationSuggestions,requestedHouseNumber} from './locationSuggestions';
+import {isStreetOnlyReference,streetQueryForManualPin} from './manualAddressPin';
 
 export function houseNumberNotFoundMessage(number:string):string {
   return `Não localizamos o imóvel nº ${number}. Confira a rua e a cidade; não vamos usar outro número.`;
@@ -48,7 +49,11 @@ export async function searchLocations(query:string,bias?:[number,number],signal?
       Math.abs(place.coords[0])<=90&&Math.abs(place.coords[1])<=180);
     const requestedNumber=requestedHouseNumber(query);
     const numbered=requestedNumber?valid.filter(place=>matchingHouseNumber(place,requestedNumber)):valid;
-    return {...result,results:rankLocationSuggestions(query,numbered,bias),
+    // Keep street-level matches separately so the UI can open the center-pin picker.
+    // They must never be returned as a routable numbered property.
+    const streetResults=requestedNumber&&numbered.length===0
+      ?rankLocationSuggestions(streetQueryForManualPin(query)??query,valid.filter(isStreetOnlyReference),bias):[];
+    return {...result,results:rankLocationSuggestions(query,numbered,bias),streetResults,
       unmatchedHouseNumber:requestedNumber&&numbered.length===0?requestedNumber:null};
   }finally{
     clearTimeout(timer);signal?.removeEventListener('abort',cancel);

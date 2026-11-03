@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {MapPin} from 'lucide-react';
 import {createPortal} from 'react-dom';
 import type L from 'leaflet';
 import type {LocationSelection} from '../types/itinerary';
@@ -6,11 +7,12 @@ import {searchLocations} from '../services/locationSearch';
 import {manuallySelectedAddress,streetQueryForManualPin} from '../services/manualAddressPin';
 import {requestedHouseNumber} from '../services/locationSuggestions';
 
-/** The map only uses a street result as a starting viewport. The traveler must
- * tap the actual building before any coordinates can be accepted. */
-export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
+/** The street result positions the map, but is never accepted as a delivery point.
+ * A stationary center pin marks the user's chosen map center after a gesture. */
+export function ManualAddressMapPicker({query,bias,reference,onConfirm,onCancel}:{
   query:string;
   bias?:[number,number];
+  reference?:LocationSelection;
   onConfirm:(selection:LocationSelection)=>void;
   onCancel:()=>void;
 }) {
@@ -26,6 +28,7 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
     if(!streetQuery){setError('Informe ao menos o nome da rua antes de marcar no mapa.');return;}
     const controller=new AbortController();
     setBusy(true);setError('');setReferences([]);setAnchor(null);setPoint(null);
+    if(reference?.coords){setReferences([reference]);setAnchor(reference);setBusy(false);return()=>controller.abort();}
     void searchLocations(streetQuery,bias,controller.signal).then(result=>{
       if(controller.signal.aborted)return;
       const candidates=result.results.filter(item=>item.coords).slice(0,8);
@@ -34,7 +37,7 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
     }).catch(err=>{if(!controller.signal.aborted)setError((err as Error).message);})
       .finally(()=>{if(!controller.signal.aborted)setBusy(false);});
     return ()=>controller.abort();
-  },[streetQuery]);
+  },[streetQuery,reference?.coords?.[0],reference?.coords?.[1]]);
 
   useEffect(()=>{
     if(!anchor?.coords||!container.current)return;
@@ -49,12 +52,21 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
       leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
         attribution:'© OpenStreetMap contributors',maxZoom:19
       }).addTo(active);
-      let pin:L.CircleMarker|null=null;
+      // The pin stays centered while the user drags/zooms the map underneath it.
+      // Never treat the initial street centroid as a confirmed address.
+      let interacted=false;
+      const updateCenter=()=>{
+        if(!interacted)return;
+        const center=active.getCenter();
+        setPoint([center.lat,center.lng]);
+      };
+      active.on('dragstart zoomstart',()=>{interacted=true;setPoint(null);});
+      active.on('moveend',updateCenter);
       active.on('click',event=>{
-        const coords:[number,number]=[event.latlng.lat,event.latlng.lng];
-        pin?.remove();
-        pin=leaflet.circleMarker(coords,{radius:9,color:'#1d4ed8',weight:3,fillColor:'#60a5fa',fillOpacity:0.9}).addTo(active);
-        setPoint(coords);
+        interacted=true;setPoint(null);
+        const tapped=event.latlng;
+        if(active.getCenter().distanceTo(tapped)<0.5)updateCenter();
+        else active.panTo(tapped,{animate:false});
       });
       resize=setTimeout(()=>active.invalidateSize(),100);
     }).catch(()=>{if(!disposed)setError('Não foi possível abrir o mapa agora. Tente novamente.');});
@@ -72,14 +84,13 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
             className="rounded-lg border px-3 py-2 font-bold">Fechar</button>
         </header>
         <p className="text-sm text-slate-700">
-          Caso não saiba o número ou ele não apareça na pesquisa, escolha a rua correta
-          e toque no ponto exato do endereço. A posição será marcada por você, não verificada automaticamente.
+          Arraste o mapa até deixar o pino azul sobre a entrada do imóvel, como no Uber. O número é opcional. O ponto é escolhido por você, não confirmado automaticamente pelo buscador.
         </p>
         <p className="text-xs font-semibold text-slate-800 break-words">Endereço informado: {query}</p>
         {busy&&<p role="status" className="text-sm">Procurando a rua no mapa...</p>}
         {error&&<p role="alert" className="text-sm text-red-700">{error}</p>}
         {references.length>1&&<label className="block text-sm font-semibold text-slate-800">
-          Referência para abrir o mapa
+          Rua encontrada — escolha a referência
           <select className="mt-1 block w-full border p-3 rounded-xl" value={anchor?.id??''}
             onChange={event=>{setAnchor(references.find(p=>p.id===event.target.value)??null);setPoint(null);}}>
             {references.map((item,index)=><option key={item.id??index} value={item.id??''}>
@@ -87,14 +98,22 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
             </option>)}
           </select>
         </label>}
-        {anchor?.coords&&<div ref={container} className="w-full h-[min(47dvh,350px)] rounded-xl overflow-hidden border"
-          aria-label="Mapa para escolher a posição do imóvel" data-testid="manual-address-map"/>}
+        {anchor?.coords&&<div className="relative w-full h-[min(47dvh,350px)] rounded-xl overflow-hidden border border-slate-200" data-testid="manual-address-map-picker">
+          <div ref={container} className="absolute inset-0" aria-label="Mapa para arrastar até o imóvel" data-testid="manual-address-map"/>
+          <div className="pointer-events-none absolute inset-0 z-[500] flex items-center justify-center" aria-hidden="true">
+            <span className="relative -translate-y-5 drop-shadow-[0_3px_3px_#0f172a70]">
+              <MapPin size={41} strokeWidth={2.4} fill="#2563eb" stroke="#ffffff"/>
+              <span className="absolute left-[16px] top-[13px] h-2 w-2 rounded-full bg-white"/>
+            </span>
+            <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-700/40"/>
+          </div>
+        </div>}
         {anchor?.coords&&<p className="text-xs text-slate-600">
-          Amplie o mapa e toque no imóvel correto para colocar o marcador azul.
+          Arraste o mapa ou toque no imóvel. O pino fica parado no centro; confirme somente quando estiver na posição exata.
         </p>}
         {point&&<>
           <p role="status" className="text-sm font-semibold text-blue-800">
-            Ponto selecionado: {point[0].toFixed(6)}, {point[1].toFixed(6)}
+            Pino sobre o imóvel: {point[0].toFixed(6)}, {point[1].toFixed(6)}
           </p>
           <label className="block text-sm font-semibold text-slate-800">
             Número do imóvel (opcional)
@@ -110,7 +129,7 @@ export function ManualAddressMapPicker({query,bias,onConfirm,onCancel}:{
         <button type="button" disabled={!point||Boolean(number.trim()&&!/^\d{1,6}[a-z]?$/i.test(number.trim()))}
           className="w-full min-h-12 bg-blue-700 text-white font-bold rounded-xl disabled:opacity-40"
           onClick={()=>{if(point)onConfirm(manuallySelectedAddress(query,point,number));}}>
-          Confirmar localização marcada
+          Confirmar local do pino
         </button>
       </section>
     </div>,document.body);

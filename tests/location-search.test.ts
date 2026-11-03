@@ -30,6 +30,8 @@ test('search never chooses another house number or the street centroid',async t=
   const missing=await searchLocations('Rua das Flores 123, São Paulo',[-23.55,-46.63]);
   assert.deepEqual(missing.results,[]);
   assert.equal(missing.unmatchedHouseNumber,'123');
+  assert.deepEqual(missing.streetResults.map(place=>place.id),['street'],
+    'street is offered only for manual pin placement, never as a routable numbered address');
 });
 
 test('an unresponsive search times out, aborts HTTP, and permits a later retry',async t=>{
