@@ -120,3 +120,42 @@ test('congestionamento exige GPS e não usa centro do mapa como localização in
   assert.equal(map.state.states.at(-1),'zoom-in');
   control.destroy();
 });
+
+test('vermelho é automático e o botão alterna trânsito completo sem refazer consulta',async()=>{
+  const map=surface();let statusCalls=0;
+  const control=createTrafficFlowController({...map,initialStyle:'red',initialEnabled:true,
+    load:async()=>{statusCalls++;return config;}});
+  await flush();
+  assert.equal(statusCalls,1);
+  assert.match(map.state.url!,/\/red\/\{z\}/);
+  map.events.loaded();assert.equal(map.state.states.at(-1),'live');
+
+  control.setStyle('light');
+  assert.match(map.state.url!,/\/light\/\{z\}/,'modo completo usa as cores originais do provedor');
+  assert.equal(statusCalls,1,'alternar estilos não repete consulta à API');
+  map.events.loaded();assert.equal(map.state.states.at(-1),'live');
+
+  control.setStyle('red');
+  assert.match(map.state.url!,/\/red\/\{z\}/,'desligar botão mantém o congestionamento vermelho');
+  assert.equal(statusCalls,1);
+  assert.notEqual(map.state.url,null);
+  control.destroy();
+});
+
+test('o modo completo também respeita a janela de 5 km e o sinal GPS',async()=>{
+  const map=surface();let calls=0;
+  const control=createTrafficFlowController({...map,initialStyle:'light',
+    load:async()=>{calls++;return config;}});
+  await flush();
+  assert.match(map.state.url!,/\/light\/\{z\}/);
+  map.state.radiusKm=5.1;map.events.idle();
+  assert.equal(map.state.url,null);
+  control.setStyle('red');
+  assert.equal(map.state.url,null);
+  map.state.radiusKm=1;map.events.idle();
+  assert.match(map.state.url!,/\/red\/\{z\}/);
+  control.setLocation(null);assert.equal(map.state.url,null);
+  control.setStyle('light');assert.equal(map.state.url,null);
+  assert.equal(calls,1);
+  control.destroy();
+});
