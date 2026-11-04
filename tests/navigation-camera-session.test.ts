@@ -270,3 +270,18 @@ test('paradas de navegação não recriam camada estática em cada GPS',()=>{
   assert.match(source,/const outstandingStops=useMemo\(\(\)=>trip\.stops\.filter\(/);
   assert.match(source,/\[trip\.stops,trip\.navigationVisitedStopIds,trip\.navigationSkippedStopIds\]/);
 });
+
+
+test('bússola real gira a câmera parada, mas preserva centro contra deriva GPS',()=>{
+  const seen:Array<[number,number]>=[];
+  const port:CameraPort={zoom:()=>16,stop:()=>{},firstGpsFix:()=>{},
+    focus:()=>{},fitRoute:()=>{},recenter:()=>{},follow:point=>seen.push([...point])};
+  const session=createNavigationCameraSession(port,()=>{});
+  const original:[number,number]=[-23.55,-46.63];
+  const stationary={...input,position:original,speedMetersPerSecond:0,bearing:0,bearingIsDevice:true};
+  session.update(stationary);
+  session.update({...stationary,position:[-23.5502,-46.6302],bearing:95});
+  assert.deepEqual(seen,[original]);
+  session.update({...stationary,position:[-23.5502,-46.6302],bearing:95});
+  assert.equal(seen.length,1,'leituras iguais da bússola não redesenham a câmera');
+});
