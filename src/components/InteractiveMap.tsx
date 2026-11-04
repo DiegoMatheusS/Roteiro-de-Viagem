@@ -792,7 +792,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
             if (disposed) return;
             vectorLoaded = true;
             if (vectorTimer) clearTimeout(vectorTimer);
-            applyRoleVectorPalette(gl,appearanceTheme);
+            applyRoleVectorPalette(gl,appearanceTheme,navigationMode);
             vectorMapRef.current = gl;
             setVectorRoutesReady(true);
             setTileError(false);
