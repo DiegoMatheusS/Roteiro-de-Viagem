@@ -15,7 +15,7 @@ test('mapa claro separa ruas, avenidas, rodovias e vegetação por cor', () => {
   assert.equal(roleVectorPaintForLayer({ id:'highway_major_inner',type:'line' })['line-color'],'#fff1d3');
   assert.equal(roleVectorPaintForLayer({ id:'highway_motorway_bridge_casing',type:'line' })['line-color'],'#d2a05b');
   assert.equal(roleVectorPaintForLayer({ id:'waterway',type:'line' })['line-color'],'#83c5e7');
-  assert.equal(roleVectorPaintForLayer({ id:'label_city',type:'symbol' })['text-color'],'#2c4052');
+  assert.equal(roleVectorPaintForLayer({ id:'label_city',type:'symbol' })['text-color'],'#304459');
   assert.equal(roleVectorPaintForLayer({ id:'highway-name-minor',type:'symbol' })['text-halo-color'],'#f8fafb');
 });
 
