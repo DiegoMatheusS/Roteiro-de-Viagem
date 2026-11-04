@@ -24,7 +24,7 @@ import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
-import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative,ROLE_TRAVELLED_ROUTE_COLOR } from '../services/mapLibreRouteLayers';
+import { updateRoleVectorRoutes, clearRoleVectorRoutes, queryRoleVectorAlternative,ROLE_TRAVELLED_ROUTE_COLOR,ROLE_VIBRANT_ROUTE_COLOR,ROLE_ROUTE_DARK_OUTLINE } from '../services/mapLibreRouteLayers';
 import {routeEditPoint} from '../services/mapRouteEditPoint';
 import { updateRoleVectorMilestones,clearRoleVectorMilestones } from '../services/mapLibreRouteMilestones';
 import {selectRouteMilestones} from '../services/routeMilestones';
@@ -1092,11 +1092,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if (vectorRoutesReady || !(navigationMode || blueRoute) || routePath.length<2) return;
     const progress=splitRouteAtPosition(routePath,userLiveCoords,travelledDistanceKm,totalRouteKm);
     if (progress.remaining.length>1) {
-      L.polyline(progress.remaining,{color:appearanceTheme==='dark'?'#2b91ff':'#38a8ff',weight:12,opacity:appearanceTheme==='dark'?0.36:0.3,lineCap:'round',lineJoin:'round'}).addTo(group);
-      L.polyline(progress.remaining,{color:appearanceTheme==='dark'?'#4ab8ff':'#67c7ff',weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.remaining,{color:ROLE_ROUTE_DARK_OUTLINE,weight:19,opacity:0.96,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.remaining,{color:ROLE_VIBRANT_ROUTE_COLOR,weight:14,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
     }
     if (progress.travelled.length>1) {
-      L.polyline(progress.travelled,{color:ROLE_TRAVELLED_ROUTE_COLOR,weight:7,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
+      L.polyline(progress.travelled,{color:ROLE_TRAVELLED_ROUTE_COLOR,weight:13,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(group);
     }
   },[vectorRoutesReady,routePath,userLiveCoords,travelledDistanceKm,totalRouteKm,navigationMode,blueRoute,appearanceTheme]);
 
