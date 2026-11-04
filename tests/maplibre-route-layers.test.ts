@@ -66,13 +66,15 @@ test('route strokes use MapLibre zoom interpolation, retaining a white outline a
     userLocation:road[0]};
   const count=updateRoleVectorRoutes(gl,options);
   assert.ok(count>=2);
-  const outline=layers.get('role-active-outline');
+  const outline=layers.get('role-remaining-glow');
+  const activeOutline=layers.get('role-active-outline');
   const remaining=layers.get('role-remaining-line');
   const travelled=layers.get('role-travelled-line');
   assert.equal(outline?.paint['line-color'],'#112B50');
+  assert.equal(activeOutline?.paint['line-color'],'#112B50');
   assert.equal(remaining?.paint['line-color'],'#006BFF');
   assert.equal(travelled?.paint['line-color'],'#64758f');
-  assert.deepEqual(outline?.paint['line-width'],routeZoomStroke(5,7.5,10));
+  assert.deepEqual(outline?.paint['line-width'],routeZoomStroke(7,12,19));
   assert.deepEqual(remaining?.paint['line-width'],routeZoomStroke(4,8,14));
   assert.deepEqual(travelled?.paint['line-width'],routeZoomStroke(4,7,13));
   const evaluate=(expression:ReturnType<typeof routeZoomStroke>,zoom:number)=>{
