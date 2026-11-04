@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Map as GlMap } from 'maplibre-gl';
-import { applyRoleVectorPalette, roleVectorPaintForLayer } from '../src/services/mapVectorStyle';
+import { applyRoleVectorPalette, roleVectorPaintForLayer,roleNavigationPaintForLayer,roleNavigationRoadWidth } from '../src/services/mapVectorStyle';
 
 test('paleta clara mantém prédios brancos, ruas cinzas e água/vegetação coloridas', () => {
   assert.deepEqual(roleVectorPaintForLayer({ id:'background',type:'background' }),
@@ -81,4 +81,16 @@ test('street names retain local names and become readable at city zoom without o
     assert.equal(layouts.get('text-pitch-alignment'),'viewport');
     assert.equal(layouts.get('text-allow-overlap'),false);
   }
+});
+
+
+test('navegação clareia menos o mapa e amplia vias sem alterar camadas próprias',()=>{
+  assert.deepEqual(roleNavigationPaintForLayer({id:'background',type:'background'},'light'),{'background-color':'#dce4ed'});
+  assert.deepEqual(roleNavigationPaintForLayer({id:'role-remaining-line',type:'line'},'light'),{});
+  assert.equal(roleNavigationRoadWidth({id:'role-remaining-line',type:'line'}),null);
+  const main=roleNavigationRoadWidth({id:'highway_primary_inner',type:'line'});
+  assert.deepEqual(main,['interpolate',['linear'],['zoom'],11,3,14,9,16,16,19,26]);
+  const local=roleNavigationRoadWidth({id:'highway_minor',type:'line'});
+  assert.deepEqual(local,['interpolate',['linear'],['zoom'],11,2,14,6,16,11,19,20]);
+  assert.equal(roleNavigationRoadWidth({id:'highway-name-minor',type:'symbol'}),null);
 });
