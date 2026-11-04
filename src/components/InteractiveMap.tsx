@@ -90,6 +90,8 @@ export interface InteractiveMapProps {
   userLastKnownCoords?:[number,number];
   userGpsAccuracyMeters?:number;
   userHeadingDegrees?: number | null;
+  /** Device compass, independent of movement course. Native Android only. */
+  userDeviceHeadingDegrees?: number | null;
   userSpeedMetersPerSecond?: number | null;
   /** Verified distance to a turn/roundabout/arrival, for native camera assist only. */
   maneuverMeters?: number | null;
@@ -153,6 +155,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   userLastKnownCoords,
   userGpsAccuracyMeters,
   userHeadingDegrees,
+  userDeviceHeadingDegrees,
   userSpeedMetersPerSecond,
   focusedCoords,
   convoyParticipants = EMPTY_CONVOY,
@@ -173,6 +176,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   centerOnUserRequest = 0,
   className = 'w-full h-full'
 }) => {
+  const markerHeading=userDeviceHeadingDegrees??userHeadingDegrees;
+  const markerHeadingSpeed=userDeviceHeadingDegrees==null?userSpeedMetersPerSecond:null;
   const markerCoords=userLiveCoords??userLastKnownCoords;
   const markerStale=!userLiveCoords&&!!userLastKnownCoords;
   const {theme:appearanceTheme}=useMapAppearance();
@@ -202,9 +207,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const vectorNavigationController = useRef<NavigationPinController|null>(null);
   const destinationPinVisible=shouldShowDestinationPin(navigationMode,destinationCoords,markerCoords);
   const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
-    live:markerCoords,liveStale:markerStale,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle});
+    live:markerCoords,liveStale:markerStale,headingDegrees:markerHeading,speedMetersPerSecond:markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle});
   navigationPinInputs.current={origin:originCoords,destination:destinationCoords,
-    live:markerCoords,liveStale:markerStale,headingDegrees:userHeadingDegrees,speedMetersPerSecond:userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle};
+    live:markerCoords,liveStale:markerStale,headingDegrees:markerHeading,speedMetersPerSecond:markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle};
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const refreshRainAvoidanceRef=useRef<(()=>void)|null>(null);
@@ -953,7 +958,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 
   useEffect(() => {
     vectorNavigationController.current?.update(navigationPinInputs.current);
-  },[originCoords,destinationCoords,markerCoords,markerStale,userHeadingDegrees,userSpeedMetersPerSecond,originLabel,destinationLabel,navigationMode,roadStyle]);
+  },[originCoords,destinationCoords,markerCoords,markerStale,markerHeading,markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -1078,10 +1083,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if(vectorNavigationReady)return;
     const svg=liveFallbackRef.current?.getElement()?.querySelector('svg') || null;
     liveFallbackHeadingRef.current=arrowHeadingStyle(
-      svg,liveFallbackHeadingRef.current,userHeadingDegrees,userSpeedMetersPerSecond,
+      svg,liveFallbackHeadingRef.current,markerHeading,markerHeadingSpeed,
       window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
     );
-  },[userLiveCoords,userHeadingDegrees,userSpeedMetersPerSecond,vectorNavigationReady]);
+  },[userLiveCoords,markerHeading,markerHeadingSpeed,vectorNavigationReady]);
 
   // Lightweight progress overlays for raster/legacy mode. Vector mode already
   // updates its GeoJSON source independently, with the exact same GPS split.
