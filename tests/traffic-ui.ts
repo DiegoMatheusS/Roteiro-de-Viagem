@@ -28,7 +28,7 @@ try{
   await map.locator('[data-traffic-control]').waitFor();
   // GPS pode centralizar o mapa antes da primeira asserção; o estado zoom-in
   // é transitório e não deve ser obrigatório no teste de integração.
-  // Navigation zoom can begin at city scale; get close enough for the 10-km window.
+  // Navigation zoom can begin at city scale; get close enough for the 5-km GPS window.
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new MouseEvent('click',{bubbles:true})));
   for(let i=0;i<5;i++){
     const zoom=Number(await map.getAttribute('data-map-zoom'));
@@ -70,9 +70,10 @@ try{
   fail=false;
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   const fallback=page.locator('[data-map-engine="leaflet-fallback"]');await fallback.waitFor();
-  await fallback.locator('[data-traffic-state="off"]').waitFor({timeout:20000});
-  await showTraffic().click();
+  // Ao trocar do motor vetorial para Leaflet, a navegação mantém o trânsito
+  // habilitado automaticamente; não exigir o botão "Mostrar" do modo manual.
   await fallback.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
+  assert.equal(await fallback.locator('[data-traffic-control] button[aria-pressed="true"]').count(),1);
   assert.ok(statusCalls>=2&&statusCalls<=4,'switching engines consults status without multiplying repeated requests');
   assert.ok(await fallback.locator('.leaflet-role-traffic-pane img').count()>0);
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();
