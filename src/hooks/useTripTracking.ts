@@ -21,7 +21,10 @@ export function useTripTracking(tripId?: string) {
     if (!tripId) { void TravelNative.stopTracking().catch(() => {}); return; }
     let disposed = false, ready = false;
     setNativeState({ tripId, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, position: null, error: null, running: false });
-    const read = () => { if (!ready || document.hidden || disposed) return; void TravelNative.state().then(state => {
+    let inFlight=false;
+    const read = () => { if (!ready || document.hidden || disposed || inFlight) return;
+      inFlight=true;
+      void TravelNative.state().then(state => {
       if(disposed)return;
       if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
       const livePosition=activeNativeTripPosition(state,nativeKey);
@@ -29,7 +32,8 @@ export function useTripTracking(tripId?: string) {
       setNativeState(current => mergeNativeTrackingState(current, { tripId, distanceKm: state.distanceKm, position: livePosition, running: state.running,
         deviceHeadingDegrees:livePosition?state.deviceHeadingDegrees??null:null,
         error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !livePosition ? 'Aguardando sinal GPS recente.' : null }));
-    }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); }); };
+    }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); })
+      .finally(()=>{inFlight=false;}); };
     void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, resume:attempt>0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); });
     // Polling curto deixa a seta acompanhar os updates do serviço Android sem
     // aguardar os antigos 2 s; mudança só de azimute preserva o fix GPS.
