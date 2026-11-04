@@ -136,7 +136,7 @@ export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light',n
     }
     if(navigationMode){
       const width=roleNavigationRoadWidth(layer);
-      if(width){try{map.setPaintProperty(layer.id,'line-width',width);}catch{/* style may have removed layer */}}
+      if(width){try{map.setPaintProperty(layer.id,'line-width',width as Parameters<GlMap['setPaintProperty']>[2]);}catch{/* style may have removed layer */}}
     }
     if(layer.type==='symbol'&&/^highway-name-/.test(layer.id)) {
       // Show local street names at city zoom as well as during tilted navigation.
