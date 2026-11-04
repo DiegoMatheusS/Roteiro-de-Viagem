@@ -197,7 +197,7 @@ try{
   const detailZoom=await map.getAttribute('data-map-zoom');
   await page.locator('.meeting-point-marker').click();
   await page.locator('.maplibregl-popup').waitFor();
-  for(const [style,label] of [['satellite','Satélite Real'],['topo','Relevo / Serras'],['light','Claro (MapLibre)']] as const){
+  for(const [style,label] of [['satellite','Satélite Real'],['topo','Relevo / Serras'],['light','Ruas (Rolê)']] as const){
     await page.getByTitle('Alterar visual do mapa').click();
     await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\$&'))}).click();
     await page.waitForFunction(expected=>{
@@ -285,7 +285,7 @@ try{
   assert.ok((await page.getByRole('status').allTextContents()).some(v=>v.includes('Mapa local: Região local de teste')));
   await page.context().setOffline(false);
   await page.getByTitle('Alterar visual do mapa').click();
-  await page.getByRole('button',{name:/Claro \(MapLibre\)/}).click();
+  await page.getByRole('button',{name:/Ruas \(Rolê\)/}).click();
   await page.evaluate(()=>localStorage.removeItem('role:offline-map-selected:v1'));
   await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-detail.html');
   await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
