@@ -654,7 +654,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const root=container.current?.parentElement;
       if(root)root.dataset.mapStyleReady=appliedOfflineRegion?'offline':activeStyle;
       if(!appliedOfflineRegion&&activeStyle==='light')
-        applyRoleVectorPalette(map,activeTheme);
+        applyRoleVectorPalette(map,activeTheme,Boolean(latest.current.navigationMode));
       requestRender();
     };
     map.on('style.load',styleLoaded);
