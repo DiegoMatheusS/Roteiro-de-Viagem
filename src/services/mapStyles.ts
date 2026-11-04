@@ -5,7 +5,7 @@ import type {MapTheme} from './mapAppearance';
 export type MapStyleType='light'|'satellite'|'topo';
 export const TILE_PROVIDERS: Record<MapStyleType, { name: string; url: string; attribution: string; maxZoom: number; icon: string }> = {
   light: {
-    name: 'Claro (MapLibre)',
+    name: 'Ruas (Rolê)',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores',
     maxZoom: 19,
