@@ -25,8 +25,8 @@ try{
   const map=page.locator('[data-map-engine="maplibre-standalone"]');
   const showTraffic=()=>page.getByRole('button',{name:'Mostrar trânsito',exact:true});
   const hideTraffic=()=>page.getByRole('button',{name:'Ocultar trânsito',exact:true});
-  await map.locator('[data-traffic-state="off"]').waitFor();
-  assert.equal(statusCalls,0,'no automatic paid traffic call on map startup');
+  await map.locator('[data-traffic-state="zoom-in"]').waitFor();
+  assert.equal(statusCalls,0,'traffic cannot request tiles until the GPS viewport fits within 5 km');
   // Navigation zoom can begin at city scale; get close enough for the 10-km window.
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new MouseEvent('click',{bubbles:true})));
   for(let i=0;i<5;i++){
@@ -35,7 +35,6 @@ try{
     const canvas=await map.locator('.maplibregl-canvas').boundingBox();
     if(canvas){await page.mouse.move(canvas.x+canvas.width/2,canvas.y+canvas.height/2);await page.mouse.wheel(0,-450);await page.waitForTimeout(230);}
   }
-  await showTraffic().click();
   await map.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
   const trafficToggle=map.locator('[data-traffic-control] button');
   assert.equal(await trafficToggle.getAttribute('aria-pressed'),'true');
@@ -46,6 +45,7 @@ try{
   for(let retry=0;retry<30&&tileCalls===0;retry++)await page.waitForTimeout(200);
   assert.ok(tileCalls>0,'a visible traffic layer must request at least one real tile');
   assert.equal(statusCalls,1);
+  assert.ok(page.getByRole('button',{name:'Ocultar trânsito'}),'congestionamento habilitado automaticamente durante viagem');
   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   assert.equal(statusCalls,1,'GPS callbacks cannot repeat traffic metadata requests');
   fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/traffic-map.png'});
