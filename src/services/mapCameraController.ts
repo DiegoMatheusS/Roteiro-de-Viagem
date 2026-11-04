@@ -149,13 +149,13 @@ export function createStandaloneMapLibreCameraPort(
     follow(point,reducedMotion){
       const view=continuingView();
       if(reducedMotion){map.jumpTo({center:lngLat(point),...orientation(),...view});pendingView=null;}
-      else map.easeTo({center:lngLat(point),duration:450,...orientation(),...view});
+      else map.easeTo({center:lngLat(point),duration:210,...orientation(),...view});
     },
     zoomToTurn(point,zoom,reducedMotion){
       // One owner, one camera move: keep the vehicle centered through zoom.
       const view=continuingView();
       if(reducedMotion){map.jumpTo({center:lngLat(point),zoom,...orientation(),...view});pendingView=null;}
-      else map.easeTo({center:lngLat(point),zoom,duration:440,...orientation(),...view});
+      else map.easeTo({center:lngLat(point),zoom,duration:235,...orientation(),...view});
     }
   };
 }

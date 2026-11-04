@@ -16,13 +16,13 @@ test('GeoJSON inverts Leaflet latitude/longitude for OSRM verified road paths',(
   assert.deepEqual(collection.features[0].geometry.coordinates[0],[-46.632,-23.551]);
   assert.deepEqual(collection.features[1].geometry.coordinates[2],[-46.634,-23.553]);
 });
-test('real GPS progress uses a muted blue driven line and light-blue remaining line',()=>{
+test('GPS mantém azul vibrante à frente e azul acinzentado no trecho percorrido',()=>{
   const collection=buildRoleRouteCollection({...base, navigationMode:true,
     userLocation:active[1], travelledDistanceKm:0.5});
   const roles=collection.features.map(f=>f.properties.role);
   assert.deepEqual(roles,['active','remaining','travelled']);
-  assert.equal(collection.features.find(f=>f.properties.role==='remaining')?.properties.color,'#67c7ff');
-  assert.equal(collection.features.find(f=>f.properties.role==='travelled')?.properties.color,'#6b839f');
+  assert.equal(collection.features.find(f=>f.properties.role==='remaining')?.properties.color,'#006BFF');
+  assert.equal(collection.features.find(f=>f.properties.role==='travelled')?.properties.color,'#64758f');
 });
 test('when GPS is off-route, no section is reported as travelled',()=>{
   const collection=buildRoleRouteCollection({...base, navigationMode:true,
@@ -66,15 +66,17 @@ test('route strokes use MapLibre zoom interpolation, retaining a white outline a
     userLocation:road[0]};
   const count=updateRoleVectorRoutes(gl,options);
   assert.ok(count>=2);
-  const outline=layers.get('role-active-outline');
+  const outline=layers.get('role-remaining-glow');
+  const activeOutline=layers.get('role-active-outline');
   const remaining=layers.get('role-remaining-line');
   const travelled=layers.get('role-travelled-line');
-  assert.equal(outline?.paint['line-color'],'#ffffff');
-  assert.equal(remaining?.paint['line-color'],'#67c7ff');
-  assert.equal(travelled?.paint['line-color'],'#6b839f');
-  assert.deepEqual(outline?.paint['line-width'],routeZoomStroke(5,7.5,10));
-  assert.deepEqual(remaining?.paint['line-width'],routeZoomStroke(3,5,7));
-  assert.deepEqual(travelled?.paint['line-width'],routeZoomStroke(3,5,7));
+  assert.equal(outline?.paint['line-color'],'#112B50');
+  assert.equal(activeOutline?.paint['line-color'],'#112B50');
+  assert.equal(remaining?.paint['line-color'],'#006BFF');
+  assert.equal(travelled?.paint['line-color'],'#64758f');
+  assert.deepEqual(outline?.paint['line-width'],routeZoomStroke(7,12,19));
+  assert.deepEqual(remaining?.paint['line-width'],routeZoomStroke(4,8,14));
+  assert.deepEqual(travelled?.paint['line-width'],routeZoomStroke(4,7,13));
   const evaluate=(expression:ReturnType<typeof routeZoomStroke>,zoom:number)=>{
     const stops=[[expression[3],expression[4]],[expression[5],expression[6]],[expression[7],expression[8]]];
     if(zoom<=stops[0][0])return stops[0][1];
@@ -87,11 +89,11 @@ test('route strokes use MapLibre zoom interpolation, retaining a white outline a
   const remainingStroke=remaining!.paint['line-width'] as ReturnType<typeof routeZoomStroke>;
   for(const zoom of [5,8,11,14,16,18]){
     assert.ok(evaluate(outlineStroke,zoom)>evaluate(remainingStroke,zoom),
-      'O contorno branco precisa permanecer visível em qualquer escala');
+      'O contorno escuro precisa permanecer visível em qualquer escala');
   }
-  assert.equal(evaluate(remainingStroke,5),3);
-  assert.equal(evaluate(remainingStroke,11),5);
-  assert.equal(evaluate(remainingStroke,16),7);
+  assert.equal(evaluate(remainingStroke,5),4);
+  assert.equal(evaluate(remainingStroke,11),8);
+  assert.equal(evaluate(remainingStroke,16),14);
   // A mere zoom change is evaluated by MapLibre paint, not a GeoJSON upload.
   updateRoleVectorRoutes(gl,{...options,alternatives:[]});
   assert.equal(uploads,0,'Alterar a apresentação do zoom não pode reenviar 6 mil pontos');
@@ -119,7 +121,7 @@ test('route preview and alternative strokes also scale down at overview zoom',()
   assert.deepEqual(layers.get('role-active-line')?.paint['line-color'],['get','color']);
 });
 
-test('night route glows below street labels and day/night switching preserves road geometry and GPS cache',()=>{
+test('rota azul vibrante cobre apenas nomes à frente e mantém rótulos do trecho percorrido',()=>{
   const layers=new Map<string,{id:string;paint:Record<string,unknown>}>();
   const placements:{id:string;before?:string}[]=[];
   let data:ReturnType<typeof buildRoleRouteCollection>|undefined,uploads=0;
@@ -141,19 +143,20 @@ test('night route glows below street labels and day/night switching preserves ro
   const geometry=JSON.stringify(data);
   updateRoleVectorRoutes(gl,{...options,theme:'dark'});
   assert.equal(JSON.stringify(data),geometry,'theme change must preserve verified path and actual GPS progress');
-  assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#2265ac');
-  assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#4ab8ff');
-  assert.ok(Number(layers.get('role-remaining-glow')?.paint['line-opacity'])<0.5);
-  assert.ok(placements.every(layer=>layer.before==='highway-name-minor'||
-    layer.id==='role-remaining-glow'&&layer.before==='role-remaining-line'),
-    'route lines must not cover the base street names');
+  assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#112B50');
+  assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#006BFF');
+  assert.equal(layers.get('role-remaining-glow')?.paint['line-opacity'],0.96);
+  assert.ok(placements.filter(layer=>layer.id.startsWith('role-remaining-'))
+    .every(layer=>layer.before===undefined),'o trecho à frente deve esconder rótulos atrás da rota');
+  assert.ok(placements.filter(layer=>!layer.id.startsWith('role-remaining-'))
+    .every(layer=>layer.before==='highway-name-minor'),'trecho percorrido deve ficar sob os rótulos');
   const nightUploads=uploads;
   for(let i=0;i<100;i++)updateRoleVectorRoutes(gl,{...options,theme:'dark'});
   assert.equal(uploads,nightUploads,'night styling must not defeat the GPS geometry cache');
   updateRoleVectorRoutes(gl,{...options,theme:'light'});
-  assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#ffffff');
-  assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#67c7ff');
-  assert.equal(layers.get('role-remaining-glow')?.paint['line-opacity'],0.3);
-  assert.equal(layers.get('role-travelled-line')?.paint['line-color'],'#6b839f');
+  assert.equal(layers.get('role-active-outline')?.paint['line-color'],'#112B50');
+  assert.equal(layers.get('role-remaining-line')?.paint['line-color'],'#006BFF');
+  assert.equal(layers.get('role-remaining-glow')?.paint['line-opacity'],0.96);
+  assert.equal(layers.get('role-travelled-line')?.paint['line-color'],'#64758f');
   assert.equal(JSON.stringify(data),geometry);
 });

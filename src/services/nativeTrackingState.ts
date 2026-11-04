@@ -6,6 +6,7 @@ export interface NativeTrackingState {
   position:DeviceLocation|null;
   error:string|null;
   running:boolean;
+  deviceHeadingDegrees?:number|null;
 }
 
 /** The Android bridge deserializes a fresh object on every 2 s poll, even when
@@ -26,6 +27,7 @@ export function sameLocation(a:DeviceLocation|null|undefined,b:DeviceLocation|nu
 export function mergeNativeTrackingState(previous:NativeTrackingState,next:NativeTrackingState):NativeTrackingState{
   const position=sameLocation(previous.position,next.position)?previous.position:next.position;
   if(previous.tripId===next.tripId&&previous.distanceKm===next.distanceKm&&
-     previous.running===next.running&&previous.error===next.error&&previous.position===position)return previous;
+     previous.running===next.running&&previous.error===next.error&&
+     (previous.deviceHeadingDegrees??null)===(next.deviceHeadingDegrees??null)&&previous.position===position)return previous;
   return position===next.position?next:{...next,position};
 }

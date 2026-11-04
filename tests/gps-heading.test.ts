@@ -45,3 +45,15 @@ test('live arrow rotates in both MapLibre and raster fallback, without desyncing
   assert.match(tab,/userHeadingDegrees=\{location\.status === "ready" \? location\.position\?\.headingDegrees : null\}/);
   assert.doesNotMatch(map,/vectorMapRef\.current\.setBearing/);
 });
+
+
+test('GPS nativo recebe sensores de rotação e baixa latência, sem confundir posição com orientação',()=>{
+  const service=read('android/app/src/main/java/br/com/roteirodeviagem/app/TravelLocationService.java');
+  const bridge=read('android/app/src/main/java/br/com/roteirodeviagem/app/TravelNativePlugin.java');
+  const hook=read('src/hooks/useTripTracking.ts');
+  assert.match(service,/TYPE_ROTATION_VECTOR/);
+  assert.match(service,/getRotationMatrixFromVector/);
+  assert.match(service,/requestLocationUpdates\(LocationManager.GPS_PROVIDER,750,0,this\)/);
+  assert.match(bridge,/deviceHeadingDegrees/);
+  assert.match(hook,/window\.setInterval\(read,250\)/);
+});

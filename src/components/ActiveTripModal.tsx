@@ -238,6 +238,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           userLastKnownCoords={tracking.lastKnownPosition?.coords}
           userGpsAccuracyMeters={isGpsActive?tracking.position?.accuracyMeters:undefined}
           userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
+          userDeviceHeadingDegrees={isGpsActive ? tracking.deviceHeadingDegrees : null}
           userSpeedMetersPerSecond={isGpsActive?tracking.position?.speedMetersPerSecond:null}
           showRainLayer={!rerouted&&trip.hasRainRisk}
           className="w-full h-full"/>

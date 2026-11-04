@@ -29,7 +29,7 @@ test('bearing and GPS position use a single native camera command and honor redu
   bearing=0;
   camera.follow([-23.55,-46.63],true);
   assert.deepEqual(calls,[
-    ['easeTo',{center:[-46.63,-23.55],duration:450,bearing:90}],
+    ['easeTo',{center:[-46.63,-23.55],duration:210,bearing:90}],
     ['jumpTo',{center:[-46.63,-23.55],zoom:17,bearing:90}],
     ['jumpTo',{center:[-46.63,-23.55],bearing:0}]
   ]);
