@@ -292,6 +292,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
       camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,position:p.userLiveCoords,
         centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing,
+        bearingIsDevice:p.userDeviceHeadingDegrees!=null,
         maneuverMeters:p.maneuverMeters,speedMetersPerSecond:p.userSpeedMetersPerSecond});
       if(p.focusedCoords && p.focusedCoords!==lastFocus){
         camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
