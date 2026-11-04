@@ -1,10 +1,28 @@
 import type {Express} from 'express';
+import sharp from 'sharp';
 import {ApiError,asyncRoute,clientIp} from './http';
 import type {createRateLimiter} from './rateLimit';
 
 const TTL=60000,MAX_TILE_BYTES=512*1024,MAX_CACHE_BYTES=16*1024*1024;
 const unavailable=()=>new ApiError('Trânsito ao vivo indisponível no momento.',503);
 type Tile={data:Buffer;expires:number;observedAt:number};
+
+/** Os tiles reais do provedor são a única fonte de congestionamentos. Remove
+ * verde/amarelo e conserva exclusivamente vermelho forte, sem colorir vias
+ * baseado em classe, velocidade inventada ou simulação. */
+export async function trafficRedOnlyPng(tile:Buffer):Promise<Buffer> {
+  const {data,info}=await sharp(tile).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  if(info.width!==256||info.height!==256||info.channels!==4)throw unavailable();
+  for(let i=0;i<data.length;i+=4){
+    const red=data[i],green=data[i+1],blue=data[i+2];
+    // Exclui laranja/amarelo: só vermelho intenso é congestionamento grave.
+    const congested=red>=145&&green<=105&&blue<=135&&
+      red>=green*1.7&&red>=blue*1.5;
+    if(!congested){data[i+3]=0;continue;}
+    data[i]=232;data[i+1]=33;data[i+2]=48;
+  }
+  return sharp(data,{raw:{width:256,height:256,channels:4}}).png().toBuffer();
+}
 export interface TrafficOptions {fetcher?:typeof fetch;key?:()=>string;clock?:()=>number}
 
 /** Only the server knows the key. Requests always go to the fixed TomTom host;
@@ -14,7 +32,7 @@ export function createTrafficService({fetcher=fetch,key=()=>process.env.TOMTOM_T
   let cacheBytes=0,blockedUntil=0;
   const enabled=()=>Boolean(key().trim())&&clock()>=blockedUntil;
   const getTile=async(style:string,z:string,x:string,y:string):Promise<Tile>=>{
-    if(!['light','dark'].includes(style)||![z,x,y].every(value=>/^(0|[1-9]\d{0,7})$/.test(value))||
+    if(!['light','dark','red'].includes(style)||![z,x,y].every(value=>/^(0|[1-9]\d{0,7})$/.test(value))||
       Number(z)>22||Number(x)>=2**Number(z)||Number(y)>=2**Number(z))
       throw new ApiError('Bloco de trânsito inválido.',400);
     if(!enabled())throw unavailable();
@@ -25,7 +43,7 @@ export function createTrafficService({fetcher=fetch,key=()=>process.env.TOMTOM_T
     const task=(async()=>{
       try{
         await Promise.resolve(); // Store even a synchronously failing provider before cleanup.
-        const response=await fetcher(`https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/${z}/${x}/${y}?apiVersion=2&style=${style}&tileSize=256`,{
+        const response=await fetcher(`https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/${z}/${x}/${y}?apiVersion=2&style=${style==='red'?'light':style}&tileSize=256`,{
           headers:{'TomTom-Api-Key':key().trim(),Accept:'image/png'},signal:AbortSignal.timeout(6000),redirect:'error'
         });
         if(!response.ok||!response.headers.get('content-type')?.startsWith('image/png')||
@@ -37,17 +55,18 @@ export function createTrafficService({fetcher=fetch,key=()=>process.env.TOMTOM_T
           while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;
             if(size>MAX_TILE_BYTES){await reader.cancel();throw unavailable();}chunks.push(value);}
         }finally{reader.releaseLock();}
-        const data=Buffer.concat(chunks);
-        if(data.length<24||!data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))||
-          data.toString('ascii',12,16)!=='IHDR'||data.readUInt32BE(16)!==256||data.readUInt32BE(20)!==256)throw unavailable();
+        const raw=Buffer.concat(chunks);
+        if(raw.length<24||!raw.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))||
+          raw.toString('ascii',12,16)!=='IHDR'||raw.readUInt32BE(16)!==256||raw.readUInt32BE(20)!==256)throw unavailable();
+        const data=style==='red'?await trafficRedOnlyPng(raw):raw;
         const now=clock(),providerAge=/max-age=(\d+)/i.exec(response.headers.get('cache-control')||'');
         const ttl=providerAge?Math.min(TTL,Number(providerAge[1])*1000):TTL;
         const tile={data,observedAt:now,expires:now+ttl};
         if(cached){cacheBytes-=cached.data.length;cache.delete(id);}
         for(const [entry,item] of cache){
-          if(item.expires<=now||cache.size>=256||cacheBytes+size>MAX_CACHE_BYTES){cache.delete(entry);cacheBytes-=item.data.length;}
+          if(item.expires<=now||cache.size>=256||cacheBytes+data.length>MAX_CACHE_BYTES){cache.delete(entry);cacheBytes-=item.data.length;}
         }
-        cache.set(id,tile);cacheBytes+=size;return tile;
+        cache.set(id,tile);cacheBytes+=data.length;return tile;
       }catch{
         // A bad key, quota or outage must not multiply into a request per tile.
         blockedUntil=clock()+TTL;throw unavailable();

@@ -7,9 +7,9 @@ export function createLeafletTrafficPort(map:L.Map):TrafficMapPort {
   const clear=()=>{if(layer){layer.off();try{layer.remove();}catch{/* Map already gone. */}layer=null;}currentUrl=null;};
   return {
     getZoom:()=>map.getZoom(),
-    getViewportRadiusKm:()=>{
+    getViewportRadiusKm:(from)=>{
       const center=map.getCenter(),bounds=map.getBounds(),sw=bounds.getSouthWest(),ne=bounds.getNorthEast();
-      return trafficViewportRadiusKm([center.lat,center.lng],[sw.lat,sw.lng],[ne.lat,ne.lng]);
+      return trafficViewportRadiusKm(from??[center.lat,center.lng],[sw.lat,sw.lng],[ne.lat,ne.lng]);
     },
     isMoving:()=>moving,
     setTiles(url,attribution='© TomTom'){

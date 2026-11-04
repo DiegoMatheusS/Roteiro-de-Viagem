@@ -25,9 +25,10 @@ try{
   const map=page.locator('[data-map-engine="maplibre-standalone"]');
   const showTraffic=()=>page.getByRole('button',{name:'Mostrar trânsito',exact:true});
   const hideTraffic=()=>page.getByRole('button',{name:'Ocultar trânsito',exact:true});
-  await map.locator('[data-traffic-state="off"]').waitFor();
-  assert.equal(statusCalls,0,'no automatic paid traffic call on map startup');
-  // Navigation zoom can begin at city scale; get close enough for the 10-km window.
+  await map.locator('[data-traffic-control]').waitFor();
+  // GPS pode centralizar o mapa antes da primeira asserção; o estado zoom-in
+  // é transitório e não deve ser obrigatório no teste de integração.
+  // Navigation zoom can begin at city scale; get close enough for the 5-km GPS window.
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new MouseEvent('click',{bubbles:true})));
   for(let i=0;i<5;i++){
     const zoom=Number(await map.getAttribute('data-map-zoom'));
@@ -35,7 +36,6 @@ try{
     const canvas=await map.locator('.maplibregl-canvas').boundingBox();
     if(canvas){await page.mouse.move(canvas.x+canvas.width/2,canvas.y+canvas.height/2);await page.mouse.wheel(0,-450);await page.waitForTimeout(230);}
   }
-  await showTraffic().click();
   await map.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
   const trafficToggle=map.locator('[data-traffic-control] button');
   assert.equal(await trafficToggle.getAttribute('aria-pressed'),'true');
@@ -46,6 +46,7 @@ try{
   for(let retry=0;retry<30&&tileCalls===0;retry++)await page.waitForTimeout(200);
   assert.ok(tileCalls>0,'a visible traffic layer must request at least one real tile');
   assert.equal(statusCalls,1);
+  assert.equal(await hideTraffic().count(),1,'congestionamento ativado automaticamente durante viagem');
   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   assert.equal(statusCalls,1,'GPS callbacks cannot repeat traffic metadata requests');
   fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/traffic-map.png'});
@@ -69,9 +70,10 @@ try{
   fail=false;
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   const fallback=page.locator('[data-map-engine="leaflet-fallback"]');await fallback.waitFor();
-  await fallback.locator('[data-traffic-state="off"]').waitFor({timeout:20000});
-  await showTraffic().click();
+  // Ao trocar do motor vetorial para Leaflet, a navegação mantém o trânsito
+  // habilitado automaticamente; não exigir o botão "Mostrar" do modo manual.
   await fallback.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
+  assert.equal(await fallback.locator('[data-traffic-control] button[aria-pressed="true"]').count(),1);
   assert.ok(statusCalls>=2&&statusCalls<=4,'switching engines consults status without multiplying repeated requests');
   assert.ok(await fallback.locator('.leaflet-role-traffic-pane img').count()>0);
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();

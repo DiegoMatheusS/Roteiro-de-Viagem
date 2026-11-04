@@ -13,18 +13,15 @@ const isCasing=(id:string)=>/(casing|outline)/.test(id);
 const isMotorway=(id:string)=>/motorway/.test(id);
 const isArterial=(id:string)=>/(major|trunk|primary|secondary|tertiary)/.test(id);
 
-function roleRoadStroke(id:string,theme:'light'|'dark',navigation=false):string {
+function roleRoadStroke(id:string,theme:'light'|'dark',_navigation=false):string {
+  // A cor de uma via não representa trânsito. Sem dados do provedor, vias
+  // comuns, avenidas e rodovias nunca recebem amarelo, laranja ou vermelho.
   if(/(footway|steps|cycleway|pedestrian|highway_path)/.test(id))
-    return theme==='dark'?'#5d6b7d':'#c8d1d9';
+    return theme==='dark'?'#65758a':'#c8d1d9';
   const casing=isCasing(id);
-  if(theme==='dark'){
-    if(isMotorway(id))return casing?'#765d48':'#d8a972';
-    if(isArterial(id))return casing?'#665f57':'#c8b18c';
-    return casing?'#3d5068':ROLE_NIGHT_ROAD_COLOR;
-  }
-  if(isMotorway(id))return casing?'#d2a05b':navigation?'#ffd17e':'#ffdc9d';
-  if(isArterial(id))return casing?'#c8b69a':navigation?'#ffedc3':'#fff1d3';
-  return casing?'#bec9d4':ROLE_ROAD_COLOR;
+  if(theme==='dark')
+    return casing?'#40536b':isMotorway(id)?'#a9b9cd':isArterial(id)?'#9aaabd':ROLE_NIGHT_ROAD_COLOR;
+  return casing?'#b8c4cf':isMotorway(id)?'#f7fafc':isArterial(id)?'#ffffff':ROLE_ROAD_COLOR;
 }
 
 /** Ruas maiores em navegação, sem tornar becos ou caminhos de pedestres rodovias.

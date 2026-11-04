@@ -2,7 +2,7 @@ import {fuelApi} from './fuelApi';
 
 export const TRAFFIC_SOURCE_ID='role-traffic-flow';
 export const TRAFFIC_MIN_ZOOM=10;
-export const TRAFFIC_MAX_CAMERA_RADIUS_KM=10;
+export const TRAFFIC_MAX_CAMERA_RADIUS_KM=5;
 /** Furthest viewport corner, never a request for traffic outside the map view. */
 export function trafficViewportRadiusKm(center:[number,number],sw:[number,number],ne:[number,number]):number {
   const values=[...center,...sw,...ne];
@@ -19,13 +19,14 @@ export type TrafficState='loading'|'live'|'unavailable'|'off'|'offline'|'paused'
 export interface TrafficConfig {available:boolean;tileUrl:string|null;attribution:string;refreshSeconds:number}
 export interface TrafficMapPort {
   getZoom:()=>number;
-  getViewportRadiusKm:()=>number;
+  getViewportRadiusKm:(from?:[number,number])=>number;
   isMoving:()=>boolean;
   setTiles:(url:string|null,attribution?:string)=>void;
   listen:(events:{idle:()=>void;style:()=>void;loaded:()=>void;error:()=>void})=>()=>void;
 }
 interface Options {
   port:TrafficMapPort;onState:(state:TrafficState)=>void;offline?:boolean;initialEnabled?:boolean;
+  location?:[number,number]|null;
   load?:(signal:AbortSignal)=>Promise<TrafficConfig>;
   clock?:()=>number;doc?:Pick<Document,'hidden'|'addEventListener'|'removeEventListener'>;
   page?:Pick<Window,'addEventListener'|'removeEventListener'>;online?:()=>boolean;
@@ -33,15 +34,19 @@ interface Options {
 
 /** Traffic is independent of GPS renders. Refresh only while visible and idle;
  * failures remove the overlay rather than leave stale green roads on screen. */
-export function createTrafficFlowController({port,onState,offline=false,initialEnabled=true,
+export function createTrafficFlowController({port,onState,offline=false,initialEnabled=true,location=null,
   load=signal=>fuelApi<TrafficConfig>('/traffic/status',{signal}),clock=Date.now,
   doc=globalThis.document,page=globalThis.window,online=()=>globalThis.navigator?.onLine!==false}:Options){
   let enabled=initialEnabled,disposed=false,pageHidden=false,state:TrafficState|undefined;
+  let liveLocation=location&&location.every(Number.isFinite)?location:null;
   let config:TrafficConfig|null=null,appliedUrl:string|null=null,nextRequest=0,generation=0;
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|undefined,deadline:ReturnType<typeof setTimeout>|undefined;
   const emit=(value:TrafficState)=>{if(!disposed&&state!==value){state=value;onState(value);}};
   const active=()=>!disposed&&enabled&&!offline&&online()&&!doc?.hidden&&!pageHidden;
-  const withinRadius=()=>port.getViewportRadiusKm()<=TRAFFIC_MAX_CAMERA_RADIUS_KM;
+  // Não extrapolar trânsito além do raio de 5 km do GPS válido. Se qualquer
+  // canto da tela ultrapassar o círculo, a camada é removida por completo.
+  const withinRadius=()=>Boolean(liveLocation)&&
+    port.getViewportRadiusKm(liveLocation??undefined)<=TRAFFIC_MAX_CAMERA_RADIUS_KM;
   const remove=()=>{appliedUrl=null;port.setTiles(null);};
   const cancel=()=>{generation++;request?.abort();request=null;clearTimeout(timer);clearTimeout(deadline);timer=undefined;deadline=undefined;};
   const schedule=()=>{
@@ -51,9 +56,9 @@ export function createTrafficFlowController({port,onState,offline=false,initialE
   };
   const apply=()=>{
     if(!config?.available||!config.tileUrl){remove();emit('unavailable');return;}
-    // TomTom's light palette retains red even for very heavy traffic. Keep the
-    // same green/yellow/red meaning on both day and night base maps.
-    const url=config.tileUrl.replace('{style}','light')+`?v=${Math.floor(clock()/60000)}`;
+    // O backend usa apenas pixels vermelhos reais do tile TomTom; nunca
+    // mostrar verde/amarelo como se fossem congestionamento.
+    const url=config.tileUrl.replace('{style}','red')+`?v=${Math.floor(clock()/60000)}`;
     if(url!==appliedUrl){appliedUrl=url;emit('loading');port.setTiles(url,config.attribution);}
   };
   const refresh=async()=>{
@@ -102,6 +107,10 @@ export function createTrafficFlowController({port,onState,offline=false,initialE
   reconcile();
   return {
     setEnabled(value:boolean){enabled=value;reconcile();},
+    setLocation(value:[number,number]|null){
+      liveLocation=value&&value.every(Number.isFinite)?value:null;
+      reconcile();
+    },
     setOffline(value:boolean){offline=value;reconcile();},
     destroy(){
       if(disposed)return;disposed=true;cancel();unlisten();remove();

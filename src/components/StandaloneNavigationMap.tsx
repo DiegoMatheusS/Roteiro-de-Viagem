@@ -720,7 +720,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     data-map-style-menu={styleMenu?'open':'closed'}
     data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
-    <MapTrafficControl port={trafficPort} offline={offline||Boolean(regionId)} navigation={Boolean(props.navigationMode)}/>
+    <MapTrafficControl port={trafficPort} offline={offline||Boolean(regionId)} navigation={Boolean(props.navigationMode)} location={props.userLiveCoords}/>
     {selectedRegion&&<div role="status" aria-live="polite"
       className="pointer-events-none absolute left-3 top-3 z-30 max-w-[220px] rounded-xl bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800 shadow-lg">
       Mapa local: {selectedRegion.name} · zoom {selectedRegion.minZoom}–{selectedRegion.maxZoom}

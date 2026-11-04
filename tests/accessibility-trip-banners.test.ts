@@ -13,6 +13,10 @@ test('viagem em andamento aparece no topo e não sobrepõe as páginas',()=>{
   assert.doesNotMatch(banner,/(fixed bottom|absolute top)/);
   assert.match(banner,/Viagem em andamento/);
   assert.match(banner,/min-h-12/);
+  assert.match(banner,/aria-label="Encerrar viagem"/);
+  assert.match(banner,/Confirmar encerramento da viagem/);
+  assert.match(app,/onEnd=\{\(\) => handleEndTrip\(activeTrip\)\}/);
+  assert.match(app,/onNavigateToMapTab=\{\(\) => activeTrip \? resumeNavigation\(\) : setActiveTab\('mapa'\)\}/);
   assert.match(css,/data-trip-resume-banner="true"/);
   assert.match(css,/height:100%;\s*min-height:0/);
 });

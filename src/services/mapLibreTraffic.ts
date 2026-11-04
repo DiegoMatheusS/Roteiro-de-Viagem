@@ -5,9 +5,9 @@ export function createMapLibreTrafficPort(map:GlMap):TrafficMapPort {
   const layerId='role-traffic-colors';let currentUrl:string|null=null;
   return {
     getZoom:()=>map.getZoom(),
-    getViewportRadiusKm:()=>{
+    getViewportRadiusKm:(from)=>{
       const center=map.getCenter(),bounds=map.getBounds(),sw=bounds.getSouthWest(),ne=bounds.getNorthEast();
-      return trafficViewportRadiusKm([center.lat,center.lng],[sw.lat,sw.lng],[ne.lat,ne.lng]);
+      return trafficViewportRadiusKm(from??[center.lat,center.lng],[sw.lat,sw.lng],[ne.lat,ne.lng]);
     },
     isMoving:()=>map.isMoving(),
     setTiles(url,attribution='© TomTom'){

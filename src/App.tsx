@@ -525,7 +525,7 @@ export default function App() {
             destination={activeTrip.destinationName}
             ownsTracking={ownsTracking}
             onResume={resumeNavigation}
-            onOptions={() => setActiveTab('mapa')}
+            onEnd={() => handleEndTrip(activeTrip)}
           />}
           {/* MAIN TABS CONTAINER */}
           {/* Navigation owns the only live map. Unmount covered tabs so their
@@ -587,7 +587,7 @@ export default function App() {
                   const firstConv = convoyService.getActiveConvoy() || convoyService.getConvoys().find(c => c.status === 'active' && c.participants.some(p => p.id === profile.id));
                   if (firstConv) setActiveConvoyId(firstConv.id);
                 }}
-                onNavigateToMapTab={() => setActiveTab('mapa')}
+                onNavigateToMapTab={() => activeTrip ? resumeNavigation() : setActiveTab('mapa')}
                 activeConvoyId={convoyService.getActiveConvoy()?.id}
               /></div>
             )}
@@ -667,7 +667,7 @@ export default function App() {
           {exitNotice && <div role="status" className="fixed bottom-28 left-6 right-6 z-[100] mx-auto max-w-sm rounded-2xl bg-slate-950/90 text-white px-5 py-4 text-center text-[14px] font-semibold shadow-xl">Volte novamente para sair do Rolê</div>}
           {!isNavigationOpen && !isPlanningOpen && <NavigationTabBar
             activeTab={activeTab}
-            onTabChange={(tab) => {setActiveTab(tab);if(tab==='inicio')setAdvancedHome(false);}}
+            onTabChange={(tab) => {if(tab==='mapa'&&activeTrip){resumeNavigation();return;}setActiveTab(tab);if(tab==='inicio')setAdvancedHome(false);}}
             hasActiveConvoy={!!convoyService.getActiveConvoy()}
             signedIn={Boolean(auth.user)}
             userName={auth.user?.displayName || profile.name}

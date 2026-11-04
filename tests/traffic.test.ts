@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
-import {createTrafficService} from '../server/traffic';
+import {createTrafficService,trafficRedOnlyPng} from '../server/traffic';
 import {createApi} from '../server/app';
 import {openDatabase} from '../server/db';
 
@@ -70,4 +70,28 @@ test('traffic HTTP tiles have CORS and their own quota; no key is exposed throug
     assert.equal(calls,1);assert.equal((await fetch(base+'/health')).status,200,'tile requests cannot exhaust ordinary API quota');
     assert.equal((await fetch(base+'/traffic/tiles/light/2/4/0.png')).status,400);
   }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));db.close();fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('o tile vermelho conserva somente congestionamento real, não a via amarela ou verde',async()=>{
+  const pixels=Buffer.alloc(256*256*4);
+  const set=(x:number,rgba:[number,number,number,number])=>{pixels.set(rgba,x*4);};
+  set(0,[251,45,9,255]);set(1,[255,193,7,255]);set(2,[42,229,123,255]);set(3,[205,55,55,190]);
+  const image=await sharp(pixels,{raw:{width:256,height:256,channels:4}}).png().toBuffer();
+  const filtered=await trafficRedOnlyPng(image);
+  const raw=await sharp(filtered).ensureAlpha().raw().toBuffer();
+  assert.deepEqual([...raw.subarray(0,4)],[232,33,48,255]);
+  assert.equal(raw[7],0,'amarelo precisa ser transparente');
+  assert.equal(raw[11],0,'verde precisa ser transparente');
+  assert.equal(raw[15],190,'vermelho translúcido mantém seu alfa');
+});
+
+test('API red filtra no servidor e nunca envia a chave para o cliente',async()=>{
+  const pixels=Buffer.alloc(256*256*4);pixels.set([250,34,30,255],0);
+  const image=await sharp(pixels,{raw:{width:256,height:256,channels:4}}).png().toBuffer();
+  const service=createTrafficService({key:()=>key,fetcher:async(url)=>{
+    assert.match(String(url),/style=light&tileSize=256/);
+    return new Response(new Uint8Array(image),{headers:{'Content-Type':'image/png'}});
+  }});
+  const tile=await service.getTile('red','12','2044','1360');
+  assert.deepEqual([...((await sharp(tile.data).ensureAlpha().raw().toBuffer()).subarray(0,4))],[232,33,48,255]);
 });
