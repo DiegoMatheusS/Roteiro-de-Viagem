@@ -12,6 +12,11 @@ import android.content.SharedPreferences;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.hardware.GeomagneticField;
 import android.os.IBinder;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,15 +31,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** User-started, visible location service. No boot receiver or automatic background start. */
-public class TravelLocationService extends Service implements LocationListener {
+public class TravelLocationService extends Service implements LocationListener, SensorEventListener {
   public static volatile boolean running=false;
   public static volatile JSObject lastPosition=null;
+  /** Bússola do aparelho: independente do rumo calculado pelo deslocamento GPS. */
+  public static volatile double deviceHeadingDegrees=Double.NaN;
   public static volatile String activeConvoyId="",activeTripId="";
   private volatile String tripId="",convoyId="",locationToken="",origin="",cookie="";
   private double distanceKm=0;
   private Location previous;
   private long lastSend=0;
   private LocationManager manager;
+  private SensorManager sensors;
+  private Sensor rotationSensor;
+  private volatile float declinationDegrees=0;
   private SharedPreferences pref;
   private final ExecutorService io=Executors.newSingleThreadExecutor();
   /** Explicit app exit cancels the same GPS session as the notification action. */
@@ -49,13 +59,15 @@ public class TravelLocationService extends Service implements LocationListener {
     if(!tripId.isEmpty())stopped.putString("stoppedTripId",tripId);
     stopped.apply();
     revoke();tripId="";activeTripId="";convoyId="";activeConvoyId="";
-    previous=null;lastPosition=null;running=false;
+    previous=null;lastPosition=null;running=false;deviceHeadingDegrees=Double.NaN;
     if(manager!=null)manager.removeUpdates(this);
+    if(sensors!=null)sensors.unregisterListener(this);
     stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
   }
   @Override public IBinder onBind(Intent intent) { return null; }
   @Override public void onCreate() {
-    super.onCreate(); pref=getSharedPreferences("travel-gps",0); manager=(LocationManager)getSystemService(LOCATION_SERVICE);
+    super.onCreate(); pref=getSharedPreferences("travel-gps",0); manager=(LocationManager)getSystemService(LOCATION_SERVICE); sensors=(SensorManager)getSystemService(SENSOR_SERVICE);
+    rotationSensor=sensors!=null?sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR):null;
     if(Build.VERSION.SDK_INT>=26) ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(new NotificationChannel("travel-gps","Viagem em andamento",NotificationManager.IMPORTANCE_LOW));
   }
   @Override public int onStartCommand(Intent intent,int flags,int startId) {
@@ -86,7 +98,8 @@ public class TravelLocationService extends Service implements LocationListener {
       .setContentIntent(PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT))
       .addAction(0,"Parar GPS",PendingIntent.getService(this,1,stop,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT)).build();
     startForeground(41,notification); running=true;
-    try { manager.removeUpdates(this); manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2000,0,this); }
+    if(sensors!=null&&rotationSensor!=null)sensors.registerListener(this,rotationSensor,SensorManager.SENSOR_DELAY_UI);
+    try { manager.removeUpdates(this); manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,750,0,this); }
     catch(SecurityException|IllegalArgumentException error) { stopSelf(); }
     return START_NOT_STICKY;
   }
@@ -99,7 +112,8 @@ public class TravelLocationService extends Service implements LocationListener {
   @Override public void onLocationChanged(Location location) {
     if(!isFreshGpsFix(System.currentTimeMillis(),location.getTime()) || !location.hasAccuracy() || location.getAccuracy()>50) { previous=null; return; }
     JSObject pos=new JSObject(); JSArray coords=new JSArray(); coords.put((Object)location.getLatitude()); coords.put((Object)location.getLongitude());
-    pos.put("coords",coords); pos.put("accuracyMeters",location.getAccuracy()); pos.put("timestamp",location.getTime()); pos.put("speedMetersPerSecond",location.hasSpeed()?location.getSpeed():org.json.JSONObject.NULL); pos.put("headingDegrees",location.hasBearing() && Float.isFinite(location.getBearing()) ? location.getBearing() : org.json.JSONObject.NULL); lastPosition=pos;
+    pos.put("coords",coords); pos.put("accuracyMeters",location.getAccuracy());
+    declinationDegrees=new GeomagneticField((float)location.getLatitude(),(float)location.getLongitude(),(float)location.getAltitude(),location.getTime()).getDeclination(); pos.put("timestamp",location.getTime()); pos.put("speedMetersPerSecond",location.hasSpeed()?location.getSpeed():org.json.JSONObject.NULL); pos.put("headingDegrees",location.hasBearing() && Float.isFinite(location.getBearing()) ? location.getBearing() : org.json.JSONObject.NULL); lastPosition=pos;
     if(!tripId.isEmpty() && previous!=null) {
       double seconds=(location.getTime()-previous.getTime())/1000.0, meters=previous.distanceTo(location);
       if(seconds>0 && seconds<=30 && meters/seconds*3.6<=200 && meters>=Math.max(3,(previous.getAccuracy()+location.getAccuracy())/2)) { distanceKm+=meters/1000; previous=location; persist(); }
@@ -120,9 +134,19 @@ public class TravelLocationService extends Service implements LocationListener {
     } catch(Exception error) { return 0; } finally { if(conn!=null) conn.disconnect(); }
   }
   private void revoke() { if(convoyId!=null && !convoyId.isEmpty()) { String group=convoyId,targetOrigin=origin,targetCookie=cookie; JSObject data=new JSObject();data.put("enabled",false);data.put("locationToken",locationToken);String body=data.toString();io.execute(() -> send(group,body,targetOrigin,targetCookie)); } }
+  /** Azimute magnético corrigido para o norte verdadeiro com a última posição válida. */
+  @Override public void onSensorChanged(SensorEvent event) {
+    if(event.sensor.getType()!=Sensor.TYPE_ROTATION_VECTOR)return;
+    float[] matrix=new float[9],angles=new float[3];
+    SensorManager.getRotationMatrixFromVector(matrix,event.values);
+    SensorManager.getOrientation(matrix,angles);
+    double heading=(Math.toDegrees(angles[0])+declinationDegrees+360)%360;
+    if(Double.isFinite(heading))deviceHeadingDegrees=heading;
+  }
+  @Override public void onAccuracyChanged(Sensor sensor,int accuracy) {}
   @Override public void onProviderDisabled(String provider) { previous=null; lastPosition=null; }
   @Override public void onTaskRemoved(Intent rootIntent) { stopForUser();super.onTaskRemoved(rootIntent); }
   @Override public void onProviderEnabled(String provider) {}
   @Override public void onStatusChanged(String provider,int status,Bundle extras) {}
-  @Override public void onDestroy() { running=false; activeTripId=""; activeConvoyId=""; lastPosition=null; if(manager!=null) manager.removeUpdates(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }
+  @Override public void onDestroy() { running=false; activeTripId=""; activeConvoyId=""; lastPosition=null; deviceHeadingDegrees=Double.NaN; if(manager!=null) manager.removeUpdates(this); if(sensors!=null)sensors.unregisterListener(this); persist(); revoke(); io.shutdown(); super.onDestroy(); }
 }
