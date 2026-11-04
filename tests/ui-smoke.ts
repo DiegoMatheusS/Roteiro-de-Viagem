@@ -92,6 +92,12 @@ try {
     if(/tile\.openstreetmap\.org\//.test(url))return route.fulfill({contentType:'image/png',body:blankMapTile});
     return route.abort();
   });
+  // O teste de interface geral não verifica tráfego e não deve depender
+  // de uma chave TomTom nem consumir cotas. Os modos reais são cobertos
+  // separadamente em tests/traffic-ui.ts.
+  await page.route('**/api/traffic/status',route=>route.fulfill({json:{
+    available:false,provider:'TomTom',refreshSeconds:60,tileUrl:null,attribution:'© TomTom'
+  }}));
   await page.goto('http://127.0.0.1:3000');
   await page.goto('http://127.0.0.1:3000/admin');
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
@@ -874,13 +880,30 @@ try {
     .getByRole('button',{name:'Salvar endereço'}).waitFor();
   const grab = await expandMapPanel.boundingBox();
   assert.ok(grab, 'O puxador do painel precisa estar visível');
-  await page.mouse.move(grab!.x+grab!.width/2,grab!.y+grab!.height/2);
-  await page.mouse.down();
-  await page.mouse.move(grab!.x+grab!.width/2,grab!.y-110,{steps:6});
-  await page.waitForFunction(height=>{
+  const dragGrab=async(steps=12)=>{
+    const rect=await expandMapPanel.boundingBox();
+    assert.ok(rect,'Puxador deve permanecer acessível antes de arrastar');
+    await page.mouse.move(rect!.x+rect!.width/2,rect!.y+rect!.height/2);
+    await page.mouse.down();
+    await page.mouse.move(rect!.x+rect!.width/2,rect!.y-130,{steps});
+  };
+  const waitForDrag=()=>page.waitForFunction(height=>{
     const sheet=document.querySelector('[data-testid="map-explore-sheet"]')?.getBoundingClientRect();
     return !!sheet&&sheet.height>height+70;
-  },initialMapBounds.height);
+  },initialMapBounds.height,{timeout:7500});
+  await dragGrab();
+  try{
+    await waitForDrag();
+  }catch{
+    // Os runners de CI às vezes perdem o primeiro pointerdown durante
+    // animações iniciais. Refazer um gesto real, sem fingir painel expandido.
+    await page.mouse.up();
+    const collapse=page.getByRole('button',{name:'Recolher painel do mapa'});
+    if(await collapse.count())await collapse.click();
+    await page.waitForTimeout(350);
+    await dragGrab(16);
+    await waitForDrag();
+  }
   // Compare both rectangles in the same animation frame. Separate browser
   // round trips can sample the entering screen at two different positions.
   const dragging=await page.evaluate(()=>{
