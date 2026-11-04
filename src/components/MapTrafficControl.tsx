@@ -3,17 +3,23 @@ import {CarFront} from 'lucide-react';
 import {createTrafficFlowController,type TrafficMapPort,type TrafficState} from '../services/trafficFlow';
 
 /** Compact traffic toggle: only the roads change, never open a status panel. */
-export function MapTrafficControl({port,offline=false,navigation=false}:{port:TrafficMapPort|null;offline?:boolean;navigation?:boolean}){
-  const [enabled,setEnabled]=useState(false),[state,setState]=useState<TrafficState>('off');
+export function MapTrafficControl({port,offline=false,navigation=false,location}:{
+  port:TrafficMapPort|null;offline?:boolean;navigation?:boolean;location?:[number,number]|null;
+}){
+  const [enabled,setEnabled]=useState(navigation),[state,setState]=useState<TrafficState>('off');
   const controller=useRef<ReturnType<typeof createTrafficFlowController>|null>(null);
   useEffect(()=>{
     if(!port)return;
-    const current=createTrafficFlowController({port,onState:setState,offline,initialEnabled:enabled});controller.current=current;
+    const current=createTrafficFlowController({port,onState:setState,offline,initialEnabled:enabled,location});controller.current=current;
     current.setEnabled(enabled);
     return()=>{current.destroy();if(controller.current===current)controller.current=null;};
   },[port]);
   useEffect(()=>{controller.current?.setEnabled(enabled);},[enabled]);
   useEffect(()=>{controller.current?.setOffline(offline);},[offline]);
+  useEffect(()=>{controller.current?.setLocation(location??null);},[location?.[0],location?.[1]]);
+  // Durante direção, congestionamentos reais são habilitados por padrão;
+  // fora dela o botão continua opcional para poupar requisições ao provedor.
+  useEffect(()=>{if(navigation)setEnabled(true);},[navigation]);
   return <div data-traffic-state={state} data-traffic-control data-traffic-enabled={enabled}
     className={`absolute z-30 ${navigation?'right-6 bottom-[calc(var(--rdv-nav-panel-height)+159px)]':'right-5 bottom-[386px] rdv-map-traffic-control'}`}>
     <button type="button" aria-label={enabled?'Ocultar trânsito':'Mostrar trânsito'}
