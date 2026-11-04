@@ -14,17 +14,20 @@ try{
   // A fixture PNG verifies rendering only. No simulated data is bundled in the app.
   const image=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path d="M20 0V256" stroke="#2ae57b" stroke-width="5"/><path d="M80 0V256" stroke="#ffc105" stroke-width="5"/><path d="M140 0V256" stroke="#fb2d09" stroke-width="5"/></svg>')).png().toBuffer();
   let statusCalls=0,tileCalls=0,fail=false;
+  const tileStyles:string[]=[];
   await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[
     {id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}
   ]}}));
   await page.route('**/api/traffic/status',route=>{statusCalls++;return route.fulfill({json:{available:true,provider:'TomTom',refreshSeconds:60,
     tileUrl:'http://127.0.0.1:3000/api/traffic/tiles/{style}/{z}/{x}/{y}.png',attribution:'© TomTom'}});});
-  await page.route('**/api/traffic/tiles/**',route=>{tileCalls++;return fail?route.fulfill({status:503,json:{error:'Unavailable'}}):
+  await page.route('**/api/traffic/tiles/**',route=>{tileCalls++;
+    tileStyles.push(/\/tiles\/(red|light)\//.exec(route.request().url())?.[1]||'other');
+    return fail?route.fulfill({status:503,json:{error:'Unavailable'}}):
     route.fulfill({contentType:'image/png',body:image,headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'}});});
   await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-map.html');
   const map=page.locator('[data-map-engine="maplibre-standalone"]');
   const showTraffic=()=>page.getByRole('button',{name:'Mostrar trânsito',exact:true});
-  const hideTraffic=()=>page.getByRole('button',{name:'Ocultar trânsito',exact:true});
+  const hideTraffic=()=>page.getByRole('button',{name:'Ocultar trânsito completo',exact:true});
   await map.locator('[data-traffic-control]').waitFor();
   // GPS pode centralizar o mapa antes da primeira asserção; o estado zoom-in
   // é transitório e não deve ser obrigatório no teste de integração.
@@ -38,25 +41,34 @@ try{
   }
   await map.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
   const trafficToggle=map.locator('[data-traffic-control] button');
-  assert.equal(await trafficToggle.getAttribute('aria-pressed'),'true');
+  assert.equal(await trafficToggle.getAttribute('aria-pressed'),'false',
+    'congestionamento vermelho é interno e não aciona o botão');
+  assert.equal(await map.locator('[data-traffic-mode="red-only"]').count(),1);
   assert.match((await trafficToggle.getAttribute('class'))||'',/rounded-full/);
-  assert.match((await trafficToggle.getAttribute('class'))||'',/bg-blue-600/);
+  assert.match((await trafficToggle.getAttribute('class'))||'',/bg-white/);
   assert.equal(await page.getByLabel('Legenda do trânsito').count(),0,'no legend or detail panel should cover roads');
   // MapLibre can signal source metadata before raster-tile network requests.
   for(let retry=0;retry<30&&tileCalls===0;retry++)await page.waitForTimeout(200);
   assert.ok(tileCalls>0,'a visible traffic layer must request at least one real tile');
   assert.equal(statusCalls,1);
-  assert.equal(await hideTraffic().count(),1,'congestionamento ativado automaticamente durante viagem');
+  assert.ok(tileStyles.includes('red'),'congestionamento vermelho precisa usar tile filtrado');
+  assert.equal(await showTraffic().count(),1,'botão não aparece acionado por congestão automática');
+  await showTraffic().click();
+  await map.locator('[data-traffic-mode="full"][data-traffic-state="live"]').waitFor({timeout:20000});
+  assert.equal(await trafficToggle.getAttribute('aria-pressed'),'true');
+  assert.match((await trafficToggle.getAttribute('class'))||'',/bg-blue-600/);
+  assert.ok(tileStyles.includes('light'),'botão precisa mostrar verde, amarelo e vermelho');
   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
   assert.equal(statusCalls,1,'GPS callbacks cannot repeat traffic metadata requests');
   fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/traffic-map.png'});
-  await hideTraffic().click();await map.locator('[data-traffic-state="off"]').waitFor();
+  await hideTraffic().click();
+  await map.locator('[data-traffic-mode="red-only"][data-traffic-state="live"]').waitFor({timeout:20000});
   assert.equal(await trafficToggle.getAttribute('aria-pressed'),'false');
   assert.match((await trafficToggle.getAttribute('class'))||'',/bg-white/);
   assert.equal(await page.getByLabel('Legenda do trânsito').count(),0);
-  await page.waitForTimeout(200);const stoppedTiles=tileCalls;
+  // Voltar ao modo simples não remove congestionamentos nem bloqueia a câmera.
   await page.getByRole('button',{name:'Mover GPS',exact:true}).click();await page.waitForTimeout(250);
-  assert.equal(tileCalls,stoppedTiles,'disabled traffic cannot request more tiles after camera updates');
+  assert.equal(await map.locator('[data-traffic-mode="red-only"]').count(),1);
   await showTraffic().click();await map.locator('[data-traffic-state="live"]').waitFor();
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
   await map.locator('[data-traffic-state="paused"]').waitFor();
@@ -70,14 +82,16 @@ try{
   fail=false;
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   const fallback=page.locator('[data-map-engine="leaflet-fallback"]');await fallback.waitFor();
-  // Ao trocar do motor vetorial para Leaflet, a navegação mantém o trânsito
-  // habilitado automaticamente; não exigir o botão "Mostrar" do modo manual.
-  await fallback.locator('[data-traffic-state="live"]').waitFor({timeout:20000});
+  // O fallback mostra vermelho automaticamente, mas o botão permanece desligado.
+  await fallback.locator('[data-traffic-state="live"][data-traffic-mode="red-only"]').waitFor({timeout:20000});
+  assert.equal(await fallback.locator('[data-traffic-control] button[aria-pressed="false"]').count(),1);
+  await showTraffic().click();
+  await fallback.locator('[data-traffic-state="live"][data-traffic-mode="full"]').waitFor({timeout:20000});
   assert.equal(await fallback.locator('[data-traffic-control] button[aria-pressed="true"]').count(),1);
   assert.ok(statusCalls>=2&&statusCalls<=4,'switching engines consults status without multiplying repeated requests');
   assert.ok(await fallback.locator('.leaflet-role-traffic-pane img').count()>0);
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();
   assert.equal(await page.locator('[data-traffic-control]').count(),0);
   assert.deepEqual(errors,[]);
-  console.log('PASS: real raster traffic renders in both engines; toggling/background/failure preserve GPS and base-map gestures.');
+  console.log('PASS: congestions red by default, full green/yellow/red on toggle in MapLibre and Leaflet; GPS preserved.');
 }finally{await browser?.close();await vite.close();}
