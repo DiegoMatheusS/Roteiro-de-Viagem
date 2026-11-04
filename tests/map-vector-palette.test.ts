@@ -3,20 +3,20 @@ import assert from 'node:assert/strict';
 import type { Map as GlMap } from 'maplibre-gl';
 import { applyRoleVectorPalette, roleVectorPaintForLayer,roleNavigationPaintForLayer,roleNavigationRoadWidth } from '../src/services/mapVectorStyle';
 
-test('paleta clara mantém prédios brancos, ruas cinzas e água/vegetação coloridas', () => {
+test('mapa claro separa ruas, avenidas, rodovias e vegetação por cor', () => {
   assert.deepEqual(roleVectorPaintForLayer({ id:'background',type:'background' }),
-    { 'background-color':'#f5f7f8' });
+    { 'background-color':'#edf0f2' });
   assert.deepEqual(roleVectorPaintForLayer({ id:'building',type:'fill' }),
-    { 'fill-color':'#ffffff','fill-outline-color':'#dbe3e9' });
-  assert.equal(roleVectorPaintForLayer({ id:'water',type:'fill' })['fill-color'],'#b7def5');
-  assert.equal(roleVectorPaintForLayer({ id:'park',type:'fill' })['fill-color'],'#d7ecd9');
-  assert.equal(roleVectorPaintForLayer({ id:'landcover_wood',type:'fill' })['fill-color'],'#c9e5cf');
-  assert.equal(roleVectorPaintForLayer({ id:'highway_minor',type:'line' })['line-color'],'#bfc6ce');
-  assert.equal(roleVectorPaintForLayer({ id:'highway_major_inner',type:'line' })['line-color'],'#bfc6ce');
-  assert.equal(roleVectorPaintForLayer({ id:'highway_motorway_bridge_casing',type:'line' })['line-color'],'#bfc6ce');
-  assert.equal(roleVectorPaintForLayer({ id:'waterway',type:'line' })['line-color'],'#91c5e7');
+    { 'fill-color':'#e0e4e9','fill-outline-color':'#c5cfd7' });
+  assert.equal(roleVectorPaintForLayer({ id:'water',type:'fill' })['fill-color'],'#b8e2f4');
+  assert.equal(roleVectorPaintForLayer({ id:'park',type:'fill' })['fill-color'],'#c2e9bd');
+  assert.equal(roleVectorPaintForLayer({ id:'landcover_wood',type:'fill' })['fill-color'],'#c2e9bd');
+  assert.equal(roleVectorPaintForLayer({ id:'highway_minor',type:'line' })['line-color'],'#ffffff');
+  assert.equal(roleVectorPaintForLayer({ id:'highway_major_inner',type:'line' })['line-color'],'#fff1d3');
+  assert.equal(roleVectorPaintForLayer({ id:'highway_motorway_bridge_casing',type:'line' })['line-color'],'#d2a05b');
+  assert.equal(roleVectorPaintForLayer({ id:'waterway',type:'line' })['line-color'],'#83c5e7');
   assert.equal(roleVectorPaintForLayer({ id:'label_city',type:'symbol' })['text-color'],'#2c4052');
-  assert.equal(roleVectorPaintForLayer({ id:'highway-name-minor',type:'symbol' })['text-halo-color'],'#f8fafc');
+  assert.equal(roleVectorPaintForLayer({ id:'highway-name-minor',type:'symbol' })['text-halo-color'],'#f8fafb');
 });
 
 test('somente base OpenFreeMap muda: rotas e símbolos próprios são preservados', () => {
@@ -44,19 +44,22 @@ test('aplica só propriedades de tinta e tolera uma camada ausente', () => {
   } as unknown as GlMap;
   assert.doesNotThrow(()=>applyRoleVectorPalette(map));
   assert.deepEqual(changes,[
-    'water:fill-color=#b7def5',
-    'building:fill-color=#ffffff',
-    'building:fill-outline-color=#dbe3e9',
-    'highway_major_casing:line-color=#bfc6ce',
+    'water:fill-color=#b8e2f4',
+    'building:fill-color=#e0e4e9',
+    'building:fill-outline-color=#c5cfd7',
+    'highway_major_casing:line-color=#c8b69a',
   ]);
 });
 
-test('night uses navy land and filled light-grey roads, including inner strokes, bridges and tunnels',()=>{
+test('noite usa vias locais cinza-azuladas, avenidas areia e rodovias âmbar',()=>{
   const color=(id:string,type:string,paint:string)=>roleVectorPaintForLayer({id,type},'dark')[paint];
   assert.equal(color('background','background','background-color'),'#1b2d47');
-  for(const id of ['highway_minor','highway_major_casing','highway_major_inner',
-    'highway_major_subtle','highway_motorway_bridge_inner','tunnel_motorway_inner'])
-    assert.equal(color(id,'line','line-color'),'#aebaca',id);
+  assert.equal(color('highway_minor','line','line-color'),'#8795a9');
+  assert.equal(color('highway_major_casing','line','line-color'),'#665f57');
+  assert.equal(color('highway_major_inner','line','line-color'),'#c8b18c');
+  assert.equal(color('highway_motorway_bridge_casing','line','line-color'),'#765d48');
+  assert.equal(color('highway_motorway_bridge_inner','line','line-color'),'#d8a972');
+  assert.equal(color('tunnel_motorway_inner','line','line-color'),'#d8a972');
   for(const id of ['landuse_residential','building','aeroway-area','landcover_glacier'])
     assert.match(String(color(id,'fill','fill-color')),/^#[123]/,id+' must not keep the white day fill');
   assert.equal(color('highway-name-minor','symbol','text-opacity'),1);
@@ -85,12 +88,43 @@ test('street names retain local names and become readable at city zoom without o
 
 
 test('navegação clareia menos o mapa e amplia vias sem alterar camadas próprias',()=>{
-  assert.deepEqual(roleNavigationPaintForLayer({id:'background',type:'background'},'light'),{'background-color':'#dce4ed'});
+  assert.deepEqual(roleNavigationPaintForLayer({id:'background',type:'background'},'light'),{'background-color':'#e9edf0'});
   assert.deepEqual(roleNavigationPaintForLayer({id:'role-remaining-line',type:'line'},'light'),{});
   assert.equal(roleNavigationRoadWidth({id:'role-remaining-line',type:'line'}),null);
   const main=roleNavigationRoadWidth({id:'highway_primary_inner',type:'line'});
   assert.deepEqual(main,['interpolate',['linear'],['zoom'],11,3,14,9,16,16,19,26]);
   const local=roleNavigationRoadWidth({id:'highway_minor',type:'line'});
   assert.deepEqual(local,['interpolate',['linear'],['zoom'],11,2,14,6,16,11,19,20]);
+  const casing=roleNavigationRoadWidth({id:'highway_major_casing',type:'line'});
+  assert.deepEqual(casing,['interpolate',['linear'],['zoom'],11,6,14,12,16,19,19,29]);
+  const motorway=roleNavigationRoadWidth({id:'highway_motorway_inner',type:'line'});
+  assert.deepEqual(motorway,['interpolate',['linear'],['zoom'],11,4,14,11,16,19,19,30]);
   assert.equal(roleNavigationRoadWidth({id:'highway-name-minor',type:'symbol'}),null);
+  assert.equal(roleNavigationRoadWidth({id:'highway_path',type:'line'}),null);
+  assert.deepEqual(roleNavigationPaintForLayer({id:'highway_motorway_inner',type:'line'},'light'),{'line-color':'#ffd17e'});
+  assert.deepEqual(roleNavigationPaintForLayer({id:'park',type:'fill'},'light'),{'fill-color':'#bce5b7'});
+  assert.deepEqual(roleNavigationPaintForLayer({id:'water',type:'fill'},'light'),{'fill-color':'#b8e2f4'});
+});
+
+test('modo navegação reduz rótulos de POI da base sem ocultar nomes de ruas nem pinos do Rolê',()=>{
+  const layouts:string[]=[];
+  const widths:string[]=[];
+  const map={
+    getStyle:()=>({layers:[
+      {id:'poi_z16',type:'symbol'},
+      {id:'label_other',type:'symbol'},
+      {id:'highway-name-minor',type:'symbol',minzoom:15,maxzoom:24},
+      {id:'highway_motorway_casing',type:'line'},
+      {id:'role-remaining-line',type:'line'},
+    ]}),
+    setPaintProperty:(id:string,prop:string,value:unknown)=>{if(prop==='line-width')widths.push(id+':'+JSON.stringify(value));},
+    setLayerZoomRange:()=>{},
+    setLayoutProperty:(id:string,key:string,value:unknown)=>layouts.push(id+':'+key+'='+JSON.stringify(value)),
+  } as unknown as GlMap;
+  applyRoleVectorPalette(map,'light',true);
+  assert.ok(layouts.includes('poi_z16:visibility="none"'));
+  assert.ok(layouts.includes('label_other:visibility="none"'));
+  assert.ok(layouts.includes('highway-name-minor:visibility="visible"'));
+  assert.ok(widths.some(s=>s.startsWith('highway_motorway_casing:')));
+  assert.ok(!widths.some(s=>s.startsWith('role-remaining-line:')));
 });
