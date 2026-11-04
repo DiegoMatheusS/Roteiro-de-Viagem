@@ -93,8 +93,8 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       const stopped=Number.isFinite(input.speedMetersPerSecond)&&
         input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4;
       const changed=!lastCameraPoint||
-        Math.abs(lastCameraPoint[0]-point[0])+Math.abs(lastCameraPoint[1]-point[1])>0.00004 ||
-        (!stopped&&input.bearing!==lastBearing);
+        (!stopped&&Math.abs(lastCameraPoint[0]-point[0])+Math.abs(lastCameraPoint[1]-point[1])>0.000009) ||
+        (input.bearing!==undefined&&input.bearing!==lastBearing);
       if(!exploring){
         if(!lastCameraPoint){
           camera.firstGpsFix(point);
@@ -108,9 +108,11 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
           const zoomed=turnZoom(input,point);
           if(zoomed){
             lastCameraPoint=[...point];lastBearing=input.bearing;
-          }else if(!stopped&&changed&&input.followUser){
-            camera.follow(point,input.reducedMotion);
-            lastCameraPoint=[...point];lastBearing=input.bearing;
+          }else if(changed&&input.followUser){
+            // Heading can rotate while stopped; do not follow GPS stationary drift.
+            const target=stopped?lastCameraPoint:point;
+            camera.follow(target,input.reducedMotion);
+            lastCameraPoint=[...target];lastBearing=input.bearing;
           }
         }
       }
