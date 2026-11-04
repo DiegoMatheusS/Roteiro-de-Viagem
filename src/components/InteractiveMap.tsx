@@ -1572,7 +1572,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         </div>}
       </section>}
       <div ref={mapContainerRef} className="w-full h-full" />
-      <MapTrafficControl port={trafficPort} navigation={navigationMode}/>
+      <MapTrafficControl port={trafficPort} navigation={navigationMode} location={userLiveCoords}/>
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
       {selectedPlace && <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />}
