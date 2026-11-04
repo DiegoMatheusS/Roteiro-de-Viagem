@@ -5,6 +5,32 @@ export const ROLE_ROAD_COLOR = '#bfc6ce';
 export const ROLE_NIGHT_BACKGROUND = '#1b2d47';
 export const ROLE_NIGHT_ROAD_COLOR = '#aebaca';
 
+const ROAD_LAYER=/^(highway_|(?:tunnel|bridge)_(?:motorway|trunk|primary|secondary|tertiary|minor|service|street|path))/;
+/** Wider cartographic roads in drive mode: visibility matters more than real-world scale. */
+export function roleNavigationRoadWidth(layer:{id:string;type:string}):readonly unknown[]|null {
+  const id=layer.id.toLowerCase();
+  if(layer.type!=='line'||!ROAD_LAYER.test(id)||/(footway|steps|cycleway|pedestrian)/.test(id))return null;
+  const major=/(motorway|trunk|primary|secondary)/.test(id);
+  const casing=/(casing|outline)/.test(id)?2:0;
+  return ['interpolate',['linear'],['zoom'],11,(major?3:2)+casing,14,(major?9:6)+casing,16,(major?16:11)+casing,19,(major?26:20)+casing];
+}
+/** Daytime navigation uses a dimmer, higher-contrast base; other maps are unchanged. */
+export function roleNavigationPaintForLayer(layer:{id:string;type:string},theme:'light'|'dark'):Record<string,string> {
+  if(theme==='dark'||layer.id.startsWith('role-'))return {};
+  const id=layer.id.toLowerCase();
+  if(layer.type==='background')return {'background-color':'#dce4ed'};
+  if(layer.type==='line'&&ROAD_LAYER.test(id))return {'line-color':'#9eafc3'};
+  if(layer.type==='fill') {
+    if(id==='water')return {'fill-color':'#afc7d9'};
+    if(id==='building')return {'fill-color':'#d1dbe5','fill-outline-color':'#aebdcd'};
+    if(/park|wood|forest/.test(id))return {'fill-color':'#cad9d1'};
+    return {'fill-color':'#dce4ed'};
+  }
+  if(layer.type==='symbol'&&/^highway-name-/.test(id))return {'text-color':'#34465b','text-halo-color':'#dce4ed'};
+  return {};
+}
+
+
 /**
  * Os dois temas usam as mesmas vias preenchidas e os mesmos nomes do Positron.
  * A paleta só é aplicada ao carregar/trocar o tema, nunca a cada atualização GPS.
@@ -15,7 +41,7 @@ export function roleVectorPaintForLayer(layer: { id: string; type: string },them
   if (id.startsWith('role-')) return {};
   // Matching inner/casing colours keep avenues and motorways filled rather
   // than showing a pale centre surrounded by a thin grey outline.
-  if(layer.type==='line'&&/^(highway_|(?:tunnel|bridge)_(?:motorway|trunk|primary|secondary|tertiary|minor|service|street|path))/.test(id))
+  if(layer.type==='line'&&ROAD_LAYER.test(id))
     return {'line-color':theme==='dark'?ROLE_NIGHT_ROAD_COLOR:ROLE_ROAD_COLOR};
   if(theme==='dark') {
     if(layer.type==='background')return {'background-color':ROLE_NIGHT_BACKGROUND};
@@ -96,10 +122,10 @@ export function canRenderVectorMap(): boolean {
  * Aplicada apenas ao carregar/trocar o estilo vetorial. Satélite, relevo,
  * fallback OSM, câmera e traçados de navegação permanecem inalterados.
  */
-export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light'): void {
+export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light',navigationMode=false): void {
   const layers = map.getStyle()?.layers || [];
   for (const layer of layers) {
-    const paints = roleVectorPaintForLayer(layer,theme);
+    const paints = {...roleVectorPaintForLayer(layer,theme),...(navigationMode?roleNavigationPaintForLayer(layer,theme):{})};
     for (const [property, color] of Object.entries(paints)) {
       try {
         // Os nomes das propriedades são constantes da paleta acima.
@@ -107,6 +133,10 @@ export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light'):
       } catch {
         // Atualizações do estilo externo podem retirar ou tornar imutável uma camada.
       }
+    }
+    if(navigationMode){
+      const width=roleNavigationRoadWidth(layer);
+      if(width){try{map.setPaintProperty(layer.id,'line-width',width);}catch{/* style may have removed layer */}}
     }
     if(layer.type==='symbol'&&/^highway-name-/.test(layer.id)) {
       // Show local street names at city zoom as well as during tilted navigation.
