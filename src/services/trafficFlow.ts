@@ -16,6 +16,7 @@ export function trafficViewportRadiusKm(center:[number,number],sw:[number,number
 }
 
 export type TrafficState='loading'|'live'|'unavailable'|'off'|'offline'|'paused'|'zoom-in';
+export type TrafficDisplayMode='red'|'light';
 export interface TrafficConfig {available:boolean;tileUrl:string|null;attribution:string;refreshSeconds:number}
 export interface TrafficMapPort {
   getZoom:()=>number;
@@ -27,6 +28,7 @@ export interface TrafficMapPort {
 interface Options {
   port:TrafficMapPort;onState:(state:TrafficState)=>void;offline?:boolean;initialEnabled?:boolean;
   location?:[number,number]|null;
+  initialStyle?:TrafficDisplayMode;
   load?:(signal:AbortSignal)=>Promise<TrafficConfig>;
   clock?:()=>number;doc?:Pick<Document,'hidden'|'addEventListener'|'removeEventListener'>;
   page?:Pick<Window,'addEventListener'|'removeEventListener'>;online?:()=>boolean;
@@ -34,10 +36,11 @@ interface Options {
 
 /** Traffic is independent of GPS renders. Refresh only while visible and idle;
  * failures remove the overlay rather than leave stale green roads on screen. */
-export function createTrafficFlowController({port,onState,offline=false,initialEnabled=true,location=null,
+export function createTrafficFlowController({port,onState,offline=false,initialEnabled=true,location=null,initialStyle='red',
   load=signal=>fuelApi<TrafficConfig>('/traffic/status',{signal}),clock=Date.now,
   doc=globalThis.document,page=globalThis.window,online=()=>globalThis.navigator?.onLine!==false}:Options){
   let enabled=initialEnabled,disposed=false,pageHidden=false,state:TrafficState|undefined;
+  let displayStyle:TrafficDisplayMode=initialStyle;
   let liveLocation=location&&location.every(Number.isFinite)?location:null;
   let config:TrafficConfig|null=null,appliedUrl:string|null=null,nextRequest=0,generation=0;
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|undefined,deadline:ReturnType<typeof setTimeout>|undefined;
@@ -56,9 +59,9 @@ export function createTrafficFlowController({port,onState,offline=false,initialE
   };
   const apply=()=>{
     if(!config?.available||!config.tileUrl){remove();emit('unavailable');return;}
-    // O backend usa apenas pixels vermelhos reais do tile TomTom; nunca
-    // mostrar verde/amarelo como se fossem congestionamento.
-    const url=config.tileUrl.replace('{style}','red')+`?v=${Math.floor(clock()/60000)}`;
+    // O modo padrão preserva só os pixels vermelhos reais no servidor.
+    // O botão de trânsito usa os tiles originais (verde/amarelo/vermelho).
+    const url=config.tileUrl.replace('{style}',displayStyle)+`?v=${Math.floor(clock()/60000)}`;
     if(url!==appliedUrl){appliedUrl=url;emit('loading');port.setTiles(url,config.attribution);}
   };
   const refresh=async()=>{
@@ -107,6 +110,11 @@ export function createTrafficFlowController({port,onState,offline=false,initialE
   reconcile();
   return {
     setEnabled(value:boolean){enabled=value;reconcile();},
+    setStyle(value:TrafficDisplayMode){
+      if(displayStyle===value)return;
+      displayStyle=value;
+      reconcile();
+    },
     setLocation(value:[number,number]|null){
       liveLocation=value&&value.every(Number.isFinite)?value:null;
       reconcile();
