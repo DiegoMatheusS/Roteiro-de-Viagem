@@ -9,6 +9,8 @@ export interface NavigationCameraInput {
   centerRequest:number;
   reducedMotion:boolean;
   bearing?:number;
+  /** True when bearing comes from the physical device compass, not GPS course. */
+  bearingIsDevice?:boolean;
   maneuverMeters?:number|null;
   speedMetersPerSecond?:number|null;
 }
@@ -94,7 +96,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4;
       const changed=!lastCameraPoint||
         (!stopped&&Math.abs(lastCameraPoint[0]-point[0])+Math.abs(lastCameraPoint[1]-point[1])>0.000009) ||
-        (input.bearing!==undefined&&input.bearing!==lastBearing);
+        ((!stopped||input.bearingIsDevice===true)&&input.bearing!==undefined&&input.bearing!==lastBearing);
       if(!exploring){
         if(!lastCameraPoint){
           camera.firstGpsFix(point);
