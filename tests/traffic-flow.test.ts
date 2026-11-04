@@ -9,14 +9,14 @@ function surface(){
   const state={zoom:18,radiusKm:2,moving:false,url:null as string|null,updates:[] as (string|null)[],states:[] as TrafficState[]};
   const port:TrafficMapPort={getZoom:()=>state.zoom,getViewportRadiusKm:()=>state.radiusKm,isMoving:()=>state.moving,
     setTiles:url=>{state.url=url;state.updates.push(url);},listen:callbacks=>{events=callbacks;return()=>{};}};
-  return {state,port,get events(){return events;},onState:(value:TrafficState)=>state.states.push(value)};
+  return {state,port,location:[-23.55,-46.63] as [number,number],get events(){return events;},onState:(value:TrafficState)=>state.states.push(value)};
 }
 test('traffic is live only after a tile loads; movement events do not repeat status or tile refreshes',async t=>{
   t.mock.timers.enable({apis:['setTimeout','Date'],now:1800000000000});
   const map=surface();let calls=0;
   const control=createTrafficFlowController({...map,load:async()=>{calls++;return config;}});
   await flush();assert.equal(calls,1);assert.equal(map.state.states.at(-1),'loading');
-  assert.match(map.state.url!,/\/light\/\{z\}\/\{x\}\/\{y\}\.png\?v=\d+/);
+  assert.match(map.state.url!,/\/red\/\{z\}\/\{x\}\/\{y\}\.png\?v=\d+/);
   map.events.loaded();assert.equal(map.state.states.at(-1),'live');
   const updates=map.state.updates.length;for(let i=0;i<100;i++)map.events.idle();
   assert.equal(calls,1);assert.equal(map.state.updates.length,updates);
@@ -73,22 +73,22 @@ test('missing provider configuration and low zoom never pretend to have live tra
   assert.equal(map.state.states.at(-1),'unavailable');assert.equal(map.state.url,null);control.destroy();
 });
 
-test('10 km viewport limit avoids requests and clears the existing overlay when zooming out',async()=>{
+test('5 km GPS window avoids requests and clears the overlay when zooming out',async()=>{
   const map=surface();let calls=0;
   const control=createTrafficFlowController({...map,load:async()=>{calls++;return config;}});
   await flush();assert.equal(calls,1);
   map.events.loaded();assert.equal(map.state.states.at(-1),'live');
-  map.state.radiusKm=10.01;map.events.idle();
+  map.state.radiusKm=5.01;map.events.idle();
   assert.equal(map.state.url,null,'traffic overlay removed when camera exceeds the radius');
   assert.equal(map.state.states.at(-1),'zoom-in');
   assert.equal(calls,1);
   for(let i=0;i<20;i++)map.events.idle();assert.equal(calls,1);
-  map.state.radiusKm=9.99;map.events.idle();await flush();
+  map.state.radiusKm=4.99;map.events.idle();await flush();
   assert.equal(calls,1,'reuse recently fetched configuration when returning nearby; do not pay twice');
   control.destroy();
 });
 test('camera-to-corner radius is geodesic and bounded around the actual viewport',()=>{
-  assert.equal(TRAFFIC_MAX_CAMERA_RADIUS_KM,10);
+  assert.equal(TRAFFIC_MAX_CAMERA_RADIUS_KM,5);
   assert.equal(trafficViewportRadiusKm([-23.55,-46.63],[-23.55,-46.63],[-23.55,-46.63]),0);
   const nearby=trafficViewportRadiusKm([-23.55,-46.63],[-23.58,-46.66],[-23.52,-46.6]);
   const distant=trafficViewportRadiusKm([-23.55,-46.63],[-23.75,-46.85],[-23.35,-46.41]);
@@ -107,5 +107,16 @@ test('traffic opt-in must not request API on controller mount',async()=>{
   control.setEnabled(true);await flush();
   assert.equal(calls,1);
   control.setEnabled(false);assert.equal(map.state.url,null);
+  control.destroy();
+});
+
+test('congestionamento exige GPS e não usa centro do mapa como localização inventada',async()=>{
+  const map=surface();let calls=0;
+  const control=createTrafficFlowController({...map,location:null,load:async()=>{calls++;return config;}});
+  assert.equal(map.state.states.at(-1),'zoom-in');assert.equal(calls,0);
+  control.setLocation([-23.55,-46.63]);await flush();
+  assert.equal(calls,1);
+  control.setLocation(null);assert.equal(map.state.url,null);
+  assert.equal(map.state.states.at(-1),'zoom-in');
   control.destroy();
 });
