@@ -43,3 +43,14 @@ test('sameLocation compara valores, inclusive precisão, velocidade e direção'
   assert.equal(sameLocation(null,fix()),false);
   assert.equal(sameLocation(null,null),true);
 });
+
+
+test('rotação da bússola atualiza a interface sem alterar a posição GPS',()=>{
+  const previous=state({deviceHeadingDegrees:25});
+  const next=state({deviceHeadingDegrees:115,position:fix()});
+  const merged=mergeNativeTrackingState(previous,next);
+  assert.notEqual(merged,previous);
+  assert.equal(merged.deviceHeadingDegrees,115);
+  assert.equal(merged.position,previous.position);
+  assert.equal(mergeNativeTrackingState(merged,state({deviceHeadingDegrees:115,position:fix()})),merged);
+});
