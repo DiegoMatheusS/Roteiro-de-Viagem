@@ -114,7 +114,7 @@ export function roleVectorPaintForLayer(layer:{id:string;type:string},theme:'lig
   if(layer.type==='symbol'){
     if(/^water_(name|way)/.test(id))return {'text-color':'#347ea1','text-halo-color':'#e6f6ff'};
     if(/^highway-name-/.test(id))return {'text-color':'#405269','text-halo-color':'#f8fafb','text-halo-width':1.6};
-    if(/^label_(city|city_capital|town|village|country_\\d+)$/.test(id))
+    if(/^label_(city|city_capital|town|village|country_\d+)$/.test(id))
       return {'text-color':'#304459','text-halo-color':'#f7f9fa'};
     if(/^label_(other|state)$/.test(id))return {'text-color':'#586879','text-halo-color':'#f7f9fa'};
   }
