@@ -203,6 +203,9 @@ public class TravelNativePlugin extends Plugin {
   @PluginMethod public void state(PluginCall call) {
     JSObject result=new JSObject(); android.content.SharedPreferences pref=getContext().getSharedPreferences("travel-gps",0);
     result.put("tripId",TravelLocationService.activeTripId); result.put("lastTripId",pref.getString("tripId","")); result.put("stoppedTripId",pref.getString("stoppedTripId","")); result.put("distanceKm",Double.longBitsToDouble(pref.getLong("distance",Double.doubleToLongBits(0)))); result.put("running",TravelLocationService.running); result.put("convoyId",TravelLocationService.activeConvoyId); result.put("stoppedLocationToken",pref.getString("stoppedLocationToken",""));
-    if(TravelLocationService.lastPosition!=null) result.put("position",TravelLocationService.lastPosition); call.resolve(result);
+    if(TravelLocationService.lastPosition!=null) result.put("position",TravelLocationService.lastPosition);
+    double deviceHeading=TravelLocationService.deviceHeadingDegrees;
+    if(Double.isFinite(deviceHeading))result.put("deviceHeadingDegrees",deviceHeading);
+    call.resolve(result);
   }
 }
