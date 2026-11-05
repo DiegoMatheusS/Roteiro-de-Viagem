@@ -77,6 +77,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
+  const [dismissedGpsStop,setDismissedGpsStop]=useState(false);
   const [showRouteDetails,setShowRouteDetails] = useState(false);
   const [stopDecision,setStopDecision]=useState<'complete'|'skip'|null>(null);
   const [stopBusy,setStopBusy]=useState(false);
@@ -89,6 +90,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       stopController.current=null;
     };
   },[isOpen,trip.id]);
+  useEffect(()=>{if(!tracking.gpsStoppedByUser)setDismissedGpsStop(false);},[tracking.gpsStoppedByUser,trip.id]);
+  const showGpsStopDialog=isOpen&&tracking.gpsStoppedByUser&&!dismissedGpsStop;
   const {theme:appearanceTheme}=useMapAppearance();
   const [centerRequest,setCenterRequest] = useState(0);
   const [cameraMode,setCameraMode]=useState<CameraMode>('following');
@@ -393,6 +396,18 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
               onClick={()=>void confirmStopDecision()}>
               {stopBusy?'Recalculando...':stopDecision==='skip'?'Recalcular sem parada':'Confirmar chegada'}
             </button>
+          </div>
+        </div>
+      </div>}
+      {showGpsStopDialog && <div role="dialog" aria-modal="true" aria-label="GPS desligado para o app"
+        className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-4">
+        <div className="bg-white text-slate-900 rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-5">
+          <h3 className="text-lg font-bold">GPS desligado para o app</h3>
+          <div className="flex gap-3">
+            <button type="button" className="flex-1 p-3 border border-slate-400 rounded-xl"
+              onClick={()=>setDismissedGpsStop(true)}>Fechar</button>
+            <button type="button" className="flex-1 p-3 bg-blue-700 text-white rounded-xl"
+              onClick={tracking.retry}>Reconectar</button>
           </div>
         </div>
       </div>}
