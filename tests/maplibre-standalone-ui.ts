@@ -94,12 +94,13 @@ try{
   await page.screenshot({path:'test-results/maplibre-standalone-navigation.png'});
   // A context loss after manual zoom preserves the camera and the consumed
   // recenter request. Later GPS readings cannot silently resume following.
+  const beforeLossZoom=Number(await map.getAttribute('data-map-zoom'));
   await page.mouse.move(box.x+70,box.y+150);
   await page.mouse.wheel(0,-120);
-  await page.waitForFunction(()=>{
+  await page.waitForFunction(previousZoom=>{
     const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
-    return root?.dataset.mapIdle==='true' && Number(root.dataset.mapZoom)>18;
-  });
+    return root?.dataset.mapIdle==='true' && Number(root.dataset.mapZoom)>previousZoom;
+  },beforeLossZoom);
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring');
   const lossCenter=JSON.parse((await map.getAttribute('data-map-center'))!);
   const lossZoom=Number(await map.getAttribute('data-map-zoom'));

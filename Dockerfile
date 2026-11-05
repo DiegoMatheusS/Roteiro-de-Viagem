@@ -17,4 +17,4 @@ COPY src ./src
 COPY --chmod=755 scripts/container-entrypoint.sh /usr/local/bin/roteiro-entrypoint
 EXPOSE 3001
 ENTRYPOINT ["/usr/local/bin/roteiro-entrypoint"]
-CMD ["npm","start"]
+CMD ["node","--import","tsx","server/index.ts"]

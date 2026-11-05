@@ -411,7 +411,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           </div>
         </div>
       </div>}
-      {showEndConfirm && <div role="dialog" aria-modal="true" aria-label="Encerrar viagem" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-5 max-w-sm space-y-4"><h3 className="font-bold">Encerrar esta viagem?</h3><p className="text-sm text-slate-600">A navegação será interrompida e a viagem ficará no histórico como encerrada, sem contabilizar uma conclusão ou medalhas.</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="p-3 border rounded-xl">Continuar viagem</button><button onClick={onEndTrip} className="p-3 bg-rose-700 text-white rounded-xl">Sim, encerrar</button></div></div></div>}
+      {showEndConfirm && <div role="dialog" aria-modal="true" aria-label="Encerrar viagem" className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-5 max-w-sm space-y-4"><h3 className="font-bold">Deseja encerrar a corrida?</h3><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="p-3 border rounded-xl">Continuar viagem</button><button onClick={onEndTrip} className="p-3 bg-rose-700 text-white rounded-xl">Sim, encerrar</button></div></div></div>}
 
       {/* COMPLETION DIALOG (Requirement #7: Updates profile, vehicle, and achievements) */}
       {showCompletionDialog && (

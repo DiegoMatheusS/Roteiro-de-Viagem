@@ -32,7 +32,9 @@ export function createMapLibreTrafficPort(map:GlMap):TrafficMapPort {
     },
     listen(events){
       const loaded=(event:MapSourceDataEvent)=>{
-        if(currentUrl&&event.sourceId===TRAFFIC_SOURCE_ID&&event.sourceDataType==='content')events.loaded();
+        // setTiles also emits content for source metadata, before any image
+        // request. Only a loaded tile confirms that traffic is actually ready.
+        if(currentUrl&&event.sourceId===TRAFFIC_SOURCE_ID&&event.tile?.state==='loaded')events.loaded();
       };
       const error=(event:ErrorEvent)=>{if(isTrafficMapError(event))events.error();};
       map.on('moveend',events.idle);map.on('style.load',events.style);

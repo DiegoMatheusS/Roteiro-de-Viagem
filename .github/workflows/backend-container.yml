@@ -20,7 +20,9 @@ jobs:
           curl --fail http://127.0.0.1:3008/ | grep 'root'
           docker exec rdv-ci node -e "const s=require('fs').readFileSync('/proc/1/status','utf8');if(!/^Uid:\s+1000\s/m.test(s))process.exit(1)"
           curl --fail -H 'Content-Type: application/json' -d '{"email":"container@example.test","displayName":"Teste do container","password":"fixture-password-long"}' http://127.0.0.1:3008/api/auth/register
-          docker restart rdv-ci
+          docker stop --time 10 rdv-ci
+          test "$(docker inspect --format='{{.State.ExitCode}}' rdv-ci)" = "0"
+          docker start rdv-ci
           curl --fail --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors http://127.0.0.1:3008/api/health
           curl --fail -H 'Content-Type: application/json' -d '{"email":"container@example.test","password":"fixture-password-long"}' http://127.0.0.1:3008/api/auth/login
       - name: Encerrar ambiente de teste
