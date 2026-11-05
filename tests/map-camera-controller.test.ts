@@ -76,7 +76,8 @@ test('hybrid map only issues camera moves through the Leaflet port; drag shows v
   assert.match(screen,/title=\{cameraMode==='exploring'\?'Voltar a seguir o GPS'/);
   assert.match(screen,/onClick=\{\(\)=>setCenterRequest\(v=>v\+1\)\}/);
   assert.match(screen,/aria-label="Centralizar mapa na minha localização"/);
-  assert.match(map,/createHybridCameraPort\(mapInstanceRef\.current\)\.focus\(focusedCoords,15,reducedMotion\)/);
+  assert.match(map,/focusedZoom=15/);
+  assert.match(map,/createHybridCameraPort\(mapInstanceRef\.current\)\.focus\(focusedCoords,focusedZoom,reducedMotion\)/);
   assert.doesNotMatch(map,/(?:map|mapInstanceRef\.current)\.(?:flyTo|panTo|setView|fitBounds)\(/);
   assert.doesNotMatch(map,/vectorMapRef\.current\.(?:easeTo|jumpTo|setBearing)/);
 });

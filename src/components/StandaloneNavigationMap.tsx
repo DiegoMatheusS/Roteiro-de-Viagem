@@ -295,7 +295,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         bearingIsDevice:p.userDeviceHeadingDegrees!=null,
         maneuverMeters:p.maneuverMeters,speedMetersPerSecond:p.userSpeedMetersPerSecond});
       if(p.focusedCoords && p.focusedCoords!==lastFocus){
-        camera.explore();cameraPort.focus(p.focusedCoords,15,reducedMotion());
+        camera.explore();cameraPort.focus(p.focusedCoords,p.focusedZoom??15,reducedMotion());
       }
       lastFocus=p.focusedCoords;
     };

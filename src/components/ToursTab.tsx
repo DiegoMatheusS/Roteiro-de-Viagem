@@ -1,5 +1,5 @@
-import {useMemo,useRef,useState} from 'react';
-import {Bookmark,ChevronRight,Compass,Droplets,Flag,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
+import {useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent} from 'react';
+import {Bookmark,ChevronRight,ChevronUp,Compass,Droplets,Flag,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
 import type {TripPlan,Vehicle} from '../types';
 import type {ExploreArea,ExploreFilter,ExplorePlace} from '../types/explore';
 import {EXPLORE_AREA_LABELS,exploreDistanceKm,filterExplorePlaces,mergeExplorePlaces} from '../services/explorePlaces';
@@ -31,6 +31,24 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const gps=useDeviceLocation(true,'role-explore-figma');
   const permission=useGpsPermissionAction(gps.retry);
   const origin=gps.status==='ready'?gps.position?.coords:undefined;
+  const [mapFocus,setMapFocus]=useState<[number,number]|null>(null);
+  // Center once on a real GPS fix. Later readings must not undo manual panning.
+  useEffect(()=>{if(origin)setMapFocus(current=>current??[...origin]);},[origin?.[0],origin?.[1]]);
+  const [collapsed,setCollapsed]=useState(true);
+  const [dragOffset,setDragOffset]=useState(0);
+  const dragStart=useRef<number|null>(null),swallowClick=useRef(false);
+  const finishSheetDrag=(event:PointerEvent<HTMLButtonElement>)=>{
+    if(dragStart.current===null)return;
+    const delta=event.clientY-dragStart.current;
+    dragStart.current=null;setDragOffset(0);
+    if(Math.abs(delta)<36)return;
+    setCollapsed(delta>0);swallowClick.current=true;
+    window.setTimeout(()=>{swallowClick.current=false;},0);
+  };
+  const centerOnGps=()=>{
+    if(origin)setMapFocus([...origin]);
+    else{setCollapsed(false);void permission.request();}
+  };
   const touristOrigin=useTouristDiscoveryAnchor(origin);
   // A aba Explorar procura destinos de passeio, não apenas os 5 km do mapa de postos.
   const places=useNearbyPlaces(touristOrigin?[touristOrigin]:[],Boolean(touristOrigin),120);
@@ -95,7 +113,9 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     recognition.start();
   };
 
-  return <section className="rdv-explore-page" aria-label="Explorar passeios">
+  return <section className="rdv-explore-page" aria-label="Explorar passeios"
+    data-sheet-collapsed={collapsed} data-sheet-dragging={dragOffset!==0}
+    style={{'--rdv-explore-drag-y':`${dragOffset}px`} as CSSProperties}>
     <header className="rdv-explore-header">
       <div className="rdv-explore-heading">
         <h1>Explorar</h1>
@@ -107,6 +127,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
       <div className="rdv-explore-search">
         <Search size={20} strokeWidth={1.5} aria-hidden="true"/>
         <input type="search" aria-label="Buscar passeios" placeholder="Buscar passeios"
+          onFocus={()=>setCollapsed(false)}
           value={query} onChange={event=>updateQuery(event.target.value)}/>
         {query?<button type="button" aria-label="Limpar busca" onClick={()=>updateQuery('')}><X size={19}/></button>:
           <button type="button" aria-label="Buscar por voz" onClick={speechSearch}><Mic size={19} strokeWidth={1.3}/></button>}
@@ -155,18 +176,37 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     </header>
     <div className="rdv-explore-map" aria-label="Mapa das redondezas">
       <InteractiveMap roadStyle initialStyle="light" userLiveCoords={origin}
+        focusedCoords={mapFocus} focusedZoom={12.5}
         showFuelStations={false} className="w-full h-full"/>
+      <button type="button" className="rdv-explore-map-gps" aria-label="Centralizar nas redondezas do GPS"
+        onClick={centerOnGps}><LocateFixed size={22}/></button>
       {nearest!==null&&<span className="rdv-explore-distance-badge"
         title="Distância aproximada em linha reta (não é um percurso calculado)">
         <Route size={16}/>{nearest} km
       </span>}
     </div>
     <div className="rdv-explore-sheet">
-      <div className="rdv-explore-sheet-handle" aria-hidden="true"/>
+      <button type="button" className="rdv-explore-sheet-toggle"
+        aria-label={collapsed?'Mostrar lista de passeios':'Recolher lista de passeios'}
+        aria-expanded={!collapsed} aria-controls="rdv-explore-results"
+        onPointerDown={event=>{
+          if(!event.isPrimary||event.button!==0)return;
+          dragStart.current=event.clientY;swallowClick.current=false;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={event=>{if(dragStart.current!==null)setDragOffset(Math.max(-500,Math.min(500,event.clientY-dragStart.current)));}}
+        onPointerUp={finishSheetDrag}
+        onPointerCancel={()=>{dragStart.current=null;setDragOffset(0);}}
+        onLostPointerCapture={()=>{dragStart.current=null;setDragOffset(0);}}
+        onClick={()=>{if(!swallowClick.current)setCollapsed(value=>!value);}}>
+        <span className="rdv-explore-sheet-handle" aria-hidden="true"/>
+        <ChevronUp size={19} aria-hidden="true" className={collapsed?'':'is-expanded'}/>
+      </button>
       <div className="rdv-explore-sheet-title">
         <h2>{query.trim()?'Resultados':filter==='near'&&!origin?'Passeios':filterTitles[filter]}</h2>
         <span>{filter==='near'?regionLabel:EXPLORE_AREA_LABELS[area]}</span>
       </div>
+      <div id="rdv-explore-results" className="rdv-explore-sheet-body" hidden={collapsed}>
       {error&&<p role="alert" className="rdv-explore-alert">{error}</p>}
       {gps.status!=='ready'&&<div className="rdv-explore-gps-hint">
         <button type="button" onClick={()=>void permission.request()}>Ativar GPS</button>
@@ -214,6 +254,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           <strong>{query?'Nenhum passeio encontrado':'Nenhum passeio próximo cadastrado'}</strong>
           {query&&<button type="button" onClick={()=>{updateQuery('');updateFilter('all');}}>Limpar busca</button>}
         </div>}
+      </div>
       </div>
     </div>
     {preview&&<TripPreviewScreen key={preview.id} trip={preview}
