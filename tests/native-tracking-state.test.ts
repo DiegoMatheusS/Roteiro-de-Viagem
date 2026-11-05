@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mergeNativeTrackingState,sameLocation,type NativeTrackingState} from '../src/services/nativeTrackingState';
+import {gpsStoppedByNotification,mergeNativeTrackingState,sameLocation,type NativeTrackingState} from '../src/services/nativeTrackingState';
 import type {DeviceLocation} from '../src/services/locationService';
 
 const fix=(over:Partial<DeviceLocation>={}):DeviceLocation=>({coords:[-23.55,-46.63],accuracyMeters:6,
   speedMetersPerSecond:12,headingDegrees:90,timestamp:1_000,...over});
 const state=(over:Partial<NativeTrackingState>={}):NativeTrackingState=>({tripId:'t',distanceKm:1.2,
-  position:fix(),error:null,running:true,...over});
+  position:fix(),error:null,running:true,stoppedByUser:false,...over});
 
 test('uma consulta idêntica devolve o próprio estado anterior e não renderiza de novo',()=>{
   const previous=state();
@@ -53,4 +53,22 @@ test('rotação da bússola atualiza a interface sem alterar a posição GPS',()
   assert.equal(merged.deviceHeadingDegrees,115);
   assert.equal(merged.position,previous.position);
   assert.equal(mergeNativeTrackingState(merged,state({deviceHeadingDegrees:115,position:fix()})),merged);
+});
+
+test('Parar GPS na notificação identifica apenas a viagem interrompida',()=>{
+  const current='guest:viagem-42';
+  assert.equal(gpsStoppedByNotification({running:false,stoppedTripId:current},current),true);
+  assert.equal(gpsStoppedByNotification({running:true,stoppedTripId:current},current),false);
+  assert.equal(gpsStoppedByNotification({running:false,stoppedTripId:'guest:outra'},current),false);
+  assert.equal(gpsStoppedByNotification({running:false},current),false);
+  assert.equal(gpsStoppedByNotification({running:false,stoppedTripId:current},''),false);
+});
+
+test('mudança de GPS parado pela notificação atualiza interface sem descartar o estado anterior',()=>{
+  const previous=state({position:null,running:false,error:'GPS interrompido.'});
+  const stopped=mergeNativeTrackingState(previous,state({position:null,running:false,stoppedByUser:true,error:'GPS interrompido.'}));
+  assert.notEqual(stopped,previous);
+  assert.equal(stopped.stoppedByUser,true);
+  assert.equal(mergeNativeTrackingState(stopped,state({position:null,running:false,stoppedByUser:true,error:'GPS interrompido.'})),stopped);
+  assert.equal(mergeNativeTrackingState(stopped,state()).stoppedByUser,false,'reconexão fecha o aviso');
 });
