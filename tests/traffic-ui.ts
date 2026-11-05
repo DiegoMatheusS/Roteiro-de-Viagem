@@ -15,13 +15,18 @@ try{
   const image=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path d="M20 0V256" stroke="#2ae57b" stroke-width="5"/><path d="M80 0V256" stroke="#ffc105" stroke-width="5"/><path d="M140 0V256" stroke="#fb2d09" stroke-width="5"/></svg>')).png().toBuffer();
   let statusCalls=0,tileCalls=0,fail=false;
   const tileStyles:string[]=[];
+  let releaseFullTiles!:()=>void;
+  const fullTilesReady=new Promise<void>(resolve=>{releaseFullTiles=resolve;});
+  await page.route('**/api/places/search',route=>route.fulfill({json:{places:[]}}));
   await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[
     {id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}
   ]}}));
   await page.route('**/api/traffic/status',route=>{statusCalls++;return route.fulfill({json:{available:true,provider:'TomTom',refreshSeconds:60,
     tileUrl:'http://127.0.0.1:3000/api/traffic/tiles/{style}/{z}/{x}/{y}.png',attribution:'© TomTom'}});});
-  await page.route('**/api/traffic/tiles/**',route=>{tileCalls++;
-    tileStyles.push(/\/tiles\/(red|light)\//.exec(route.request().url())?.[1]||'other');
+  await page.route('**/api/traffic/tiles/**',async route=>{tileCalls++;
+    const style=/\/tiles\/(red|light)\//.exec(route.request().url())?.[1]||'other';
+    tileStyles.push(style);
+    if(style==='light')await fullTilesReady;
     return fail?route.fulfill({status:503,json:{error:'Unavailable'}}):
     route.fulfill({contentType:'image/png',body:image,headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'}});});
   await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-map.html');
@@ -53,7 +58,12 @@ try{
   assert.equal(statusCalls,1);
   assert.ok(tileStyles.includes('red'),'congestionamento vermelho precisa usar tile filtrado');
   assert.equal(await showTraffic().count(),1,'botão não aparece acionado por congestão automática');
+  const fullTileRequest=page.waitForRequest(request=>/\/api\/traffic\/tiles\/light\//.test(request.url()));
   await showTraffic().click();
+  await fullTileRequest;
+  assert.equal(await map.locator('[data-traffic-control]').getAttribute('data-traffic-state'),'loading',
+    'trocar o modo não sinaliza trânsito ao vivo antes de receber as imagens');
+  releaseFullTiles();
   await map.locator('[data-traffic-mode="full"][data-traffic-state="live"]').waitFor({timeout:20000});
   assert.equal(await trafficToggle.getAttribute('aria-pressed'),'true');
   assert.match((await trafficToggle.getAttribute('class'))||'',/bg-blue-600/);

@@ -5,13 +5,13 @@ import { isNativeApp, TravelNative } from '../services/nativeApp';
 import type { DeviceLocation } from '../services/locationService';
 import { useDeviceLocation } from './useDeviceLocation';
 import { activeNativeTripPosition } from '../services/activeNativeTripPosition';
-import { mergeNativeTrackingState } from '../services/nativeTrackingState';
+import { gpsStoppedByNotification,mergeNativeTrackingState } from '../services/nativeTrackingState';
 import { whilePageVisible } from '../services/whilePageVisible';
 export function useTripTracking(tripId?: string) {
   const native = isNativeApp();
   const nativeKey = tripId ? `${storageService.getScope() || 'guest'}:${tripId}` : '';
   const location = useDeviceLocation(!!tripId && !native, tripId);
-  const [nativeState, setNativeState] = useState<{ tripId?: string; distanceKm: number; position: DeviceLocation | null; error: string | null; running: boolean;deviceHeadingDegrees?:number|null }>({ distanceKm: 0, position: null, error: null, running: false });
+  const [nativeState, setNativeState] = useState<{ tripId?: string; distanceKm: number; position: DeviceLocation | null; error: string | null; running: boolean;stoppedByUser:boolean;deviceHeadingDegrees?:number|null }>({ distanceKm: 0, position: null, error: null, running: false, stoppedByUser:false });
   const [attempt, setAttempt] = useState(0);
   const lastNativeFix=useRef<{key:string;position:DeviceLocation}|null>(null);
   const initial = () => ({ tripId, ...createGpsTrackingState(), distanceKm: storageService.getActiveTrip()?.id === tripId ? storageService.getActiveTrip()?.trackedDistanceKm || 0 : 0 });
@@ -20,21 +20,22 @@ export function useTripTracking(tripId?: string) {
     if (!native) return;
     if (!tripId) { void TravelNative.stopTracking().catch(() => {}); return; }
     let disposed = false, ready = false;
-    setNativeState({ tripId, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, position: null, error: null, running: false });
+    setNativeState({ tripId, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, position: null, error: null, running: false, stoppedByUser:false });
     let inFlight=false;
     const read = () => { if (!ready || document.hidden || disposed || inFlight) return;
       inFlight=true;
       void TravelNative.state().then(state => {
       if(disposed)return;
-      if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
+      const stoppedByUser=gpsStoppedByNotification(state,nativeKey);
+      if(state.tripId!==nativeKey){setNativeState(current=>({...current,position:null,running:false,stoppedByUser,distanceKm:state.lastTripId===nativeKey?Math.max(current.distanceKm,state.distanceKm):current.distanceKm,error:'GPS interrompido. Toque em tentar novamente para retomá-lo.'}));return;}
       const livePosition=activeNativeTripPosition(state,nativeKey);
       // Skip the render when the poll brought nothing new (see mergeNativeTrackingState).
-      setNativeState(current => mergeNativeTrackingState(current, { tripId, distanceKm: state.distanceKm, position: livePosition, running: state.running,
+      setNativeState(current => mergeNativeTrackingState(current, { tripId, distanceKm: state.distanceKm, position: livePosition, running: state.running, stoppedByUser,
         deviceHeadingDegrees:livePosition?state.deviceHeadingDegrees??null:null,
         error: !state.running ? 'GPS interrompido. Toque em tentar novamente para retomá-lo.' : !livePosition ? 'Aguardando sinal GPS recente.' : null }));
     }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); })
       .finally(()=>{inFlight=false;}); };
-    void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, resume:attempt>0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) setNativeState(current => ({ ...current, error: error.message })); });
+    void TravelNative.startTracking({ tripId: nativeKey, distanceKm: storageService.getActiveTrip()?.trackedDistanceKm || 0, resume:attempt>0 }).then(() => { ready = true; read(); }).catch(error => { if (!disposed) { setNativeState(current => ({ ...current, error: error.message })); ready = true; read(); } });
     // Polling curto deixa a seta acompanhar os updates do serviço Android sem
     // aguardar os antigos 2 s; mudança só de azimute preserva o fix GPS.
     const stopPolling=whilePageVisible(()=>{read();const timer=window.setInterval(read,250);return()=>clearInterval(timer);});
@@ -62,6 +63,6 @@ export function useTripTracking(tripId?: string) {
   if(native&&position)lastNativeFix.current={key:nativeKey,position};
   const lastKnownPosition=native?lastNativeFix.current?.position??null:location.lastKnownPosition;
   return { position, lastKnownPosition, status, deviceHeadingDegrees:native&&status==='ready'?nativeState.deviceHeadingDegrees??null:null,
-    error: native ? nativeState.error : location.error, retry: native ? () => setAttempt(v => v + 1) : location.retry, distanceKm,
+    error: native ? nativeState.error : location.error, gpsStoppedByUser:native&&nativeState.tripId===tripId&&nativeState.stoppedByUser, retry: native ? () => setAttempt(v => v + 1) : location.retry, distanceKm,
     speedKmH: status === 'ready' && position?.speedMetersPerSecond != null ? Math.round(position.speedMetersPerSecond * 3.6) : null };
 }
