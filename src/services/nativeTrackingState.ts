@@ -6,6 +6,7 @@ export interface NativeTrackingState {
   position:DeviceLocation|null;
   error:string|null;
   running:boolean;
+  stoppedByUser:boolean;
   deviceHeadingDegrees?:number|null;
 }
 
@@ -13,6 +14,11 @@ export interface NativeTrackingState {
  * the service has not produced a new fix. Compare by value so an unchanged fix
  * keeps its identity (and its `coords` array) instead of looking like new GPS
  * data to React and to the map. */
+/** The explicit 'Parar GPS' action leaves a marker for the exact trip. A lost signal does not. */
+export function gpsStoppedByNotification(state:{running:boolean;stoppedTripId?:string},nativeTripKey:string):boolean{
+  return Boolean(nativeTripKey) && !state.running && state.stoppedTripId===nativeTripKey;
+}
+
 export function sameLocation(a:DeviceLocation|null|undefined,b:DeviceLocation|null|undefined):boolean{
   if(a===b)return true;
   if(!a||!b)return false;
@@ -27,7 +33,7 @@ export function sameLocation(a:DeviceLocation|null|undefined,b:DeviceLocation|nu
 export function mergeNativeTrackingState(previous:NativeTrackingState,next:NativeTrackingState):NativeTrackingState{
   const position=sameLocation(previous.position,next.position)?previous.position:next.position;
   if(previous.tripId===next.tripId&&previous.distanceKm===next.distanceKm&&
-     previous.running===next.running&&previous.error===next.error&&
+     previous.running===next.running&&previous.stoppedByUser===next.stoppedByUser&&previous.error===next.error&&
      (previous.deviceHeadingDegrees??null)===(next.deviceHeadingDegrees??null)&&previous.position===position)return previous;
   return position===next.position?next:{...next,position};
 }
