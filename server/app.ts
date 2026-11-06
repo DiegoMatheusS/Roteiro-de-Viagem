@@ -29,6 +29,7 @@ import {registerTrafficRoutes,type TrafficOptions} from './traffic';
 import {createPlaceFeedbackMailQueue,type PlaceFeedbackMailOptions} from './placeFeedbackMail';
 import {registerPlaceFeedbackRoutes} from './placeFeedback';
 import {registerPlacePhotoRoutes} from './placePhotos';
+import {registerAddressRoutes} from './addresses';
 
 const scryptAsync = promisify(scrypt);
 export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; traffic?:TrafficOptions; feedbackMail?:PlaceFeedbackMailOptions; requestLimitPerMinute?: number }) {
@@ -88,6 +89,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   };
 
   registerAdminRoutes(app, { db, mapFetch: options.mapFetch, limit });
+  registerAddressRoutes(app,{db,limit});
   registerPlacePhotoRoutes(app, {db,mapFetch:options.mapFetch,limit});
   registerItineraryRoutes(app, { db, mapFetch: options.mapFetch, limit });
   registerTouristRoutes(app, { db, mapFetch: options.mapFetch, limit });

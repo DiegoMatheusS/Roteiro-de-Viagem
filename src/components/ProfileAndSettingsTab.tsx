@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import {useMapIconDensity} from '../hooks/useMapIconDensity';
 import type {MapIconDensity} from '../services/mapIconDensity';
+import {clearAddressHistory} from '../services/addressMemory';
 import type {MapAppearanceMode} from '../services/mapAppearance';
 import { 
   TravelerProfile, 
@@ -84,6 +85,8 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   const [showDetails,setShowDetails]=useState(false);
   const {mode:appearanceMode,setMode:setAppearanceMode}=useMapAppearance();
   const {mode:iconDensity,setMode:setIconDensity}=useMapIconDensity();
+  const [addressHistoryNotice,setAddressHistoryNotice]=useState('');
+  const [clearingAddresses,setClearingAddresses]=useState(false);
   const openDetails=(tab:'perfil'|'garagem'|'seguranca'|'privacidade')=>{
     setActiveSubTab(tab);setShowDetails(true);
   };
@@ -708,6 +711,16 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
                 <option value="more">Mais</option>
               </select>
               <p className="text-xs text-slate-500">Escolha quantos ícones de locais aparecem no Início. O Explorar mostra todos. Salvo neste aparelho.</p>
+            </section>
+            <section className="rounded-2xl border border-blue-100 bg-slate-50 p-4 space-y-2">
+              <h3 className="text-sm font-semibold text-slate-900">Endereços recentes</h3>
+              <p className="text-xs text-slate-600">Os endereços escolhidos na origem e no destino ficam guardados para novas buscas. Seu histórico pessoal fica separado dos locais públicos.</p>
+              <button type="button" disabled={clearingAddresses} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800"
+                onClick={async()=>{setClearingAddresses(true);setAddressHistoryNotice('');try{await clearAddressHistory();setAddressHistoryNotice('Histórico de endereços limpo.');}
+                  catch{setAddressHistoryNotice('Não foi possível limpar agora. Tente novamente com conexão.');}finally{setClearingAddresses(false);}}}>
+                {clearingAddresses?'Limpando…':'Limpar endereços recentes'}
+              </button>
+              {addressHistoryNotice&&<p role="status" className="text-xs text-slate-600">{addressHistoryNotice}</p>}
             </section>
             <OfflineRegionsPanel />
             <div>

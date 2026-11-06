@@ -46,4 +46,5 @@ test('rua sem número exige pino; imóvel com número continua selecionável dir
   assert.equal(isStreetOnlyReference({name:'Rua das Flores, 188',address:'Rua das Flores, 188, São Paulo'}),false);
   assert.equal(isStreetOnlyReference({name:'Avenida Paulista, 1000',address:'Bela Vista, São Paulo'}),false);
   assert.equal(isStreetOnlyReference({name:'Museu de Arte',address:'Avenida Paulista, 1578'}),false);
+  assert.equal(isStreetOnlyReference({name:'Rua das Flores',coords:[-23.5,-46.6],category:'manual'}),false,'um ponto já confirmado pode ser reutilizado sem escolher outra vez');
 });

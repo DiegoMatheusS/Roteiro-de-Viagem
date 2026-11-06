@@ -21,17 +21,16 @@ No Railway, crie um projeto do Roteiro de Viagem, conecte este repositório na b
 
 ## Base própria de locais e rotas
 
-O SQLite no volume permanente do Railway já contém `stations` (estabelecimentos),
-`locations` (lugares verificáveis do OpenStreetMap/Photon), `geocoding_queries` (cache
-de buscas externas) e `traveler_states` (roteiros, perfil e endereço residencial
-privados do viajante). O aplicativo consulta primeiro as tabelas locais de locais
-e estabelecimentos, e só usa Photon quando precisa de resultados adicionais.
-
-Uma busca não transforma o texto digitado em um endereço confirmado. Somente locais
-identificados pelo OpenStreetMap/Photon ou cadastrados e revisados são considerados
-pontos reais. Pontos turísticos descobertos também alimentam `locations`, com
-identificador OSM para evitar duplicidades e com atribuição à fonte. Os dados têm
-data de atualização, pois um estabelecimento pode fechar ou mudar de endereço.
+O SQLite no volume permanente do Railway contém estabelecimentos, locais públicos,
+catálogo turístico e o índice persistente `address_index`. A busca usa a
+[API de endereços própria](api-enderecos.md), sem consultar geocodificadores
+externos. Rua, número e CEP ficam separados; o histórico de origem/destino fica
+em `user_address_history`, privado por conta, e no aparelho para reutilização
+sem conexão. O antigo cache `geocoding_queries` permanece preservado, sem acionar
+seu antigo provedor. Locais turísticos descobertos continuam alimentando
+`locations` e entram automaticamente no índice, assim como edições e exclusões
+nos estabelecimentos. Uma rua conhecida não confirma um número desconhecido:
+nesse caso o usuário marca o imóvel no mapa.
 
 `user_saved_locations` armazena apenas locais que o viajante **selecionou**
 explicitamente na busca, com limite de 50 por conta. Não há captura de teclas,
