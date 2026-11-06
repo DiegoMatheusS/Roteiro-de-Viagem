@@ -6,8 +6,8 @@ import {createHybridCameraPort,createStandaloneMapLibreCameraPort,nextCameraMode
 test('opening screen hides the temporary map and attribution until account setup ends',()=>{
   const startup=readFileSync(new URL('../src/components/StartupMap.tsx',import.meta.url),'utf8');
   const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
-  assert.match(app,/if \(auth\.loading \|\| !accountReady\) return <StartupMap/);
-  assert.doesNotMatch(startup,/InteractiveMap|MapTrafficControl|useDeviceLocation|roteiro-logo|OpenFreeMap/);
+  assert.match(app,/if \(!startupReady \|\| auth\.loading \|\| !accountReady\) return <StartupMap/);
+  assert.doesNotMatch(startup,/InteractiveMap|MapTrafficControl|useDeviceLocation|OpenFreeMap/);
   assert.match(startup,/aria-label="Abrindo o Rolê"/);
 });
 

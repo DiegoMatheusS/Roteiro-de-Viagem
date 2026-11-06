@@ -1,0 +1,17 @@
+/* Available before the application bundle, including inside the Android WebView. */
+body {margin:0;}
+.rdv-startup {
+  position:relative;display:grid;place-items:center;
+  width:100%;height:100dvh;overflow:hidden;background:#fff;
+}
+.rdv-startup-logo {
+  display:block;width:112px;height:112px;object-fit:contain;
+  animation:rdv-startup-pulse 1.2s ease-in-out infinite;
+}
+@keyframes rdv-startup-pulse {
+  0%,100% {opacity:1;transform:scale(1);}
+  50% {opacity:.6;transform:scale(.94);}
+}
+@media (prefers-reduced-motion:reduce) {
+  .rdv-startup-logo {animation:none;}
+}
