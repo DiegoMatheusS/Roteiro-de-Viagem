@@ -17,10 +17,12 @@ test('Rolê waits for account hydration without flashing an interim map',()=>{
 test('Explore photos are real, credited and unknown places do not inherit generic images',()=>{
   const explore=readFileSync(new URL('../src/components/ToursTab.tsx',import.meta.url),'utf8');
   const catalog=readFileSync(new URL('../src/catalogs/saoPauloExplore.ts',import.meta.url),'utf8');
+  const photo=readFileSync(new URL('../src/components/ExplorePlacePhoto.tsx',import.meta.url),'utf8');
   assert.ok(catalog.includes('commons.wikimedia.org'));
   assert.match(catalog,/photoCredit/);
   assert.match(explore,/place\.photoPage && place\.photoCredit/);
-  assert.match(explore,/onError=\{event=>\{event\.currentTarget\.hidden=true/);
+  assert.match(explore,/<ExplorePlacePhoto place=\{place\}/);
+  assert.match(photo,/onError=\{\(\)=>setFailedSrc\(place.photo\)/);
   assert.doesNotMatch(explore,/figma-ibirapuera\.svg|figma-romeiros\.svg/);
-  assert.match(explore,/Local sem fotografia verificada/);
+  assert.match(photo,/Local sem fotografia disponível/);
 });

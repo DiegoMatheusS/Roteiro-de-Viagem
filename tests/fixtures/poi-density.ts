@@ -21,6 +21,7 @@ const ready=(map:GlMap|L.Map,controller:ReturnType<typeof createRoleMaplibreMark
   controller.update(entries,{zoom:11,navigationMode});
   map.on('click',()=>{selectedCoordinates++;});
   (window as any).__poiDensity={entries,map,controller,raster,
+    setDensity(densityMode:'less'|'moderate'|'more'|'all'){controller.setContext({zoom:map.getZoom(),navigationMode,densityMode});},
     zoom:()=>map.getZoom(),center:()=>raster?(map as L.Map).getCenter():(map as GlMap).getCenter(),
     setView(zoom:number,bearing=0,pitch=0){
       if(raster)(map as L.Map).setView(center,zoom,{animate:false});

@@ -1,5 +1,6 @@
 import type {RoleVectorMarker} from './vectorPlaceData';
 import {placeIconKind} from './placeIconKind';
+import type {MapIconDensity} from './mapIconDensity';
 
 export type Coordinates=[number,number];
 export interface PoiVisibilityContext {
@@ -7,6 +8,7 @@ export interface PoiVisibilityContext {
   navigationMode:boolean;
   /** Route planning keeps route-scoped fuel and toll pins tappable in overview. */
   showRouteServices?:boolean;
+  densityMode?:MapIconDensity|'all';
   location?:Coordinates;
   accuracyMeters?:number;
 }

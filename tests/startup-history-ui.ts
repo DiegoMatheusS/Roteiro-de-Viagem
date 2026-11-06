@@ -80,6 +80,19 @@ try{
   await page.getByRole('button',{name:'Aba Viagens',exact:true}).click();
   await history.getByRole('heading',{name:'Passeio A',exact:true}).waitFor();
   assert.equal(await history.getByRole('heading',{name:'Passeio B',exact:true}).count(),0,'exclusão persiste após reabrir');
+  const settings=async()=>{
+    await page.getByRole('button',{name:'Aba Perfil',exact:true}).click();
+    await page.getByRole('button',{name:/Configurações Navegação/}).click();
+    return page.getByLabel('Ícones na tela inicial',{exact:true});
+  };
+  let icons=await settings();await icons.waitFor();assert.equal(await icons.inputValue(),'moderate');
+  for(const mode of ['less','more','moderate']){
+    await icons.selectOption(mode);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-icon-density:v1')),mode);
+  }
+  await icons.selectOption('more');await page.reload();icons=await settings();
+  assert.equal(await icons.inputValue(),'more','a preferência de ícones permanece após reabrir o aplicativo');
+  await page.getByText('O Explorar mostra todos.',{exact:false}).waitFor();
   assert.deepEqual(errors,[]);
   console.log('PASS: abertura branca com logo pulsando antes do JS e durante hidratação, sem mapa/GPS; cancelar exclusão preserva histórico e confirmar remove só a viagem escolhida.');
 }finally{releaseMain();releaseAuth();await browser?.close();await vite.close();}

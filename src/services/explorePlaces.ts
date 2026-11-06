@@ -1,5 +1,5 @@
 import type {Place} from '../types/admin';
-import {TOURIST_PLACE_KINDS} from '../types/admin';
+import {PLACE_KINDS,TOURIST_PLACE_KINDS} from '../types/admin';
 import {placeIconKind} from './placeIconKind';
 import type {ExploreArea, ExploreCoords, ExploreFilter, ExplorePlace} from '../types/explore';
 import {EXPLORE_CATALOG} from '../catalogs/explore';
@@ -7,6 +7,7 @@ import {EXPLORE_CATALOG} from '../catalogs/explore';
 const touristKinds = new Set<string>(TOURIST_PLACE_KINDS);
 const natureKinds = new Set(['park', 'square', 'waterfall', 'lake', 'nature_reserve', 'trail', 'beach', 'viewpoint']);
 const cultureKinds = new Set(['museum', 'theatre', 'historic']);
+const businessKinds=new Set(['restaurant','supermarket','shopping','inn','cafe','hotel','other']);
 const metropolitanCities = new Set(['São Paulo','Arujá','Barueri','Biritiba Mirim','Caieiras','Cajamar',
   'Carapicuíba','Cotia','Diadema','Embu das Artes','Embu-Guaçu','Ferraz de Vasconcelos',
   'Francisco Morato','Franco da Rocha','Guararema','Guarulhos','Itapecerica da Serra','Itapevi',
@@ -46,7 +47,7 @@ function sourceToExplore(place: Place): ExplorePlace {
   const resolvedKind=placeIconKind(place.kind,place.name);
   const parts = place.address.split(',').map(part => part.trim()).filter(Boolean);
   const city = parts.length > 1 ? parts[parts.length - 2] : parts[0] || '';
-  const category = resolvedKind === 'scenic_road' ? 'Estrada' :
+  const category = businessKinds.has(resolvedKind)?PLACE_KINDS.find(type=>type.id===resolvedKind)!.label:resolvedKind === 'scenic_road' ? 'Estrada' :
     cultureKinds.has(resolvedKind) || resolvedKind === 'landmark' ? 'Cultura' : 'Natureza';
   return {id: place.id, name: place.name, coords: [place.lat, place.lng],
     kind: resolvedKind, address: place.address, category, city, sourceUrl: place.sourceUrl};
@@ -66,7 +67,7 @@ export function mergeExplorePlaces(
     }
   }
   for (const source of imported) {
-    if (!source.active || !touristKinds.has(placeIconKind(source.kind,source.name)) ||
+    if (!source.active || !(touristKinds.has(placeIconKind(source.kind,source.name))||businessKinds.has(source.kind)) ||
       !Number.isFinite(source.lat) || !Number.isFinite(source.lng) ||
       Math.abs(source.lat) > 90 || Math.abs(source.lng) > 180) continue;
     const place = sourceToExplore(source);
@@ -89,6 +90,7 @@ export function filterExplorePlaces(
     // A destination explicitly searched for remains reachable beyond the nearby radius.
     if (filter === 'near' && origin && !terms.length && exploreDistanceKm(origin, place.coords) > 120) return false;
     if (filter === 'nature' && !natureKinds.has(place.kind)) return false;
+    if (filter === 'businesses' && !businessKinds.has(place.kind)) return false;
     if (filter === 'waterfalls' && place.kind !== 'waterfall') return false;
     if (filter === 'lakes' && place.kind !== 'lake') return false;
     if (filter === 'parks' && !['park','square','nature_reserve'].includes(place.kind)) return false;

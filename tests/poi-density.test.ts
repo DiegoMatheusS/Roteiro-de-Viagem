@@ -9,6 +9,17 @@ const entry=(id:string,x:number,y:number,category:'square'|'landmark'|'park'='sq
 const project=([x,y]:[number,number])=>({x,y});
 const view={zoom:10,width:420,height:850,project};
 const dense=Array.from({length:500},(_,i)=>entry(String(i),(i%20)*20+10,Math.floor(i/20)*30+10));
+test('Explore has no icon budget or collision suppression, while home respects all three preferences',()=>{
+  const layouts=(['less','moderate','more'] as const).map(densityMode=>selectVisiblePois(dense,{...view,zoom:12.5,densityMode}));
+  assert.ok(layouts[0].keys.size<layouts[1].keys.size&&layouts[1].keys.size<layouts[2].keys.size);
+  const all=selectVisiblePois(dense,{...view,zoom:12.5,densityMode:'all'});
+  assert.equal(all.keys.size,500);assert.ok(all.keys.size>all.limit);
+  const adjacent=[entry('one',10,10),entry('two',11,10)];
+  assert.equal(selectVisiblePois(adjacent,{...view,densityMode:'all'}).keys.size,2);
+  assert.equal(selectVisiblePois(adjacent,{...view}).keys.size,1);
+  assert.deepEqual(adjacent[1].coords,[11,10]);
+  assert.equal(selectVisiblePois(adjacent,{...view,width:25,height:25,densityMode:'all'}).keys.size,2);
+});
 test('zoomed out city shows a bounded set of separated smaller icons; zooming in reveals more',()=>{
   const far=selectVisiblePois(dense,view),close=selectVisiblePois(dense,{...view,zoom:18});
   assert.ok(far.keys.size>0&&far.keys.size<=8);assert.ok(close.keys.size>far.keys.size);

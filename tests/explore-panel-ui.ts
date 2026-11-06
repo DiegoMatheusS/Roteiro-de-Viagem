@@ -29,8 +29,18 @@ try{
     await page.route('**/api/**',route=>route.fulfill({json:{available:false,places:[],stations:[],items:[]}}));
     await page.route('**/api/places/search',route=>route.fulfill({json:{places:[
       {id:'admin:explore-park',name:'Parque do teste Explorar',kind:'park',lat:-23.54,lng:-46.61,address:'Endereço do teste',description:'',website:'',phone:'',active:true},
-      {id:'admin:explore-museum',name:'Museu do teste Explorar',kind:'museum',lat:-23.56,lng:-46.65,address:'Endereço do teste',description:'',website:'',phone:'',active:true}
+      {id:'admin:explore-museum',name:'Museu do teste Explorar',kind:'museum',lat:-23.56,lng:-46.65,address:'Endereço do teste',description:'',website:'',phone:'',active:true},
+      ...Array.from({length:12},(_,i)=>({id:`admin:cafe-${i}`,name:`Café do teste ${i}`,kind:'cafe',lat:-23.55+i*.0001,lng:-46.63+i*.0001,address:'São Paulo, SP',description:'',website:'',phone:'',active:true}))
     ]}}));
+    let photoRequests=0;
+    await page.route('**/api/places/photos',route=>{
+      photoRequests++;
+      const {ids}=route.request().postDataJSON();
+      return route.fulfill({json:{photos:Object.fromEntries(ids.map((id:string)=>[id,id==='admin:cafe-0'||id==='admin:explore-park'?{
+        photo:'https://upload.wikimedia.org/fixture-photo.png',photoPage:'https://commons.wikimedia.org/wiki/File:Teste.jpg',photoCredit:'Autor do teste · CC BY-SA 4.0'
+      }:id==='admin:explore-museum'?{photo:'https://upload.wikimedia.org/broken.jpg',photoPage:'https://commons.wikimedia.org/wiki/File:Missing.jpg',photoCredit:'Autor do teste · CC BY-SA 4.0'}:null]))}});
+    });
+    await page.route('https://upload.wikimedia.org/broken.jpg',route=>route.fulfill({status:404,body:''}));
     await page.goto('http://127.0.0.1:3000/tests/fixtures/explore-panel.html');
     const region=page.getByRole('region',{name:'Explorar passeios'});
     const sheet=region.locator('.rdv-explore-sheet');
@@ -54,6 +64,9 @@ try{
       return Math.abs(center[0]+23.55)<tolerance&&Math.abs(center[1]+46.63)<tolerance&&Number(map?.dataset.mapZoom)===12.5;
     },fallback?'leaflet-fallback':'maplibre-standalone');
     await centered();
+    assert.equal(photoRequests,0,'o painel fechado não carrega fotografias fora de vista');
+    await page.locator('[data-poi-id="admin:cafe-0"]:visible').first().waitFor();
+    assert.equal(await page.locator('[data-poi-id^="admin:cafe-"]:visible').count(),12,'Explorar mantém todos os ícones vizinhos, sem suprimir colisões');
     const pin=page.locator('.managed-place-marker[aria-label="Ver Parque do teste Explorar"]:visible').first();
     await pin.waitFor({state:'visible'});
     const pinBox=await pin.boundingBox(),collapsedBox=await sheet.boundingBox();
@@ -62,6 +75,24 @@ try{
     await toggle.click();
     assert.equal(await toggle.getAttribute('aria-expanded'),'true');
     await region.locator('.rdv-explore-route-row').first().waitFor({state:'visible'});
+    const cafePhoto=region.getByRole('img',{name:'Fotografia de Café do teste 0',exact:true});
+    await cafePhoto.waitFor();
+    await cafePhoto.evaluate(el=>(el as HTMLImageElement).decode());
+    assert.ok(await cafePhoto.evaluate(el=>(el as HTMLImageElement).naturalWidth>0));
+    await region.locator('.rdv-explore-photo-credit').first().waitFor();
+    await region.getByRole('button',{name:'Estabelecimentos',exact:true}).click();
+    await region.getByRole('heading',{name:'Estabelecimentos',exact:true}).waitFor();
+    assert.equal(await region.getByRole('heading',{name:/^Café do teste \d+$/}).count(),12,'estabelecimentos cadastrados também aparecem nos cartões');
+    assert.equal(await region.getByRole('heading',{name:'Parque do teste Explorar',exact:true}).count(),0);
+    await region.getByRole('button',{name:'Todos',exact:true}).click();
+    const brokenImage=page.waitForResponse('https://upload.wikimedia.org/broken.jpg');
+    await region.getByRole('searchbox',{name:'Buscar passeios'}).fill('Museu do teste Explorar');
+    const missingPhoto=region.locator('article').filter({has:page.getByRole('heading',{name:'Museu do teste Explorar',exact:true})});
+    await missingPhoto.scrollIntoViewIfNeeded();
+    await brokenImage;
+    await missingPhoto.getByText('Foto indisponível',{exact:true}).waitFor();
+    assert.equal(await missingPhoto.locator('img').count(),0,'uma imagem que falhou mantém a categoria e a indicação de foto indisponível');
+    await region.getByRole('searchbox',{name:'Buscar passeios'}).fill('');
     await page.waitForTimeout(250);
     const smallMap=(await region.locator('.rdv-explore-map').boundingBox())!.height;
     assert.ok(largeMap>smallMap+140,'recolher aumenta a área real do mapa');

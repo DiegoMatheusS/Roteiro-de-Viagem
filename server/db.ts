@@ -1,6 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import {ROAD_ALERT_TYPES} from '../src/types/roadAlerts';
+
+const roadAlertKinds=ROAD_ALERT_TYPES.map(type=>`'${type.id}'`).join(',');
 
 export function openDatabase(filename = process.env.DATABASE_PATH || './data/roteiro.sqlite') {
   if (filename !== ':memory:') fs.mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
@@ -37,7 +40,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   db.exec(`
     CREATE TABLE IF NOT EXISTS road_alerts (
       id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','accident','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+      kind TEXT NOT NULL CHECK(kind IN (${roadAlertKinds})),
       lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
       note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
@@ -100,7 +103,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
   `);
   // SQLite não permite ampliar um CHECK em uma coluna existente. Preserva os relatos já armazenados.
   const alertSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='road_alerts'").get() as {sql:string}).sql;
-  if (!alertSql.includes("'accident'")) {
+  if (ROAD_ALERT_TYPES.some(type=>!alertSql.includes(`'${type.id}'`))) {
     // Dropping the old table with FK enforcement enabled would cascade-delete
     // confirmation votes in road_alert_checks during an in-place upgrade.
     db.exec('PRAGMA foreign_keys = OFF');
@@ -109,7 +112,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
       db.exec(`
         CREATE TABLE road_alerts_next (
           id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-          kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','accident','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+          kind TEXT NOT NULL CHECK(kind IN (${roadAlertKinds})),
           lat REAL NOT NULL CHECK(lat BETWEEN -90 AND 90), lng REAL NOT NULL CHECK(lng BETWEEN -180 AND 180),
           note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
           created_at TEXT NOT NULL, expires_at TEXT NOT NULL,

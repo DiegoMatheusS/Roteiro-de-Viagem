@@ -24,6 +24,7 @@ import { mapSheetHeight } from '../services/mapSheetSizing';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import {useMapAppearance} from '../hooks/useMapAppearance';
+import {useMapIconDensity} from '../hooks/useMapIconDensity';
 import { RoadAlertReporter } from './RoadAlertReporter';
 import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
 interface MapTabProps {
@@ -37,6 +38,7 @@ interface MapTabProps {
 }
 export function MapTab(props: MapTabProps) {
   const {theme:appearanceTheme}=useMapAppearance();
+  const {mode:placeDensityMode}=useMapIconDensity();
   const {user}=useAuth();
   const [savedAddresses,setSavedAddresses]=useState<SavedAddress[]>([]);
   useEffect(()=>setSavedAddresses(readSavedAddresses(user?.id)),[user?.id]);
@@ -202,7 +204,7 @@ export function MapTab(props: MapTabProps) {
   return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}
     data-map-sheet-expanded={sheetExpanded} data-map-suggestions-visible={showAddressSuggestions}>
     <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute?.selectedId)?.routePath || [] : trip?.routePath || []}
-      routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
+      placeDensityMode={placeDensityMode} routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
       onSelectCoordinates={()=>setSheetExpanded(false)}
       selectedRouteId={exploreRoute?.selectedId}
       onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}

@@ -77,6 +77,13 @@ test('imported duplicates retain curated photos; inactive, invalid and unrelated
   assert.deepEqual(distances,[...distances].sort((a,b)=>a-b));
   assert.equal(catalog[0].name,'Parque Ibirapuera','sorting does not mutate the catalog');
 });
+test('Explore includes registered businesses with their real category and a dedicated filter',()=>{
+  const place:Place={id:'business',name:'Café da praça',kind:'cafe',lat:-23.5,lng:-46.6,address:'São Paulo, SP',sourceUrl:'',description:'',website:'',phone:'',active:true};
+  const result=mergeExplorePlaces([place],undefined,[]);
+  assert.equal(result[0].category,'Café');assert.equal(result[0].photo,undefined);
+  assert.equal(filterExplorePlaces(result,'businesses','').length,1);
+  assert.equal(filterExplorePlaces(result,'nature','').length,0);
+});
 
 test('statewide outdoor discovery reaches the coast and the west, with separate water and park filters',()=>{
   const all=mergeExplorePlaces([],origin);

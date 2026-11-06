@@ -106,6 +106,8 @@ export interface InteractiveMapProps {
   showFuelStations?: boolean;
   /** Registered places are independent of fuel-station discovery. */
   showPlaces?:boolean;
+  /** Explore shows all returned places; other screens keep the overview budget. */
+  placeDensityMode?:import('../services/mapIconDensity').MapIconDensity|'all';
   navigationMode?: boolean;
   travelledDistanceKm?: number;
   totalRouteKm?: number;
@@ -166,6 +168,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   onSelectCoordinates,
   showFuelStations = true,
   showPlaces = true,
+  placeDensityMode = 'moderate',
   navigationMode = false,
   travelledDistanceKm = 0,
   totalRouteKm = 0,
@@ -613,10 +616,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const gl=vectorMapRef.current;
     const inputs={zoom:gl?.getZoom()??mapInstanceRef.current?.getZoom()??0,navigationMode,
       location:userLiveCoords,accuracyMeters:userGpsAccuracyMeters,
-      showRouteServices:!navigationMode&&routePath.length>1};
+      showRouteServices:!navigationMode&&routePath.length>1,densityMode:placeDensityMode};
     vectorPlaceControllerRef.current?.setContext(inputs);
     rasterPlaceControllerRef.current?.setContext(inputs);
-  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady,hasMapReady,routePath.length]);
+  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady,hasMapReady,routePath.length,placeDensityMode]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.

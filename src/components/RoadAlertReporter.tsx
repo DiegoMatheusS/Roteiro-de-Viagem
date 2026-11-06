@@ -1,23 +1,12 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {AlertTriangle,Cctv,CarFront,ChevronRight,Construction,Waves,X} from 'lucide-react';
-import {PoliceOfficerIcon,PotholeIcon,RobberyIcon,TollBoothIcon} from './RoadAlertIcons';
+import {AlertTriangle,ChevronRight,X} from 'lucide-react';
+import {RoadAlertIcon,TollBoothIcon} from './RoadAlertIcons';
 import {ROAD_ALERT_TYPES,type RoadAlertType} from '../types/roadAlerts';
 import type {DeviceLocation} from '../services/locationService';
 import {getCurrentDeviceLocation} from '../services/locationService';
 import {submitRoadAlert} from '../hooks/useRoadAlerts';
 import '../role-road-alert.css';
-
-const alertIcons:Record<RoadAlertType,React.ElementType>={
-  pothole:PotholeIcon,
-  broken_vehicle:CarFront,
-  accident:AlertTriangle,
-  speed_camera:Cctv,
-  road_obstruction:Construction,
-  flooded_road:Waves,
-  police_presence:PoliceOfficerIcon,
-  robbery:RobberyIcon
-};
 
 interface SwipeState {
   pointerId:number;
@@ -138,11 +127,10 @@ export function RoadAlertReporter({
           </div>
           <div className="rdv-alert-icon-grid">
             {ROAD_ALERT_TYPES.map(item=>{
-              const Icon=alertIcons[item.id];
               return <button role="menuitem" key={item.id} type="button"
                 aria-label={item.label} title={item.label}
                 onClick={()=>selectKind(item.id)} className="rdv-alert-icon-option">
-                <Icon size={25} strokeWidth={2} aria-hidden="true"/>
+                <RoadAlertIcon kind={item.id} size={42}/>
               </button>;
             })}
             <button role="menuitem" type="button" aria-label="Pedágio" title="Pedágio"

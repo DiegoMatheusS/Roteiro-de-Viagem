@@ -369,13 +369,13 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // The marker controller handles GPS proximity; update only when its
         // inputs change. While driving, skip proximity work for the hidden
         // route-service markers altogether.
-        const markerInputs=[drawn,p.navigationMode,p.userLiveCoords,p.userGpsAccuracyMeters];
+        const markerInputs=[drawn,p.navigationMode,p.userLiveCoords,p.userGpsAccuracyMeters,p.placeDensityMode];
         const markersChanged=overlaysChanged||markerInputs.some((value,index)=>value!==lastMarkerInputs[index]);
         if(markersChanged){
           lastMarkerInputs=markerInputs;
           markers.update(drawn,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
             location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
-            showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1});
+            showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1,densityMode:p.placeDensityMode});
         }
         const nextInputs=[p.originCoords,p.destinationCoords,stableList(p.routePath),stableList(p.routeAlternatives)];
         if(nextInputs.some((value,index)=>value!==fitInputs[index])){

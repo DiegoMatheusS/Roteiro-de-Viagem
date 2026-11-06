@@ -40,6 +40,16 @@ try{
     const shown=await page.evaluate(()=>(window as any).__poiDensity.stats());
     assert.ok(shown.length<=poiDensity(16,420,850).limit);assert.ok(shown.every((pin:any)=>pin.error<1.25));
   }
+  await setView(11);
+  const counts:number[]=[];
+  for(const mode of ['less','moderate','more','all']){
+    await page.evaluate(mode=>(window as any).__poiDensity.setDensity(mode),mode);
+    const shown=await page.evaluate(()=>(window as any).__poiDensity.stats());counts.push(shown.length);
+    assert.ok(shown.every((pin:any)=>pin.error<1.25),'density changes never shift coordinates');
+  }
+  assert.ok(counts[0]<counts[1]&&counts[1]<counts[2]&&counts[2]<counts[3],`home preferences and unlimited Explore apply in both engines: ${counts}`);
+  assert.ok(counts[3]>=250,'every closely packed on-screen place remains in Explore');
+  await page.evaluate(()=>(window as any).__poiDensity.setDensity('moderate'));
   await setView(17);
   const cdp=await page.context().newCDPSession(page);
   const touch=(type:'touchStart'|'touchMove'|'touchEnd',points:{x:number;y:number}[])=>cdp.send('Input.dispatchTouchEvent',{
