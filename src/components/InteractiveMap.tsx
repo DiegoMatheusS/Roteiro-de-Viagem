@@ -96,6 +96,8 @@ export interface InteractiveMapProps {
   /** Verified distance to a turn/roundabout/arrival, for native camera assist only. */
   maneuverMeters?: number | null;
   focusedCoords?: [number, number] | null;
+  /** Zoom for an explicit focus; navigation and other callers keep their defaults. */
+  focusedZoom?:number;
   convoyParticipants?: ConvoyParticipant[];
   meetingPoints?: MeetingPoint[];
   interactive?: boolean;
@@ -158,6 +160,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   userDeviceHeadingDegrees,
   userSpeedMetersPerSecond,
   focusedCoords,
+  focusedZoom=15,
   convoyParticipants = EMPTY_CONVOY,
   meetingPoints = EMPTY_MEETINGS,
   onSelectCoordinates,
@@ -966,9 +969,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     if(initial && resumeViewport && sameMapFocus(focusedCoords,resumeViewport.focusedCoords))return;
     if (focusedCoords && mapInstanceRef.current) {
       const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-      createHybridCameraPort(mapInstanceRef.current).focus(focusedCoords,15,reducedMotion);
+      createHybridCameraPort(mapInstanceRef.current).focus(focusedCoords,focusedZoom,reducedMotion);
     }
-  }, [focusedCoords]);
+  }, [focusedCoords,focusedZoom]);
 
   // Weather observations use MapLibre-native pins when the vector base exists.
   // The raster fallback stays available and keeps identical provider attribution.

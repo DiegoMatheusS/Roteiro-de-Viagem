@@ -134,6 +134,7 @@ try {
   await page.getByRole('button',{name:'Aba Explorar'}).click();
   const exploring=page.getByRole('region',{name:'Explorar passeios'});
   await exploring.getByRole('heading',{name:'Explorar',exact:true}).waitFor();
+  await exploring.getByRole('button',{name:'Mostrar lista de passeios',exact:true}).click();
   await exploring.getByPlaceholder('Buscar passeios').waitFor();
   await page.getByRole('button',{name:'Aba Explorar'}).getAttribute('aria-current')
     .then(current=>assert.equal(current,'page'));
