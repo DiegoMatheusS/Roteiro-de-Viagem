@@ -6,10 +6,10 @@ test('Rolê waits for account hydration without flashing an interim map',()=>{
   const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
   const startup=readFileSync(new URL('../src/components/StartupMap.tsx',import.meta.url),'utf8');
   assert.doesNotMatch(app,/Carregando seus dados de viagem/);
-  assert.match(app,/if \(auth\.loading \|\| !accountReady\) return <StartupMap/);
+  assert.match(app,/if \(!startupReady \|\| auth\.loading \|\| !accountReady\) return <StartupMap/);
   assert.match(startup,/aria-label="Preparando o Rolê"/);
   assert.match(startup,/aria-label="Abrindo o Rolê"/);
-  assert.doesNotMatch(startup,/<InteractiveMap|useDeviceLocation|MapTrafficControl|roteiro-logo\.png|rdv-start-brand/);
+  assert.doesNotMatch(startup,/<InteractiveMap|useDeviceLocation|MapTrafficControl/);
   assert.match(app,/syncState==='conflict' && <SyncConflictPanel/);
   assert.match(app,/syncState==='error' && <button/);
   assert.doesNotMatch(startup,/saveTrip|saveProfile|replaceSnapshot|setScope/);

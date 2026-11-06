@@ -47,6 +47,12 @@ import {GUEST_NAVIGATION_VEHICLE} from './services/guestNavigationVehicle';
 
 export default function App() {
   const auth = useAuth();
+  const [startupReady,setStartupReady]=useState(false);
+  useEffect(()=>{
+    // Keep the opening logo visible even when the cached account loads instantly.
+    const timer=window.setTimeout(()=>setStartupReady(true),800);
+    return()=>window.clearTimeout(timer);
+  },[]);
   const [activeTab, setActiveTab] = useState<MainTabType>('inicio');
   const [advancedHome, setAdvancedHome] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -335,6 +341,7 @@ export default function App() {
   // Delete saved trip
   const handleDeleteTrip = (tripId: string) => {
     if (activeTrip?.id === tripId) { setAppError('Encerre a viagem antes de excluí-la do histórico.'); return; }
+    if (!window.confirm('Deseja mesmo excluir?')) return;
     const updated = trips.filter(t => t.id !== tripId);
     storageService.saveTrips(updated);
     setTrips(updated);
@@ -434,10 +441,9 @@ export default function App() {
     }
   };
 
-  // The map opens immediately, including with slow/offline authentication.
-  // Keep account actions disabled until the correct storage scope is hydrated:
+  // Keep the opening screen visible until the correct storage scope is hydrated:
   // never write a signed-in person's trips into the temporary guest namespace.
-  if (auth.loading || !accountReady) return <StartupMap notice={
+  if (!startupReady || auth.loading || !accountReady) return <StartupMap notice={
     syncState==='error' || syncState==='conflict'
       ? <div className="space-y-2">
           <p>{syncMessage || 'Não foi possível carregar os dados da conta.'}</p>
