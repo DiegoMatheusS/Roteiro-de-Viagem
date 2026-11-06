@@ -5,6 +5,8 @@ import { EmergencyContactsEditor } from './EmergencyContactsEditor';
 import { ProfileFigmaHome } from './ProfileFigmaHome';
 import React, { useState } from 'react';
 import {useMapAppearance} from '../hooks/useMapAppearance';
+import {useMapIconDensity} from '../hooks/useMapIconDensity';
+import type {MapIconDensity} from '../services/mapIconDensity';
 import type {MapAppearanceMode} from '../services/mapAppearance';
 import { 
   TravelerProfile, 
@@ -81,6 +83,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'garagem' | 'seguranca' | 'privacidade'>('perfil');
   const [showDetails,setShowDetails]=useState(false);
   const {mode:appearanceMode,setMode:setAppearanceMode}=useMapAppearance();
+  const {mode:iconDensity,setMode:setIconDensity}=useMapIconDensity();
   const openDetails=(tab:'perfil'|'garagem'|'seguranca'|'privacidade')=>{
     setActiveSubTab(tab);setShowDetails(true);
   };
@@ -694,6 +697,17 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
                 <option value="automatic">Automático (18h às 6h)</option>
               </select>
               <p className="text-xs text-slate-500">Salvo neste aparelho. O modo automático segue o horário local, sem precisar de internet.</p>
+            </section>
+            <section className="rounded-2xl border border-blue-100 bg-slate-50 p-4 space-y-2">
+              <label htmlFor="role-map-icons" className="block text-sm font-semibold text-slate-900">Ícones na tela inicial</label>
+              <select id="role-map-icons" value={iconDensity}
+                onChange={event=>setIconDensity(event.target.value as MapIconDensity)}
+                className="w-full min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800">
+                <option value="less">Menos</option>
+                <option value="moderate">Moderado</option>
+                <option value="more">Mais</option>
+              </select>
+              <p className="text-xs text-slate-500">Escolha quantos ícones de locais aparecem no Início. O Explorar mostra todos. Salvo neste aparelho.</p>
             </section>
             <OfflineRegionsPanel />
             <div>

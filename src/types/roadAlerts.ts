@@ -7,7 +7,11 @@ export const ROAD_ALERT_TYPES = [
   { id: 'road_obstruction', label: 'Obstáculo na via', icon: '🚧' },
   { id: 'flooded_road', label: 'Alagamento', icon: '🌊' },
   { id: 'police_presence', label: 'Policiamento', icon: '👮' },
-  { id: 'robbery', label: 'Roubo ou assalto', icon: '🦹' }
+  { id: 'robbery', label: 'Roubo ou assalto', icon: '🦹' },
+  { id: 'roadworks', label: 'Obras na via', icon: '🚧' },
+  { id: 'congestion', label: 'Congestionamento', icon: '🚗' },
+  { id: 'heavy_rain', label: 'Chuva forte', icon: '🌧️' },
+  { id: 'oil_spill', label: 'Óleo na pista', icon: '🛢️' }
 ] as const;
 export type RoadAlertType = typeof ROAD_ALERT_TYPES[number]['id'];
 export type RoadAlertStatus = 'pending' | 'approved' | 'rejected' | 'expired';
@@ -31,5 +35,9 @@ export const ROAD_ALERT_TTL_MS: Record<RoadAlertType, number> = {
   road_obstruction: 3 * 3600000,
   flooded_road: 6 * 3600000,
   police_presence: 2 * 3600000,
-  robbery: 3 * 3600000
+  robbery: 3 * 3600000,
+  roadworks: 3 * 3600000,
+  congestion: 3600000,
+  heavy_rain: 3600000,
+  oil_spill: 3 * 3600000
 };

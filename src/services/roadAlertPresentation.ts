@@ -8,7 +8,11 @@ const messages:Record<RoadAlertType,string>={
   road_obstruction:'Obstáculo na pista',
   flooded_road:'Alagamento na pista',
   police_presence:'Policiamento na via',
-  robbery:'Assalto reportado na via'
+  robbery:'Assalto reportado na via',
+  roadworks:'Obras na via',
+  congestion:'Congestionamento',
+  heavy_rain:'Chuva forte',
+  oil_spill:'Óleo na pista'
 };
 
 /** Distance follows the verified route, rounded to avoid false GPS precision. */

@@ -119,12 +119,6 @@
   color:#9a3412;
   background:#fff1dc;
 }
-.rdv-nav-upcoming-icon-badge {
-  position:absolute;
-  bottom:5px;right:5px;
-  background:#fff1dc;
-  border-radius:50%;
-}
 .rdv-nav-upcoming-copy {
   display:block;
   font-size:17px;

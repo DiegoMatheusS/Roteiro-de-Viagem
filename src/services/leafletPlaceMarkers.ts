@@ -19,7 +19,7 @@ export function createLeafletPlaceMarkerController(map:L.Map,actions:RoleMarkerA
     const selected=[...records].find(([,record])=>record.marker.isPopupOpen())?.[0];
     const layout=selectVisiblePois([...records.values()].map(record=>record.entry),{
       zoom:map.getZoom(),width:size.x,height:size.y,project:coords=>map.latLngToContainerPoint(coords),
-      navigationMode:context.navigationMode,showRouteServices:context.showRouteServices,selectedKey:selected
+      navigationMode:context.navigationMode,showRouteServices:context.showRouteServices,selectedKey:selected,densityMode:context.densityMode
     });
     visibleKeys=layout.keys;
     for(const [key,record] of records){
@@ -68,7 +68,7 @@ export function createLeafletPlaceMarkerController(map:L.Map,actions:RoleMarkerA
       applyVisibility();
     },
     setContext(inputs:PoiVisibilityContext){
-      const changed=inputs.navigationMode!==context.navigationMode||inputs.showRouteServices!==context.showRouteServices;
+      const changed=inputs.navigationMode!==context.navigationMode||inputs.showRouteServices!==context.showRouteServices||inputs.densityMode!==context.densityMode;
       context=inputs;if(changed)applyVisibility();
     },
     visibleKeys(){return visibleKeys;},

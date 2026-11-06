@@ -9,6 +9,7 @@ import {fetchRouteChoices,choiceToTrip,type RoutePreference,type VerifiedRouteCh
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import {useTouristDiscoveryAnchor} from '../hooks/useTouristDiscoveryAnchor';
 import {useMapAppearance} from '../hooks/useMapAppearance';
+import {useMapIconDensity} from '../hooks/useMapIconDensity';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -61,6 +62,7 @@ const touristKinds: readonly string[] = TOURIST_PLACE_KINDS;
 
 export function NavigationHome(props: NavigationHomeProps) {
   const {theme:appearanceTheme}=useMapAppearance();
+  const {mode:placeDensityMode}=useMapIconDensity();
   const {user}=useAuth();
   const [savedAddresses,setSavedAddresses]=useState<SavedAddress[]>(()=>readSavedAddresses(user?.id));
   useEffect(()=>{setSavedAddresses(readSavedAddresses(user?.id));},[user?.id]);
@@ -390,7 +392,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do Rolê">
     <div className="absolute inset-0 rdv-flat-map">
-      <InteractiveMap roadStyle followUser={false} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
+      <InteractiveMap roadStyle followUser={false} placeDensityMode={placeDensityMode} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
         userSpeedMetersPerSecond={gps.status==='ready'?gps.position?.speedMetersPerSecond:null} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}

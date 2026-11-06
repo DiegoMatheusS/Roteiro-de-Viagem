@@ -144,8 +144,11 @@ try {
   assert.equal(await exploring.locator('.rdv-explore-route-row').count(),40);
   await exploring.getByPlaceholder('Buscar passeios').fill('Ibirapuera');
   await exploring.getByRole('heading',{name:'Parque Ibirapuera',exact:true}).waitFor();
-  const parkPhoto=exploring.getByRole('img',{name:'Fotografia de Parque Ibirapuera',exact:true,includeHidden:true});
-  assert.match((await parkPhoto.getAttribute('src'))!,/^https:\/\//);
+  const parkCard=exploring.locator('article').filter({has:page.getByRole('heading',{name:'Parque Ibirapuera',exact:true})});
+  // This smoke test blocks external images. The dedicated Explore media test
+  // verifies loaded photographs; here the card must survive a failed download.
+  await parkCard.getByText('Foto indisponível',{exact:true}).waitFor();
+  assert.match((await parkCard.locator('.rdv-explore-photo-credit').getAttribute('href'))!,/^https:\/\/commons\.wikimedia\.org\//);
   await exploring.getByPlaceholder('Buscar passeios').fill('');
   const exploreBox=await exploring.boundingBox();
   const exploreSheet=await exploring.locator('.rdv-explore-sheet').boundingBox();

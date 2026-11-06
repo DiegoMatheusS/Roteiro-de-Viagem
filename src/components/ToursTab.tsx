@@ -6,10 +6,11 @@ import {EXPLORE_AREA_LABELS,exploreDistanceKm,filterExplorePlaces,mergeExplorePl
 import {useDeviceLocation} from '../hooks/useDeviceLocation';
 import {useTouristDiscoveryAnchor} from '../hooks/useTouristDiscoveryAnchor';
 import {useNearbyPlaces} from '../hooks/useNearbyPlaces';
+import {useExplorePhotos} from '../hooks/useExplorePhotos';
 import {useGpsPermissionAction} from '../hooks/useGpsPermissionAction';
 import {InteractiveMap} from './InteractiveMap';
 import {TripPreviewScreen} from './TripPreviewScreen';
-import {TouristCategoryIcon} from './TouristCategoryIcon';
+import {ExplorePlacePhoto} from './ExplorePlacePhoto';
 import {fetchRouteChoices,choiceToTrip} from '../services/routeChoices';
 import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import '../role-explore-figma.css';
@@ -23,7 +24,7 @@ interface ToursTabProps {
 const PAGE_SIZE=20;
 const filterTitles:Record<ExploreFilter,string>={all:'Todos os passeios',near:'Perto de você',
   nature:'Natureza',culture:'Cultura',road:'Estradas',cities:'Cidades',
-  waterfalls:'Cachoeiras',lakes:'Lagos',parks:'Parques',racetracks:'Autódromos'};
+  waterfalls:'Cachoeiras',lakes:'Lagos',parks:'Parques',racetracks:'Autódromos',businesses:'Estabelecimentos'};
 function isSaoPauloArea(coords:[number,number]) {
   return coords[0]>-23.9&&coords[0]<-23.2&&coords[1]>-47.05&&coords[1]<-46.2;
 }
@@ -72,6 +73,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const filtered=useMemo(()=>filterExplorePlaces(allPlaces,filter,query,touristOrigin,area),
     [allPlaces,filter,query,touristOrigin?.[0],touristOrigin?.[1],area]);
   const visible=filtered.slice(0,visibleCount);
+  const photos=useExplorePhotos(visible,!collapsed);
   const featured=filtered[0];
   const regionLabel=touristOrigin&&isSaoPauloArea(touristOrigin)?'São Paulo, SP':touristOrigin?'Localização atual':'';
   const nearest=touristOrigin&&featured?Math.round(exploreDistanceKm(touristOrigin,featured.coords)):null;
@@ -145,6 +147,8 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           onClick={()=>updateFilter('nature')} className={filter==='nature'?'is-selected':''}>
           <Trees size={17} strokeWidth={1.6}/>Natureza
         </button>
+        <button type="button" aria-pressed={filter==='businesses'}
+          onClick={()=>updateFilter('businesses')} className={filter==='businesses'?'is-selected':''}>Estabelecimentos</button>
         <button type="button" aria-pressed={filter==='road'}
           onClick={()=>updateFilter('road')} className={filter==='road'?'is-selected':''}>Estrada</button>
         <button type="button" aria-pressed={filter==='racetracks'}
@@ -176,7 +180,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     </header>
     <div className="rdv-explore-map" aria-label="Mapa das redondezas">
       <InteractiveMap roadStyle initialStyle="light" userLiveCoords={origin}
-        focusedCoords={mapFocus} focusedZoom={12.5}
+        focusedCoords={mapFocus} focusedZoom={12.5} placeDensityMode="all"
         showFuelStations={false} className="w-full h-full"/>
       <button type="button" className="rdv-explore-map-gps" aria-label="Centralizar nas redondezas do GPS"
         onClick={centerOnGps}><LocateFixed size={22}/></button>
@@ -212,16 +216,12 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
         <button type="button" onClick={()=>void permission.request()}>Ativar GPS</button>
       </div>}
       <div className="rdv-explore-list" aria-label="Passeios encontrados">
-        {visible.map(place=>{
+        {visible.map(source=>{
+          const place={...source,...(photos[source.id]||{})};
           const distance=touristOrigin?exploreDistanceKm(touristOrigin,place.coords):null;
           const preparing=busyId===place.id;
           return <article key={place.id} className="rdv-explore-route-row">
-            <div className="rdv-explore-route-photo" aria-label={place.photo?'Fotografia do passeio':'Local sem fotografia verificada'}>
-              <TouristCategoryIcon kind={place.kind} name={place.name} size={32}/>
-              {place.photo && <img src={place.photo} alt={`Fotografia de ${place.name}`}
-                loading="lazy" decoding="async" width={200} height={200} referrerPolicy="no-referrer"
-                onError={event=>{event.currentTarget.hidden=true;}}/>}
-            </div>
+            <ExplorePlacePhoto place={place}/>
             <div className="rdv-explore-route-copy">
               <span className="rdv-explore-route-category">{place.category}</span>
               {place.photoPage && place.photoCredit && <a href={place.photoPage}

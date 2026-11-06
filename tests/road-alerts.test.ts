@@ -36,7 +36,7 @@ test('upgrading the road hazard categories preserves existing community confirma
     old.exec(`
       CREATE TABLE users (id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user',created_at TEXT NOT NULL);
       CREATE TABLE road_alerts (id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-        kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
+        kind TEXT NOT NULL CHECK(kind IN ('pothole','broken_vehicle','accident','speed_camera','road_obstruction','flooded_road','police_presence','robbery')),
         lat REAL NOT NULL,lng REAL NOT NULL,note TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',
         created_at TEXT NOT NULL,expires_at TEXT NOT NULL,reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,reviewed_at TEXT);
       CREATE TABLE road_alert_checks (alert_id TEXT NOT NULL REFERENCES road_alerts(id) ON DELETE CASCADE,
@@ -50,8 +50,14 @@ test('upgrading the road hazard categories preserves existing community confirma
     try {
       assert.equal((upgraded.prepare('SELECT COUNT(*) AS total FROM road_alert_checks').get() as {total:number}).total,1);
       upgraded.prepare("INSERT INTO road_alerts (id,kind,lat,lng,created_at,expires_at) VALUES ('new','accident',-23.5,-46.6,'2026-01-01','2027-01-01')").run();
+      for(const kind of ['roadworks','congestion','heavy_rain','oil_spill'])upgraded.prepare('INSERT INTO road_alerts (id,kind,lat,lng,created_at,expires_at) VALUES (?,?,0,0,?,?)').run(kind,kind,'2026-01-01','2027-01-01');
       assert.equal(upgraded.prepare('PRAGMA foreign_key_check').all().length,0);
     } finally {upgraded.close();}
+    const reopened=openDatabase(file);
+    try{assert.equal((reopened.prepare('SELECT COUNT(*) AS total FROM road_alerts').get() as any).total,6);
+      assert.equal((reopened.prepare('SELECT COUNT(*) AS total FROM road_alert_checks').get() as any).total,1);
+      assert.equal(reopened.prepare('PRAGMA foreign_key_check').all().length,0);
+    }finally{reopened.close();}
   } finally {rmSync(folder,{recursive:true,force:true});}
 });
 test('road hazards require signed-in sender and admin approval; public route reveals no contributor', async () => {
@@ -151,14 +157,15 @@ test('new hazard categories and nearby community checks require three independen
     db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.data.user.id);
     const sample = {coords:route[1], accuracyMeters:6, locationTimestamp:Date.now()};
     const ids: string[] = [];
-    for (const kind of ['flooded_road','police_presence','robbery']) {
-      const created = await call('POST','/road-alerts',{...sample,kind},owner.cookie);
+    const kinds=['flooded_road','police_presence','robbery','roadworks','congestion','heavy_rain','oil_spill'];
+    for (const kind of kinds) {
+      const created = await call('POST','/road-alerts',{...sample,kind},ids.length<3?owner.cookie:'');
       assert.equal(created.status,201);
       ids.push(created.data.id);
       assert.equal((await call('POST',`/admin/road-alerts/${created.data.id}/review`,{action:'approve'},admin.cookie)).status,200);
     }
     assert.deepEqual((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.map((a:any)=>a.kind).sort(),
-      ['flooded_road','police_presence','robbery']);
+      [...kinds].sort());
     const voters = [];
     for (let i=0;i<3;i++) {
       voters.push(await call('POST','/auth/register',{email:`alerts-voter-${i}@test.example`,displayName:'Colaborador',password:'strong-secret-123'}));
@@ -176,7 +183,7 @@ test('new hazard categories and nearby community checks require three independen
     const third = await call('POST',endpoint,{...sample,present:false},voters[2].cookie);
     assert.equal(third.status,200);
     assert.equal(third.data.removed,true);
-    assert.equal((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.length,2);
+    assert.equal((await call('POST','/road-alerts/route',{routePath:route})).data.alerts.length,kinds.length-1);
     assert.equal((await call('POST',endpoint,{...sample,present:true},admin.cookie)).status,409);
   } finally { await new Promise<void>(resolve=>server.close(()=>resolve())); db.close(); }
 });

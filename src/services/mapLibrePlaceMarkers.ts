@@ -74,13 +74,13 @@ export function createRoleMaplibreMarkerController(
     if(destroyed)return;
     const box=gl.getContainer(),center=gl.getCenter();
     const viewKey=JSON.stringify([gl.getZoom(),center.lng,center.lat,gl.getBearing(),gl.getPitch(),
-      box.clientWidth,box.clientHeight,context.navigationMode,context.showRouteServices,active?.key]);
+      box.clientWidth,box.clientHeight,context.navigationMode,context.showRouteServices,context.densityMode,active?.key]);
     if(!layoutDirty&&viewKey===lastView)return;
     layoutDirty=false;lastView=viewKey;
     const layout=selectVisiblePois([...markers.values()].map(record=>record.entry),{
       zoom:gl.getZoom(),width:box.clientWidth,height:box.clientHeight,
       project:coords=>gl.project(toMarkerLngLat(coords)),navigationMode:context.navigationMode,
-      showRouteServices:context.showRouteServices,selectedKey:active?.key
+      showRouteServices:context.showRouteServices,selectedKey:active?.key,densityMode:context.densityMode
     });
     visibleKeys=layout.keys;
     for(const record of markers.values()){
