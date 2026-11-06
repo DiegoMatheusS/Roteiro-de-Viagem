@@ -28,6 +28,7 @@ const mapFetch: typeof fetch = async (url: any, options?: any) => {
 };
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-ui-'));
 const db = openDatabase(':memory:');
+for (const [id,name,lat,lng,category] of [['osm:node:901','Parada Alfa de teste',-23.54,-46.62,'city'],['osm:node:902','Parada Beta de teste',-23.53,-46.60,'restaurant']] as const) db.prepare('INSERT INTO locations VALUES(?,?,?,?,?,?,?,?)').run(id,name,'São Paulo, SP',lat,lng,'https://www.openstreetmap.org/node/'+id.split(':').at(-1),category,new Date().toISOString());
 // O teste percorre muitas telas e duas contas no mesmo IP em menos de um minuto.
 // Mantém os limites específicos de login, cadastro e contribuições intactos.
 const api = createApi({ db, photoDirectory: path.join(directory, 'photos'), mapFetch, requestLimitPerMinute: 1000 });
@@ -946,11 +947,11 @@ try {
   assert.equal(await page.getByRole('dialog', { name: 'Buscar destino no mapa' }).count(),0,
     'A barra do Mapa nao deve abrir outro modal');
   await bottomMapSearch.fill('Parada');
-  // Photon pode ordenar Alfa/Beta diferentemente quando há um ponto GPS de viés.
+  // A base própria pode ordenar Alfa/Beta diferentemente com o ponto GPS de viés.
   // Verifica o destino que o próprio serviço retornou, não a posição fixa de uma fixture.
   const mapLocationsRequest=page.waitForResponse(response => {
     const url=new URL(response.url());
-    return url.pathname==='/api/locations/search' && url.searchParams.get('q')==='Parada';
+    return url.pathname==='/api/addresses/search' && url.searchParams.get('q')==='Parada';
   });
   const mapRoutesRequest=page.waitForResponse(response =>
     response.url().endsWith('/api/routes/alternatives') && response.request().method()==='POST');

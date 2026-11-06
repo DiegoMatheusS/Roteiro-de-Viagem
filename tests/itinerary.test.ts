@@ -12,12 +12,6 @@ import type { MandatoryStop } from '../src/types/itinerary';
 
 const orderedRequests: number[][][] = [];
 const mapFetch: typeof fetch = async (url: any) => {
-  if (String(url).includes('photon')) return new Response(JSON.stringify({ features: [
-    { geometry: { type: 'Point', coordinates: [0.1, 0] }, properties: { osm_type: 'N', osm_id: 101, name: 'Cidade Alfa', city: 'Cidade Alfa', osm_value: 'city' } },
-    { geometry: { type: 'Point', coordinates: [0.2, 0] }, properties: { osm_type: 'N', osm_id: 102, name: 'Restaurante Beta', city: 'Cidade Beta', osm_value: 'restaurant' } },
-    { geometry: { type: 'Point', coordinates: [0.25, 0] }, properties: { osm_type: 'N', osm_id: 104, name: 'Posto pesquisado', osm_value: 'fuel' } },
-    { geometry: { type: 'Point', coordinates: [999, 999] }, properties: { osm_type: 'N', osm_id: 999, name: 'Inválido' } }
-  ] }));
   const coordinates = String(url).split('/driving/')[1].split('?')[0].split(';').map((p: string) => p.split(',').map(Number));
   orderedRequests.push(coordinates);
   const legs = coordinates.slice(1).map((point: number[], i: number) => ({ distance: (Math.abs(point[0] - coordinates[i][0]) + Math.abs(point[1] - coordinates[i][1])) * 100000,
@@ -28,6 +22,10 @@ const mapFetch: typeof fetch = async (url: any) => {
 test('mandatory itinerary, constraints, suggestions, persistence and public sharing', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-itinerary-'));
   const db = openDatabase(':memory:');
+  for(const [id,name,lat,lng,category] of [['osm:node:101','Cidade Alfa',0,0.1,'city'],['osm:node:102','Restaurante Beta',0,0.2,'restaurant']] as const)
+    db.prepare('INSERT INTO locations VALUES(?,?,?,?,?,?,?,?)').run(id,name,name,lat,lng,'https://www.openstreetmap.org/node/'+id.split(':').at(-1),category,new Date().toISOString());
+  db.prepare('INSERT INTO stations(id,name,lat,lng,address,source_url,map_updated_at) VALUES(?,?,?,?,?,?,?)').run('osm:node:104','Posto pesquisado',0,0.25,'','https://www.openstreetmap.org/node/104',new Date().toISOString());
+
   const server = createApi({ db, photoDirectory: directory, mapFetch }).listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
@@ -39,12 +37,13 @@ test('mandatory itinerary, constraints, suggestions, persistence and public shar
   const request = { originCoords: [0, 0], destinationCoords: [0, 0.3], manualStops: stops, limits: { mode: 'km', target: 25 } };
   let computed: any;
   try {
-    await t.test('search stores only verified provider records, caches searches and limits external requests', async () => {
-      const found = await call('/locations/search?q=Alfa'); assert.equal(found.status, 200); assert.equal(found.body.results.length, 3);
+    await t.test('address search reuses registered places and never needs an external geocoder', async () => {
+      const found = await call('/locations/search?q=Alfa'); assert.equal(found.status, 200); assert.equal(found.body.results.length, 1);
       assert.equal(found.body.results[0].id, 'osm:node:101'); assert.ok(found.body.results[0].sourceUrl.includes('openstreetmap.org'));
       assert.deepEqual((await call('/stations/osm:node:104')).body.prices, []);
       assert.equal((await call('/locations/search?q=Alfa')).body.cached, true);
-      assert.equal((await call('/locations/search?q=Outra')).status, 429);
+      assert.equal((await call('/locations/search?q=Outra')).status, 200);
+      assert.equal(orderedRequests.length,0,'address lookup does not call the external map provider');
       assert.equal((await call('/locations/search?q=ab')).status, 400);
     });
     await t.test('every mandatory stop enters the road request in its exact order; stays count toward time', async () => {

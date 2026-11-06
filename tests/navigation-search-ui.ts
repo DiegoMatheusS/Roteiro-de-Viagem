@@ -38,7 +38,7 @@ try{
   const queries:string[]=[];
   const pendingResponse=new Promise<void>(resolve=>{releaseSearch=resolve;});
   let mode:'error'|'empty'|'success'='error';
-  await page.route('**/api/locations/search?**',async route=>{
+  await page.route('**/api/addresses/search?**',async route=>{
     queries.push(new URL(route.request().url()).searchParams.get('q')!);
     if(queries.length===1)await pendingResponse;
     await route.fulfill(mode==='error'?{status:503,json:{error:'Busca indisponível. Tente novamente.'}}:
@@ -211,9 +211,10 @@ try{
     await input.fill('Av. Paulista São Paulo');
     await results.waitFor();
     const addresses=results.getByRole('button');
-    assert.equal(await addresses.count(),2,'duplicate geocoder entries must not fill the suggestion list');
-    assert.match(await addresses.first().innerText(),/Bela Vista, São Paulo/,'the written city takes precedence over a nearby namesake');
-    await addresses.first().click();
+    const numbered=addresses.filter({has:page.getByText('Avenida Paulista, 1000',{exact:true})});
+    assert.equal(await numbered.count(),2,'duplicate entries must not fill the list, while stored tourist addresses remain eligible');
+    assert.match(await numbered.first().innerText(),/Bela Vista, São Paulo/,'the written city takes precedence over a nearby namesake');
+    await numbered.first().click();
     await destinationPanel.getByRole('heading',{name:'Avenida Paulista, 1000'}).waitFor();
     await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
     await page.goto('http://127.0.0.1:3000/tests/fixtures/navigation-home-search.html?vehicle=1');

@@ -26,6 +26,7 @@ import { VoiceGuidanceControl } from './VoiceGuidanceControl';
 import { LocationSearch } from './LocationSearch';
 import { SearchResultsOverlay } from './SearchResultsOverlay';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
+import {rememberAddress} from '../services/addressMemory';
 import {isStreetOnlyReference,isStreetAddressQuery,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { formatAddressDistance } from '../services/addressSuggestions';
@@ -340,6 +341,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     } catch(err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const selectMapTarget = (place:LocationSelection) => {
+    rememberAddress(place,searchInputRef.current?.value||searchPlace.name||place.address||place.name);
     suppressedQuery.current=place.name;cancelTypeahead();
     setShowSavedDestinations(false);
     setSearchPlace(place);

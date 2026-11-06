@@ -41,6 +41,7 @@ import {canEditStopsWhileStationary,canConfirmStopManually,remainingRerouteStops
 import {distanceBetweenKm} from './services/gpsTracking';
 import { getCurrentDeviceLocation } from './services/locationService';
 import { useAuth } from './contexts/AuthContext';
+import {syncAddressHistory} from './services/addressMemory';
 import { X, Users, ArrowRight, KeyRound, CornerUpLeft } from 'lucide-react';
 import { isNativeApp, TravelNative } from './services/nativeApp';
 import {GUEST_NAVIGATION_VEHICLE} from './services/guestNavigationVehicle';
@@ -83,6 +84,12 @@ export default function App() {
   const [joinError, setJoinError] = useState('');
   const [joinBusy, setJoinBusy] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
+  useEffect(()=>{
+    if(!accountReady||!auth.user||storageService.getScope()!==auth.user.id)return;
+    const sync=()=>{if(!document.hidden)void syncAddressHistory();};
+    sync();window.addEventListener('online',sync);document.addEventListener('visibilitychange',sync);
+    return()=>{window.removeEventListener('online',sync);document.removeEventListener('visibilitychange',sync);};
+  },[accountReady,auth.user?.id]);
   const [syncState, setSyncState] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
   const [syncConflicts,setSyncConflicts]=useState<StateConflict[]>([]);

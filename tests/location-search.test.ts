@@ -67,7 +67,7 @@ test('a busy provider is retried once after spacing; later queries can cancel th
     calls++;
     return calls===1?Response.json({error:'Busca ocupada'},{status:429}):Response.json({results:[]});
   });
-  const pending=searchLocations('Avenida Paulista');
+  const pending=searchLocations('Rua do limite da busca');
   await new Promise(setImmediate);assert.equal(calls,1);
   t.mock.timers.tick(1200);assert.deepEqual((await pending).results,[]);assert.equal(calls,2);
 });

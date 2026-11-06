@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import {ROAD_ALERT_TYPES} from '../src/types/roadAlerts';
+import {initializeAddressIndex} from './addressIndex';
 
 const roadAlertKinds=ROAD_ALERT_TYPES.map(type=>`'${type.id}'`).join(',');
 
@@ -147,6 +148,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/rot
     WHERE status='published' AND approved_by IS NULL`).run();
   db.prepare("UPDATE prices SET status='pending_review' WHERE status='published' AND approved_by IS NULL").run();
   db.prepare('INSERT OR IGNORE INTO photo_uploads SELECT id,user_id,created_at FROM photos WHERE created_at>?').run(new Date(Date.now() - 7 * 86400000).toISOString());
+  initializeAddressIndex(db);
   return db;
 }
 

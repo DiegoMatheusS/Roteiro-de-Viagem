@@ -4,6 +4,7 @@ import {Bookmark,BriefcaseBusiness,GraduationCap,Home,MapPin,Plus,Search,X} from
 import {useAuth} from '../contexts/AuthContext';
 import type {LocationSelection} from '../types/itinerary';
 import {houseNumberNotFoundMessage,searchLocations} from '../services/locationSearch';
+import {rememberAddress} from '../services/addressMemory';
 import {SAVED_ADDRESS_TYPES,readSavedAddresses,saveAddress,deleteSavedAddress,
   type SavedAddress,type SavedAddressType} from '../services/savedAddresses';
 import type {DeviceLocation} from '../services/locationService';
@@ -94,6 +95,7 @@ export function SavedAddressesPanel({onSelect,gps,onChanged}:{
     try{
       const label=type==='Outro'?custom.trim():type;
       const next=saveAddress(user.id,{label,address:chosen.address||chosen.name,coords:chosen.coords});
+      rememberAddress(chosen,query);
       setItems(next);onChanged?.(next);close();
     }catch(err){setError((err as Error).message);}
   };
