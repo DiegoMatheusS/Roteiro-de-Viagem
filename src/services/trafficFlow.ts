@@ -130,6 +130,7 @@ export function createTrafficFlowController({port,onState,offline=false,initialE
 }
 
 export function isTrafficMapError(event:{sourceId?:unknown;error?:{message?:string;url?:string}}):boolean {
-  return event.sourceId===TRAFFIC_SOURCE_ID||
+  return (typeof event.sourceId==='string'&&
+      (event.sourceId===TRAFFIC_SOURCE_ID||event.sourceId.startsWith(`${TRAFFIC_SOURCE_ID}-`)))||
     /\/api\/traffic\/tiles\//.test(`${event.error?.url||''} ${event.error?.message||''}`);
 }
