@@ -68,7 +68,7 @@ test('hybrid map only issues camera moves through the Leaflet port; drag shows v
   const bridge=readFileSync(new URL('../src/services/mapLibreBridge.ts',import.meta.url),'utf8');
   assert.match(bridge,/interactive: false/);
   assert.match(map,/createHybridCameraPort\(map\)\.recenter\(userLiveCoords,navigationModeRef\.current,reducedMotion,true\)/);
-  assert.match(map,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
+  assert.match(map,/createHybridCameraPort\(map\)\.follow\(target,reducedMotion,motion\?\.durationMs\)/);
   assert.match(map,/cameraModeChangeRef\.current\?\.\('exploring'\)/);
   assert.match(map,/cameraModeChangeRef\.current\?\.\('following'\)/);
   assert.match(screen,/onCameraModeChange=\{setCameraMode\}/);

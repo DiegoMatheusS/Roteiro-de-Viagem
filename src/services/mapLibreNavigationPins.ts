@@ -2,6 +2,7 @@ import { bindMarkerPopup } from './mapMarkerPopup';
 import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import { arrowHeadingStyle } from './gpsHeading';
 import { setGpsMarkerState,shouldShowDestinationPin } from './gpsMarkerState';
+import {createGpsDisplayMotion,type GpsDisplayFrame} from './gpsDisplayMotion';
 
 export type RolePosition = [number,number]; // latitude, longitude
 export interface NavigationPins {
@@ -9,6 +10,12 @@ export interface NavigationPins {
   destination?: RolePosition;
   live?: RolePosition;
   liveStale?:boolean;
+  liveTimestamp?:number;
+  liveAccuracyMeters?:number;
+  liveSpeedMetersPerSecond?:number|null;
+  routePath?:RolePosition[];
+  travelledKm?:number;
+  totalKm?:number;
   headingDegrees?: number | null;
   speedMetersPerSecond?: number | null;
   originLabel: string;
@@ -87,7 +94,8 @@ function elementFor(kind:Kind, label:string, roadStyle:boolean): HTMLButtonEleme
 }
 
 export interface NavigationPinController {
-  update(input:NavigationPins): void;
+  update(input:NavigationPins): GpsDisplayFrame;
+  liveMotion():GpsDisplayFrame;
   destroy(): void;
 }
 
@@ -96,6 +104,12 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
   const current = new Map<Kind,{marker:Marker;element:HTMLButtonElement;label:string;roadStyle:boolean}>();
   let destroyed=false;
   let lastHeading:number|null=null;
+  const motion=createGpsDisplayMotion((point,heading)=>{
+    const live=current.get('live');
+    live?.marker.setLngLat(toNavigationLngLat(point));
+    if(live&&heading!==undefined)
+      lastHeading=arrowHeadingStyle(live.element.querySelector('svg'),lastHeading,heading,null,true);
+  });
   const drop=(kind:Kind)=>{
     const pin=current.get(kind);
     if(!pin)return;
@@ -119,11 +133,15 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
   };
   return {
     update(input){
-      if(destroyed)return;
+      if(destroyed)return {durationMs:0};
+      const frame=motion.update({position:input.liveStale?undefined:input.live,timestamp:input.liveTimestamp,
+        accuracyMeters:input.liveAccuracyMeters,speedMetersPerSecond:input.liveSpeedMetersPerSecond??input.speedMetersPerSecond,
+        headingDegrees:input.headingDegrees,routePath:input.routePath,travelledKm:input.travelledKm,totalKm:input.totalKm,
+        enabled:input.navigationMode,reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false});
       const kinds=visibleNavigationPins(input);
       for(const kind of ['origin','destination','live'] as Kind[]) {
         if(!kinds.includes(kind)){drop(kind);continue;}
-        const coords=kind==='origin'?input.origin:kind==='destination'?input.destination:input.live;
+        const coords=kind==='origin'?input.origin:kind==='destination'?input.destination:frame.position??input.live;
         if(!coords)continue;
         upsert(kind,coords,kind==='origin'?input.originLabel:kind==='destination'?input.destinationLabel:'GPS',input.roadStyle);
       }
@@ -136,12 +154,16 @@ export function createRoleNavigationPins(map:MapLibreMap):NavigationPinControlle
         live.element.style.pointerEvents=input.navigationMode?'none':'auto';
         live.element.tabIndex=input.navigationMode?-1:0;
         const svg=live.element.querySelector('svg');
-        lastHeading=arrowHeadingStyle(svg,lastHeading,input.headingDegrees,input.speedMetersPerSecond,
-          window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false);
+        lastHeading=arrowHeadingStyle(svg,lastHeading,input.navigationMode?frame.headingDegrees:input.headingDegrees,
+          input.navigationMode?null:input.speedMetersPerSecond,
+          input.navigationMode||(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false));
       }
+      return frame;
     },
+    liveMotion:()=>motion.snapshot(),
     destroy(){
       destroyed=true;
+      motion.destroy();
       for(const kind of [...current.keys()])drop(kind);
     }
   };

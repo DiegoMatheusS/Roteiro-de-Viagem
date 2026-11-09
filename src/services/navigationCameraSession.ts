@@ -11,8 +11,11 @@ export interface NavigationCameraInput {
   bearing?:number;
   /** True when bearing comes from the physical device compass, not GPS course. */
   bearingIsDevice?:boolean;
+  bearingIsRoad?:boolean;
   maneuverMeters?:number|null;
   speedMetersPerSecond?:number|null;
+  /** Display-filtered fix and remaining interpolation time; never guidance. */
+  followDurationMs?:number;
 }
 
 /** State shared by native MapLibre events and React GPS updates. Programmatic
@@ -39,7 +42,7 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       (Number.isFinite(input.speedMetersPerSecond)&&input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4))return false;
     const zoom=nextTurnCameraZoom(input.maneuverMeters,input.speedMetersPerSecond,nearTurnZoom);
     if(zoom===null)return false;
-    camera.zoomToTurn(point,zoom,input.reducedMotion);
+    camera.zoomToTurn(point,zoom,input.reducedMotion,input.followDurationMs);
     nearTurnZoom=zoom!==NAVIGATION_START_ZOOM;
     return true;
   };
@@ -70,6 +73,10 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       lastCameraPoint=[...last];
       return true;
     },
+    suspend(){
+      if(navigating&&currentFixAvailable&&!exploring)camera.stop();
+      currentFixAvailable=false;
+    },
     update(input:NavigationCameraInput){
       navigating=input.navigationMode;
       lastReducedMotion=input.reducedMotion;
@@ -78,9 +85,13 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
         manualZoom=false;nearTurnZoom=false;mode(false);
       }
       const point=input.position;
+      const hadFix=currentFixAvailable;
       currentFixAvailable=!!point&&point.every(Number.isFinite)&&
         Math.abs(point[0])<=90&&Math.abs(point[1])<=180;
-      if(!currentFixAvailable||!point)return;
+      if(!currentFixAvailable||!point){
+        if(hadFix&&navigating&&!exploring)camera.stop();
+        return;
+      }
       if(input.centerRequest>centerRequest){
         centerRequest=input.centerRequest;mode(false);
         camera.recenter(point,navigating,input.reducedMotion,true);
@@ -94,9 +105,10 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       // but do not restart MapLibre's 450 ms easing on each noisy fix.
       const stopped=Number.isFinite(input.speedMetersPerSecond)&&
         input.speedMetersPerSecond!=null&&input.speedMetersPerSecond<1.4;
-      const changed=!lastCameraPoint||
-        (!stopped&&Math.abs(lastCameraPoint[0]-point[0])+Math.abs(lastCameraPoint[1]-point[1])>0.000009) ||
-        ((!stopped||input.bearingIsDevice===true)&&input.bearing!==undefined&&input.bearing!==lastBearing);
+      const positionThreshold=input.followDurationMs===undefined?0.000009:1e-9;
+      const changed=!lastCameraPoint||!hadFix||
+        ((!stopped||input.followDurationMs!==undefined)&&Math.abs(lastCameraPoint[0]-point[0])+Math.abs(lastCameraPoint[1]-point[1])>positionThreshold) ||
+        ((!stopped||input.bearingIsDevice===true||input.bearingIsRoad===true)&&input.bearing!==undefined&&input.bearing!==lastBearing);
       if(!exploring){
         if(!lastCameraPoint){
           camera.firstGpsFix(point);
@@ -112,8 +124,8 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
             lastCameraPoint=[...point];lastBearing=input.bearing;
           }else if(changed&&input.followUser){
             // Heading can rotate while stopped; do not follow GPS stationary drift.
-            const target=stopped?lastCameraPoint:point;
-            camera.follow(target,input.reducedMotion);
+            const target=stopped&&input.followDurationMs===undefined?lastCameraPoint:point;
+            camera.follow(target,input.reducedMotion,input.followDurationMs);
             lastCameraPoint=[...target];lastBearing=input.bearing;
           }
         }

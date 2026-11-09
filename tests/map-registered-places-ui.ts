@@ -30,7 +30,9 @@ try{
     otherArea=body.points[0][0]>-23.48;
     const places=otherArea?[{...base,id:'other-area',name:'Museu no bairro explorado',kind:'museum',lat:-23.4,lng:-46.5}]:[
       ...(phase<2?[base]:[]),
-      {...base,id:'osm:node:101',name:'Shopping cadastrado',kind:'shopping',lat:-23.5496,lng:-46.6303},
+      // Stay in the real viewport after navigation turns the camera along the
+      // street. The previous point was outside the tilted, course-up view.
+      {...base,id:'osm:node:101',name:'Shopping cadastrado',kind:'shopping',lat:-23.54975,lng:-46.6299},
       {...base,id:'osm:node:102',name:'Café cadastrado',kind:'cafe',lat:-23.5496,lng:-46.6294},
       ...(body.includeFuel?[{...base,id:'fuel-live',name:'Posto cadastrado',kind:'fuel',lat:-23.5505,lng:-46.6305}]:[]),
       ...(phase>0?[{...base,id:'new-live',name:'Museu cadastrado agora',kind:'museum',lat:-23.5506,lng:-46.6294}]:[])

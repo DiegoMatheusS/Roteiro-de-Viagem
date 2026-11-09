@@ -54,6 +54,7 @@ test('failed tiles remove stale colors and back off, without causing a base-map 
   for(let i=0;i<20;i++)map.events.idle();assert.equal(calls,1);
   t.mock.timers.tick(60000);await flush();assert.equal(calls,2);
   assert.equal(isTrafficMapError({sourceId:'role-traffic-flow'}),true);
+  assert.equal(isTrafficMapError({sourceId:'role-traffic-flow-12'}),true);
   assert.equal(isTrafficMapError({error:{message:'Failed https://api.test/api/traffic/tiles/light/1/0/0.png'}}),true);
   assert.equal(isTrafficMapError({sourceId:'openfreemap'}),false);
   control.destroy();

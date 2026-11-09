@@ -61,7 +61,7 @@ test('Leaflet remains the single camera owner and existing follow button resumes
   assert.match(map,/unbindManualZoom\(\)/);
   assert.match(map,/cameraModeChangeRef\.current\?\.\('exploring'\)/);
   assert.match(map,/cameraModeChangeRef\.current\?\.\('following'\)/);
-  assert.match(map,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
+  assert.match(map,/createHybridCameraPort\(map\)\.follow\(target,reducedMotion,motion\?\.durationMs\)/);
   assert.match(screen,/onCameraModeChange=\{setCameraMode\}/);
   assert.doesNotMatch(screen,/>Seguir GPS<\/span>/,
     'GPS remains an icon-only control while exploring');

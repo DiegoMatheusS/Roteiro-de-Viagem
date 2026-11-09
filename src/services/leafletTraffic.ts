@@ -4,7 +4,16 @@ import {TRAFFIC_MIN_ZOOM,trafficViewportRadiusKm,type TrafficMapPort} from './tr
 export function createLeafletTrafficPort(map:L.Map):TrafficMapPort {
   let layer:L.TileLayer|null=null,currentUrl:string|null=null,moving=false;
   let events:Parameters<TrafficMapPort['listen']>[0]|null=null;
-  const clear=()=>{if(layer){layer.off();try{layer.remove();}catch{/* Map already gone. */}layer=null;}currentUrl=null;};
+  const clear=()=>{
+    if(layer){
+      const previous=layer;layer=null;
+      // Leaflet's internal remove listener unbinds map zoom/move events. Calling
+      // off() first erases that listener and leaves callbacks with _map=null.
+      try{previous.remove();}catch{/* Map already gone. */}
+      previous.off();
+    }
+    currentUrl=null;
+  };
   return {
     getZoom:()=>map.getZoom(),
     getViewportRadiusKm:(from)=>{

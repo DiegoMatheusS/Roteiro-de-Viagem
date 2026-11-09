@@ -7,8 +7,8 @@ const source = readFileSync(new URL('../src/components/InteractiveMap.tsx',impor
 test('GPS and progress render in independent Leaflet fallback groups',()=>{
   assert.match(source,/livePinGroupRef\.current = L\.layerGroup\(\)\.addTo\(map\)/);
   assert.match(source,/progressGroupRef\.current = L\.layerGroup\(\)\.addTo\(map\)/);
-  assert.match(source,/existing\.setLatLng\(markerCoords\)/);
-  assert.match(source,/liveFallbackRef\.current=L\.marker\(markerCoords/);
+  assert.match(source,/existing\.setLatLng\(displayCoords\)/);
+  assert.match(source,/liveFallbackRef\.current=L\.marker\(displayCoords/);
   assert.match(source,/const progress=splitRouteAtPosition\(routePath,userLiveCoords,travelledDistanceKm,totalRouteKm\)/);
   assert.match(source,/if \(vectorRoutesReady \|\| !\(navigationMode \|\| blueRoute\) \|\| routePath\.length<2\) return/);
 });
@@ -33,7 +33,7 @@ test('user dragging pauses camera following but GPS recenter resumes it',()=>{
   assert.match(source,/followSuspendedRef\.current=true/);
   assert.match(source,/followSuspendedRef\.current=false/);
   assert.match(source,/else if \(followUser && !followSuspendedRef\.current\)/);
-  assert.match(source,/createHybridCameraPort\(map\)\.follow\(userLiveCoords,reducedMotion\)/);
+  assert.match(source,/createHybridCameraPort\(map\)\.follow\(target,reducedMotion,motion\?\.durationMs\)/);
   assert.match(source,/window\.matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)/);
 });
 test('smooth pinch zoom is enabled while fallback and native markers remain',()=>{

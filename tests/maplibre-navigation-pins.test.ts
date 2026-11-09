@@ -46,7 +46,7 @@ test('Leaflet fallback and MapLibre switch do not create duplicate GPS endpoints
   assert.match(text,/if \(!markerCoords \|\| vectorNavigationReady/);
   assert.match(text,/vectorNavigationController\.current\?\.update\(navigationPinInputs\.current\)/);
   assert.match(text,/setVectorNavigationReady\(false\)/);
-  assert.match(text,/L\.marker\(markerCoords/);
+  assert.match(text,/L\.marker\(displayCoords/);
   assert.match(text,/routeAlternatives\.length > 1/);
   assert.match(text,/centerOnUserRequest/);
 });
