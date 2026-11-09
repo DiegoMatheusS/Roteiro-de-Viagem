@@ -30,9 +30,9 @@ export interface CameraPort {
   focus(point:CameraPoint,zoom:number,reducedMotion?:boolean):void;
   fitRoute(points:readonly CameraPoint[],padding:CameraFitPadding):void;
   recenter(point:CameraPoint,navigation:boolean,reducedMotion:boolean,restoreNavigationView?:boolean):void;
-  follow(point:CameraPoint,reducedMotion:boolean):void;
+  follow(point:CameraPoint,reducedMotion:boolean,durationMs?:number):void;
   /** Optional: native turn zoom, never invoked by the raster/Leaflet fallback. */
-  zoomToTurn?(point:CameraPoint,zoom:number,reducedMotion:boolean):void;
+  zoomToTurn?(point:CameraPoint,zoom:number,reducedMotion:boolean,durationMs?:number):void;
 }
 interface LeafletCamera {
   getZoom():number;
@@ -69,9 +69,10 @@ export function createHybridCameraPort(map:LeafletCamera):CameraPort {
       if(reducedMotion)map.setView(point,zoom,{animate:false});
       else map.flyTo(point,zoom,{duration:0.55,easeLinearity:0.3});
     },
-    follow(point,reducedMotion){
-      if(reducedMotion)map.panTo(point,{animate:false});
-      else map.panTo(point,{animate:true,duration:0.45,easeLinearity:0.3});
+    follow(point,reducedMotion,durationMs){
+      if(reducedMotion||durationMs===0)map.panTo(point,{animate:false});
+      else map.panTo(point,{animate:true,duration:durationMs===undefined?0.45:Math.max(0,durationMs)/1000,
+        easeLinearity:durationMs===undefined?0.3:1});
     }
   };
 }
@@ -81,7 +82,8 @@ interface StandaloneMapLibreCamera {
   getContainer?():{clientHeight:number};
   stop():unknown;
   jumpTo(options:{center:[number,number];zoom?:number;bearing?:number;pitch?:number;padding?:CameraInsets}):unknown;
-  easeTo(options:{center:[number,number];zoom?:number;bearing?:number;pitch?:number;padding?:CameraInsets;duration:number}):unknown;
+  easeTo(options:{center:[number,number];zoom?:number;bearing?:number;pitch?:number;padding?:CameraInsets;
+    duration:number;easing?:(t:number)=>number;easeId?:string}):unknown;
   fitBounds(bounds:[[number,number],[number,number]],options:{
     padding:{top:number;right:number;bottom:number;left:number};maxZoom:number;duration:number;bearing?:number
   }):unknown;
@@ -102,23 +104,28 @@ export function createStandaloneMapLibreCameraPort(
   const navigationView=()=>({pitch:NAVIGATION_START_PITCH,
     padding:{top:Math.round((map.getContainer?.().clientHeight??0)*0.24),right:0,bottom:0,left:0}});
   let pendingView:ReturnType<typeof navigationView>|null=null;
+  let pendingZoom:number|undefined;
+  const linear=(t:number)=>t;
+  const followAnimation=(durationMs?:number)=>durationMs===undefined?{}:{easing:linear,easeId:'role-gps-follow'};
   const continuingView=()=>{
     // A GPS fix can arrive during the recenter animation. Carry its target
     // pitch into the replacement move instead of freezing halfway to 55°.
     const pitch=map.getPitch?.();
     if(pendingView&&pitch!==undefined&&Math.abs(pitch-NAVIGATION_START_PITCH)<0.01)pendingView=null;
-    return pendingView??{};
+    if(pendingZoom!==undefined&&Math.abs(map.getZoom()-pendingZoom)<0.001)pendingZoom=undefined;
+    return {...pendingView??{},...(pendingZoom===undefined?{}:{zoom:pendingZoom})};
   };
   return {
     zoom:()=>map.getZoom(),
     // The session invokes this once before a manual gesture starts. MapLibre
     // 6 does not forward an allowGestures argument on the public Map.stop().
-    stop:()=>{pendingView=null;map.stop();},
+    stop:()=>{pendingView=null;pendingZoom=undefined;map.stop();},
     firstGpsFix(point){
-      pendingView=null;
+      pendingView=null;pendingZoom=undefined;
       map.jumpTo({center:lngLat(point),zoom:NAVIGATION_START_ZOOM,...orientation(),...navigationView()});
     },
     focus(point,zoom,reducedMotion=true){
+      pendingZoom=undefined;
       if(reducedMotion)map.jumpTo({center:lngLat(point),zoom,...orientation()});
       else map.easeTo({center:lngLat(point),zoom,duration:1200,...orientation()});
     },
@@ -141,21 +148,23 @@ export function createStandaloneMapLibreCameraPort(
     },
     recenter(point,navigation,reducedMotion,restoreNavigationView=false){
       const zoom=recenterZoom(map.getZoom(),navigation,restoreNavigationView);
+      pendingZoom=zoom;
       pendingView=navigation&&restoreNavigationView?navigationView():null;
       const view=pendingView??{};
       if(reducedMotion){map.jumpTo({center:lngLat(point),zoom,...orientation(),...view});pendingView=null;}
       else map.easeTo({center:lngLat(point),zoom,duration:550,...orientation(),...view});
     },
-    follow(point,reducedMotion){
+    follow(point,reducedMotion,durationMs){
       const view=continuingView();
       if(reducedMotion){map.jumpTo({center:lngLat(point),...orientation(),...view});pendingView=null;}
-      else map.easeTo({center:lngLat(point),duration:210,...orientation(),...view});
+      else map.easeTo({center:lngLat(point),duration:durationMs??210,...followAnimation(durationMs),...orientation(),...view});
     },
-    zoomToTurn(point,zoom,reducedMotion){
+    zoomToTurn(point,zoom,reducedMotion,durationMs){
       // One owner, one camera move: keep the vehicle centered through zoom.
+      pendingZoom=zoom;
       const view=continuingView();
-      if(reducedMotion){map.jumpTo({center:lngLat(point),zoom,...orientation(),...view});pendingView=null;}
-      else map.easeTo({center:lngLat(point),zoom,duration:235,...orientation(),...view});
+      if(reducedMotion){map.jumpTo({center:lngLat(point),...view,zoom,...orientation()});pendingView=null;}
+      else map.easeTo({center:lngLat(point),...view,zoom,duration:durationMs??235,...followAnimation(durationMs),...orientation()});
     }
   };
 }

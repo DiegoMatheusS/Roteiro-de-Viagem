@@ -34,6 +34,7 @@ import type {RoadAlertPinController} from '../services/mapLibreRoadAlertMarkers'
 import type { NavigationPins, NavigationPinController } from '../services/mapLibreNavigationPins';
 import { arrowHeadingStyle } from '../services/gpsHeading';
 import { setGpsMarkerState,shouldShowDestinationPin } from '../services/gpsMarkerState';
+import {createGpsDisplayMotion} from '../services/gpsDisplayMotion';
 import { createHybridCameraPort, type CameraMode } from '../services/mapCameraController';
 import {mapRouteFitKey,shouldFitMapRoute,shouldAutoFitRouteCamera} from '../services/mapRouteFit';
 import { bindManualMapZoom } from '../services/mapUserZoomGestures';
@@ -89,8 +90,10 @@ export interface InteractiveMapProps {
   /** Visual reference during signal loss; never a fresh fix for following. */
   userLastKnownCoords?:[number,number];
   userGpsAccuracyMeters?:number;
+  /** GPS fix time: compass-only updates reuse the same sample. */
+  userGpsTimestamp?:number;
   userHeadingDegrees?: number | null;
-  /** Device compass, independent of movement course. Native Android only. */
+  /** Compass for browsing; driving direction follows the road. Native Android only. */
   userDeviceHeadingDegrees?: number | null;
   userSpeedMetersPerSecond?: number | null;
   /** Verified distance to a turn/roundabout/arrival, for native camera assist only. */
@@ -158,6 +161,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   userLiveCoords,
   userLastKnownCoords,
   userGpsAccuracyMeters,
+  userGpsTimestamp,
   userHeadingDegrees,
   userDeviceHeadingDegrees,
   userSpeedMetersPerSecond,
@@ -215,7 +219,10 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const navigationPinInputs = useRef<NavigationPins>({origin:originCoords,destination:destinationCoords,
     live:markerCoords,liveStale:markerStale,headingDegrees:markerHeading,speedMetersPerSecond:markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle});
   navigationPinInputs.current={origin:originCoords,destination:destinationCoords,
-    live:markerCoords,liveStale:markerStale,headingDegrees:markerHeading,speedMetersPerSecond:markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle};
+    live:markerCoords,liveStale:markerStale,liveTimestamp:userGpsTimestamp,liveAccuracyMeters:userGpsAccuracyMeters,
+    liveSpeedMetersPerSecond:userSpeedMetersPerSecond,routePath,travelledKm:travelledDistanceKm,totalKm:totalRouteKm,
+    headingDegrees:navigationMode?userHeadingDegrees:markerHeading,speedMetersPerSecond:markerHeadingSpeed,
+    originLabel,destinationLabel,navigationMode,roadStyle};
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const rainLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const refreshRainAvoidanceRef=useRef<(()=>void)|null>(null);
@@ -227,6 +234,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const navigationPinGroupRef = useRef<L.LayerGroup | null>(null);
   const livePinGroupRef = useRef<L.LayerGroup | null>(null);
   const liveFallbackRef = useRef<L.Marker | null>(null);
+  const liveMotionRef=useRef<ReturnType<typeof createGpsDisplayMotion>|null>(null);
   const liveFallbackHeadingRef = useRef<number|null>(null);
   const progressGroupRef = useRef<L.LayerGroup | null>(null);
   const milestoneGroupRef=useRef<L.LayerGroup|null>(null);
@@ -237,6 +245,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const followSuspendedRef = useRef(resumeViewport?.mode==='exploring');
   const idleFollowRef=useRef<ReturnType<typeof createNavigationIdleFollow>|null>(null);
   const latestLiveCoords=useRef(userLiveCoords);
+  const followRefreshRef=useRef(false);
   latestLiveCoords.current=userLiveCoords;
   const initialFocusRef=useRef(true);
   const cameraModeChangeRef = useRef(onCameraModeChange);
@@ -260,7 +269,12 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   visibleCallbackRef.current = onVisiblePlacesChange;
   const visibleKeyRef = useRef('');
   const [hasMapReady, setHasMapReady] = useState(false);
-  const trafficPort=useMemo(()=>hasMapReady&&mapInstanceRef.current?createLeafletTrafficPort(mapInstanceRef.current):null,[hasMapReady]);
+  const trafficPort=useMemo(()=>{
+    if(!hasMapReady||!mapInstanceRef.current)return null;
+    const port=createLeafletTrafficPort(mapInstanceRef.current);
+    return {...port,isMoving:()=>navigationModeRef.current
+      ?followSuspendedRef.current&&port.isMoving():port.isMoving()};
+  },[hasMapReady]);
   const discoveryPoints = routePath.length ? routePath : originCoords ? [originCoords]
     : viewportCenter ? [viewportCenter] : [];
 
@@ -385,6 +399,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     };
     map.on('dragstart',pauseFollowing);
     map.on('boxzoomstart',pauseFollowing);
+    const holdHidden=()=>{
+      if(!document.hidden||!navigationModeRef.current||followSuspendedRef.current)return;
+      createHybridCameraPort(map).stop();followRefreshRef.current=true;
+    };
+    document.addEventListener('visibilitychange',holdHidden);
     // Pinch, trackpad, double-tap and keyboard zoom count as user exploration,
     // just like dragging: GPS follow must not recenter while zooming.
     // They are detected on the map canvas, not on floating navigation controls.
@@ -436,6 +455,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       unbindResumeRefresh();
       map.off('dragstart',pauseFollowing);
       map.off('boxzoomstart',pauseFollowing);
+      document.removeEventListener('visibilitychange',holdHidden);
       map.off('dragend',gestureEnd);
       map.off('boxzoomend',gestureEnd);
       map.off('zoomend',gestureEnd);
@@ -964,7 +984,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 
   useEffect(() => {
     vectorNavigationController.current?.update(navigationPinInputs.current);
-  },[originCoords,destinationCoords,markerCoords,markerStale,markerHeading,markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle]);
+  },[originCoords,destinationCoords,markerCoords,markerStale,userGpsTimestamp,userGpsAccuracyMeters,userSpeedMetersPerSecond,
+    userHeadingDegrees,markerHeading,markerHeadingSpeed,originLabel,destinationLabel,navigationMode,roadStyle,routePath,travelledDistanceKm,totalRouteKm]);
 
   // Smoothly center and fly to focused coordinates (e.g. when user clicks "Ver no Mapa" on meeting point)
   useEffect(() => {
@@ -1051,6 +1072,16 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
 
   // GPS position is independent of static trip markers. Only the dynamic marker
   // moves; route stops and convoy meeting pins are NOT recreated per fix.
+  useEffect(()=>{
+    const motion=createGpsDisplayMotion((point,heading)=>{
+      liveFallbackRef.current?.setLatLng(point);
+      if(heading!==undefined)liveFallbackHeadingRef.current=arrowHeadingStyle(
+        liveFallbackRef.current?.getElement()?.querySelector('svg')??null,liveFallbackHeadingRef.current,heading,null,true);
+    });
+    liveMotionRef.current=motion;
+    return()=>{motion.destroy();liveMotionRef.current=null;};
+  },[]);
+
   useEffect(() => {
     const map=mapInstanceRef.current;
     const group=livePinGroupRef.current;
@@ -1060,11 +1091,17 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         Math.abs(markerCoords[0])>90 || Math.abs(markerCoords[1])>180) {
       group.clearLayers();
       liveFallbackRef.current=null;
+      liveMotionRef.current?.update({enabled:false,reducedMotion:true});
       return;
     }
+    const motion=liveMotionRef.current?.update({position:markerStale?undefined:markerCoords,
+      timestamp:userGpsTimestamp,accuracyMeters:userGpsAccuracyMeters,speedMetersPerSecond:userSpeedMetersPerSecond,
+      headingDegrees:userHeadingDegrees,routePath,travelledKm:travelledDistanceKm,totalKm:totalRouteKm,
+      enabled:navigationMode,reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false});
+    const displayCoords=motion?.position??markerCoords;
     const existing=liveFallbackRef.current;
     if (existing && group.hasLayer(existing)) {
-      existing.setLatLng(markerCoords);
+      existing.setLatLng(displayCoords);
       const element=existing.getElement();
       if(element){element.style.pointerEvents=navigationMode?'none':'auto';element.tabIndex=navigationMode?-1:0;setGpsMarkerState(element,markerStale);}
       return;
@@ -1076,23 +1113,25 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         <svg width="36" height="36" viewBox="0 0 24 24" fill="#2563eb" stroke="white" stroke-width="1.5" stroke-linejoin="round" style="filter:drop-shadow(0 2px 2px #0f172a66)" aria-hidden="true"><path d="M12 2 20 21 12 17 4 21 12 2Z"/></svg></div>`,
       iconSize:[36,36],iconAnchor:[18,18]
     });
-    liveFallbackRef.current=L.marker(markerCoords,{icon,zIndexOffset:1000,
+    liveFallbackRef.current=L.marker(displayCoords,{icon,zIndexOffset:1000,
       interactive:!navigationMode,keyboard:!navigationMode})
       .addTo(group).bindPopup('<b>Sua Posição Atual (GPS)</b>');
     const element=liveFallbackRef.current.getElement();
     if(element)setGpsMarkerState(element,markerStale);
-  },[markerCoords,markerStale,vectorNavigationReady,navigationMode]);
+  },[markerCoords,markerStale,userGpsTimestamp,userGpsAccuracyMeters,userSpeedMetersPerSecond,userHeadingDegrees,
+    vectorNavigationReady,navigationMode,routePath,travelledDistanceKm,totalRouteKm]);
 
   // Rotate the GPS arrow itself, never the Leaflet/MapLibre cameras separately.
   // Those cameras are still coupled through the hybrid adapter.
   useEffect(()=>{
     if(vectorNavigationReady)return;
     const svg=liveFallbackRef.current?.getElement()?.querySelector('svg') || null;
+    const heading=navigationMode?liveMotionRef.current?.snapshot().headingDegrees:markerHeading;
     liveFallbackHeadingRef.current=arrowHeadingStyle(
-      svg,liveFallbackHeadingRef.current,markerHeading,markerHeadingSpeed,
-      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+      svg,liveFallbackHeadingRef.current,heading,navigationMode?null:markerHeadingSpeed,
+      navigationMode||(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false)
     );
-  },[userLiveCoords,markerHeading,markerHeadingSpeed,vectorNavigationReady]);
+  },[userLiveCoords,userHeadingDegrees,markerHeading,markerHeadingSpeed,vectorNavigationReady,navigationMode]);
 
   // Lightweight progress overlays for raster/legacy mode. Vector mode already
   // updates its GeoJSON source independently, with the exact same GPS split.
@@ -1528,6 +1567,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !navigationMode || !userLiveCoords) {
+      if(map&&navigationMode&&!userLiveCoords&&lastFollowRef.current&&!followSuspendedRef.current)
+        createHybridCameraPort(map).stop();
       if(!navigationMode)idleFollowRef.current?.reset();
       lastFollowRef.current = null;
       if (!navigationMode && followSuspendedRef.current){
@@ -1536,18 +1577,21 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       }
       return;
     }
+    const motion=vectorNavigationReady?vectorNavigationController.current?.liveMotion():liveMotionRef.current?.snapshot();
+    const target=motion?.target??userLiveCoords;
     const last = lastFollowRef.current;
-    const changed = !last || Math.abs(last[0] - userLiveCoords[0]) + Math.abs(last[1] - userLiveCoords[1]) > 0.00004;
+    const changed = !last || followRefreshRef.current || Math.abs(last[0] - target[0]) + Math.abs(last[1] - target[1]) > (motion?1e-9:0.000009);
     if (!changed) return;
     if (!last && !followSuspendedRef.current) {
       // GPS first fix: keep initial reposition snappy, no cross-country flyover.
-      createHybridCameraPort(map).firstGpsFix(userLiveCoords);
+      createHybridCameraPort(map).firstGpsFix(target);
     } else if (followUser && !followSuspendedRef.current) {
       const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-      createHybridCameraPort(map).follow(userLiveCoords,reducedMotion);
+      createHybridCameraPort(map).follow(target,reducedMotion,motion?.durationMs);
     }
-    lastFollowRef.current = userLiveCoords;
-  }, [navigationMode, userLiveCoords, followUser]);
+    lastFollowRef.current = target;
+    followRefreshRef.current=false;
+  }, [navigationMode, userLiveCoords,userGpsTimestamp,followUser,vectorNavigationReady]);
 
   return (
     <div className={`relative overflow-hidden ${className}`} data-map-engine="leaflet-fallback" data-role-theme={appearanceTheme}>

@@ -54,8 +54,9 @@ try{
   await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>(
     '[data-map-engine="maplibre-standalone"]')?.dataset.mapZoom)===18.5);
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector<SVGElement>(
-    '.user-live-marker svg')?.style.transform==='rotate(180deg)',{},{timeout:3000});
+  const roadBearing=(Math.atan2(.01*Math.cos(-23.55*Math.PI/180),-.01)*180/Math.PI+360)%360;
+  await page.waitForFunction(expected=>Math.abs(Number(document.querySelector<SVGElement>(
+    '.user-live-marker svg')?.style.transform.match(/rotate\(([-.\d]+)deg\)/)?.[1])-expected)<.02,roadBearing,{timeout:3000});
   releaseTiles();
   await page.waitForFunction(()=>document.querySelector<HTMLElement>(
     '[data-map-engine="maplibre-standalone"]')?.dataset.mapIdle==='true');
@@ -81,16 +82,16 @@ try{
   await touch('touchStart',[{x:90,y:180}]);
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).evaluate(button=>(button as HTMLButtonElement).click());
   await page.waitForTimeout(100);
-  assert.equal(await marker.locator('svg').evaluate(svg=>svg.style.transform),'rotate(180deg)',
-    'hold the newest GPS drawing until the fingers and inertial movement stop');
+  assert.ok(Math.abs(await marker.locator('svg').evaluate(svg=>Number(svg.style.transform.match(/rotate\(([-.\d]+)deg\)/)?.[1]))-roadBearing)<.02,
+    'GPS course-only changes keep the arrow aligned to the road during contact');
   for(let i=1;i<=8;i++){
     await touch('touchMove',[{x:90+i*12,y:180+i*6}]);
     await page.waitForTimeout(25);
   }
   await touch('touchEnd',[]);
   await page.waitForFunction(()=>document.querySelector('[data-testid="mode"]')?.textContent==='exploring');
-  await page.waitForFunction(()=>document.querySelector<SVGElement>(
-    '.user-live-marker svg')?.style.transform==='rotate(270deg)',{},{timeout:3000});
+  await page.waitForFunction(expected=>Math.abs(Number(document.querySelector<SVGElement>(
+    '.user-live-marker svg')?.style.transform.match(/rotate\(([-.\d]+)deg\)/)?.[1])-expected)<.02,roadBearing,{timeout:3000});
   const panAfter=await marker.boundingBox();assert.ok(panAfter);
   assert.ok(Math.hypot(panAfter.x-panBefore.x,panAfter.y-panBefore.y)>50,
     'drag must follow the whole gesture, not stop after its first small movement');

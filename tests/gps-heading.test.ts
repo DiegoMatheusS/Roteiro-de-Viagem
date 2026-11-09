@@ -35,7 +35,7 @@ test('live arrow rotates in both MapLibre and raster fallback, without desyncing
   const trip=read('src/components/ActiveTripModal.tsx');
   const home=read('src/components/NavigationHome.tsx');
   const tab=read('src/components/MapTab.tsx');
-  assert.match(controller,/arrowHeadingStyle\(svg,lastHeading,input\.headingDegrees,input\.speedMetersPerSecond/);
+  assert.match(controller,/arrowHeadingStyle\(svg,lastHeading,input\.navigationMode\?frame\.headingDegrees:input\.headingDegrees/);
   assert.match(map,/liveFallbackHeadingRef\.current=arrowHeadingStyle\(/);
   assert.match(map,/userHeadingDegrees\?: number \| null/);
   assert.match(map,/userSpeedMetersPerSecond\?: number \| null/);

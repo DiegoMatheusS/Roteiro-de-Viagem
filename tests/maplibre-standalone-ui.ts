@@ -34,8 +34,9 @@ try{
     'rain at the GPS position must not cover the arrow');
   assert.notEqual(await nextRain.evaluate(element=>getComputedStyle(element).visibility),'hidden',
     'other forecast locations stay visible');
-  assert.equal(Number(await map.getAttribute('data-map-bearing')),90,'driving starts oriented toward the GPS course');
-  await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing)-90)<0.00001);
+  const roadBearing=(Math.atan2(.01*Math.cos(-23.55*Math.PI/180),-.01)*180/Math.PI+360)%360;
+  assert.ok(Math.abs(Number(await map.getAttribute('data-map-bearing'))-roadBearing)<.02,'driving starts oriented along the road geometry');
+  await page.waitForFunction(expected=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing)-expected)<.02,roadBearing);
   const box=await map.boundingBox();assert.ok(box);
   // Native drag (not a simulated camera call) must pause GPS following.
   await page.mouse.move(box.x+70,box.y+150);await page.mouse.down();
@@ -51,8 +52,8 @@ try{
     'moving GPS hides the rain cluster at the new arrow position');
   assert.equal(await map.getAttribute('data-map-center'),center,'GPS updates move the pin while manual camera position remains unchanged');
   await page.getByRole('button',{name:'Mudar direção GPS',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector<SVGElement>('.user-live-marker svg')?.style.transform==='rotate(180deg)');
-  assert.equal(Number(await map.getAttribute('data-map-bearing')),90,'GPS course updates must not rotate an explored map');
+  await page.waitForFunction(expected=>Math.abs(Number(document.querySelector<SVGElement>('.user-live-marker svg')?.style.transform.match(/rotate\(([-.\d]+)deg\)/)?.[1])-expected)<.02,roadBearing);
+  assert.ok(Math.abs(Number(await map.getAttribute('data-map-bearing'))-roadBearing)<.02,'GPS updates must not rotate an explored map');
   const exploredZoom=await map.getAttribute('data-map-zoom');
   await page.getByRole('button',{name:'Manter o mapa apontado para o norte',exact:true}).click();
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
@@ -62,7 +63,7 @@ try{
   assert.equal(await map.getAttribute('data-map-zoom'),exploredZoom);
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'exploring','compass must not resume GPS');
   await page.getByRole('button',{name:'Orientar mapa na direção da viagem',exact:true}).click();
-  await page.waitForFunction(()=>Math.abs(Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))-180)<0.00001);
+  await page.waitForFunction(expected=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing)-expected)<.02,roadBearing);
   const courseCenter=JSON.parse((await map.getAttribute('data-map-center'))!);
   assert.ok(courseCenter.every((value:number,index:number)=>Math.abs(value-exploredCenter[index])<1e-8),'explicit course preserves the explored center');
   assert.equal(await map.getAttribute('data-map-zoom'),exploredZoom);
@@ -78,7 +79,7 @@ try{
   assert.equal(await page.locator('[data-testid="mode"]').textContent(),'following');
   assert.equal(Number(await map.getAttribute('data-map-zoom')),18.5,'GPS restores the initial driving zoom');
   assert.ok(Math.abs(Number(await map.getAttribute('data-map-pitch'))-55)<0.01,'GPS restores the initial tilt');
-  assert.ok(Math.abs(Math.abs(Number(await map.getAttribute('data-map-bearing')))-180)<0.00001,'follow resumes with the latest reliable GPS course');
+  assert.ok(Math.abs(Number(await map.getAttribute('data-map-bearing'))-roadBearing)<.02,'follow resumes with the verified road direction');
   await page.getByRole('button',{name:'Manter o mapa apontado para o norte',exact:true}).click();
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapBearing))<0.00001);
   // A recalculated route must not zoom out or move the live GPS camera.

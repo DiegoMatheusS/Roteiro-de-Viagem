@@ -240,6 +240,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           userLiveCoords={isGpsActive ? tracking.position?.coords:undefined}
           userLastKnownCoords={tracking.lastKnownPosition?.coords}
           userGpsAccuracyMeters={isGpsActive?tracking.position?.accuracyMeters:undefined}
+          userGpsTimestamp={isGpsActive?tracking.position?.timestamp:undefined}
           userHeadingDegrees={isGpsActive ? tracking.position?.headingDegrees : null}
           userDeviceHeadingDegrees={isGpsActive ? tracking.deviceHeadingDegrees : null}
           userSpeedMetersPerSecond={isGpsActive?tracking.position?.speedMetersPerSecond:null}

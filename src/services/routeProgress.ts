@@ -42,7 +42,8 @@ function indexPath(path:Coordinates[]):PathIndex{
  * farther than the best candidate cannot contain a closer point, so they are
  * rejected with a few comparisons instead of a projection. */
 export function projectRouteProgress(
-  path:Coordinates[],location?:Coordinates,travelledKm=0,totalKm=0
+  path:Coordinates[],location?:Coordinates,travelledKm=0,totalKm=0,
+  options?:{parallelToleranceMeters:number;progressWeightMeters:number}
 ):RouteProjection|null{
   if(path.length<2||!location||!valid(location))return null;
   const {lat,lon,ok}=indexPath(path);
@@ -77,7 +78,7 @@ export function projectRouteProgress(
     ?Math.min(1,Math.max(0,travelledKm/totalKm)):0;
   // Pass 2: among segments about as close as the best one (parallel roads,
   // loops that revisit the same place), prefer the one matching trip progress.
-  const limit=nearestMeters+PARALLEL_ROAD_TOLERANCE_METERS,limitSq=limit*limit;
+  const limit=nearestMeters+(options?.parallelToleranceMeters??PARALLEL_ROAD_TOLERANCE_METERS),limitSq=limit*limit;
   let nearest:RouteProjection|null=null,bestScore=Infinity;
   for(let i=1;i<count;i++){
     if(!ok[i-1]||!ok[i])continue;
@@ -95,7 +96,7 @@ export function projectRouteProgress(
     const meters=Math.hypot(gx-t*dx,gy-t*dy);
     if(meters>limit)continue;
     const fraction=(i-1+t)/(count-1);
-    const score=meters+Math.abs(fraction-progress)*150;
+    const score=meters+Math.abs(fraction-progress)*(options?.progressWeightMeters??150);
     if(score<bestScore){
       bestScore=score;
       nearest={segmentStart:i-1,fraction:t,

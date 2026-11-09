@@ -63,9 +63,9 @@ test('pending GPS recenter survives missing location; tiny or invalid fixes do n
   s.session.update({...input,centerRequest:1});
   s.session.update({...input,centerRequest:1,position:[-23.500001,-46.6]});
   s.session.update({...input,centerRequest:1,position:[Infinity,0]});
-  assert.deepEqual(s.calls,['recenter']);
+  assert.deepEqual(s.calls,['recenter','stop']);
   s.session.update({...input,centerRequest:1,followUser:false,position:[-23.51,-46.6]});
-  assert.deepEqual(s.calls,['recenter']);
+  assert.deepEqual(s.calls,['recenter','stop']);
 });
 
 test('leaving navigation resets exploration and does not create a second camera owner',()=>{
@@ -74,6 +74,27 @@ test('leaving navigation resets exploration and does not create a second camera 
   s.session.update(input);
   assert.deepEqual(s.calls,['first','stop','first']);
   assert.deepEqual(s.modes,['exploring','following']);
+});
+
+test('GPS loss stops an in-flight follow once without cancelling user gestures',()=>{
+  const s=setup();s.session.update(input);
+  s.session.update({...input,position:[-23.5001,-46.6],followDurationMs:1000});
+  s.session.update({...input,position:undefined});s.session.update({...input,position:undefined});
+  assert.deepEqual(s.calls,['first','follow','stop']);
+  s.session.update(input);s.session.explore();const count=s.calls.length;
+  s.session.update({...input,position:undefined});assert.equal(s.calls.length,count);
+});
+
+test('background suspension accepts a fresh fix at the same coordinates after the camera was interrupted',()=>{
+  const s=setup();s.session.update(input);
+  s.session.update({...input,position:[-23.5001,-46.6],followDurationMs:1000});s.session.suspend();
+  s.session.update({...input,position:[-23.5001,-46.6],followDurationMs:0});
+  assert.deepEqual(s.calls,['first','follow','stop','follow']);
+});
+test('display-filtered fixes keep the camera following slow movement smaller than one meter',()=>{
+  const s=setup();s.session.update({...input,speedMetersPerSecond:1,followDurationMs:0});
+  s.session.update({...input,position:[input.position[0]+0.000007,input.position[1]],speedMetersPerSecond:1,followDurationMs:750});
+  assert.deepEqual(s.calls,['first','follow']);
 });
 
 
