@@ -41,6 +41,15 @@ try{
       }:id==='admin:explore-museum'?{photo:'https://upload.wikimedia.org/broken.jpg',photoPage:'https://commons.wikimedia.org/wiki/File:Missing.jpg',photoCredit:'Autor do teste · CC BY-SA 4.0'}:null]))}});
     });
     await page.route('https://upload.wikimedia.org/broken.jpg',route=>route.fulfill({status:404,body:''}));
+    const routeRequests:Array<{originCoords:[number,number];destinationCoords:[number,number]}>=[];
+    let routeReady=Promise.resolve(),releaseRoute=()=>{};
+    await page.route('**/api/routes/alternatives',async route=>{
+      const body=route.request().postDataJSON();routeRequests.push(body);
+      await routeReady;
+      await route.fulfill({json:{options:[{id:'explore-selected-route',kind:'fast',distanceKm:3,durationMinutes:7,
+        routePath:[body.originCoords,body.destinationCoords],routeSteps:[],trafficStatus:'unavailable',tollStatus:'unchecked'}],
+        trafficDataAvailable:false}});
+    });
     await page.goto('http://127.0.0.1:3000/tests/fixtures/explore-panel.html');
     const region=page.getByRole('region',{name:'Explorar passeios'});
     const sheet=region.locator('.rdv-explore-sheet');
@@ -135,9 +144,37 @@ try{
     await region.getByRole('heading',{name:'Parque Ibirapuera',exact:true}).waitFor();
     await toggle.click();await page.waitForTimeout(250);
     await pin.waitFor({state:'visible'});
+    // Photos and titles calculate the selected destination, using the same
+    // GPS origin and preview as the existing route button. No double request.
+    const parkName='Parque do teste Explorar';
+    await region.getByRole('searchbox',{name:'Buscar passeios'}).fill(parkName);
+    const parkRow=region.locator('article').filter({has:page.getByRole('heading',{name:parkName,exact:true})});
+    const photoAction=parkRow.getByRole('button',{name:`Calcular percurso para ${parkName} pela foto`,exact:true});
+    await parkRow.getByRole('img',{name:`Fotografia de ${parkName}`,exact:true}).waitFor();
+    routeReady=new Promise<void>(resolve=>{releaseRoute=resolve;});
+    const photoRequest=page.waitForRequest('**/api/routes/alternatives');
+    await photoAction.click();await photoRequest;
+    assert.equal(await photoAction.isDisabled(),true);
+    assert.equal(await parkRow.getByRole('button',{name:parkName,exact:true}).isDisabled(),true);
+    assert.equal(await parkRow.getByRole('button',{name:`Ver rota para ${parkName}`,exact:true}).isDisabled(),true);
+    releaseRoute();
+    const preview=page.getByRole('dialog',{name:'Visualizar viagem',exact:true});
+    await preview.waitFor();
+    assert.deepEqual(routeRequests[0],{originCoords:[-23.55,-46.63],destinationCoords:[-23.54,-46.61]});
+    assert.equal(routeRequests.length,1,'um toque na foto calcula uma única rota');
+    await preview.getByRole('button',{name:'Fechar janela',exact:true}).click();
+    await preview.waitFor({state:'hidden'});
+    const museumName='Museu do teste Explorar';
+    await region.getByRole('searchbox',{name:'Buscar passeios'}).fill(museumName);
+    const titleAction=region.getByRole('button',{name:museumName,exact:true});
+    await titleAction.focus();await titleAction.press('Enter');await preview.waitFor();
+    assert.deepEqual(routeRequests[1],{originCoords:[-23.55,-46.63],destinationCoords:[-23.56,-46.65]});
+    assert.equal(routeRequests.length,2,'o título também calcula uma única rota, inclusive pelo teclado');
+    await preview.getByRole('button',{name:'Fechar janela',exact:true}).click();
+    await preview.waitFor({state:'hidden'});
     fs.mkdirSync('test-results',{recursive:true});
     await page.screenshot({path:`test-results/explore-panel-${fallback?'fallback':'native'}.png`});
     assert.deepEqual(errors,[]);await cdp.detach();await page.close();
   }
-  console.log('PASS: Explorar abre com mais mapa; painel por toque, gesto e teclado; ícones acessíveis e GPS em zoom 12.5 sem interromper exploração, nativo e fallback.');
+  console.log('PASS: Explorar com painel e GPS livres; foto e título calculam uma única rota ao destino selecionado, por toque e teclado, nativo e fallback.');
 }finally{await browser?.close();await vite.close();}

@@ -221,7 +221,11 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           const distance=touristOrigin?exploreDistanceKm(touristOrigin,place.coords):null;
           const preparing=busyId===place.id;
           return <article key={place.id} className="rdv-explore-route-row">
-            <ExplorePlacePhoto place={place}/>
+            <button type="button" className="rdv-explore-photo-action"
+              aria-label={`Calcular percurso para ${place.name} pela foto`}
+              disabled={busyId!==null} onClick={()=>void loadRoute(place)}>
+              <ExplorePlacePhoto place={place}/>
+            </button>
             <div className="rdv-explore-route-copy">
               <span className="rdv-explore-route-category">{place.category}</span>
               {place.photoPage && place.photoCredit && <a href={place.photoPage}
@@ -230,7 +234,9 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
                 title={`Fotografia: ${place.photoCredit}`}>
                 Foto: {place.photoCredit}
               </a>}
-              <h3>{place.name}</h3>
+              <h3><button type="button" className="rdv-explore-title-action"
+                title={`Calcular percurso para ${place.name}`}
+                disabled={busyId!==null} onClick={()=>void loadRoute(place)}>{place.name}</button></h3>
               <p>{place.city||place.address}{distance!==null?` · a ${Math.round(distance)} km`:''}</p>
               <button type="button" aria-label={`Ver rota para ${place.name}`}
                 disabled={busyId!==null} onClick={()=>void loadRoute(place)}
