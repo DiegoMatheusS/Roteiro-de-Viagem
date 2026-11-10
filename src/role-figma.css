@@ -874,3 +874,32 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   font-size:10px !important;box-shadow:0 3px 14px #152b4b25;
   margin-bottom:45px;
 }
+
+/* MapLibre native mode needs the same single-line, expandable attribution
+   as Leaflet; never remove required provider credits from the DOM. */
+.rdv-explore-map[data-credits-open="false"] .maplibregl-ctrl-attrib,
+.rdv-preview-route-map[data-credits-open="false"] .maplibregl-ctrl-attrib {
+  max-width:min(74vw,340px) !important;
+  padding:2px 5px !important;
+  margin-right:38px !important;
+  background:rgba(255,255,255,.92) !important;
+  font-size:9px !important;line-height:1.25 !important;
+}
+.rdv-explore-map[data-credits-open="false"] .maplibregl-ctrl-attrib-inner,
+.rdv-preview-route-map[data-credits-open="false"] .maplibregl-ctrl-attrib-inner {
+  display:block;max-width:100%;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.rdv-explore-map[data-credits-open="true"] .maplibregl-ctrl-attrib,
+.rdv-preview-route-map[data-credits-open="true"] .maplibregl-ctrl-attrib {
+  max-width:min(84vw,430px) !important;
+  padding:5px 7px !important;
+  margin-right:38px !important;
+  background:rgba(255,255,255,.98) !important;
+  font-size:10px !important;line-height:1.35 !important;
+}
+.rdv-explore-map[data-credits-open="true"] .maplibregl-ctrl-attrib-inner,
+.rdv-preview-route-map[data-credits-open="true"] .maplibregl-ctrl-attrib-inner {
+  display:block !important;white-space:normal !important;
+  overflow-wrap:anywhere !important;
+}
