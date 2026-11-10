@@ -73,6 +73,19 @@ try{
       return Math.abs(center[0]+23.55)<tolerance&&Math.abs(center[1]+46.63)<tolerance&&Number(map?.dataset.mapZoom)===12.5;
     },fallback?'leaflet-fallback':'maplibre-standalone');
     await centered();
+    // Explore starts city-wide (12.5). Requesting full traffic must zoom to the
+    // provider's permitted 5-km GPS viewport, not silently show an empty map.
+    await region.getByRole('button',{name:'Mostrar trânsito',exact:true}).click();
+    await page.waitForFunction(engine=>{
+      const map=document.querySelector<HTMLElement>(`[data-map-engine="${engine}"]`);
+      return Number(map?.dataset.mapZoom)>=15;
+    },fallback?'leaflet-fallback':'maplibre-standalone');
+    await region.locator('[data-traffic-state="unavailable"]').waitFor();
+    assert.match(await region.locator('[data-traffic-control] [role="status"]').innerText(),/indisponíveis/,
+      'quando a API não tem dados, o botão deve explicar a ausência do trânsito');
+    await region.getByRole('button',{name:'Ocultar trânsito completo',exact:true}).click();
+    await region.getByRole('button',{name:'Centralizar nas redondezas do GPS'}).click();
+    await centered();
     assert.equal(photoRequests,0,'o painel fechado não carrega fotografias fora de vista');
     await page.locator('[data-poi-id="admin:cafe-0"]:visible').first().waitFor();
     assert.equal(await page.locator('[data-poi-id^="admin:cafe-"]:visible').count(),12,'Explorar mantém todos os ícones vizinhos, sem suprimir colisões');
