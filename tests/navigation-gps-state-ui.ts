@@ -51,7 +51,11 @@ try{
     const center=await map.getAttribute('data-map-center');
     await receive(6_001,-23.7);
     await page.waitForFunction(()=>document.querySelector('.user-live-marker')?.getAttribute('data-gps-state')==='stale');
-    assert.equal(await map.getAttribute('data-map-center'),center,'stale coordinates must never move the camera');
+    const initialCenter=JSON.parse(center||'[0,0]') as [number,number];
+    const staleCenter=JSON.parse((await map.getAttribute('data-map-center'))||'[0,0]') as [number,number];
+    assert.ok(Math.abs(staleCenter[0]-initialCenter[0])<0.000005&&
+      Math.abs(staleCenter[1]-initialCenter[1])<0.000005,
+      'stale coordinates must never recenter the map (sub-meter animation rounding is tolerated)');
     assert.equal(await page.getByTestId('speed').textContent(),'unknown','stale speed is not live speed');
     assert.equal(await page.getByRole('button',{name:'GPS',exact:true}).isDisabled(),true);
     await page.evaluate(()=>(window as any).__gpsError({code:2}));

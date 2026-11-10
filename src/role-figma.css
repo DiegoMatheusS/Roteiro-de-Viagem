@@ -825,3 +825,81 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   bottom:auto;
   right:82px;
 }
+
+
+/* Route preview: touch/pen/mouse gestures on the drag handle resize the details panel. */
+.rdv-preview-screen {
+  --preview-base-panel-height:39dvh;
+  --preview-panel-height:clamp(170px,calc(var(--preview-base-panel-height) - var(--preview-panel-drag-y,0px)),78dvh);
+}
+.rdv-preview-screen[data-panel-size="compact"] {--preview-base-panel-height:170px;}
+.rdv-preview-screen[data-panel-size="expanded"] {--preview-base-panel-height:70dvh;}
+.rdv-preview-route-map,.rdv-preview-map-controls,.rdv-preview-details {transition:bottom .18s ease,height .18s ease;}
+.rdv-preview-screen[data-panel-dragging="true"] .rdv-preview-route-map,
+.rdv-preview-screen[data-panel-dragging="true"] .rdv-preview-map-controls,
+.rdv-preview-screen[data-panel-dragging="true"] .rdv-preview-details {transition:none;}
+.rdv-preview-panel-drag-handle {
+  position:absolute;top:0;left:0;right:0;width:100%;height:32px;
+  border:0;background:transparent;z-index:12;cursor:ns-resize;touch-action:none;user-select:none;
+}
+.rdv-preview-panel-drag-handle:focus-visible {outline:2px solid #2563eb;outline-offset:-2px;}
+@media(max-height:670px) {
+  .rdv-preview-screen {--preview-base-panel-height:47dvh;}
+  .rdv-preview-screen[data-panel-size="compact"] {--preview-base-panel-height:170px;}
+  .rdv-preview-screen[data-panel-size="expanded"] {--preview-base-panel-height:70dvh;}
+}
+
+/* Keep traffic reachable in small preview and Explore maps, regardless of sheet height. */
+.rdv-preview-route-map [data-traffic-control] {top:16px !important;bottom:auto !important;right:16px !important;}
+.rdv-explore-map [data-traffic-control] {top:70px !important;bottom:auto !important;right:16px !important;}
+
+/* Mobile attribution: credits are reachable by the ⓘ disclosure instead of
+   covering the map with multiple text rows. Full provider links remain intact. */
+.rdv-map-credits-button {
+  position:absolute;right:8px;bottom:8px;z-index:1100;
+  width:29px;height:29px;display:grid;place-items:center;
+  color:#263342;background:#fff;border:1px solid #ccd7e3;border-radius:50%;
+  box-shadow:0 2px 9px #162b4b26;
+}
+.rdv-explore-map[data-credits-open="false"] .leaflet-control-attribution,
+.rdv-preview-route-map[data-credits-open="false"] .leaflet-control-attribution {
+  max-width:min(75vw,340px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:2px 5px !important;margin-right:38px;
+  font-size:8px !important;line-height:1.2;background:rgba(255,255,255,.9) !important;
+}
+.rdv-explore-map[data-credits-open="true"] .leaflet-control-attribution,
+.rdv-preview-route-map[data-credits-open="true"] .leaflet-control-attribution {
+  max-width:min(85vw,460px);white-space:normal;overflow-wrap:anywhere;
+  padding:6px 9px !important;background:rgba(255,255,255,.98) !important;
+  font-size:10px !important;box-shadow:0 3px 14px #152b4b25;
+  margin-bottom:45px;
+}
+
+/* MapLibre native mode needs the same single-line, expandable attribution
+   as Leaflet; never remove required provider credits from the DOM. */
+.rdv-explore-map[data-credits-open="false"] .maplibregl-ctrl-attrib,
+.rdv-preview-route-map[data-credits-open="false"] .maplibregl-ctrl-attrib {
+  max-width:min(74vw,340px) !important;
+  padding:2px 5px !important;
+  margin-right:38px !important;
+  background:rgba(255,255,255,.92) !important;
+  font-size:9px !important;line-height:1.25 !important;
+}
+.rdv-explore-map[data-credits-open="false"] .maplibregl-ctrl-attrib-inner,
+.rdv-preview-route-map[data-credits-open="false"] .maplibregl-ctrl-attrib-inner {
+  display:block;max-width:100%;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.rdv-explore-map[data-credits-open="true"] .maplibregl-ctrl-attrib,
+.rdv-preview-route-map[data-credits-open="true"] .maplibregl-ctrl-attrib {
+  max-width:min(84vw,430px) !important;
+  padding:5px 7px !important;
+  margin-right:38px !important;
+  background:rgba(255,255,255,.98) !important;
+  font-size:10px !important;line-height:1.35 !important;
+}
+.rdv-explore-map[data-credits-open="true"] .maplibregl-ctrl-attrib-inner,
+.rdv-preview-route-map[data-credits-open="true"] .maplibregl-ctrl-attrib-inner {
+  display:block !important;white-space:normal !important;
+  overflow-wrap:anywhere !important;
+}

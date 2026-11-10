@@ -754,7 +754,18 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     data-map-style-menu={styleMenu?'open':'closed'}
     data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
     <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
-    <MapTrafficControl port={trafficPort} offline={offline||Boolean(regionId)} navigation={Boolean(props.navigationMode)} location={props.userLiveCoords}/>
+    <MapTrafficControl port={trafficPort} offline={offline||Boolean(regionId)}
+      navigation={Boolean(props.navigationMode)} location={props.userLiveCoords??props.originCoords??null}
+      onRequestFullTraffic={()=>{
+        const target=latest.current.userLiveCoords??latest.current.originCoords;
+        if(!trafficMap||!target||offline||regionId)return;
+        // The traffic API is deliberately bounded to a 5-km GPS viewport.
+        // Opening traffic from city-wide Explore must first enter that safe viewport.
+        if(trafficPort&&(trafficPort.getZoom()<15.5||trafficPort.getViewportRadiusKm(target)>4.5)){
+          trafficMap.easeTo({center:[target[1],target[0]],zoom:Math.max(15.5,trafficMap.getZoom()),
+            duration:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?0:350});
+        }
+      }}/>
     {selectedRegion&&<div role="status" aria-live="polite"
       className="pointer-events-none absolute left-3 top-3 z-30 max-w-[220px] rounded-xl bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800 shadow-lg">
       Mapa local: {selectedRegion.name} · zoom {selectedRegion.minZoom}–{selectedRegion.maxZoom}
