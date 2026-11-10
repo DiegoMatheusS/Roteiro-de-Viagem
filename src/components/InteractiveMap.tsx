@@ -1629,7 +1629,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           const map=mapInstanceRef.current;
           if(!map||!target||!trafficPort)return;
           if(trafficPort.getZoom()<15.5||trafficPort.getViewportRadiusKm(target)>4.5)
-            map.setView(target,Math.max(15.5,map.getZoom()),{animate:false});
+            createHybridCameraPort(map).focus(target,Math.max(15.5,map.getZoom()),true);
         }}/>
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}
