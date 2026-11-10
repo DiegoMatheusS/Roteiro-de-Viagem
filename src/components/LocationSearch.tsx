@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { LocationSelection } from '../types/itinerary';
 import {isStreetOnlyReference,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
+import {rememberAddress,readAddressHistory} from '../services/addressMemory';
 
 export function LocationSearch({ label, value, onChange, bias, placeholder, allowManualPin=false }: { label: string; value: LocationSelection; onChange: (value: LocationSelection) => void; bias?: [number, number]; placeholder?: string; allowManualPin?:boolean }) {
   const { user } = useAuth();
@@ -13,19 +14,16 @@ export function LocationSearch({ label, value, onChange, bias, placeholder, allo
   const [manualReference,setManualReference]=useState<LocationSelection|null>(null);
   const openStreetMap=(reference?:LocationSelection)=>{setManualReference(reference??null);setShowManualMap(true);};
   const selectPlace = (place: LocationSelection) => {
+    rememberAddress(place,value.name);
     generation.current++; setResults([]); setError('');setShowManualMap(false); onChange(place);
-    // Explicit selection, not every keystroke, is stored privately for the signed-in traveler.
-    if (user && place.id) void fuelApi('/me/locations', {
-      method: 'POST', body: JSON.stringify({ locationId: place.id })
-    }).catch(() => { /* a failed history write must not block route planning */ });
   };
   const myPlaces = async () => {
     const current = ++generation.current;
     setBusy(true); setError('');
     try {
-      const found = await fuelApi<{ results: LocationSelection[] }>('/me/locations');
+      const found = await fuelApi<{ results: LocationSelection[] }>('/me/addresses');
       if (current === generation.current) { setResults(found.results); if (!found.results.length) setError('Nenhum local salvo ainda.'); }
-    } catch (error) { if (current === generation.current) setError((error as Error).message); }
+    } catch (error) { if (current === generation.current) {const stored=readAddressHistory();setResults(stored);if(!stored.length)setError((error as Error).message);} }
     finally { if (current === generation.current) setBusy(false); }
   };
   const generation = useRef(0);
@@ -38,7 +36,7 @@ export function LocationSearch({ label, value, onChange, bias, placeholder, allo
       setResults(result.results.length?result.results:result.streetResults);
       if (!result.results.length&&!result.streetResults.length) setError(result.unmatchedHouseNumber?houseNumberNotFoundMessage(result.unmatchedHouseNumber)
         :'Nenhum local encontrado. Inclua a cidade ou o endereço.');
-      else if (result.unavailable) setError('Busca externa indisponível; exibindo locais já verificados.');
+      else if (result.unavailable) setError('Sem conexão com o Rolê; exibindo endereços guardados.');
     } catch (error) { if (current === generation.current) setError((error as Error).message); }
     finally { if (current === generation.current) setBusy(false); }
   };
@@ -52,6 +50,6 @@ export function LocationSearch({ label, value, onChange, bias, placeholder, allo
     </button>}
     {showManualMap&&<ManualAddressMapPicker query={value.name} bias={bias} reference={manualReference??undefined}
       onCancel={()=>setShowManualMap(false)} onConfirm={selectPlace}/>}
-    {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id} type="button" onClick={() => isStreetOnlyReference(result)?openStreetMap(result):selectPlace(result)} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span>{isStreetOnlyReference(result)&&<span className="block text-blue-700 mt-1 font-semibold">Selecionar ponto nesta rua</span>}</button>)}<p className="text-[10px] p-2 text-slate-500">Locais © OpenStreetMap · índice do app e Photon quando necessário</p></div>}
+    {results.length > 0 && <div className="border rounded-xl overflow-hidden bg-white">{results.map(result => <button key={result.id??`${result.name}:${result.coords}`} type="button" onClick={() => isStreetOnlyReference(result)?openStreetMap(result):selectPlace(result)} className="block text-left w-full p-3 border-b last:border-0 hover:bg-emerald-50 text-xs"><strong className="block">{result.name}</strong><span className="text-slate-500">{result.address}</span>{isStreetOnlyReference(result)&&<span className="block text-blue-700 mt-1 font-semibold">Selecionar ponto nesta rua</span>}</button>)}<p className="text-[10px] p-2 text-slate-500">Base de endereços do Rolê · dados públicos © OpenStreetMap e fontes dos locais</p></div>}
   </div>;
 }

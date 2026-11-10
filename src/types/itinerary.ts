@@ -1,5 +1,7 @@
 export interface LocationSelection {
   id?: string; name: string; address?: string; coords?: [number, number]; sourceUrl?: string; category?: string;
+  addressParts?:import('./address').AddressParts;
+  requiresPin?:boolean;
 }
 export interface MandatoryStop { id: string; location: LocationSelection; stayMinutes: number }
 export interface SuggestedStop { id: string; location: LocationSelection; stayMinutes: number; afterIndex: number }

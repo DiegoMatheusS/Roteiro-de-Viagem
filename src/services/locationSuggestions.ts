@@ -33,6 +33,7 @@ export function requestedHouseNumber(query:string):string|null {
  * house number was requested. Only trust the address portion, not a ZIP code. */
 export function matchingHouseNumber(place:LocationSelection,requested:string):boolean {
   const number=requested.toLowerCase();
+  if(place.addressParts?.houseNumber)return place.addressParts.houseNumber.toLowerCase()===number;
   return [place.address||'',place.name].some(value=>{
     const parts=value.split(',').map(part=>part.trim());
     if(parts.length>1&&parts[1].toLowerCase()===number)return true;

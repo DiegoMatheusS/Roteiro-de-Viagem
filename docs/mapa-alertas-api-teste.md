@@ -3,7 +3,7 @@
 ## Provedores usados agora
 
 - **Mapa:** Leaflet + tiles OpenStreetMap/CARTO (sem chave do Google Maps).
-- **Busca de lugares:** API do backend -> Photon; variável `GEOCODING_URL`.
+- **Busca de endereços:** API própria `/api/addresses/search`, índice persistente no SQLite; sem geocodificador externo.
 - **Trajeto rodoviário:** API do backend -> OSRM; variável `ROUTING_URL`. Usa geometria viária, distância e duração estimada; **não informa trânsito ao vivo**.
 - **Postos e lugares turísticos:** backend com dados do OpenStreetMap/Overpass e cadastros aprovados.
 - **Alertas:** `POST /api/road-alerts`, `POST /api/road-alerts/route` e `POST /api/road-alerts/:id/confirm`; registros novos passam por moderação. O voto exige login e GPS recente a até 700 m. Três confirmações negativas independentes (ao menos duas vezes as positivas) retiram um marcador ativo. O autor não pode votar no próprio relato.
@@ -11,7 +11,7 @@
 ## Conectar e validar a API
 
 1. No **Railway** (`roteiro-api`), confirme `DATABASE_PATH=/app/data/...` com volume persistente montado em `/app/data`. Mantenha `TRUST_PROXY_HOPS=1`.
-2. Para **testes**, o roteador padrão é `https://router.project-osrm.org` e a busca padrão é `https://photon.komoot.io`. São serviços públicos de demonstração, sujeitos a limites; para uso real configure `ROUTING_URL` e `GEOCODING_URL` com provedores compatíveis que você controle. As variáveis são do **backend**, não do frontend.
+2. O roteador padrão é `https://router.project-osrm.org`, sujeito aos limites desse serviço; configure `ROUTING_URL` no backend quando necessário. A busca de endereços usa somente a base do Rolê e pode receber bases públicas por arquivo; consulte [a documentação](api-enderecos.md).
 3. No **Cloudflare Pages**, vincule o projeto público ao GitHub, com build `npm run build` e saída `dist`. O Worker de `/api/*` deve usar `RDV_BACKEND_ORIGIN` apontando ao Railway e o mesmo segredo `WEB_PROXY_SECRET` no Pages e Railway.
 4. No Railway, configure `PUBLIC_APP_URL` com a origem do Pages, sem barra final. **Não** exponha `WEB_PROXY_SECRET` nem outras chaves como variáveis `VITE_*`.
 5. Teste `https://roteiro-afx.pages.dev/api/health` e o endpoint de saúde direto no Railway: ambos devem retornar `{"ok":true}`. Se apenas o Railway responder, verifique Worker, origem e segredo do proxy no Cloudflare.

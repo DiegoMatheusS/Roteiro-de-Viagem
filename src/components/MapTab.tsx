@@ -1,6 +1,7 @@
 import { RouteConditionsStatus,type ConditionsStatus } from './RouteConditionsStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { houseNumberNotFoundMessage,searchLocations } from '../services/locationSearch';
+import {rememberAddress} from '../services/addressMemory';
 import {isStreetOnlyReference,isStreetAddressQuery,streetQueryForManualPin} from '../services/manualAddressPin';
 import {ManualAddressMapPicker} from './ManualAddressMapPicker';
 import { SavedAddressesPanel } from './SavedAddressesPanel';
@@ -133,6 +134,7 @@ export function MapTab(props: MapTabProps) {
     setSheetExpanded(false);
   };
   const focusDestination = (target:LocationSelection) => {
+    rememberAddress(target,searchInputRef.current?.value||searchDestination.name||target.address||target.name);
     cancelTypeahead();suppressedQuery.current=target.name;
     setSearchDestination(target);
     if(!target.coords)return;

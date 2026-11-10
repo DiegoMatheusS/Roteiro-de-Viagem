@@ -11,17 +11,8 @@ test('searches reuse stored public OSM places and keep private selections scoped
   const db = openDatabase(':memory:');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rdv-places-cache-'));
   let requests = 0;
-  const photon = async (input: any): Promise<Response> => {
-    requests++;
-    const url = new URL(String(input));
-    assert.ok(url.hostname.includes('photon') || url.hostname.includes('test'));
-    return Response.json({ features: [{
-      properties: { osm_type: 'N', osm_id: 1111, name: 'Museu Histórico Público',
-        street: 'Rua da Cultura', housenumber: '10', city: 'São Paulo',
-        state: 'SP', country: 'Brasil', osm_value: 'museum' },
-      geometry: { type: 'Point', coordinates: [-46.63,-23.55] }
-    }] });
-  };
+  const photon = async (): Promise<Response> => {requests++;throw Error('Geocodificador externo não permitido.');};
+  db.prepare('INSERT INTO locations VALUES(?,?,?,?,?,?,?,?)').run('osm:node:1111','Museu Histórico Público','Rua da Cultura, 10, São Paulo, SP, Brasil',-23.55,-46.63,'https://www.openstreetmap.org/node/1111','museum',new Date().toISOString());
   const api = createApi({ db, photoDirectory: directory, mapFetch: photon as typeof fetch });
   const server = api.listen(0,'127.0.0.1');
   await new Promise<void>(resolve => server.once('listening',resolve));
@@ -40,15 +31,15 @@ test('searches reuse stored public OSM places and keep private selections scoped
     const b = await req('/auth/register',{body:{email:'b@example.com',displayName:'Viajante B',password:'safe-password-1234'}});
     assert.equal(a.code,201);assert.equal(b.code,201);
 
-    const first = await req('/locations/search?q=Museu%20Hist%C3%B3rico');
+    const first = await req('/locations/search?q=Museu%20Hist%C3%B3rico%20P%C3%BAblico');
     assert.equal(first.code,200,JSON.stringify(first.data));
     assert.equal(first.data.results.length,1);
-    assert.equal(requests,1);
+    assert.equal(requests,0);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM locations').get() as any).n,1);
     const fromDatabase = await req('/locations/search?q=Rua%20da%20Cultura%2C%2010%2C%20S%C3%A3o%20Paulo%2C%20SP%2C%20Brasil');
     assert.equal(fromDatabase.code,200);
     assert.equal(fromDatabase.data.results[0].id,'osm:node:1111');
-    assert.equal(requests,1,'exact address must resolve locally without another Photon call');
+    assert.equal(requests,0,'all address searches resolve from the app database without external calls');
 
     const selected = await req('/me/locations',{cookie:a.cookie,body:{locationId:'osm:node:1111'}});
     assert.equal(selected.code,201);
