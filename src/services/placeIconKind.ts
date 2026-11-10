@@ -14,6 +14,7 @@ export function placeIconKind(kind:Place['kind'],name=''):Place['kind']{
   if(/^museu(?:\s|$)/.test(label))return 'museum';
   if(/^mirante(?:\s|$)/.test(label))return 'viewpoint';
   if(/^(cachoeira|cascata)(?:\s|$)/.test(label))return 'waterfall';
+  if(/^(lago|lagoa|represa|reservatorio)(?:\s|$)/.test(label))return 'lake';
   if(/^praia(?:\s|$)/.test(label))return 'beach';
   if(/^trilha(?:\s|$)/.test(label))return 'trail';
   if(/^(reserva natural|reserva ecologica)(?:\s|$)/.test(label))return 'nature_reserve';
