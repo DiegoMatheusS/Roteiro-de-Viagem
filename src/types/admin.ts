@@ -5,6 +5,7 @@ export const PLACE_KINDS = [
   { id: 'supermarket', label: 'Mercado', icon: '🛒' },
   { id: 'shopping', label: 'Shopping', icon: '🛍️' },
   { id: 'waterfall', label: 'Cachoeira', icon: '🏞️' },
+  { id: 'lake', label: 'Lago, lagoa e represa', icon: '🌊' },
   { id: 'inn', label: 'Pousada', icon: '🛏️' },
   { id: 'cafe', label: 'Café', icon: '☕' },
   { id: 'hotel', label: 'Hotel', icon: '🏨' },
@@ -22,7 +23,7 @@ export const PLACE_KINDS = [
   { id: 'attraction', label: 'Outra atração turística', icon: '📍' },
   { id: 'other', label: 'Outro estabelecimento', icon: '📍' }
 ] as const;
-export const TOURIST_PLACE_KINDS = ['waterfall', 'viewpoint', 'park', 'square', 'museum', 'theatre', 'scenic_road', 'landmark', 'historic', 'beach', 'trail', 'nature_reserve', 'attraction'] as const;
+export const TOURIST_PLACE_KINDS = ['waterfall', 'lake', 'viewpoint', 'park', 'square', 'museum', 'theatre', 'scenic_road', 'landmark', 'historic', 'beach', 'trail', 'nature_reserve', 'attraction'] as const;
 export interface Place {
   id: string; name: string; kind: typeof PLACE_KINDS[number]['id']; lat: number; lng: number;
   address: string; sourceUrl: string; description: string; website: string; phone: string;
