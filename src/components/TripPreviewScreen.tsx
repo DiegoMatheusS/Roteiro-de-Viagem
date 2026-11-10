@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import {ArrowLeft, Bookmark, Check, Expand, Minimize2, Navigation2, Play, RefreshCw, Route, RotateCcw} from 'lucide-react';
+import React, {useRef,useState,type CSSProperties,type PointerEvent} from 'react';
+import {ArrowLeft, Bookmark, Check, Expand, Info, Minimize2, Navigation2, Play, RefreshCw, Route, RotateCcw} from 'lucide-react';
 import type {TripPlan, VehicleType} from '../types';
 import {InteractiveMap} from './InteractiveMap';
 
@@ -34,6 +34,22 @@ export function TripPreviewScreen({
   onRegenerate, regenerating = false, onDragWaypoint, mapEditing=false, mapEditError=''
 }:TripPreviewScreenProps) {
   const [mapExpanded,setMapExpanded]=useState(false);
+  const [mapCreditsOpen,setMapCreditsOpen]=useState(false);
+  const [panelSize,setPanelSize]=useState<'compact'|'normal'|'expanded'>('normal');
+  const [panelDrag,setPanelDrag]=useState(0);
+  const dragStart=useRef<number|null>(null);
+  const ignoreHandleClick=useRef(false);
+  const finishPanelDrag=(event:PointerEvent<HTMLButtonElement>)=>{
+    const start=dragStart.current;
+    if(start===null)return;
+    const delta=event.clientY-start;
+    dragStart.current=null;
+    setPanelDrag(0);
+    if(Math.abs(delta)<45)return;
+    setPanelSize(delta<0?'expanded':delta>145?'compact':'normal');
+    ignoreHandleClick.current=true;
+    window.setTimeout(()=>{ignoreHandleClick.current=false;},0);
+  };
   const distance=formatDistance(trip.distanceKm);
   const minutes=Math.round(trip.durationMinutes);
   const vehicleLabel=vehicleType==='motorcycle'?'Moto':'Carro';
@@ -54,8 +70,10 @@ export function TripPreviewScreen({
   return <div className="rdv-preview-overlay">
     <section role="dialog" aria-modal="true" aria-label="Visualizar viagem"
       className={`rdv-preview-screen ${mapExpanded?'rdv-preview-map-expanded':''}`}
+      data-panel-size={panelSize} data-panel-dragging={panelDrag!==0}
+      style={{'--preview-panel-drag-y':`${panelDrag}px`} as CSSProperties}
       data-testid="figma-trip-preview">
-      <div className="rdv-preview-route-map rdv-flat-map" aria-label="Mapa real do trajeto">
+      <div className="rdv-preview-route-map rdv-flat-map" aria-label="Mapa real do trajeto" data-credits-open={mapCreditsOpen}>
         <InteractiveMap roadStyle initialStyle="light"
           originCoords={trip.originCoords} destinationCoords={trip.destinationCoords}
           routePath={trip.routePath} navigationMode={false}
@@ -63,6 +81,9 @@ export function TripPreviewScreen({
           onDragWaypoint={mapEditing?undefined:onDragWaypoint}
           stops={trip.stops} tolls={trip.tolls||[]}
           tollVehicleType={vehicleType} className="w-full h-full"/>
+        <button type="button" className="rdv-map-credits-button" aria-expanded={mapCreditsOpen}
+          aria-label={mapCreditsOpen?'Recolher créditos do mapa':'Mostrar créditos do mapa'}
+          onClick={()=>setMapCreditsOpen(value=>!value)}><Info size={17}/></button>
       </div>
       <header className="rdv-preview-header">
         <button type="button" aria-label="Fechar janela" onClick={onClose}
@@ -87,7 +108,23 @@ export function TripPreviewScreen({
         </button>
       </div>
       <div className="rdv-preview-details" data-testid="figma-preview-details">
-        <span className="rdv-preview-handle" aria-hidden="true"/>
+        <button type="button" className="rdv-preview-panel-drag-handle"
+          aria-label="Arrastar detalhes para expandir ou recolher"
+          onPointerDown={event=>{
+            if(!event.isPrimary||event.button!==0)return;
+            dragStart.current=event.clientY;
+            ignoreHandleClick.current=false;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={event=>{
+            if(dragStart.current!==null)setPanelDrag(Math.max(-450,Math.min(450,event.clientY-dragStart.current)));
+          }}
+          onPointerUp={finishPanelDrag}
+          onPointerCancel={()=>{dragStart.current=null;setPanelDrag(0);}}
+          onLostPointerCapture={()=>{dragStart.current=null;setPanelDrag(0);}}
+          onClick={()=>{if(!ignoreHandleClick.current)setPanelSize(value=>value==='expanded'?'normal':'expanded');}}>
+          <span className="rdv-preview-handle" aria-hidden="true"/>
+        </button>
         <div className="rdv-preview-title-row">
           <h2>{trip.title||trip.destinationName}</h2>
           <button type="button" aria-label={isSaved?'Rota salva':'Salvar rota'}
