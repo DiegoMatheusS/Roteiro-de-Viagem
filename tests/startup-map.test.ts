@@ -23,7 +23,7 @@ test('Explore photos are real, credited and unknown places do not inherit generi
   assert.match(explore,/place\.photoPage && place\.photoCredit/);
   assert.match(explore,/<ExplorePlacePhoto place=\{place\}/);
   assert.match(photo,/onError=\{\(\)=>setFailedSrc\(photoSrc\)/);
-  assert.match(photo,/https:\\/\\/upload\\.wikimedia\\.org\\/wikipedia\\/commons\\/thumb/);
+  assert.ok(photo.includes("https://upload.wikimedia.org/wikipedia/commons/thumb/"));
   assert.doesNotMatch(explore,/figma-ibirapuera\.svg|figma-romeiros\.svg/);
   assert.match(photo,/Local sem fotografia disponível/);
 });
