@@ -863,8 +863,9 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
 }
 .rdv-explore-map[data-credits-open="false"] .leaflet-control-attribution,
 .rdv-preview-route-map[data-credits-open="false"] .leaflet-control-attribution {
-  clip-path:inset(100%);width:1px;height:1px;overflow:hidden;
-  padding:0 !important;margin:0;pointer-events:none;
+  max-width:min(75vw,340px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:2px 5px !important;margin-right:38px;
+  font-size:8px !important;line-height:1.2;background:rgba(255,255,255,.9) !important;
 }
 .rdv-explore-map[data-credits-open="true"] .leaflet-control-attribution,
 .rdv-preview-route-map[data-credits-open="true"] .leaflet-control-attribution {
