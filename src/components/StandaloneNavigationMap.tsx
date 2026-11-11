@@ -282,6 +282,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       onStation:(id,section,mode)=>setStation({id,section,mode}),
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
       onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null),
+      ...(latest.current.onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>latest.current.onGoToPlace?.({id:entry.id,name:entry.name,coords:entry.coords})}:{}),
       onReport:setFeedbackPlace
     });
     // DOM GPS pins and camera commands do not depend on tile/style sources.
