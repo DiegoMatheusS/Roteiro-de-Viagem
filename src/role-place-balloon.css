@@ -19,7 +19,7 @@
 .role-place-balloon-prices dd {margin:0;flex:none;text-align:right;font-size:11px;line-height:1.35;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap;}
 [data-role-theme="dark"] .role-place-balloon-prices > div {background:#1c2c41;border-color:#4b5f78;}
 .role-place-balloon-category {margin:8px 0 4px!important;color:#57667e;font-size:13px;}
-.role-place-balloon-actions {display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #e2e8f0;margin-top:7px;padding-top:3px;}
+.role-place-balloon-actions {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;border-top:1px solid #e2e8f0;margin-top:7px;padding-top:6px;}
 .role-place-balloon-actions > button {background:transparent;border:0;min-height:38px;padding:3px 0;font-size:12px;font-weight:700;color:#205bc0;}
 .role-place-balloon-actions > .role-place-balloon-go {
   min-height:38px;min-width:72px;padding:8px 18px;border:0;border-radius:10px;
@@ -28,6 +28,7 @@
 }
 .role-place-balloon-actions > .role-place-balloon-go:active {background:#1d4ed8;}
 .role-place-balloon-actions > .role-place-balloon-contribute {font-size:11px;}
+.role-place-balloon-actions > .role-place-balloon-details {font-size:12px;white-space:nowrap;}
 .role-place-balloon-actions > .role-place-balloon-info {width:38px;height:38px;display:grid;place-items:center;flex-shrink:0;}
 .role-place-balloon-info > span {border:1.8px solid currentColor;border-radius:50%;width:21px;height:21px;display:grid;place-items:center;font-size:14px;line-height:1;font-family:Georgia,serif;font-weight:bold;}
 .role-place-balloon button:focus-visible {outline:3px solid #60a5fa;outline-offset:2px;border-radius:6px;}
