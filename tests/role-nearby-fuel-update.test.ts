@@ -32,7 +32,9 @@ test('balão utiliza grade de duas colunas sem perder os preços nem a acessibil
  assert.match(balloon,/value\.textContent=row\.value\?row\.value\.replace/);
  assert.match(balloon,/value\.title=completeValue/);
  assert.match(css,/align-items:center;justify-content:space-between/);
- assert.match(balloon,/footer\.append\(contribute,info\)/);
+ assert.match(balloon,/footer\.append\(contribute\)/);
+ assert.match(balloon,/footer\.append\(info\)/);
+ assert.match(balloon,/footer\.append\(go\)/);
 });
 test('seleção múltipla percorre interface, request e validador de pontos reais',()=>{
  const home=file('src/components/NavigationHome.tsx');
