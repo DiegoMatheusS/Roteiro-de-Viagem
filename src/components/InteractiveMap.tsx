@@ -358,8 +358,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       // Full-screen road navigation keeps softer pinch increments and animation.
       zoomAnimation: roadStyle || navigationMode,
       fadeAnimation: roadStyle || navigationMode,
-      // Raster traffic requests require integer XYZ levels; fractional 15.5 returned HTTP 400.
-      zoomSnap:1,
+      // Fractional pinch zoom remains smooth; the traffic activation separately chooses integer XYZ zoom.
+      zoomSnap: resumeViewport ? 0 : roadStyle || navigationMode ? 0.5 : 1,
       zoomDelta: roadStyle || navigationMode ? 0.5 : 1,
       attributionControl: true
     });
