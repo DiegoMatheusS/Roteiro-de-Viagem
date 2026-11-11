@@ -99,7 +99,9 @@ try{
     const heading=parkBalloon.locator('h3.role-place-balloon-name');
     assert.equal((await heading.innerText()).trim(),'Parque das árvores');
     assert.equal(await parkBalloon.getByRole('button',{name:'Ver detalhes de Parque das árvores'}).count(),0,
-      'o título não é botão nem abre detalhes');
+      'o título não é botão');
+    assert.equal(await parkBalloon.getByRole('button',{name:'Ver detalhes',exact:true}).count(),1,
+      'o botão separado Ver detalhes continua disponível');
     await heading.click();
     assert.equal(await parkBalloon.isVisible(),true,'tocar no nome não executa nenhuma ação');
     const go=parkBalloon.getByRole('button',{name:'Ir para Parque das árvores'});
