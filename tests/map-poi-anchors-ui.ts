@@ -88,11 +88,17 @@ try{
   await heading.click();
   assert.equal(await museumBalloon.isVisible(),true,'o título não deve abrir detalhes');
   assert.equal(await page.getByRole('dialog',{name:'Estabelecimento'}).count(),0);
+  assert.equal((await page.evaluate(()=>(window as any).__poiAnchors.actions)).length,1,
+    'o título não dispara nenhuma ação');
+  await museumBalloon.getByRole('button',{name:'Ver detalhes',exact:true}).click();
+  let actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
+  assert.equal(actions[1].kind,'place');assert.equal(actions[1].id,'admin:museum');
+  await page.getByRole('button',{name:'Ver Museu do teste',exact:true}).press('Space');
   await museumBalloon.getByRole('button',{name:'Ir para Museu do teste'}).click();
-  const actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
+  actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
   assert.equal(actions[0].kind,'fuel');assert.equal(actions[0].section,'prices');
-  assert.equal(actions[1].kind,'go');assert.equal(actions[1].id,'admin:museum');
-  assert.deepEqual(actions[1].coords,[-23.55,-46.63],'Ir encaminha as coordenadas do destino');
+  assert.equal(actions[2].kind,'go');assert.equal(actions[2].id,'admin:museum');
+  assert.deepEqual(actions[2].coords,[-23.55,-46.63],'Ir encaminha as coordenadas do destino');
   await checkAnchors();
   assert.deepEqual(errors,[]);
   fs.mkdirSync('test-results',{recursive:true});
