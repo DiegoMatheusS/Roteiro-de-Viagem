@@ -401,7 +401,9 @@ export function NavigationHome(props: NavigationHomeProps) {
         focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
-        blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
+        blueRoute centerOnUserRequest={centerRequest} showFuelStations
+        onNavigateToPlace={place=>selectMapTarget({name:place.name,coords:place.coords,address:place.address})}
+        className="w-full h-full" />
     </div>
 
     <div className="rdv-figma-home-modes" role="group" aria-label="Modalidade de transporte">

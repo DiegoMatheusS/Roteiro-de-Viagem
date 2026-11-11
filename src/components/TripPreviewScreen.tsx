@@ -1,5 +1,5 @@
 import React, {useRef,useState,type CSSProperties,type PointerEvent} from 'react';
-import {ArrowLeft, Bookmark, Check, Expand, Info, Minimize2, Navigation2, Play, RefreshCw, Route, RotateCcw} from 'lucide-react';
+import {ArrowLeft, Bookmark, Check, Expand, Minimize2, Navigation2, Play, RefreshCw, Route, RotateCcw} from 'lucide-react';
 import type {TripPlan, VehicleType} from '../types';
 import {InteractiveMap} from './InteractiveMap';
 
@@ -34,7 +34,6 @@ export function TripPreviewScreen({
   onRegenerate, regenerating = false, onDragWaypoint, mapEditing=false, mapEditError=''
 }:TripPreviewScreenProps) {
   const [mapExpanded,setMapExpanded]=useState(false);
-  const [mapCreditsOpen,setMapCreditsOpen]=useState(false);
   const [panelSize,setPanelSize]=useState<'compact'|'normal'|'expanded'>('normal');
   const [panelDrag,setPanelDrag]=useState(0);
   const dragStart=useRef<number|null>(null);
@@ -73,7 +72,7 @@ export function TripPreviewScreen({
       data-panel-size={panelSize} data-panel-dragging={panelDrag!==0}
       style={{'--preview-panel-drag-y':`${panelDrag}px`} as CSSProperties}
       data-testid="figma-trip-preview">
-      <div className="rdv-preview-route-map rdv-flat-map" aria-label="Mapa real do trajeto" data-credits-open={mapCreditsOpen}>
+      <div className="rdv-preview-route-map rdv-flat-map" aria-label="Mapa real do trajeto">
         <InteractiveMap roadStyle initialStyle="light"
           originCoords={trip.originCoords} destinationCoords={trip.destinationCoords}
           routePath={trip.routePath} navigationMode={false}
@@ -81,9 +80,6 @@ export function TripPreviewScreen({
           onDragWaypoint={mapEditing?undefined:onDragWaypoint}
           stops={trip.stops} tolls={trip.tolls||[]}
           tollVehicleType={vehicleType} className="w-full h-full"/>
-        <button type="button" className="rdv-map-credits-button" aria-expanded={mapCreditsOpen}
-          aria-label={mapCreditsOpen?'Recolher créditos do mapa':'Mostrar créditos do mapa'}
-          onClick={()=>setMapCreditsOpen(value=>!value)}><Info size={17}/></button>
       </div>
       <header className="rdv-preview-header">
         <button type="button" aria-label="Fechar janela" onClick={onClose}

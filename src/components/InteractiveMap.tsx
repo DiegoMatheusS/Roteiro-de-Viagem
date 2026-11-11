@@ -123,6 +123,7 @@ export interface InteractiveMapProps {
   onRoadAlertUpdated?: () => void;
   /** Lista apenas marcadores realmente renderizados dentro do viewport do mapa. */
   onVisiblePlacesChange?: (places: MapVisiblePlace[]) => void;
+  onNavigateToPlace?: (place:MapVisiblePlace) => void;
   /** Cada incremento centraliza o mapa no GPS, sem forçar acompanhamento ao arrastar. */
   centerOnUserRequest?: number;
 }
@@ -183,6 +184,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   roadAlerts = EMPTY_ROAD_ALERTS,
   onRoadAlertUpdated,
   onVisiblePlacesChange,
+  onNavigateToPlace,
   centerOnUserRequest = 0,
   className = 'w-full h-full'
 }) => {
@@ -302,13 +304,17 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
-    onReport:setFeedbackPlace
+    onReport:setFeedbackPlace,
+    onGo:entry=>onNavigateToPlace?.({id:entry.id,name:entry.name,coords:entry.coords,
+      kind:entry.kind==='place'?entry.category:entry.kind,address:''})
   });
   vectorPlaceActionsRef.current={
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
-    onReport:setFeedbackPlace
+    onReport:setFeedbackPlace,
+    onGo:entry=>onNavigateToPlace?.({id:entry.id,name:entry.name,coords:entry.coords,
+      kind:entry.kind==='place'?entry.category:entry.kind,address:''})
   };
 
 
@@ -352,6 +358,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       // Full-screen road navigation keeps softer pinch increments and animation.
       zoomAnimation: roadStyle || navigationMode,
       fadeAnimation: roadStyle || navigationMode,
+      // Fractional pinch zoom remains smooth; the traffic activation separately chooses integer XYZ zoom.
       zoomSnap: resumeViewport ? 0 : roadStyle || navigationMode ? 0.5 : 1,
       zoomDelta: roadStyle || navigationMode ? 0.5 : 1,
       attributionControl: true
@@ -823,7 +830,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
             if (disposed) return;
             vectorLoaded = true;
             if (vectorTimer) clearTimeout(vectorTimer);
-            applyRoleVectorPalette(gl,appearanceTheme,navigationMode);
+            applyRoleVectorPalette(gl,appearanceTheme,navigationMode,roadStyle);
             vectorMapRef.current = gl;
             setVectorRoutesReady(true);
             setTileError(false);
@@ -1629,7 +1636,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           const map=mapInstanceRef.current;
           if(!map||!target||!trafficPort)return;
           if(trafficPort.getZoom()<15.5||trafficPort.getViewportRadiusKm(target)>4.5)
-            createHybridCameraPort(map).focus(target,Math.max(15.5,map.getZoom()),true);
+            createHybridCameraPort(map).focus(target,Math.max(16,Math.ceil(map.getZoom())),true);
         }}/>
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}

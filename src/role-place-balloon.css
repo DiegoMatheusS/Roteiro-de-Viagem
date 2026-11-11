@@ -36,3 +36,10 @@
 [data-role-theme="dark"] .role-place-balloon :is(dt,.role-place-rating,.role-place-balloon-category) {color:#cbd5e1;}
 [data-role-theme="dark"] .role-place-balloon-actions {border-color:#4b5f78;}
 [data-role-theme="dark"] .role-place-balloon-actions > button {color:#93c5fd;}
+
+/* A single direct routing action on the marker balloon. */
+.role-place-balloon-actions > .role-place-balloon-go {
+  color:#fff;background:#2563eb;border-radius:10px;
+  min-width:70px;padding:8px 14px;font-size:13px;font-weight:750;
+}
+[data-role-theme="dark"] .role-place-balloon-actions > .role-place-balloon-go {color:#fff;background:#1d63e5;}
