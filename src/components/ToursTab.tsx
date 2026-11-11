@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent} from 'react';
-import {Bookmark,ChevronRight,ChevronUp,Compass,Info,Droplets,Flag,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
+import {Bookmark,ChevronRight,ChevronUp,Compass,Droplets,Flag,Landmark,LocateFixed,MapPin,Mic,Route,Search,Trees,Waves,X} from 'lucide-react';
 import type {TripPlan,Vehicle} from '../types';
 import type {ExploreArea,ExploreFilter,ExplorePlace} from '../types/explore';
 import {EXPLORE_AREA_LABELS,exploreDistanceKm,filterExplorePlaces,mergeExplorePlaces} from '../services/explorePlaces';
@@ -36,7 +36,6 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   // Center once on a real GPS fix. Later readings must not undo manual panning.
   useEffect(()=>{if(origin)setMapFocus(current=>current??[...origin]);},[origin?.[0],origin?.[1]]);
   const [collapsed,setCollapsed]=useState(true);
-  const [mapCreditsOpen,setMapCreditsOpen]=useState(false);
   const [dragOffset,setDragOffset]=useState(0);
   const dragStart=useRef<number|null>(null),swallowClick=useRef(false);
   const finishSheetDrag=(event:PointerEvent<HTMLButtonElement>)=>{
@@ -179,13 +178,10 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
       </div>
       {voiceError&&<p role="status" className="rdv-explore-search-note">{voiceError}</p>}
     </header>
-    <div className="rdv-explore-map" aria-label="Mapa das redondezas" data-credits-open={mapCreditsOpen}>
+    <div className="rdv-explore-map" aria-label="Mapa das redondezas">
       <InteractiveMap roadStyle initialStyle="light" userLiveCoords={origin}
         focusedCoords={mapFocus} focusedZoom={12.5} placeDensityMode="all"
         showFuelStations={false} className="w-full h-full"/>
-      <button type="button" className="rdv-map-credits-button" aria-expanded={mapCreditsOpen}
-        aria-label={mapCreditsOpen?'Recolher créditos do mapa':'Mostrar créditos do mapa'}
-        onClick={()=>setMapCreditsOpen(value=>!value)}><Info size={17}/></button>
       <button type="button" className="rdv-explore-map-gps" aria-label="Centralizar nas redondezas do GPS"
         onClick={centerOnGps}><LocateFixed size={22}/></button>
       {nearest!==null&&<span className="rdv-explore-distance-badge"
