@@ -12,6 +12,7 @@ export interface RoleMarkerActions {
   onStation:(id:string,section:'prices'|'comments',mode?:'view'|'edit')=>void;
   onToll:(id:string,section:'prices'|'comments',place:Place|null)=>void;
   onPlace:(id:string)=>void;
+  onGo?:(entry:RoleVectorMarker)=>void;
   onReport:(entry:RoleVectorMarker)=>void;
 }
 export const placeBalloonSignature=(entry:RoleVectorMarker)=>JSON.stringify(entry);
@@ -82,6 +83,12 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
   contribute.textContent=entry.kind==='fuel'?'Indicar preço':entry.kind==='toll'?'Indicar tarifa':'Ver detalhes';
   contribute.addEventListener('click',()=>{close();if(entry.kind==='fuel')actions.onStation(entry.id,'prices','edit');
     else if(entry.kind==='toll')actions.onToll(entry.id,'prices',entry.place);else actions.onPlace(entry.id);});
+  if(actions.onGo){
+    const go=document.createElement('button');go.type='button';go.className='role-place-balloon-go';
+    go.textContent='Ir';go.setAttribute('aria-label',`Ir para ${entry.name}`);
+    go.addEventListener('click',()=>{close();actions.onGo?.(entry);});
+    footer.append(go);
+  }
   const info=document.createElement('button');info.type='button';info.className='role-place-balloon-info';
   info.setAttribute('aria-label','Avaliar ou informar problema no estabelecimento');
   const glyph=document.createElement('span');glyph.setAttribute('aria-hidden','true');glyph.textContent='i';info.append(glyph);
