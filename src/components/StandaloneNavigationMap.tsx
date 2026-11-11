@@ -190,7 +190,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // symbol layers, so label collisions only need to run inside each source.
         pixelRatio:mapPixelRatio(window.devicePixelRatio,Boolean(latest.current.navigationMode)),
         crossSourceCollisions:false,
-        attributionControl:{compact:true}});
+        // Permanent low-contrast source credit; no expandable attribution button.
+        attributionControl:{compact:false}});
       map.touchZoomRotate.enableRotation();
     }catch{fail();return;}
     const timeout=setTimeout(()=>{
@@ -282,6 +283,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       onStation:(id,section,mode)=>setStation({id,section,mode}),
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
       onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null),
+      onGo:entry=>latest.current.onNavigateToPlace?.({id:entry.id,name:entry.name,coords:entry.coords,
+        kind:entry.kind==='place'?entry.category:entry.kind,address:''}),
       onReport:setFeedbackPlace
     });
     // DOM GPS pins and camera commands do not depend on tile/style sources.
@@ -692,7 +695,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       const root=container.current?.parentElement;
       if(root)root.dataset.mapStyleReady=appliedOfflineRegion?'offline':activeStyle;
       if(!appliedOfflineRegion&&activeStyle==='light')
-        applyRoleVectorPalette(map,activeTheme,Boolean(latest.current.navigationMode));
+        applyRoleVectorPalette(map,activeTheme,Boolean(latest.current.navigationMode),Boolean(latest.current.roadStyle));
       requestRender();
     };
     map.on('style.load',styleLoaded);
@@ -761,8 +764,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         if(!trafficMap||!target||offline||regionId)return;
         // The traffic API is deliberately bounded to a 5-km GPS viewport.
         // Opening traffic from city-wide Explore must first enter that safe viewport.
-        if(trafficPort&&(trafficPort.getZoom()<15.5||trafficPort.getViewportRadiusKm(target)>4.5)){
-          trafficMap.easeTo({center:[target[1],target[0]],zoom:Math.max(15.5,trafficMap.getZoom()),
+        if(trafficPort&&(trafficPort.getZoom()<16||trafficPort.getViewportRadiusKm(target)>4.5)){
+          trafficMap.easeTo({center:[target[1],target[0]],zoom:Math.max(16,Math.ceil(trafficMap.getZoom())), 
             duration:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?0:350});
         }
       }}/>
