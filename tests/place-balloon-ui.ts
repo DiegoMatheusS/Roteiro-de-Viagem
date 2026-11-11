@@ -68,6 +68,8 @@ try{
     const tone=await balloon.evaluate(el=>({color:getComputedStyle(el).color,background:getComputedStyle(el.closest('.maplibregl-popup-content,.leaflet-popup-content-wrapper')!).backgroundColor}));
     assert.notEqual(tone.color,tone.background,'balloon foreground differs from its surface');
     await page.screenshot({path:`test-results/place-balloon-${raster?'raster':'native'}-${theme}.png`});
+    assert.equal(await balloon.getByRole('button',{name:'Ver detalhes',exact:true}).count(),1,
+      'postos também mantêm o botão explícito Ver detalhes');
     await balloon.getByRole('button',{name:'Indicar preço',exact:true}).click();
     const prices=page.getByRole('dialog',{name:'Preços do posto'});await prices.getByRole('textbox',{name:'Preço de Gasolina comum',exact:true}).waitFor();
     await prices.getByRole('button',{name:'Fechar posto'}).click();
