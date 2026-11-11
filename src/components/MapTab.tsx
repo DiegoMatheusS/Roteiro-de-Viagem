@@ -13,7 +13,8 @@ import type { DeviceLocation } from '../services/locationService';
 import { DestinationExplorer } from './DestinationExplorer';
 import { destinationExploreKey } from '../services/destinationIdentity';
 import type { LocationSelection } from '../types/itinerary';
-import type { VerifiedRouteChoice } from '../services/routeChoices';
+import {fetchRouteChoices,choiceToTrip,type VerifiedRouteChoice} from '../services/routeChoices';
+import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -203,11 +204,29 @@ export function MapTab(props: MapTabProps) {
     if(gps.accuracyMeters>150)throw new Error('GPS impreciso. Tente novamente em um lugar aberto.');
     return chooseOrigin(gps);
   };
+  const goToMapMarker=async(target:{id:string;name:string;coords:[number,number]})=>{
+    const place={name:target.name,coords:target.coords};
+    // Nunca substitui uma navegação ativa sem o usuário escolher outra rota.
+    if(props.activeTrip||!props.onStartTrip){focusDestination(place);return;}
+    if(searchBusy)return;
+    setSearchBusy(true);setSearchError('');
+    try{
+      const from=await getExplorationOrigin();
+      const routes=await fetchRouteChoices(from,target.coords,undefined,'fast');
+      if(!routes.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
+      const vehicle=props.currentVehicle||GUEST_NAVIGATION_VEHICLE;
+      props.onStartTrip(choiceToTrip(routes[0],vehicle,from,place,savedOriginName.current));
+    }catch(err){
+      setSearchError((err as Error).message);
+      setSheetExpanded(true);
+    }finally{setSearchBusy(false);}
+  };
   return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}
     data-map-sheet-expanded={sheetExpanded} data-map-suggestions-visible={showAddressSuggestions}>
     <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute?.selectedId)?.routePath || [] : trip?.routePath || []}
       placeDensityMode={placeDensityMode} routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
       onSelectCoordinates={()=>setSheetExpanded(false)}
+      onGoToPlace={place=>void goToMapMarker(place)}
       selectedRouteId={exploreRoute?.selectedId}
       onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
       userLiveCoords={location.status === "ready" ? location.position?.coords : undefined}
