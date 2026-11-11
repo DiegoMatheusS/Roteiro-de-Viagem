@@ -262,7 +262,11 @@ export function NavigationHome(props: NavigationHomeProps) {
     return choose(position);
   };
   const goToMapMarker=async(target:{id:string;name:string;coords:[number,number]})=>{
-    if(busy || props.activeTripInProgress)return;
+    if(props.activeTripInProgress){
+      selectMapTarget({name:target.name,coords:target.coords});
+      return;
+    }
+    if(busy)return;
     setBusy(true);setError('');
     try{
       const from=await gpsCoordinates();
