@@ -94,6 +94,12 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
     contribute.addEventListener('click',()=>{close();if(entry.kind==='fuel')actions.onStation(entry.id,'prices','edit');
       else actions.onToll(entry.id,'prices',entry.place);});
     footer.append(contribute);
+  }else{
+    // Ver detalhes permanece como ação explícita, independente do título e do Ir.
+    const details=document.createElement('button');details.type='button';
+    details.className='role-place-balloon-details';details.textContent='Ver detalhes';
+    details.addEventListener('click',()=>{close();actions.onPlace(entry.id);});
+    footer.append(details);
   }
   const info=document.createElement('button');info.type='button';info.className='role-place-balloon-info';
   info.setAttribute('aria-label','Avaliar ou informar problema no estabelecimento');
