@@ -13,7 +13,8 @@ function MapPin({kind}:{kind:RoadAlertType}){
   return <div ref={root} data-map-art={kind}/>;
 }
 function Gallery(){return <main style={{padding:16,background:'#fff'}}>
-  <RoadAlertReporter location={null} speedKmH={0}/>
+  <RoadAlertReporter location={{coords:[-23.55,-46.63],accuracyMeters:5,speedMetersPerSecond:0,timestamp:Date.now()}} speedKmH={0}
+    onSubmitted={()=>{(window as any).__roadAlertSubmitted=((window as any).__roadAlertSubmitted??0)+1;}}/>
   <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginTop:16}}>
     {ROAD_ALERT_TYPES.map(type=><article key={type.id} style={{display:'grid',justifyItems:'center',gap:8,padding:8,border:'1px solid #ccc',borderRadius:12}}>
       <RoadAlertIcon kind={type.id} size={90}/><MapPin kind={type.id}/><span style={{fontSize:12,textAlign:'center'}}>{type.label}</span>
