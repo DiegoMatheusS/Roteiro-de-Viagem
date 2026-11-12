@@ -78,9 +78,10 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const regionLabel=touristOrigin&&isSaoPauloArea(touristOrigin)?'São Paulo, SP':touristOrigin?'Localização atual':'';
   const nearest=touristOrigin&&featured?Math.round(exploreDistanceKm(touristOrigin,featured.coords)):null;
 
-  const loadRoute=async(place:ExplorePlace,saveOnly=false)=>{
+  const loadRoute=async(place:Pick<ExplorePlace,'id'|'name'|'coords'>,saveOnly=false,startNow=false)=>{
     if(!origin){
       setError('Ative o GPS para calcular uma rota real a partir da sua localização.');
+      setCollapsed(false);
       await permission.request();return;
     }
     pending.current?.abort();
@@ -95,9 +96,10 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
         name:place.name,coords:place.coords
       });
       if(saveOnly)onSaveTrip(verified);
+      else if(startNow)onStartTrip(verified);
       else setPreview(verified);
     }catch(err){
-      if(!controller.signal.aborted)setError((err as Error).message);
+      if(!controller.signal.aborted){setError((err as Error).message);setCollapsed(false);}
     }finally{
       if(pending.current===controller){pending.current=null;setBusyId(null);}
     }
@@ -181,6 +183,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     <div className="rdv-explore-map" aria-label="Mapa das redondezas">
       <InteractiveMap roadStyle initialStyle="light" userLiveCoords={origin}
         focusedCoords={mapFocus} focusedZoom={12.5} placeDensityMode="all"
+        onGoToPlace={place=>void loadRoute(place,false,true)}
         showFuelStations={false} className="w-full h-full"/>
       <button type="button" className="rdv-explore-map-gps" aria-label="Centralizar nas redondezas do GPS"
         onClick={centerOnGps}><LocateFixed size={22}/></button>

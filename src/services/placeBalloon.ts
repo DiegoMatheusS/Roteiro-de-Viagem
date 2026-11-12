@@ -12,6 +12,7 @@ export interface RoleMarkerActions {
   onStation:(id:string,section:'prices'|'comments',mode?:'view'|'edit')=>void;
   onToll:(id:string,section:'prices'|'comments',place:Place|null)=>void;
   onPlace:(id:string)=>void;
+  onGoToPlace?:(place:RoleVectorMarker)=>void;
   onReport:(entry:RoleVectorMarker)=>void;
 }
 export const placeBalloonSignature=(entry:RoleVectorMarker)=>JSON.stringify(entry);
@@ -40,10 +41,9 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
   const element=document.createElement('section');element.className='role-place-balloon';
   element.setAttribute('aria-label',`Detalhes de ${entry.name}`);
   const rating=document.createElement('div');rating.append(createRatingStars({average:null,count:0}));
-  const details=()=>{close();if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
-    else if(entry.kind==='toll')actions.onToll(entry.id,'prices',entry.place);else actions.onPlace(entry.id);};
-  const heading=document.createElement('button');heading.type='button';heading.className='role-place-balloon-name';
-  heading.setAttribute('aria-label',`Ver detalhes de ${entry.name}`);heading.textContent=entry.name;heading.addEventListener('click',details);
+  // O título é informativo: tocar no nome não abre modais nem altera a navegação.
+  const heading=document.createElement('h3');heading.className='role-place-balloon-name';
+  heading.textContent=entry.name;
   element.append(rating,heading);
   const priceList=document.createElement('dl');priceList.className='role-place-balloon-prices';
   priceList.setAttribute('aria-label','Preços por combustível');
@@ -78,14 +78,38 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
     status.textContent='Avaliações indisponíveis';rating.append(status);
   });
   const footer=document.createElement('div');footer.className='role-place-balloon-actions';
-  const contribute=document.createElement('button');contribute.type='button';
-  contribute.textContent=entry.kind==='fuel'?'Indicar preço':entry.kind==='toll'?'Indicar tarifa':'Ver detalhes';
-  contribute.addEventListener('click',()=>{close();if(entry.kind==='fuel')actions.onStation(entry.id,'prices','edit');
-    else if(entry.kind==='toll')actions.onToll(entry.id,'prices',entry.place);else actions.onPlace(entry.id);});
+  // "Ir" é a única ação que inicia uma rota. Quando este mapa não possui
+  // fluxo de navegação (ex.: prévia somente leitura), não mostramos um botão sem efeito.
+  if(actions.onGoToPlace){
+    const go=document.createElement('button');go.type='button';
+    go.className='role-place-balloon-go';go.textContent='Ir';
+    go.setAttribute('aria-label',`Ir para ${entry.name}`);
+    go.addEventListener('click',()=>{close();actions.onGoToPlace?.(entry);});
+    footer.append(go);
+  }
+  if(entry.kind==='fuel'||entry.kind==='toll'){
+    const contribute=document.createElement('button');contribute.type='button';
+    contribute.className='role-place-balloon-contribute';
+    contribute.textContent=entry.kind==='fuel'?'Indicar preço':'Indicar tarifa';
+    contribute.addEventListener('click',()=>{close();if(entry.kind==='fuel')actions.onStation(entry.id,'prices','edit');
+      else actions.onToll(entry.id,'prices',entry.place);});
+    footer.append(contribute);
+  }
+  // Mantém "Ver detalhes" para todos os locais, inclusive postos e pedágios.
+  // O nome acima permanece um título estático, sem eventos de clique.
+  const details=document.createElement('button');details.type='button';
+  details.className='role-place-balloon-details';details.textContent='Ver detalhes';
+  details.addEventListener('click',()=>{
+    close();
+    if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
+    else if(entry.kind==='toll')actions.onToll(entry.id,'prices',entry.place);
+    else actions.onPlace(entry.id);
+  });
+  footer.append(details);
   const info=document.createElement('button');info.type='button';info.className='role-place-balloon-info';
   info.setAttribute('aria-label','Avaliar ou informar problema no estabelecimento');
   const glyph=document.createElement('span');glyph.setAttribute('aria-hidden','true');glyph.textContent='i';info.append(glyph);
-  info.addEventListener('click',()=>{close();actions.onReport(entry);});footer.append(contribute,info);element.append(footer);
+  info.addEventListener('click',()=>{close();actions.onReport(entry);});footer.append(info);element.append(footer);
   for(const type of ['click','dblclick','pointerdown','mousedown','touchstart','wheel'] as const)
     element.addEventListener(type,event=>event.stopPropagation(),{passive:true});
   return {element,dispose(){disposed=true;abort.abort();}};

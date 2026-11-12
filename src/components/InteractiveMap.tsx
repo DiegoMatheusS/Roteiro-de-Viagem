@@ -106,6 +106,8 @@ export interface InteractiveMapProps {
   interactive?: boolean;
   className?: string;
   onSelectCoordinates?: (coords: [number, number], placeName?: string) => void;
+  /** Botão Ir inicia uma rota até o marcador selecionado. */
+  onGoToPlace?: (place: {id:string;name:string;coords:[number,number]}) => void;
   showFuelStations?: boolean;
   /** Registered places are independent of fuel-station discovery. */
   showPlaces?:boolean;
@@ -170,6 +172,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   convoyParticipants = EMPTY_CONVOY,
   meetingPoints = EMPTY_MEETINGS,
   onSelectCoordinates,
+  onGoToPlace,
   showFuelStations = true,
   showPlaces = true,
   placeDensityMode = 'moderate',
@@ -302,12 +305,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
+    onGoToPlace: onGoToPlace ? entry=>onGoToPlace({id:entry.id,name:entry.name,coords:entry.coords}) : undefined,
     onReport:setFeedbackPlace
   });
   vectorPlaceActionsRef.current={
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
+    onGoToPlace: onGoToPlace ? entry=>onGoToPlace({id:entry.id,name:entry.name,coords:entry.coords}) : undefined,
     onReport:setFeedbackPlace
   };
 
@@ -574,6 +579,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
       onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
       onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
+      ...(onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>vectorPlaceActionsRef.current.onGoToPlace?.(entry)}:{}),
       onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
     });
     rasterPlaceControllerRef.current=controller;
@@ -601,6 +607,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
           onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
           onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
+      ...(onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>vectorPlaceActionsRef.current.onGoToPlace?.(entry)}:{}),
           onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
         });
         controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));

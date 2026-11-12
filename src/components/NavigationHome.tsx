@@ -261,6 +261,26 @@ export function NavigationHome(props: NavigationHomeProps) {
     if (position.accuracyMeters > 150) throw new Error('O sinal GPS está impreciso. Tente novamente em local aberto.');
     return choose(position);
   };
+  const goToMapMarker=async(target:{id:string;name:string;coords:[number,number]})=>{
+    if(props.activeTripInProgress){
+      selectMapTarget({name:target.name,coords:target.coords});
+      return;
+    }
+    if(busy)return;
+    setBusy(true);setError('');
+    try{
+      const from=await gpsCoordinates();
+      const choices=await fetchRouteChoices(from,target.coords,undefined,'fast');
+      if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
+      const vehicle=props.currentVehicle?.type===travelMode
+        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
+      const trip=choiceToTrip(choices[0],vehicle,from,{name:target.name,coords:target.coords},savedOriginName.current);
+      props.onStartTrip(trip);
+    }catch(err){
+      setError((err as Error).message);
+      setCollapsed(false);setSheetExpanded(false);
+    }finally{setBusy(false);}
+  };
   const submitCircuit = async (regenerate = false) => {
     const selectedMode = regenerate ? lastCircuitMode : sheet;
     if (busy || (selectedMode !== 'km' && selectedMode !== 'hours') ||
@@ -397,6 +417,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       <InteractiveMap roadStyle followUser={false} placeDensityMode={placeDensityMode} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
         userSpeedMetersPerSecond={gps.status==='ready'?gps.position?.speedMetersPerSecond:null} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
+        onGoToPlace={place=>void goToMapMarker(place)}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
         focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}

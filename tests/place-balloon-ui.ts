@@ -68,6 +68,8 @@ try{
     const tone=await balloon.evaluate(el=>({color:getComputedStyle(el).color,background:getComputedStyle(el.closest('.maplibregl-popup-content,.leaflet-popup-content-wrapper')!).backgroundColor}));
     assert.notEqual(tone.color,tone.background,'balloon foreground differs from its surface');
     await page.screenshot({path:`test-results/place-balloon-${raster?'raster':'native'}-${theme}.png`});
+    assert.equal(await balloon.getByRole('button',{name:'Ver detalhes',exact:true}).count(),1,
+      'postos também mantêm o botão explícito Ver detalhes');
     await balloon.getByRole('button',{name:'Indicar preço',exact:true}).click();
     const prices=page.getByRole('dialog',{name:'Preços do posto'});await prices.getByRole('textbox',{name:'Preço de Gasolina comum',exact:true}).waitFor();
     await prices.getByRole('button',{name:'Fechar posto'}).click();
@@ -93,8 +95,26 @@ try{
       assert.equal(await marker.locator('.rdv-map-place-icon').getAttribute('data-place-kind'),kind);
     }
     const park=page.getByRole('button',{name:'Ver Parque das árvores',exact:true});
-    await park.press('Enter');await page.getByRole('region',{name:'Detalhes de Parque das árvores',exact:true}).waitFor();
     await park.press('Enter');
+    const parkBalloon=page.getByRole('region',{name:'Detalhes de Parque das árvores',exact:true});
+    await parkBalloon.waitFor();
+    const heading=parkBalloon.locator('h3.role-place-balloon-name');
+    assert.equal((await heading.innerText()).trim(),'Parque das árvores');
+    assert.equal(await parkBalloon.getByRole('button',{name:'Ver detalhes de Parque das árvores'}).count(),0,
+      'o título não é botão');
+    assert.equal(await parkBalloon.getByRole('button',{name:'Ver detalhes',exact:true}).count(),1,
+      'o botão separado Ver detalhes continua disponível');
+    await heading.click();
+    assert.equal(await parkBalloon.isVisible(),true,'tocar no nome não executa nenhuma ação');
+    const go=parkBalloon.getByRole('button',{name:'Ir para Parque das árvores'});
+    const css=await go.evaluate(el=>({background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+    assert.equal(css.background,'rgb(37, 99, 235)');
+    assert.equal(css.color,'rgb(255, 255, 255)');
+    await go.click();
+    assert.deepEqual(await page.evaluate(()=>(window as any).__goToPlace),
+      {id:'balloon-park',name:'Parque das árvores',coords:[-23.5493,-46.63]},
+      'Ir envia as coordenadas verificadas ao fluxo de navegação, sem modal de detalhes');
+    await parkBalloon.waitFor({state:'hidden'});
     await pin.press('Enter');await balloon.waitFor();
     assert.equal(await page.evaluate(()=>{const event=new Event('rdv:close-overlay',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);
     await balloon.waitFor({state:'hidden'});
