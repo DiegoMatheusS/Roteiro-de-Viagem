@@ -101,6 +101,11 @@ Fotos têm limite de envio de 8 MB/24 MP, são redimensionadas até 1600 px e co
 
 ## Configuração e execução em servidor
 
+Os [radares Pardal](docs/radares.md) ficam no mesmo SQLite persistente do Rolê.
+O servidor importa a base na primeira execução em produção e confere atualizações
+uma vez por mês, com a data salva no banco. O app consulta a API atual; falhas na
+fonte preservam a base anterior. Dados e atribuição ODbL são publicados pela API.
+
 As opções estão em `.env.example`. Use `.env` para configurar portas, caminho do banco, domínio e provedores de mapas. Os servidores públicos de mapas podem ficar indisponíveis ou limitar consultas; o aplicativo informa a falha e só reutiliza estabelecimentos já consultados, sem inventar preços. Para uso com tráfego real, configure provedores adequados ao volume pelo `OVERPASS_URL` e `ROUTING_URL`.
 
 ```bash

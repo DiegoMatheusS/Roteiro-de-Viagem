@@ -285,7 +285,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
-      {upcoming&&<UpcomingRoadAlertBanner kind={upcoming.alert.kind} distanceKm={upcoming.distanceKm}/>}
+      {upcoming&&<UpcomingRoadAlertBanner kind={upcoming.alert.kind} distanceKm={upcoming.distanceKm} alert={upcoming.alert}/>}
 
       <div className="rdv-nav-left-controls">
         <RoadAlertReporter

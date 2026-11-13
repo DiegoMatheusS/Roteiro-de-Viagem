@@ -4,6 +4,7 @@ import path from 'node:path';
 import { openDatabase } from './db';
 import { createApi } from './app';
 import { bootstrapInitialAdmin } from './bootstrap-admin';
+import {startRadarUpdates} from './radars';
 
 const db = openDatabase();
 const bootstrap = bootstrapInitialAdmin(db, {
@@ -13,6 +14,8 @@ const bootstrap = bootstrapInitialAdmin(db, {
 if (bootstrap === 'created' || bootstrap === 'promoted')
   console.log('Conta administrativa inicial criada no banco. Remova as variáveis de bootstrap após a publicação.');
 const app = createApi({ db });
+const radarUpdates=startRadarUpdates(db,{enabled:process.env.PARDAL_ENABLED==='1'||
+  process.env.NODE_ENV==='production'&&process.env.PARDAL_ENABLED!=='0'});
 const feedbackMailTimer=setInterval(()=>{void app.locals.feedbackMail.flush().catch(()=>{});},60_000);
 feedbackMailTimer.unref();void app.locals.feedbackMail.flush().catch(()=>{});
 if (process.env.NODE_ENV === 'production') {
@@ -21,7 +24,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 const port = Number(process.env.PORT || process.env.API_PORT || 3001);
 const server = app.listen(port, process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1', () => console.log(`Roteiro de Viagem: API disponível na porta ${port}`));
-const close = () => server.close(() => { clearInterval(feedbackMailTimer);app.locals.feedbackMail.close();db.close(); process.exit(0); });
+const close = () => server.close(async () => { clearInterval(feedbackMailTimer);await radarUpdates.close();app.locals.feedbackMail.close();db.close(); process.exit(0); });
 process.on('SIGTERM', close);
 process.on('SIGINT', close);
 

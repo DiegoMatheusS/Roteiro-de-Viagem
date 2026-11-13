@@ -4,6 +4,7 @@ import type { FuelDatabase } from './db';
 import { ApiError, administrator, auth, clientIp, now, user, validate } from './http';
 import { validateCoordinates, type Coordinates } from './maps';
 import { ROAD_ALERT_TTL_MS, ROAD_ALERT_TYPES, type RoadAlertType } from '../src/types/roadAlerts';
+import {radarAlertsForRoute,radarStatus} from './radars';
 
 function distanceToSegmentKm(point: Coordinates, a: Coordinates, b: Coordinates): number {
   const factor = Math.max(0.01, Math.abs(Math.cos(point[0] * Math.PI / 180)));
@@ -81,7 +82,13 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
       .all(now(), minLat, maxLat, minLng, maxLng) as any[];
     const alerts = entries.filter(entry => distanceToRouteKm([entry.lat, entry.lng], path) <= 0.35)
       .slice(0, 100).map(toPublic);
-    res.json({ alerts, source: 'Contribuições verificadas pelo administrador', updatedAt: now() });
+    const radars=radarAlertsForRoute(db,path);
+    // Keep the imported identity and metadata when a community report covers the same camera.
+    const community=alerts.filter(alert=>alert.kind!=='speed_camera'||!radars.some(radar=>
+      distanceToRouteKm([alert.lat,alert.lng],[[radar.lat,radar.lng],[radar.lat,radar.lng]])<0.03));
+    res.json({ alerts:[...community,...radars], source: radars.length
+      ?'Pardal e contribuições verificadas pelo administrador':'Contribuições verificadas pelo administrador',
+      radars:radarStatus(db),updatedAt:now() });
   });
 
   // Confirmações feitas no local: três relatos independentes de ausência retiram o marcador.
