@@ -200,6 +200,25 @@ export function radarAlertsForRoute(db:FuelDatabase,path:Coordinates[],clock=Dat
     limitKmh:c.limit_kmh,directionDegrees:c.direction_deg,dataSource:c.source,datasetUpdatedAt:c.updated_at}));
 }
 
+/** Consulta os radares dentro do retângulo exibido pelo mapa, sem raio em torno do GPS. */
+export function radarAlertsForBounds(
+  db:FuelDatabase,bounds:{south:number;north:number;west:number;east:number},clock=Date.now()
+):{alerts:RoadAlert[];truncated:boolean}{
+  const cameras=db.prepare(`SELECT * FROM radar_cameras WHERE active=1
+    AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+    ORDER BY lat,lng LIMIT 2001`).all(bounds.south,bounds.north,bounds.west,bounds.east) as Camera[];
+  const truncated=cameras.length>2000;
+  const alerts:RoadAlert[]=cameras.slice(0,2000).map(c=>({
+    id:c.id,kind:'speed_camera',lat:c.lat,lng:c.lng,
+    note:`${c.kind==='RED_LIGHT'?'Fiscalização de semáforo':c.kind==='SECTION'?'Radar de trecho':'Radar fixo'}${c.limit?` · ${c.limit} km/h`:''}`,
+    createdAt:(c as Camera & {created_at?:string}).created_at||new Date(clock).toISOString(),
+    expiresAt:new Date(clock+DAY).toISOString(),source:'pardal',
+    cameraKind:c.kind,limitKmh:c.limit,directionDegrees:c.direction,
+    dataSource:c.source,datasetUpdatedAt:(c as Camera & {updated_at?:string}).updated_at
+  }));
+  return {alerts,truncated};
+}
+
 export function registerRadarRoutes(app:Express,db:FuelDatabase,limit:(key:string,max:number,ms:number)=>void){
   app.get('/api/radars/status',(req,res)=>{
     limit(`radar-status:${clientIp(req)}`,30,60000);res.json(radarStatus(db));
