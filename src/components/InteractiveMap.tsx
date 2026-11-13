@@ -23,6 +23,7 @@ import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import {roadAlertTitle} from '../services/roadAlertPresentation';
 import {RadarAttribution} from './RadarAttribution';
+import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
@@ -712,8 +713,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         html:createRoadAlertIconElement(alert.kind),
         iconSize:[38,38],iconAnchor:[19,19]
       });
-      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,zIndexOffset:2100}).addTo(group);
-      marker.on('click',()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert));
+      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100}).addTo(group);
+      const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert);
+      const element=marker.getElement();
+      if(element){
+        element.setAttribute('aria-label',`${roadAlertTitle(alert)}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
+        const unbind=bindMapMarkerActivation(element,open);
+        marker.once('remove',unbind);
+      }else marker.on('click',open);
       if(record)group.removeLayer(record.marker);
       existing.set(alert.id,{alert,marker});
     }

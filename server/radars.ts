@@ -169,10 +169,10 @@ export function createRadarSync(db:FuelDatabase,{fetcher=fetch,clock=Date.now,en
 
 export function startRadarUpdates(db:FuelDatabase,options:RadarSyncOptions={}){
   const sync=createRadarSync(db,options);
-  const run=()=>{void sync.run().then(result=>{
+  const run=()=>{void Promise.resolve().then(()=>sync.run()).then(result=>{
     if(result.outcome==='updated')console.log(`Radares: base Pardal salva no banco (${radarStatus(db).active} ativos); próxima consulta mensal agendada.`);
     if(result.outcome==='failed')console.warn('Radares: fonte indisponível; banco preservado. Nova tentativa em 24 horas.');
-  });};
+  }).catch(()=>console.warn('Radares: falha no agendador; confira o armazenamento persistente.'));};
   run();
   // Local due-date check. No upstream requests until the persisted monthly deadline.
   const timer=setInterval(run,6*3600000);timer.unref();

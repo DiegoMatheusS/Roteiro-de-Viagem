@@ -24,8 +24,8 @@ jobs:
         run: npm run check:weather
         continue-on-error: true
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:ui
       - run: npm run test:radars:ui
+      - run: npm run test:ui
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         if: failure()
