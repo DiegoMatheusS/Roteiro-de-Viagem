@@ -4,7 +4,7 @@ import type { FuelDatabase } from './db';
 import { ApiError, administrator, auth, clientIp, now, user, validate } from './http';
 import { validateCoordinates, type Coordinates } from './maps';
 import { ROAD_ALERT_TTL_MS, ROAD_ALERT_TYPES, type RoadAlertType } from '../src/types/roadAlerts';
-import {radarAlertsForRoute,radarStatus} from './radars';
+import {radarAlertsForBounds,radarAlertsForRoute,radarStatus} from './radars';
 
 function distanceToSegmentKm(point: Coordinates, a: Coordinates, b: Coordinates): number {
   const factor = Math.max(0.01, Math.abs(Math.cos(point[0] * Math.PI / 180)));
@@ -64,6 +64,27 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
       VALUES(?,?,?,?,?,?,'pending',?,?)`)
       .run(id, reporter?.id ?? null, kind, lat, lng, note.trim(), createdAt, expiresAt);
     res.status(201).json({ id, status: 'pending', message: 'Alerta enviado para análise. Ainda não aparece publicamente.' });
+  });
+
+  /** Marcadores do mapa inicial e da navegação: somente viewport, nunca raio do GPS. */
+  app.get('/api/road-alerts/map', (req, res) => {
+    limit(`road-alert-map:${clientIp(req)}`,60,60000);
+    const number=(key:'south'|'north'|'west'|'east',min:number,max:number)=>{
+      const raw=req.query[key];
+      if(typeof raw!=='string'||!raw.trim())throw new ApiError('Limites do mapa inválidos.');
+      const value=Number(raw);
+      if(!Number.isFinite(value)||value<min||value>max)throw new ApiError('Limites do mapa inválidos.');
+      return value;
+    };
+    const south=number('south',-90,90),north=number('north',-90,90);
+    const west=number('west',-180,180),east=number('east',-180,180);
+    if(south>=north||west>=east)throw new ApiError('Área visível do mapa inválida.');
+    const rows=db.prepare(`SELECT * FROM road_alerts WHERE status='approved'
+      AND expires_at>? AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+      ORDER BY created_at DESC LIMIT 1201`).all(now(),south,north,west,east) as any[];
+    const cameras=radarAlertsForBounds(db,{south,north,west,east});
+    const alerts=[...rows.slice(0,1200).map(toPublic),...cameras.alerts];
+    res.json({alerts,truncated:rows.length>1200||cameras.truncated,updatedAt:now()});
   });
 
   app.post('/api/road-alerts/route', (req, res) => {
