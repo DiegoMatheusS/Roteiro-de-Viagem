@@ -2,6 +2,7 @@ import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
 import type { RoadAlert } from '../types/roadAlerts';
 import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import { createRoadAlertIconElement, roadAlertMarkerChange, selectVisibleRoadAlerts } from './mapRoadAlerts';
+import {roadAlertTitle} from './roadAlertPresentation';
 
 export interface RoadAlertPinController {
   update(alerts: readonly RoadAlert[]):void;
@@ -22,11 +23,11 @@ export function createRoleMaplibreRoadAlertController(
   const markers = new Map<string,TrackedRoadAlert>();
   let destroyed=false;
   const makeMarker=(alert:RoadAlert):Marker=>{
-    const label=ROAD_ALERT_TYPES.find(type=>type.id===alert.kind)?.label||'Ocorrência';
+    const label=alert.source==='pardal'?roadAlertTitle(alert):ROAD_ALERT_TYPES.find(type=>type.id===alert.kind)?.label||'Ocorrência';
     const button=document.createElement('button');
     button.type='button';
     button.className='road-alert-marker rdv-maplibre-road-alert';
-    button.setAttribute('aria-label',`${label}. Confirmar se ainda está no local`);
+    button.setAttribute('aria-label',`${label}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
     button.title=label;
     button.style.cssText='display:block;padding:0;background:transparent;border:0;cursor:pointer;';
     button.append(createRoadAlertIconElement(alert.kind));
@@ -64,6 +65,10 @@ export function createRoleMaplibreRoadAlertController(
           const marker=makeMarker(alert);
           record?.marker.remove();
           markers.set(alert.id,{alert,marker});
+        }
+        if(alert.source==='pardal'){
+          const button=markers.get(alert.id)!.marker.getElement(),label=roadAlertTitle(alert);
+          button.title=label;button.setAttribute('aria-label',`${label}. Ver detalhes do radar`);
         }
       }
     },

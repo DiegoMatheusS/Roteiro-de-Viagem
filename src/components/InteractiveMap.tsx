@@ -21,6 +21,9 @@ import { createLeafletPlaceMarkerController } from '../services/leafletPlaceMark
 import { PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
+import {roadAlertTitle} from '../services/roadAlertPresentation';
+import {RadarAttribution} from './RadarAttribution';
+import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
@@ -710,8 +713,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         html:createRoadAlertIconElement(alert.kind),
         iconSize:[38,38],iconAnchor:[19,19]
       });
-      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,zIndexOffset:2100}).addTo(group);
-      marker.on('click',()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert));
+      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100}).addTo(group);
+      const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert);
+      const element=marker.getElement();
+      if(element){
+        element.setAttribute('aria-label',`${roadAlertTitle(alert)}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
+        const unbind=bindMapMarkerActivation(element,open);
+        marker.once('remove',unbind);
+      }else marker.on('click',open);
       if(record)group.removeLayer(record.marker);
       existing.set(alert.id,{alert,marker});
     }
@@ -1611,17 +1620,18 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         className="absolute top-[max(16px,env(safe-area-inset-top))] left-1/2 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] border border-slate-200 bg-white/95 p-4 shadow-[0_12px_36px_rgba(15,23,42,.22)] backdrop-blur-md">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-amber-700">{ROAD_ALERT_TYPES.find(item => item.id === selectedRoadAlert.kind)?.label}</p>
-            <h3 className="mt-1 text-[15px] font-extrabold text-slate-900">Ainda continua lá?</h3>
+            <p className="text-[11px] font-semibold text-amber-700">{selectedRoadAlert.source==='pardal'?'Radar cadastrado':ROAD_ALERT_TYPES.find(item => item.id === selectedRoadAlert.kind)?.label}</p>
+            <h3 className="mt-1 text-[15px] font-extrabold text-slate-900">{selectedRoadAlert.source==='pardal'?roadAlertTitle(selectedRoadAlert):'Ainda continua lá?'}</h3>
           </div>
           <button type="button" aria-label="Fechar confirmação de ocorrência" onClick={() => setSelectedRoadAlert(null)}
             className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"><X size={20}/></button>
         </div>
         {selectedRoadAlert.note && <p className="mt-2 line-clamp-2 text-xs text-slate-600">{selectedRoadAlert.note}</p>}
-        {!alertCheckDone && <p className="mt-2 text-[11px] text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
+        <RadarAttribution alert={selectedRoadAlert}/>
+        {selectedRoadAlert.source!=='pardal'&&!alertCheckDone && <p className="mt-2 text-[11px] text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
         {alertCheckError && <p role="alert" className="mt-2 text-xs text-rose-700">{alertCheckError}</p>}
         {alertCheckMessage && <p role="status" className="mt-2 text-xs text-emerald-700">{alertCheckMessage}</p>}
-        {!alertCheckDone && <div className="mt-3 grid grid-cols-2 gap-2">
+        {selectedRoadAlert.source!=='pardal'&&!alertCheckDone && <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(true)}
             className="min-h-11 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Sim</button>
           <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(false)}
