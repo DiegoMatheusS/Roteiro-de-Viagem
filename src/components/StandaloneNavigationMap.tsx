@@ -535,6 +535,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       root.dataset.mapBearing=String(map.getBearing());
       root.dataset.mapPitch=String(map.getPitch());
       const bounds=map.getBounds();
+      latest.current.onRoadAlertViewportChange?.({south:bounds.getSouth(),north:bounds.getNorth(),
+        west:bounds.getWest(),east:bounds.getEast()});
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
       // Retain loaded markers at their real coordinates on a far zoom-out.

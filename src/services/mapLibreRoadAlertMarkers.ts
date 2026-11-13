@@ -3,6 +3,7 @@ import type { RoadAlert } from '../types/roadAlerts';
 import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import { createRoadAlertIconElement, roadAlertMarkerChange, selectVisibleRoadAlerts } from './mapRoadAlerts';
 import {roadAlertTitle} from './roadAlertPresentation';
+import {roadAlertLayerPriority,roadAlertSeverity} from './roadAlertPriority';
 
 export interface RoadAlertPinController {
   update(alerts: readonly RoadAlert[]):void;
@@ -27,9 +28,11 @@ export function createRoleMaplibreRoadAlertController(
     const button=document.createElement('button');
     button.type='button';
     button.className='road-alert-marker rdv-maplibre-road-alert';
+    button.dataset.alertSeverity=roadAlertSeverity(alert.kind);
     button.setAttribute('aria-label',`${label}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
     button.title=label;
     button.style.cssText='display:block;padding:0;background:transparent;border:0;cursor:pointer;';
+    button.style.zIndex=String(1000+roadAlertLayerPriority(alert.kind));
     button.append(createRoadAlertIconElement(alert.kind));
     for(const type of ['click','dblclick','mousedown','touchstart','pointerdown'] as const){
       button.addEventListener(type,event=>event.stopPropagation(),{passive:true});

@@ -1,6 +1,7 @@
 import type { RoadAlert, RoadAlertType } from '../types/roadAlerts';
 import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import {ROAD_ALERT_ART_URL,ROAD_ALERT_ARTWORK,roadAlertClip,POTHOLE_PATHS} from './roadAlertArtwork';
+import {roadAlertSeverity} from './roadAlertPriority';
 
 const knownKinds = new Set<string>(ROAD_ALERT_TYPES.map(type => type.id));
 
@@ -40,8 +41,11 @@ let nextClipId=0;
 export function createRoadAlertIconElement(kind: RoadAlertType): HTMLDivElement {
   const root=document.createElement('div');
   root.className='rdv-alert-pin';
+  const severity=roadAlertSeverity(kind);
+  root.dataset.alertSeverity=severity;
   root.setAttribute('aria-hidden','true');
-  root.style.cssText='width:38px;height:38px;display:grid;place-items:center;background:#fff;color:#9a3412;border:1px solid #cbd5e1;border-radius:12px;box-shadow:0 3px 10px #0f172a35;';
+  const border=severity==='critical'?'#dc2626':severity==='high'?'#f59e0b':'#175cd3';
+  root.style.cssText=`width:38px;height:38px;display:grid;place-items:center;background:#fff;color:#9a3412;border:2px solid ${border};border-radius:12px;box-shadow:0 3px 10px #0f172a35;`;
   const ns='http://www.w3.org/2000/svg';
   const svg=document.createElementNS(ns,'svg');
   svg.setAttribute('width','34');svg.setAttribute('height','34');
