@@ -321,7 +321,26 @@ try {
     assert.equal(await navigationVoice.getAttribute('aria-pressed'),String(expectedVoice),
       'A navegação deve respeitar o som escolhido na Home');
     await navScreen.getByRole('status',{name:/Velocímetro/}).waitFor();
+    // Registrar novas ocorrências pertence exclusivamente à navegação ativa.
+    const navigationReporter=navScreen.getByRole('button',{name:'Reportar problema na estrada'});
+    await navigationReporter.waitFor();
     if(choice.mode==='km'){
+      await navigationReporter.click();
+      const reportMenu=guestPage.getByRole('menu',{name:'Escolher ocorrência'});
+      const menuBounds=await reportMenu.boundingBox();
+      assert.ok(menuBounds&&menuBounds.y<100,'Ícones de alerta ficam no topo durante a navegação');
+      const menuAnimation=await reportMenu.evaluate(el=>getComputedStyle(el).animationName);
+      assert.ok(menuAnimation.includes('rdv-alert-drop-down'));
+      await reportMenu.getByRole('menuitem',{name:'Buraco na pista'}).waitFor();
+      await reportMenu.getByRole('menuitem',{name:'Pedágio'}).waitFor();
+      await reportMenu.getByRole('menuitem',{name:'Radar de velocidade'}).waitFor();
+      await reportMenu.getByRole('menuitem',{name:'Buraco na pista'}).click();
+      const reportDialog=guestPage.getByRole('dialog',{name:'Reportar ocorrência na via'});
+      await reportDialog.getByText(/Pare em segurança/).waitFor();
+      await reportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
+      await reportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
+      assert.equal(await reportDialog.locator('textarea').count(),0);
+      await reportDialog.getByRole('button',{name:'Fechar ocorrência'}).click();
       await guestPage.screenshot({path:'test-results/figma-tela-4-navegacao.png'});
       await navScreen.getByRole('button',{name:'Compartilhar',exact:true}).click();
       const sharing=guestPage.getByRole('dialog',{name:'Compartilhar viagem'});
@@ -852,30 +871,12 @@ try {
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   const gpsControl = page.getByRole('button', { name: 'Centralizar mapa na minha localização' });
-  const reportControl = page.getByRole('button', { name: 'Reportar problema na estrada' });
   await gpsControl.waitFor();
-  await reportControl.waitFor();
   const gpsRect = await gpsControl.boundingBox();
-  const reportRect = await reportControl.boundingBox();
-  assert.ok(gpsRect && reportRect && gpsRect.y + gpsRect.height <= reportRect.y + 1, 'GPS precisa ficar acima do alerta');
-  assert.ok(gpsRect.width>=56&&reportRect.width>=56);
+  assert.ok(gpsRect && gpsRect.width>=56, 'O botão de GPS permanece acessível no mapa');
+  assert.equal(await page.getByRole('button',{name:'Reportar problema na estrada'}).count(),0,
+    'Fora da navegação, alertas aparecem como marcadores e não como botão de registro');
   assert.equal(await page.getByRole('status',{name:/Velocímetro/}).count(),0);
-  await reportControl.click();
-  const reportMenu = page.getByRole('menu', { name: 'Escolher ocorrência' });
-  const menuBounds=await reportMenu.boundingBox();
-  assert.ok(menuBounds&&menuBounds.y<100,'Ícones de alerta continuam no topo do telefone');
-  const menuAnimation=await reportMenu.evaluate(el=>getComputedStyle(el).animationName);
-  assert.ok(menuAnimation.includes('rdv-alert-drop-down'));
-  await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).waitFor();
-  await reportMenu.getByRole('menuitem', { name: 'Pedágio' }).waitFor();
-  await reportMenu.getByRole('menuitem', { name: 'Radar de velocidade' }).waitFor();
-  await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).click();
-  const reportDialog = page.getByRole('dialog', { name: 'Reportar ocorrência na via' });
-  await reportDialog.getByText(/Pare em segurança/).waitFor();
-  await reportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
-  await reportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
-  assert.equal(await reportDialog.locator('textarea').count(),0);
-  await reportDialog.getByRole('button', { name: 'Fechar ocorrência' }).click();
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
   const mapPanel = page.getByTestId('map-explore-sheet');
   const initialMapBounds = await mapPanel.boundingBox();
