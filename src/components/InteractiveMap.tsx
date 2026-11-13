@@ -22,6 +22,8 @@ import { PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import {roadAlertTitle} from '../services/roadAlertPresentation';
+import {roadAlertLayerPriority} from '../services/roadAlertPriority';
+import {useViewportRoadAlerts,type RoadAlertViewport} from '../hooks/useViewportRoadAlerts';
 import {RadarAttribution} from './RadarAttribution';
 import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -126,6 +128,7 @@ export interface InteractiveMapProps {
   onCameraModeChange?: (mode: CameraMode) => void;
   roadAlerts?: RoadAlert[];
   onRoadAlertUpdated?: () => void;
+  onRoadAlertViewportChange?: (viewport:RoadAlertViewport) => void;
   /** Lista apenas marcadores realmente renderizados dentro do viewport do mapa. */
   onVisiblePlacesChange?: (places: MapVisiblePlace[]) => void;
   /** Cada incremento centraliza o mapa no GPS, sem forçar acompanhamento ao arrastar. */
@@ -188,6 +191,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   onCameraModeChange,
   roadAlerts = EMPTY_ROAD_ALERTS,
   onRoadAlertUpdated,
+  onRoadAlertViewportChange,
   onVisiblePlacesChange,
   centerOnUserRequest = 0,
   className = 'w-full h-full'
@@ -507,6 +511,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       }
       setViewportRevision(value => value + 1);
       const bounds=map.getBounds();
+      onRoadAlertViewportChange?.({south:bounds.getSouth(),north:bounds.getNorth(),
+        west:bounds.getWest(),east:bounds.getEast()});
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
       // Keep already queried markers anchored while zooming out of search range.
@@ -713,7 +719,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         html:createRoadAlertIconElement(alert.kind),
         iconSize:[38,38],iconAnchor:[19,19]
       });
-      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100}).addTo(group);
+      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100+roadAlertLayerPriority(alert.kind)}).addTo(group);
       const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert);
       const element=marker.getElement();
       if(element){
@@ -1712,6 +1718,30 @@ const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').cat
 /** All public maps use native MapLibre; the hybrid renderer remains available
  * as fallback when WebGL or the selected base cannot load. */
 export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
+  const [alertViewport,setAlertViewport]=useState<RoadAlertViewport|null>(null);
+  const {alerts:viewportAlerts,reload:reloadViewportAlerts}=useViewportRoadAlerts(alertViewport);
+  const mergedAlerts=useMemo(()=>{
+    const reports=new Map<string,RoadAlert>();
+    for(const alert of props.roadAlerts||[])reports.set(alert.id,alert);
+    for(const alert of viewportAlerts)reports.set(alert.id,alert);
+    return [...reports.values()];
+  },[props.roadAlerts,viewportAlerts]);
+  const updateViewport=React.useCallback((bounds:RoadAlertViewport)=>{
+    setAlertViewport(previous=>{
+      const round=(n:number)=>Math.round(n*1000);
+      if(previous&&round(previous.south)===round(bounds.south)&&
+        round(previous.north)===round(bounds.north)&&
+        round(previous.west)===round(bounds.west)&&
+        round(previous.east)===round(bounds.east))return previous;
+      return bounds;
+    });
+  },[]);
+  const onAlertUpdated=React.useCallback(()=>{
+    reloadViewportAlerts();
+    props.onRoadAlertUpdated?.();
+  },[reloadViewportAlerts,props.onRoadAlertUpdated]);
+  const mapProps={...props,roadAlerts:mergedAlerts,onRoadAlertUpdated:onAlertUpdated,
+    onRoadAlertViewportChange:updateViewport};
   const [fallback,setFallback]=useState(false);
   const [fallbackStyle,setFallbackStyle]=useState<MapStyleType>();
   const [fallbackViewport,setFallbackViewport]=useState<MapFallbackViewport>();
@@ -1722,8 +1752,8 @@ export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
     latestProps.current.onCameraModeChange?.(viewport?.mode??'following');
     setFallback(true);
   },[]);
-  if(fallback)return <HybridInteractiveMap {...props} initialStyle={fallbackStyle??props.initialStyle} resumeViewport={fallbackViewport}/>;
+  if(fallback)return <HybridInteractiveMap {...mapProps} initialStyle={fallbackStyle??props.initialStyle} resumeViewport={fallbackViewport}/>;
   return <React.Suspense fallback={<div className={props.className || 'w-full h-full'} role="status" aria-label="Carregando mapa"/>}>
-    <NativeNavigationMap {...props} onUnavailable={onUnavailable}/>
+    <NativeNavigationMap {...mapProps} onUnavailable={onUnavailable}/>
   </React.Suspense>;
 };
