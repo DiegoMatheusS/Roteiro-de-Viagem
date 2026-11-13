@@ -68,7 +68,7 @@ export function CreateTouristCircuitScreen({
 
       <div className="rdv-create-panel" data-testid="figma-create-trip-panel">
         <div className="rdv-create-handle" aria-hidden="true"/>
-        <h2>Quanto você quer rodar?</h2>
+        <h2>{mode==='km'?'Qual distância deseja percorrer?':'Quanto tempo deseja viajar?'}</h2>
 
         <div className="rdv-create-tabs" role="group" aria-label="Tipo de planejamento">
           <button type="button" aria-pressed={mode==='km'} onClick={()=>onModeChange('km')}
@@ -92,7 +92,8 @@ export function CreateTouristCircuitScreen({
           <button type="button" aria-label="Aumentar quantidade" onClick={()=>onStep(true)}>+</button>
         </div>
 
-        <div className="rdv-create-chips" role="group" aria-label="Valores rápidos">
+        <p className="text-center text-xs text-slate-600">Digite {mode==='km'?'a quantidade de quilômetros':'a quantidade de horas'} no campo acima ou use uma sugestão.</p>
+        <div className="rdv-create-chips" role="group" aria-label="Valores sugeridos">
           {options.map(option=><button type="button" key={option}
             aria-pressed={parseTouristTarget(value)===option}
             onClick={()=>mode==='km'?onKmChange(String(option)):onHoursChange(String(option))}
