@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route, Users } from 'lucide-react';
+import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Plus, Search, X, Route, Users } from 'lucide-react';
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
@@ -493,7 +493,8 @@ export function NavigationHome(props: NavigationHomeProps) {
               className="mt-2 text-sm text-blue-700 font-semibold underline underline-offset-2">
               Não sabe o número? Marcar endereço no mapa
             </button>}
-          <div className="mt-2 flex items-center">
+          {/* Acessos rápidos sempre visíveis logo abaixo da busca, sem abrir o painel. */}
+          <div className="mt-2 flex items-center gap-2 min-w-0" data-testid="home-saved-shortcuts">
             <button type="button" aria-label="Salvos" aria-expanded={showSavedDestinations}
               aria-controls="rdv-home-saved-destinations"
               onClick={()=>{
@@ -502,10 +503,33 @@ export function NavigationHome(props: NavigationHomeProps) {
                 setCollapsed(false);setSheetExpanded(true);
                 setShowSavedDestinations(value=>!value);
               }}
-              className={`inline-flex w-full min-h-[60px] items-center justify-center gap-3 rounded-2xl border px-5 text-lg font-extrabold transition-colors
+              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-[13px] font-bold transition-colors
                 ${showSavedDestinations?'border-blue-600 bg-blue-600 text-white':'border-blue-100 bg-blue-50 text-blue-700'}`}>
-              <Bookmark size={24} strokeWidth={2} aria-hidden="true"/> Salvos
+              <Bookmark size={17} strokeWidth={2} aria-hidden="true"/> Salvos
             </button>
+            <div role="group" aria-label="Locais salvos" data-testid="home-saved-places"
+              className="min-w-0 flex-1 flex items-center gap-2 overflow-x-auto overscroll-x-contain py-1 touch-pan-x">
+              {savedAddresses.map(item=><button key={item.id} type="button" title={item.address}
+                aria-label={`Ir para ${item.label}`}
+                onClick={()=>selectMapTarget({name:item.label,address:item.address,coords:item.coords})}
+                className="inline-flex min-h-10 max-w-[140px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-800 shadow-sm active:bg-blue-50">
+                <MapPin size={15} className="shrink-0 text-blue-600" aria-hidden="true"/>
+                <span className="truncate">{item.label}</span>
+              </button>)}
+              {!savedAddresses.length&&<span className="shrink-0 text-[12px] text-slate-500">
+                {user?'Nenhum local salvo':'Entre para salvar lugares'}
+              </span>}
+              <button type="button" aria-label="Gerenciar locais salvos" title="Adicionar ou organizar salvos"
+                onClick={()=>{
+                  searchInputRef.current?.blur();
+                  cancelTypeahead();
+                  setCollapsed(false);setSheetExpanded(true);
+                  setShowSavedDestinations(true);
+                }}
+                className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700 active:bg-blue-100">
+                <Plus size={18} aria-hidden="true"/>
+              </button>
+            </div>
           </div>
           {showSavedDestinations&&<div id="rdv-home-saved-destinations" role="region"
             aria-label="Endereços salvos na busca" className="mt-2 rounded-2xl border border-blue-100 bg-slate-50 p-3">
@@ -536,14 +560,15 @@ export function NavigationHome(props: NavigationHomeProps) {
             onCancel={()=>setShowManualMap(false)}
             onConfirm={place=>{setShowManualMap(false);selectMapTarget(place);}}/>}
         </div>
+          <h3 className="text-[13px] font-bold text-slate-700">Planejar passeio</h3>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
-              <strong className="rdv-figma-card-title">Por km</strong>
+              <strong className="rdv-figma-card-title">Por distância</strong>
             </button>
             <button type="button" onClick={()=>showSheet('hours')} aria-label="Por tempo — Escolher horas" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Clock3 size={20} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
-              <strong className="rdv-figma-card-title">Por horas</strong>
+              <strong className="rdv-figma-card-title">Por tempo</strong>
             </button>
           </div>
           <button type="button" aria-label="Comboio" onClick={()=>setShowConvoyActions(true)}

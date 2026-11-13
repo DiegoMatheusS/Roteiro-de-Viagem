@@ -104,6 +104,16 @@ try {
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
+  // A faixa de salvos precisa estar diretamente abaixo da busca, sem clique extra.
+  const homeSavedShortcuts=page.getByTestId('home-saved-shortcuts');
+  await homeSavedShortcuts.waitFor();
+  const homeSearchBounds=await page.getByTestId('home-inline-destination-search').boundingBox();
+  const homeShortcutsBounds=await homeSavedShortcuts.boundingBox();
+  assert.ok(homeSearchBounds&&homeShortcutsBounds&&
+    homeShortcutsBounds.y>=homeSearchBounds.y&&homeShortcutsBounds.y<homeSearchBounds.y+180,
+    'Locais salvos devem ficar imediatamente abaixo da busca no início');
+  assert.equal(await homeSavedShortcuts.getByRole('group',{name:'Locais salvos'}).count(),1);
+  assert.equal(await page.getByRole('button',{name:'Alertas',exact:true}).count(),0);
   await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
   // Tela 6: filtros, métricas reais, estado vazio e CTAs iguais ao PNG do Figma.
   await page.getByRole('button',{name:'Aba Viagens'}).click();
