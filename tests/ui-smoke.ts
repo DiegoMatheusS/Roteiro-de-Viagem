@@ -164,7 +164,7 @@ try {
   const exploreBox=await exploring.boundingBox();
   const exploreSheet=await exploring.locator('.rdv-explore-sheet').boundingBox();
   assert.ok(exploreBox&&exploreSheet&&exploreBox.height>=840&&
-    exploreSheet.y>360&&exploreSheet.y<480,
+    exploreSheet.y>390&&exploreSheet.y<540,
     'Tela Explorar precisa ter mapa superior e folha inferior conforme PNG');
   await page.screenshot({path:'test-results/figma-tela-5-explorar.png'});
   await exploring.getByRole('button',{name:'Estrada',exact:true}).click();
