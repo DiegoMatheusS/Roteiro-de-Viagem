@@ -11,7 +11,7 @@ export function TouristCategoryIcon({kind,name='',size=23}:{kind:string;name?:st
     iconKind==='theatre'?Drama:
     iconKind==='museum'||iconKind==='historic'||iconKind==='landmark'?Landmark:
     iconKind==='waterfall'?Droplets:
-    iconKind==='beach'?Waves:
+    iconKind==='beach'||iconKind==='lake'?Waves:
     iconKind==='viewpoint'?Mountain:
     iconKind==='trail'?Footprints:
     iconKind==='scenic_road'?Route:

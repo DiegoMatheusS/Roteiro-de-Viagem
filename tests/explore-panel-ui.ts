@@ -157,7 +157,7 @@ try{
     await region.getByRole('heading',{name:'Parque Ibirapuera',exact:true}).waitFor();
     await toggle.click();await page.waitForTimeout(250);
     await pin.waitFor({state:'visible'});
-    // Photos and titles calculate the selected destination, using the same
+    // Photos and titles start navigation to the selected destination, using the same
     // GPS origin and preview as the existing route button. No double request.
     const parkName='Parque do teste Explorar';
     await region.getByRole('searchbox',{name:'Buscar passeios'}).fill(parkName);
@@ -172,17 +172,24 @@ try{
     assert.equal(await parkRow.getByRole('button',{name:`Ver rota para ${parkName}`,exact:true}).isDisabled(),true);
     releaseRoute();
     const preview=page.getByRole('dialog',{name:'Visualizar viagem',exact:true});
-    await preview.waitFor();
+    await page.waitForFunction(()=>(window as any).__exploreStartedTrips?.length===1);
     assert.deepEqual(routeRequests[0],{originCoords:[-23.55,-46.63],destinationCoords:[-23.54,-46.61]});
     assert.equal(routeRequests.length,1,'um toque na foto calcula uma única rota');
-    await preview.getByRole('button',{name:'Fechar janela',exact:true}).click();
-    await preview.waitFor({state:'hidden'});
+    assert.equal(await preview.count(),0,'toque na foto inicia navegação, sem abrir prévia/detalhes');
+    assert.equal(await page.evaluate(()=>(window as any).__exploreStartedTrips[0].destinationName),parkName);
     const museumName='Museu do teste Explorar';
     await region.getByRole('searchbox',{name:'Buscar passeios'}).fill(museumName);
     const titleAction=region.getByRole('button',{name:museumName,exact:true});
-    await titleAction.focus();await titleAction.press('Enter');await preview.waitFor();
+    await titleAction.focus();await titleAction.press('Enter');
+    await page.waitForFunction(()=>(window as any).__exploreStartedTrips?.length===2);
     assert.deepEqual(routeRequests[1],{originCoords:[-23.55,-46.63],destinationCoords:[-23.56,-46.65]});
-    assert.equal(routeRequests.length,2,'o título também calcula uma única rota, inclusive pelo teclado');
+    assert.equal(routeRequests.length,2,'o título inicia uma única navegação, inclusive pelo teclado');
+    assert.equal(await preview.count(),0,'toque no título não abre prévia/detalhes');
+    assert.equal(await page.evaluate(()=>(window as any).__exploreStartedTrips[1].destinationName),museumName);
+    // O botão de percurso continua oferecendo a prévia, sem afetar os toques diretos.
+    await region.getByRole('button',{name:`Ver rota para ${museumName}`,exact:true}).click();
+    await preview.waitFor();
+    assert.equal(routeRequests.length,3,'a prévia só abre ao pedir o percurso');
     await preview.getByRole('button',{name:'Fechar janela',exact:true}).click();
     await preview.waitFor({state:'hidden'});
     fs.mkdirSync('test-results',{recursive:true});
