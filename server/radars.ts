@@ -16,8 +16,7 @@ const columns='lat,lng,kind,limit_kmh,source,active,end_lat,end_lng,direction_de
 type Camera={id:string;lat:number;lng:number;kind:RadarKind;limit:number|null;source:string;active:number;
   endLat:number|null;endLng:number|null;direction:number|null};
 type SyncRow={release_tag:string|null;digest:string|null;checked_at:string|null;updated_at:string|null;
-  source_updated_at:string|null;next_check_at:string|null;next_attempt_at:string;last_error:string;
-  source_csv:Uint8Array|null;license_text:string};
+  source_updated_at:string|null;next_check_at:string|null;next_attempt_at:string;last_error:string};
 
 /** Separate public dataset: never mixes imported records with moderated reports or account data. */
 export function initializeRadarDatabase(db:FuelDatabase){
@@ -36,7 +35,9 @@ export function initializeRadarDatabase(db:FuelDatabase){
   );
   INSERT OR IGNORE INTO radar_sync(id,next_attempt_at) VALUES(1,'1970-01-01T00:00:00.000Z');`);
 }
-const syncRow=(db:FuelDatabase)=>db.prepare('SELECT * FROM radar_sync WHERE id=1').get() as SyncRow;
+// Metadata reads must not copy the complete CSV BLOB on every navigation request.
+const syncRow=(db:FuelDatabase)=>db.prepare(`SELECT release_tag,digest,checked_at,updated_at,
+  source_updated_at,next_check_at,next_attempt_at,last_error FROM radar_sync WHERE id=1`).get() as SyncRow;
 
 /** One calendar month after the successful check; clamp Jan 31 to February's last day. */
 export function nextMonthlyRadarCheck(timestamp:number):string{
@@ -205,11 +206,13 @@ export function registerRadarRoutes(app:Express,db:FuelDatabase,limit:(key:strin
   });
   app.get('/api/radars/export.csv',(req,res)=>{
     limit(`radar-export:${clientIp(req)}`,4,60000);
-    const row=syncRow(db);if(!row.source_csv){res.status(503).json({error:'Base de radares ainda indisponível.'});return;}
+    const row=db.prepare('SELECT source_csv FROM radar_sync WHERE id=1').get() as {source_csv:Uint8Array|null};
+    if(!row.source_csv){res.status(503).json({error:'Base de radares ainda indisponível.'});return;}
     res.setHeader('X-Data-License','ODbL-1.0');res.setHeader('Link','</api/radars/license>; rel="license"');
     res.type('text/csv').attachment('role-radares-pardal.csv').send(Buffer.from(row.source_csv));
   });
   app.get('/api/radars/license',(_req,res)=>{
-    res.type('text/plain').send(`${RADAR_ATTRIBUTION}\n${REPOSITORY}\nhttps://opendatacommons.org/licenses/odbl/1-0/\n\n${syncRow(db).license_text}`);
+    const row=db.prepare('SELECT license_text FROM radar_sync WHERE id=1').get() as {license_text:string};
+    res.type('text/plain').send(`${RADAR_ATTRIBUTION}\n${REPOSITORY}\nhttps://opendatacommons.org/licenses/odbl/1-0/\n\n${row.license_text}`);
   });
 }
