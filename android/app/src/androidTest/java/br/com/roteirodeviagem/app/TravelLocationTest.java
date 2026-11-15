@@ -71,8 +71,8 @@ public class TravelLocationTest {
  @Test public void gpsAndConvoyContinueWithScreenOffAndNotificationStopsBoth() throws Exception {
   // Only this integration test needs an activity. Permission and intent tests are native.
   activity=ActivityScenario.launch(MainActivity.class);
-  // O acesso à conta agora fica na aba Perfil; a home apresenta o planejamento Rolê.
-  await("A interface e a ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins && document.querySelector('[aria-label=\"Início do Rolê\"]') != null && document.body.innerText.includes('Rolê com origem e destino')")),60000);
+  // O acesso à conta agora fica na aba Perfil; a home apresenta o planejamento RUAVO.
+  await("A interface e a ponte nativa do aplicativo",()->Boolean.parseBoolean(js("!!window.Capacitor && !!window.Capacitor.Plugins && document.querySelector('[aria-label=\"Início do RUAVO\"]') != null && document.body.innerText.includes('Rota com origem e destino')")),60000);
   // The HTTPS server, certificate and session below exist only inside this instrumentation test.
   HeldCertificate cert=new HeldCertificate.Builder().commonName("127.0.0.1").addSubjectAlternativeName("127.0.0.1").addSubjectAlternativeName("localhost").build();
   HandshakeCertificates serverTls=new HandshakeCertificates.Builder().heldCertificate(cert).build(),clientTls=new HandshakeCertificates.Builder().addTrustedCertificate(cert.certificate()).build();
@@ -100,7 +100,7 @@ public class TravelLocationTest {
  }
  @Test public void closingActivityStopsGpsAndPreservesTheTripForAnExplicitResume() throws Exception {
   activity=ActivityScenario.launch(MainActivity.class);
-  await("A home antes de iniciar o teste de fechamento",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do Rolê\"]') != null")),60000);
+  await("A home antes de iniciar o teste de fechamento",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do RUAVO\"]') != null")),60000);
   String trip="fixture-account:closed-app-trip";
   start("TRIP",trip,"","");
   await(()->TravelLocationService.running&&trip.equals(TravelLocationService.activeTripId));
@@ -141,7 +141,7 @@ public class TravelLocationTest {
  private double navigationZoom() throws Exception {return Double.parseDouble(js("Number(document.querySelector('[data-map-engine]').dataset.mapZoom)"));}
  @Test public void navigationAcceptsPanAndBothPinchDirectionsOnTheGpsArrow() throws Exception {
   activity=ActivityScenario.launch(MainActivity.class);
-  await("A home do aplicativo",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do Rolê\"]') != null")),60000);
+  await("A home do aplicativo",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do RUAVO\"]') != null")),60000);
   // Seed only this guest fixture and mock the base style; the real app,
   // native GPS service, map renderer and Android touch dispatch stay active.
   js("(()=>{const original=window.fetch;window.fetch=(input,init)=>{const url=typeof input==='string'?input:input.url;if(url&&url.includes('tiles.openfreemap.org/'))return Promise.resolve(new Response(JSON.stringify({version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}),{headers:{'Content-Type':'application/json'}}));return original(input,init);};window.__navigationGesturePrevious={active:localStorage.getItem('rdv_private_v2_guest_active_trip'),trips:localStorage.getItem('rdv_private_v2_guest_trips')};const trip={id:'native-touch-fixture',title:'Teste de gestos',originName:'Origem',originCoords:[-23.55,-46.63],destinationName:'Destino',destinationCoords:[-23.54,-46.62],modality:'rapida',returnModality:'auto',isCircular:false,distanceKm:2,durationMinutes:5,drivingMinutes:5,vehicleId:'role-guest-navigation',routePath:[[-23.55,-46.63],[-23.54,-46.62]],routeSteps:[],routingSource:'OSRM',stops:[],weatherPoints:[],hasRainRisk:false,peopleCount:1,vehicleGroupType:'single_vehicle',groupVehiclesCount:1,participants:[],splitExpenses:false,foodCostPerPerson:0,fuelPricePerLiter:0,estimatedFuelLiters:0,estimatedFuelCost:0,knownTollsCost:0,totalFoodCost:0,totalEstimatedCost:0,costPerPerson:0,status:'in_progress',createdAt:new Date().toISOString(),trackingDeviceId:localStorage.getItem('rdv_device_v1'),trackedDistanceKm:0};localStorage.setItem('rdv_private_v2_guest_trips',JSON.stringify([trip]));localStorage.setItem('rdv_private_v2_guest_active_trip',JSON.stringify(trip));window.dispatchEvent(new Event('rdv:remote-state'));return true;})()");
