@@ -211,7 +211,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
       </button>
       <div className="rdv-explore-sheet-title">
         <h2>{query.trim()?'Resultados':filter==='near'&&!origin?'Passeios':filterTitles[filter]}</h2>
-        <span>{filter==='near'?regionLabel:EXPLORE_AREA_LABELS[area]}</span>
+        <span>{filtered.length} locais · {filter==='near'?regionLabel:EXPLORE_AREA_LABELS[area]}</span>
       </div>
       <div id="rdv-explore-results" className="rdv-explore-sheet-body" hidden={collapsed}>
       {error&&<p role="alert" className="rdv-explore-alert">{error}</p>}
@@ -226,7 +226,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           return <article key={place.id} className="rdv-explore-route-row">
             <button type="button" className="rdv-explore-photo-action"
               aria-label={`Calcular percurso para ${place.name} pela foto`}
-              disabled={busyId!==null} onClick={()=>void loadRoute(place)}>
+              disabled={busyId!==null} onClick={()=>void loadRoute(place,false,true)}>
               <ExplorePlacePhoto place={place}/>
             </button>
             <div className="rdv-explore-route-copy">
@@ -239,13 +239,13 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
               </a>}
               <h3><button type="button" className="rdv-explore-title-action"
                 title={`Calcular percurso para ${place.name}`}
-                disabled={busyId!==null} onClick={()=>void loadRoute(place)}>{place.name}</button></h3>
+                disabled={busyId!==null} onClick={()=>void loadRoute(place,false,true)}>{place.name}</button></h3>
               <p>{place.city||place.address}{distance!==null?` · a ${Math.round(distance)} km`:''}</p>
               <button type="button" aria-label={`Ver rota para ${place.name}`}
                 disabled={busyId!==null} onClick={()=>void loadRoute(place)}
                 className="rdv-explore-route-cta">
                 <Route size={14} strokeWidth={1.7}/>
-                {preparing?'Calculando rota…':'Calcular percurso'}
+                {preparing?'Calculando rota…':'Ver percurso'}
                 <ChevronRight size={15} className="rdv-explore-chevron"/>
               </button>
             </div>

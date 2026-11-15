@@ -1,8 +1,8 @@
 /* Tela 5 — Explorar. Geometria adaptada do PNG original 402 × 874. */
 .rdv-explore-page {
   --rdv-explore-header-height:224px;
-  --rdv-explore-expanded-top:50.2dvh;
-  --rdv-explore-collapsed-top:calc(100dvh - 168px - env(safe-area-inset-bottom,0px));
+  --rdv-explore-expanded-top:57dvh;
+  --rdv-explore-collapsed-top:calc(100dvh - 158px - env(safe-area-inset-bottom,0px));
   --rdv-explore-target-top:var(--rdv-explore-expanded-top);
   --rdv-explore-sheet-top:clamp(var(--rdv-explore-expanded-top),calc(var(--rdv-explore-target-top) + var(--rdv-explore-drag-y,0px)),var(--rdv-explore-collapsed-top));
   position:relative;
@@ -145,12 +145,18 @@
   position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;
 }
+.rdv-explore-photo-kind {
+  position:absolute;bottom:6px;left:6px;z-index:2;
+  display:grid;place-items:center;width:32px;height:32px;
+  border:1px solid #e6effb;border-radius:10px;background:#fff;
+  color:#175cd3;box-shadow:0 2px 8px #0f172a26;
+}
 .rdv-explore-photo-action {
   flex:0 0 auto;display:block;border:0;padding:0;border-radius:10px;
   background:transparent;cursor:pointer;
 }
 .rdv-explore-photo-action:disabled,.rdv-explore-title-action:disabled {opacity:.6;cursor:wait;}
-.rdv-explore-no-photo {position:absolute;bottom:9px;left:2px;right:2px;text-align:center;font-size:9px;line-height:1.2;color:#46637f;}
+ .rdv-explore-no-photo {position:absolute;bottom:11px;left:42px;right:2px;text-align:center;font-size:10px;line-height:1.2;color:#46637f;}
 .rdv-explore-photo-credit {
   font-size:9px;color:#526c83;
   text-decoration:underline;text-underline-offset:2px;
@@ -222,7 +228,7 @@
 .rdv-explore-page input:focus-visible,
 .rdv-explore-page select:focus-visible {outline:2px solid #265de9;outline-offset:2px;}
 @media (max-height:760px) {
-  .rdv-explore-page {--rdv-explore-header-height:203px;--rdv-explore-expanded-top:49dvh;}
+   .rdv-explore-page {--rdv-explore-header-height:203px;--rdv-explore-expanded-top:57dvh;}
   .rdv-explore-header {height:203px;padding-top:calc(39px + env(safe-area-inset-top,0px));}
   .rdv-explore-sheet-title {margin-bottom:14px;}
 }
