@@ -551,7 +551,29 @@ try {
   await page.getByText('Central SOS de Emergência').waitFor();
   await page.getByRole('button',{name:'Voltar ao perfil'}).click();
   await figmaProfile.getByRole('button',{name:'Configurações'}).click();
-  await page.getByText('Configurações de Privacidade').waitFor();
+  const categories=page.getByRole('navigation',{name:'Categorias de configurações'});
+  for(const label of ['Mapa','Navegação','Alertas','Aparência','Conta','Privacidade'])
+    await categories.getByRole('button',{name:label,exact:true}).waitFor();
+  const density=page.getByRole('group',{name:'Densidade dos ícones'});
+  await density.getByRole('button',{name:/Mais/}).click();
+  assert.equal(await density.getByRole('button',{name:/Mais/}).getAttribute('aria-pressed'),'true');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-icon-density:v1')),'more');
+  await density.getByRole('button',{name:/Moderado/}).click();
+  await categories.getByRole('button',{name:'Navegação',exact:true}).click();
+  const voicePreference=page.getByRole('checkbox',{name:'Ativar orientações por voz'});
+  await voicePreference.check();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:voice-guidance:v1')),'true');
+  await voicePreference.uncheck();
+  await categories.getByRole('button',{name:'Alertas',exact:true}).click();
+  await page.getByText(/sem filtro de raio/).waitFor();
+  await categories.getByRole('button',{name:'Aparência',exact:true}).click();
+  await page.getByLabel('Tema do mapa').selectOption('dark');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-appearance:v1')),'dark');
+  await page.getByLabel('Tema do mapa').selectOption('light');
+  await categories.getByRole('button',{name:'Conta',exact:true}).click();
+  await page.getByRole('region',{name:'Configurações da conta'}).getByRole('button',{name:'Meu perfil e nível'}).waitFor();
+  await categories.getByRole('button',{name:'Privacidade',exact:true}).click();
+  await page.getByRole('heading',{name:'Configurações de Privacidade'}).waitFor();
   await page.getByRole('button',{name:'Voltar ao perfil'}).click();
   // O cadastro de veículos permanece no Perfil, não na antiga aba inferior.
   await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
