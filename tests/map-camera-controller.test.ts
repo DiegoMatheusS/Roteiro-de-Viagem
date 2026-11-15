@@ -8,7 +8,7 @@ test('opening screen hides the temporary map and attribution until account setup
   const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
   assert.match(app,/if \(!startupReady \|\| auth\.loading \|\| !accountReady\) return <StartupMap/);
   assert.doesNotMatch(startup,/InteractiveMap|MapTrafficControl|useDeviceLocation|OpenFreeMap/);
-  assert.match(startup,/aria-label="Abrindo o Rolê"/);
+  assert.match(startup,/aria-label="Abrindo o RUAVO"/);
 });
 
 test('camera mode is deterministic: gestures pause, GPS resumes and trip exit resets',()=>{
