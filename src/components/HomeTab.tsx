@@ -225,14 +225,14 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         <div className="max-w-xl mx-auto flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="w-10 h-10 shrink-0 rounded-2xl overflow-hidden bg-white flex items-center justify-center shadow-sm border border-slate-100">
-              <img src="/roteiro-logo.png" alt="Logo do Rolê" className="w-full h-full object-contain" />
+              <img src="/ruavo-logo.png" alt="Logo do RUAVO" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-[21px] font-bold text-slate-900 tracking-[-.04em] flex items-center gap-1.5 leading-tight">
-                Rolê
+                RUAVO
               </h1>
               <p className="text-[11px] text-slate-500 font-medium mt-1">
-                Seu caminho, suas descobertas.
+                Muito além da rota.
               </p>
             </div>
           </div>

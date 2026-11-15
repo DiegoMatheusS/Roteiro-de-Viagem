@@ -36,8 +36,8 @@ try{
   await page.route('**/src/main.tsx',async route=>{await mainReady;await route.continue();});
   await page.route('**/api/auth/me',async route=>{await authReady;await route.fulfill({json:{user:null}});});
   await page.goto('http://127.0.0.1:3000/',{waitUntil:'commit'});
-  const opening=page.getByRole('main',{name:'Preparando o Rolê'});
-  const logo=opening.getByRole('img',{name:'Rolê',exact:true});
+  const opening=page.getByRole('main',{name:'Preparando o RUAVO'});
+  const logo=opening.getByRole('img',{name:'RUAVO',exact:true});
   await logo.waitFor({state:'visible'});
   await logo.evaluate(image=>image instanceof HTMLImageElement?image.decode():undefined);
   const background=await opening.evaluate(el=>getComputedStyle(el).backgroundColor);

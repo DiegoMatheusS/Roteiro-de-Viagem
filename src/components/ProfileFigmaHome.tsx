@@ -81,7 +81,7 @@ export function ProfileFigmaHome({
           <span className="rdv-profile-car-icon"><span><X size={15} strokeWidth={1.25}/></span></span>
           <span className="rdv-profile-car-copy">
             <strong>Cadastre seu veículo</strong>
-            <small>Deixe tudo pronto para o próximo rolê.</small>
+            <small>Deixe tudo pronto para a próxima viagem.</small>
           </span>
         </button>:
         <div className="rdv-profile-vehicles" aria-label="Veículos da garagem">

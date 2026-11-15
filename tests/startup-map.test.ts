@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-test('Rolê waits for account hydration without flashing an interim map',()=>{
+test('RUAVO waits for account hydration without flashing an interim map',()=>{
   const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
   const startup=readFileSync(new URL('../src/components/StartupMap.tsx',import.meta.url),'utf8');
   assert.doesNotMatch(app,/Carregando seus dados de viagem/);
   assert.match(app,/if \(!startupReady \|\| auth\.loading \|\| !accountReady\) return <StartupMap/);
-  assert.match(startup,/aria-label="Preparando o Rolê"/);
-  assert.match(startup,/aria-label="Abrindo o Rolê"/);
+  assert.match(startup,/aria-label="Preparando o RUAVO"/);
+  assert.match(startup,/aria-label="Abrindo o RUAVO"/);
   assert.doesNotMatch(startup,/<InteractiveMap|useDeviceLocation|MapTrafficControl/);
   assert.match(app,/syncState==='conflict' && <SyncConflictPanel/);
   assert.match(app,/syncState==='error' && <button/);

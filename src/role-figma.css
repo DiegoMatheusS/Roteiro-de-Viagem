@@ -1,6 +1,6 @@
-/* Rolê — adaptação visual das sete telas exportadas do Figma.
+/* RUAVO — adaptação visual das sete telas exportadas do Figma.
  * Apenas apresentação: não substitui GPS, rotas, autenticação ou dados reais. */
-:root { --role-blue: #245ee9; --role-ink: #1f2937; --role-muted: #708091; }
+:root { --ruavo-blue:#175CD3; --ruavo-teal:#14B8A6; --ruavo-amber:#F59E0B; --role-blue:var(--ruavo-blue); --role-ink:#1f2937; --role-muted:#708091; }
 .rdv-figma-bottom-nav {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 35;
   display: grid; grid-template-columns: repeat(4,minmax(0,1fr));

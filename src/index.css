@@ -2,6 +2,11 @@
 @import "tailwindcss";
 
 @theme {
+  /* RUAVO: navegação, descoberta e atenção. */
+  --color-blue-600: #175CD3;
+  --color-blue-700: #1149A6;
+  --color-teal-500: #14B8A6;
+  --color-amber-500: #F59E0B;
   --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -77,13 +82,13 @@
   .rdv-alert-popover { animation: none; }
 }
 
-/* Rolê: experiência de navegação com mapa full-bleed e folhas flutuantes. */
+/* RUAVO: experiência de navegação com mapa full-bleed e folhas flutuantes. */
 .rdv-navigation-screen { overscroll-behavior: none; }
 .rdv-home-sheet, .rdv-route-sheet { -webkit-font-smoothing: antialiased; letter-spacing: -.012em; }
 .rdv-home-sheet button, .rdv-route-sheet button { -webkit-tap-highlight-color: transparent; }
 .rdv-home-sheet > div, .rdv-route-sheet > div { overscroll-behavior: contain; }
 .rdv-home-sheet input[type="search"] { font-size: 16px; }
-.rdv-home-sheet button:focus-visible, .rdv-route-sheet button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.rdv-home-sheet button:focus-visible, .rdv-route-sheet button:focus-visible { outline: 2px solid #175CD3; outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) {
   .rdv-route-sheet { animation: rdv-sheet-enter 300ms cubic-bezier(.22,1,.36,1) both; }
   @keyframes rdv-sheet-enter { from { opacity: .5; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
@@ -103,14 +108,14 @@
   .rdv-home-sheet, .rdv-route-sheet, .rdv-navigation-screen button { animation: none !important; transition-duration: 0.01ms !important; }
 }
 
-/* Rolê público: controles de alto contraste e velocímetro em todas as telas do mapa. */
+/* RUAVO: controles de alto contraste e velocímetro em todas as telas do mapa. */
 .rdv-choice-card {
   transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
   -webkit-tap-highlight-color: transparent;
 }
 .rdv-choice-card:active { transform: scale(.98); }
 .rdv-choice-card:focus-visible {
-  outline: 3px solid #1d4ed8; outline-offset: 3px;
+  outline: 3px solid #175CD3; outline-offset: 3px;
 }
 .rdv-primary-action {
   display: flex;
@@ -127,7 +132,7 @@
   white-space: nowrap;
   transition: background-color 220ms ease;
 }
-.rdv-primary-action--blue { background-color: #1d4ed8; }
+.rdv-primary-action--blue { background-color: #175CD3; }
 .rdv-primary-action--green { background-color: #047857; }
 .rdv-choice-card:hover .rdv-primary-action--blue,
 .rdv-choice-card:active .rdv-primary-action--blue { background-color: #1e40af; }
@@ -157,7 +162,7 @@
   transition: border-color 220ms ease, color 220ms ease;
 }
 .rdv-speedometer--neutral { --speed-border: #94a3b8; --speed-number: #475569; }
-.rdv-speedometer--normal { --speed-border: #2563eb; --speed-number: #1d4ed8; }
+.rdv-speedometer--normal { --speed-border: #175CD3; --speed-number: #175CD3; }
 .rdv-speedometer--attention { --speed-border: #c2410c; --speed-number: #9a3412; }
 .rdv-speedometer--excess { --speed-border: #b91c1c; --speed-number: #b91c1c; }
 .rdv-speedometer__number {

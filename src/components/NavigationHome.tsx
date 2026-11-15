@@ -412,7 +412,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
-  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do Rolê">
+  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do RUAVO">
     <div className="absolute inset-0 rdv-flat-map">
       <InteractiveMap roadStyle followUser={false} placeDensityMode={placeDensityMode} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
@@ -470,7 +470,11 @@ export function NavigationHome(props: NavigationHomeProps) {
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
           <div>
-            <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Bora dar um rolê?</h2>
+            <h2 className="flex items-center gap-2.5 text-[21px] font-bold tracking-[-.045em] text-slate-950">
+              <img src="/ruavo-logo.png" alt="" aria-hidden="true" width={36} height={36}
+                className="h-9 w-9 shrink-0 rounded-xl object-contain"/>
+              <span className="min-w-0">RUAVO <span className="block text-[11px] font-medium tracking-normal text-slate-600">Muito além da rota.</span></span>
+            </h2>
           </div>
           <div className="rdv-home-destination-search" data-testid="home-inline-destination-search">
           <form ref={searchFormRef} role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
@@ -578,7 +582,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           </button>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
             <span className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-blue-700"><Route size={21} strokeWidth={1.9}/></span>
-            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rolê com origem e destino</strong></span><ChevronRight size={17} className="text-slate-400"/>
+            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rota com origem e destino</strong></span><ChevronRight size={17} className="text-slate-400"/>
           </button>
         </section>
         <section className="space-y-2.5">
@@ -664,7 +668,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <h1 className="text-[18px] font-bold">Escolher destino</h1>
         </header>
         <div className="p-5 pt-1 space-y-4 overflow-y-auto">
-          <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
+          <h2 className="text-xl font-extrabold">Rota com origem e destino</h2>
           <fieldset className="border border-slate-200 rounded-xl p-3 space-y-2" aria-label="Preferência de rota">
             <legend className="text-sm font-bold px-1">Preferência de rota</legend>
             <label className="flex items-center gap-2 text-sm">
