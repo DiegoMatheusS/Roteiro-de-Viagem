@@ -1,4 +1,5 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useRef} from 'react';
+import {useVoicePreference} from '../hooks/useVoicePreference';
 import {Volume2,VolumeX} from 'lucide-react';
 
 interface VoiceGuidanceProps {
@@ -6,17 +7,11 @@ interface VoiceGuidanceProps {
   variant?:'navigation'|'map';
 }
 
-const VOICE_PREFERENCE_KEY='role:voice-guidance:v1';
-function readVoicePreference():boolean{
-  try{return window.localStorage.getItem(VOICE_PREFERENCE_KEY)==='true';}
-  catch{return false;}
-}
-
 /** Optional spoken guidance: no tracking or microphone permission is required. */
 export function VoiceGuidanceControl({guidance,variant='navigation'}:VoiceGuidanceProps){
   const supported=typeof window!=='undefined'&&
     'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined';
-  const [enabled,setEnabled]=useState(readVoicePreference);
+  const {enabled,setEnabled}=useVoicePreference();
   const announced=useRef(new Set<string>());
   const say=(text:string)=>{
     if(!supported)return;
@@ -53,9 +48,9 @@ export function VoiceGuidanceControl({guidance,variant='navigation'}:VoiceGuidan
       title={supported?(enabled?'Desligar voz':'Ativar instruções faladas'):undefined}
       onClick={()=>{
         if(!supported)return;
-        try{window.localStorage.setItem(VOICE_PREFERENCE_KEY,String(!enabled));}catch{/* Keep the current choice if storage is unavailable. */}
-        if(enabled){window.speechSynthesis.cancel();setEnabled(false);}
-        else{setEnabled(true);announce(true);}
+        setEnabled(!enabled);
+        if(enabled){window.speechSynthesis.cancel();}
+        else{announce(true);}
       }}
       className={variant==='map'
         ?`w-14 h-14 rounded-full border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center text-blue-700 disabled:opacity-55 ${enabled?'bg-blue-50':'bg-white'}`
