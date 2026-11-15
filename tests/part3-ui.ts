@@ -126,7 +126,8 @@ try {
   await themeSelect.selectOption('dark');
   assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-appearance:v1')),'dark');
   await page.getByRole('button',{name:'Abrir menu'}).click();
-  await page.getByRole('button',{name:'Mapa',exact:true}).click();
+  await page.getByRole('dialog',{name:'Menu do Rolê'})
+    .getByRole('button',{name:'Mapa',exact:true}).click();
   await page.locator('[data-map-engine][data-role-theme="dark"]').first().waitFor();
   await page.screenshot({path:'test-results/map-dark-mobile.png'});
   await page.reload();
