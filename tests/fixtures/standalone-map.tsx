@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {InteractiveMap} from '../../src/components/InteractiveMap';
 import type {WeatherPoint} from '../../src/types';
 import '../../src/index.css';
+import '../../src/role-figma.css';
 import 'leaflet/dist/leaflet.css';
 const weatherPoints:WeatherPoint[]=[
   {locationName:'Ponto de chuva atual',coords:[-23.55,-46.63],passTime:'10:30',tempC:22,condition:'Chuva Fraca',rainProb:80,windKmH:10},
