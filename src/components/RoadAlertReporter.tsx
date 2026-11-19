@@ -1,6 +1,6 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {AlertTriangle,ChevronRight,X} from 'lucide-react';
+import {AlertTriangle,CheckCircle2,ChevronRight,X} from 'lucide-react';
 import {RoadAlertIcon,TollBoothIcon} from './RoadAlertIcons';
 import {ROAD_ALERT_TYPES,type RoadAlertType} from '../types/roadAlerts';
 import type {DeviceLocation} from '../services/locationService';
@@ -33,7 +33,13 @@ export function RoadAlertReporter({
   const sending=useRef(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
-  const [message,setMessage]=useState('');
+  const [successToast,setSuccessToast]=useState(false);
+  const successTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  useEffect(()=>()=>{if(successTimer.current!==null)clearTimeout(successTimer.current);},[]);
+  const hideSuccessToast=()=>{
+    if(successTimer.current!==null){clearTimeout(successTimer.current);successTimer.current=null;}
+    setSuccessToast(false);
+  };
   const moving=speedKmH!=null&&speedKmH>5;
   const unableToSend=moving||!location||busy;
 
@@ -51,7 +57,7 @@ export function RoadAlertReporter({
 
   const submit=async()=>{
     if(sending.current)return;
-    setMessage('');setError('');setSlide(0);
+    hideSuccessToast();setError('');setSlide(0);
     if(moving||!location){
       setError('Pare em segurança e aguarde o GPS para enviar.');return;
     }
@@ -62,7 +68,13 @@ export function RoadAlertReporter({
       if(fresh.speedMetersPerSecond!=null&&fresh.speedMetersPerSecond*3.6>5)
         throw new Error('Você está em movimento. Pare em segurança antes de enviar.');
       await submitRoadAlert(kind,fresh,'');
-      setMessage('Enviado para análise. O alerta só aparece depois da aprovação.');
+      // Confirmação aprovada pelo servidor: fecha o diálogo antes de exibir
+      // um aviso curto sobre o mapa, sem manter o usuário na tela de envio.
+      setOpen(false);
+      setMenuOpen(false);
+      setSlide(0);
+      setSuccessToast(true);
+      successTimer.current=setTimeout(()=>{setSuccessToast(false);successTimer.current=null;},3200);
       onSubmitted?.();
     }catch(err){
       setError((err as Error).message);
@@ -74,7 +86,7 @@ export function RoadAlertReporter({
   const selectKind=(selected:RoadAlertType)=>{
     setKind(selected);
     setMenuOpen(false);
-    setError('');setMessage('');setSlide(0);
+    setError('');hideSuccessToast();setSlide(0);
     setOpen(true);
   };
   const beginSwipe=(event:React.PointerEvent<HTMLButtonElement>)=>{
@@ -158,6 +170,14 @@ export function RoadAlertReporter({
       </div>,document.body
     )}
 
+    {successToast&&createPortal(
+      <div role="status" aria-live="polite" aria-atomic="true"
+        className="rdv-alert-success-toast" data-testid="road-alert-success-toast">
+        <CheckCircle2 size={22} aria-hidden="true"/>
+        <span>Enviado com sucesso</span>
+      </div>,document.body
+    )}
+
     {open&&createPortal(
       <div className="fixed inset-0 z-[110] bg-black/65 flex items-end sm:items-center justify-center p-3"
         role="dialog" aria-modal="true" aria-label="Reportar ocorrência na via">
@@ -176,9 +196,8 @@ export function RoadAlertReporter({
           {!location&&<p role="alert" className="text-sm text-amber-800">GPS indisponível. Ative a localização precisa.</p>}
           {moving&&<p role="alert" className="text-sm text-rose-700">Veículo em movimento. Envio bloqueado.</p>}
           {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
-          {message&&<p role="status" className="text-sm text-emerald-800">{message}</p>}
           <button type="button" aria-label="Deslize para alertar"
-            disabled={unableToSend||Boolean(message)}
+            disabled={unableToSend}
             className="rdv-alert-swipe-track" onPointerDown={beginSwipe}
             onPointerMove={moveSwipe} onPointerUp={endSwipe}
             onPointerCancel={cancelSwipe}

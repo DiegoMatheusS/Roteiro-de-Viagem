@@ -13,7 +13,8 @@ import type { DeviceLocation } from '../services/locationService';
 import { DestinationExplorer } from './DestinationExplorer';
 import { destinationExploreKey } from '../services/destinationIdentity';
 import type { LocationSelection } from '../types/itinerary';
-import type { VerifiedRouteChoice } from '../services/routeChoices';
+import {fetchRouteChoices,choiceToTrip,type VerifiedRouteChoice} from '../services/routeChoices';
+import {GUEST_NAVIGATION_VEHICLE} from '../services/guestNavigationVehicle';
 import { useDeviceLocation } from '../hooks/useDeviceLocation';
 import { useGpsPermissionAction } from '../hooks/useGpsPermissionAction';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -26,7 +27,6 @@ import { PLACE_KINDS, TOURIST_PLACE_KINDS } from '../types/admin';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import {useMapAppearance} from '../hooks/useMapAppearance';
 import {useMapIconDensity} from '../hooks/useMapIconDensity';
-import { RoadAlertReporter } from './RoadAlertReporter';
 import { ArrowLeft, CloudRain, Fuel, Mountain, Navigation, Play, PowerOff, Share2, Users, Search, ChevronRight, LocateFixed, MapPin, Compass, Store, Layers } from 'lucide-react';
 interface MapTabProps {
   convoyParticipants?:ConvoyParticipant[];meetingPoints?:MeetingPoint[];
@@ -203,11 +203,29 @@ export function MapTab(props: MapTabProps) {
     if(gps.accuracyMeters>150)throw new Error('GPS impreciso. Tente novamente em um lugar aberto.');
     return chooseOrigin(gps);
   };
+  const goToMapMarker=async(target:{id:string;name:string;coords:[number,number]})=>{
+    const place={name:target.name,coords:target.coords};
+    // Nunca substitui uma navegação ativa sem o usuário escolher outra rota.
+    if(props.activeTrip||!props.onStartTrip){focusDestination(place);return;}
+    if(searchBusy)return;
+    setSearchBusy(true);setSearchError('');
+    try{
+      const from=await getExplorationOrigin();
+      const routes=await fetchRouteChoices(from,target.coords,undefined,'fast');
+      if(!routes.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
+      const vehicle=props.currentVehicle||GUEST_NAVIGATION_VEHICLE;
+      props.onStartTrip(choiceToTrip(routes[0],vehicle,from,place,savedOriginName.current));
+    }catch(err){
+      setSearchError((err as Error).message);
+      setSheetExpanded(true);
+    }finally{setSearchBusy(false);}
+  };
   return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}
     data-map-sheet-expanded={sheetExpanded} data-map-suggestions-visible={showAddressSuggestions}>
     <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute?.selectedId)?.routePath || [] : trip?.routePath || []}
       placeDensityMode={placeDensityMode} routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
       onSelectCoordinates={()=>setSheetExpanded(false)}
+      onGoToPlace={place=>void goToMapMarker(place)}
       selectedRouteId={exploreRoute?.selectedId}
       onSelectRoute={id=>setExploreRoute(current=>current?{...current,selectedId:id}:current)} routeModality={trip?.modality} roadStyle blueRoute={!props.activeTrip}
       userLiveCoords={location.status === "ready" ? location.position?.coords : undefined}
@@ -244,18 +262,14 @@ export function MapTab(props: MapTabProps) {
           <Fuel size={17} className={showFuel?'text-blue-600':'text-slate-500'}/> Postos</button>
       </div>}
     </div>
-    {/* GPS em cima e triângulo de ocorrência embaixo, junto à lateral direita. */}
-    <div aria-label="Controles de localização e ocorrência"
+    {/* Registrar ocorrências só na navegação ativa; os ícones seguem visíveis neste mapa. */}
+    <div aria-label="Controle de localização"
       className={`absolute right-4 z-40 flex flex-col items-center gap-3 transition-[top,bottom] duration-300 ${sheetExpanded ? 'top-[clamp(64px,10dvh,118px)]' : showAddressSuggestions?'bottom-[448px]':'bottom-[250px]'}`}>
       <button type="button" aria-label="Centralizar mapa na minha localização" onClick={locateUser}
         className="w-14 h-14 rounded-full bg-white text-blue-700 border border-slate-200 shadow-[0_4px_18px_rgba(15,23,42,.16)] flex items-center justify-center active:scale-95">
         <LocateFixed size={30} strokeWidth={2.2}/>
       </button>
-      <RoadAlertReporter location={location.status==='ready' ? location.position : null}
-        speedKmH={location.status==='ready' && location.position?.speedMetersPerSecond!=null
-          ? location.position.speedMetersPerSecond*3.6 : null}
-        menuPlacement={sheetExpanded ? 'below' : 'above'}
-        onSubmitted={()=>{void roadAlerts.reload();}}/>
+
     </div>
     {(locationHint || locationAccess.help || locationAccess.requesting) && <div role="status" className="absolute top-64 right-3 z-30 bg-amber-50 border border-amber-100 max-w-[245px] rounded-xl shadow p-3 text-xs text-amber-900 space-y-2">
       <p>{locationAccess.requesting?'Solicitando acesso ao GPS...':locationAccess.help || locationHint}</p>

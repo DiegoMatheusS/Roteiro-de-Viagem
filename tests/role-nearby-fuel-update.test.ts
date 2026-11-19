@@ -25,14 +25,18 @@ test('balão utiliza grade de duas colunas sem perder os preços nem a acessibil
  const css=file('src/role-place-balloon.css');
  const balloon=file('src/services/placeBalloon.ts');
  assert.match(css,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
- assert.match(css,/max-height:158px;overflow-y:auto/);
+ assert.match(css,/max-height:158px/);
+ assert.match(css,/min-height:0;flex:1 1 auto;overflow-y:auto/);
+ assert.match(css,/max-height:min\(294px,calc\(100dvh - 82px\)\)/);
  assert.match(balloon,/label\.textContent=row\.shortLabel/);
  assert.match(balloon,/label\.title=row\.label/);
  assert.match(balloon,/label\.setAttribute\('aria-label',row\.label\)/);
  assert.match(balloon,/value\.textContent=row\.value\?row\.value\.replace/);
  assert.match(balloon,/value\.title=completeValue/);
  assert.match(css,/align-items:center;justify-content:space-between/);
- assert.match(balloon,/footer\.append\(contribute,info\)/);
+ assert.match(balloon,/footer\.append\(contribute\)/);
+ assert.match(balloon,/footer\.append\(info\)/);
+ assert.match(balloon,/footer\.append\(go\)/);
 });
 test('seleção múltipla percorre interface, request e validador de pontos reais',()=>{
  const home=file('src/components/NavigationHome.tsx');

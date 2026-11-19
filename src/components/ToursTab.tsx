@@ -78,9 +78,10 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
   const regionLabel=touristOrigin&&isSaoPauloArea(touristOrigin)?'São Paulo, SP':touristOrigin?'Localização atual':'';
   const nearest=touristOrigin&&featured?Math.round(exploreDistanceKm(touristOrigin,featured.coords)):null;
 
-  const loadRoute=async(place:Pick<ExplorePlace,'id'|'name'|'coords'>,saveOnly=false)=>{
+  const loadRoute=async(place:Pick<ExplorePlace,'id'|'name'|'coords'>,saveOnly=false,startNow=false)=>{
     if(!origin){
       setError('Ative o GPS para calcular uma rota real a partir da sua localização.');
+      setCollapsed(false);
       await permission.request();return;
     }
     pending.current?.abort();
@@ -95,9 +96,10 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
         name:place.name,coords:place.coords
       });
       if(saveOnly)onSaveTrip(verified);
+      else if(startNow)onStartTrip(verified);
       else setPreview(verified);
     }catch(err){
-      if(!controller.signal.aborted)setError((err as Error).message);
+      if(!controller.signal.aborted){setError((err as Error).message);setCollapsed(false);}
     }finally{
       if(pending.current===controller){pending.current=null;setBusyId(null);}
     }
@@ -181,8 +183,8 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
     <div className="rdv-explore-map" aria-label="Mapa das redondezas">
       <InteractiveMap roadStyle initialStyle="light" userLiveCoords={origin}
         focusedCoords={mapFocus} focusedZoom={12.5} placeDensityMode="all"
-        showFuelStations={false} onNavigateToPlace={place=>void loadRoute(place)}
-        className="w-full h-full"/>
+        onGoToPlace={place=>void loadRoute(place,false,true)}
+        showFuelStations={false} className="w-full h-full"/>
       <button type="button" className="rdv-explore-map-gps" aria-label="Centralizar nas redondezas do GPS"
         onClick={centerOnGps}><LocateFixed size={22}/></button>
       {nearest!==null&&<span className="rdv-explore-distance-badge"
@@ -209,7 +211,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
       </button>
       <div className="rdv-explore-sheet-title">
         <h2>{query.trim()?'Resultados':filter==='near'&&!origin?'Passeios':filterTitles[filter]}</h2>
-        <span>{filter==='near'?regionLabel:EXPLORE_AREA_LABELS[area]}</span>
+        <span>{filtered.length} locais · {filter==='near'?regionLabel:EXPLORE_AREA_LABELS[area]}</span>
       </div>
       <div id="rdv-explore-results" className="rdv-explore-sheet-body" hidden={collapsed}>
       {error&&<p role="alert" className="rdv-explore-alert">{error}</p>}
@@ -224,7 +226,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
           return <article key={place.id} className="rdv-explore-route-row">
             <button type="button" className="rdv-explore-photo-action"
               aria-label={`Calcular percurso para ${place.name} pela foto`}
-              disabled={busyId!==null} onClick={()=>void loadRoute(place)}>
+              disabled={busyId!==null} onClick={()=>void loadRoute(place,false,true)}>
               <ExplorePlacePhoto place={place}/>
             </button>
             <div className="rdv-explore-route-copy">
@@ -237,13 +239,13 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
               </a>}
               <h3><button type="button" className="rdv-explore-title-action"
                 title={`Calcular percurso para ${place.name}`}
-                disabled={busyId!==null} onClick={()=>void loadRoute(place)}>{place.name}</button></h3>
+                disabled={busyId!==null} onClick={()=>void loadRoute(place,false,true)}>{place.name}</button></h3>
               <p>{place.city||place.address}{distance!==null?` · a ${Math.round(distance)} km`:''}</p>
               <button type="button" aria-label={`Ver rota para ${place.name}`}
                 disabled={busyId!==null} onClick={()=>void loadRoute(place)}
                 className="rdv-explore-route-cta">
                 <Route size={14} strokeWidth={1.7}/>
-                {preparing?'Calculando rota…':'Calcular percurso'}
+                {preparing?'Calculando rota…':'Ver percurso'}
                 <ChevronRight size={15} className="rdv-explore-chevron"/>
               </button>
             </div>

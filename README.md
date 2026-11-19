@@ -1,4 +1,4 @@
-# Roteiro de Viagem
+# RUAVO — Muito além da rota.
 
 Aplicativo React/Vite para planejar passeios de carro e moto, com garagem, histórico, mapa, Comboio de Viagem e preços colaborativos de combustíveis.
 
@@ -51,7 +51,7 @@ Depois de gerar o roteiro, é possível adicionar, editar, ordenar e remover par
 
 Sugestões reais são apresentadas separadamente, a partir dos estabelecimentos cadastrados próximos ao percurso. Elas só entram na rota quando aceitas e podem ser descartadas/removidas. A inserção não reordena nem exclui as paradas obrigatórias. A estrutura mantém essa separação para uma futura integração de IA; **esta versão não chama serviços de IA para sugerir atrações**.
 
-A busca usa a [API de endereços do próprio Rolê](docs/api-enderecos.md), com índice persistente em SQLite, locais turísticos já cadastrados e histórico privado. Não consulta geocodificadores externos; bases públicas podem ser importadas sem chamadas de API. O roteamento usa [OSRM](https://project-osrm.org/docs/v5.24.0/api/#route-service), sem trânsito em tempo real. Esses provedores **não retornam tarifas de pedágio**. A consulta colaborativa separada identifica praças no OpenStreetMap e soma apenas tarifas aprovadas, mantendo o orçamento parcial.
+A busca usa a [API de endereços do próprio RUAVO](docs/api-enderecos.md), com índice persistente em SQLite, locais turísticos já cadastrados e histórico privado. Não consulta geocodificadores externos; bases públicas podem ser importadas sem chamadas de API. O roteamento usa [OSRM](https://project-osrm.org/docs/v5.24.0/api/#route-service), sem trânsito em tempo real. Esses provedores **não retornam tarifas de pedágio**. A consulta colaborativa separada identifica praças no OpenStreetMap e soma apenas tarifas aprovadas, mantendo o orçamento parcial.
 
 Salvar conserva identidades, ordem, permanências, obrigatórias/sugestões aceitas, limites e pontos rodoviários. Em **Compartilhar Rota**, escolha a proteção de origem e use **Gerar link do roteiro**. O link armazenado no banco abre em outros dispositivos sem login, preserva todas as paradas e dura 90 dias. A proteção aproxima a origem e oculta pontos do desenho a menos de 2 km dela; paradas no próprio ponto de partida também são aproximadas. As demais paradas escolhidas são compartilhadas. O link não inclui contas, veículos, participantes ou localização ao vivo. Links vinculados à conta são removidos quando o administrador exclui a conta.
 
@@ -100,6 +100,11 @@ Os pontos do mapa usam balões ancorados ao ícone, preços por combustível, av
 Fotos têm limite de envio de 8 MB/24 MP, são redimensionadas até 1600 px e comprimidas em JPEG sem EXIF/GPS/nome original (máximo de 1 MB armazenado). Há limite de 3 tentativas por 10 minutos e 10 fotos por dia por conta, além de bloqueio de duplicatas recentes. Filas são paginadas em 20 registros, indexadas, e não carregam os bytes da imagem até sua visualização. Fotografe somente com o veículo parado e não publique dados pessoais.
 
 ## Configuração e execução em servidor
+
+Os [radares Pardal](docs/radares.md) ficam no mesmo SQLite persistente do RUAVO.
+O servidor importa a base na primeira execução em produção e confere atualizações
+uma vez por mês, com a data salva no banco. O app consulta a API atual; falhas na
+fonte preservam a base anterior. Dados e atribuição ODbL são publicados pela API.
 
 As opções estão em `.env.example`. Use `.env` para configurar portas, caminho do banco, domínio e provedores de mapas. Os servidores públicos de mapas podem ficar indisponíveis ou limitar consultas; o aplicativo informa a falha e só reutiliza estabelecimentos já consultados, sem inventar preços. Para uso com tráfego real, configure provedores adequados ao volume pelo `OVERPASS_URL` e `ROUTING_URL`.
 

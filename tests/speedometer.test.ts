@@ -44,7 +44,7 @@ test('interface preserva contraste dos botões e mostra velocímetro só na nave
     const light = channels.map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
     return 0.2126 * light[0] + 0.7152 * light[1] + 0.0722 * light[2];
   };
-  for (const hex of ['#1d4ed8', '#047857', '#1e40af', '#065f46', '#475569']) {
+  for (const hex of ['#175CD3', '#047857', '#1e40af', '#065f46', '#475569']) {
     assert.ok((1.05 / (rgb(hex) + 0.05)) >= 4.5, 'contraste insuficiente: ' + hex);
     assert.ok(css.includes(hex), 'tom de ação não declarado: ' + hex);
   }

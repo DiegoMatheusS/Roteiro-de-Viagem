@@ -285,7 +285,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
       </div>}
       {tracking.error&&<button type="button" onClick={tracking.retry}
         className="rdv-nav-retry">Tentar GPS novamente</button>}
-      {upcoming&&<UpcomingRoadAlertBanner kind={upcoming.alert.kind} distanceKm={upcoming.distanceKm}/>}
+      {upcoming&&<UpcomingRoadAlertBanner kind={upcoming.alert.kind} distanceKm={upcoming.distanceKm} alert={upcoming.alert}/>}
 
       <div className="rdv-nav-left-controls">
         <RoadAlertReporter
@@ -385,7 +385,7 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
           <p className="text-sm text-slate-700">{nextStop.name}</p>
           <p className="text-xs text-slate-600">
             {stopDecision==='skip'
-              ?'O Rolê calculará uma rota rodoviária sem esta parada, mantendo as demais. Se não conseguir confirmar, o trajeto e as paradas continuarão como estão.'
+              ?'O RUAVO calculará uma rota rodoviária sem esta parada, mantendo as demais. Se não conseguir confirmar, o trajeto e as paradas continuarão como estão.'
               :'Registra a conclusão manual. Você precisa estar próximo da parada, com GPS preciso e veículo parado.'}
           </p>
           {stopError&&<p role="alert" className="text-xs text-red-700">{stopError}</p>}

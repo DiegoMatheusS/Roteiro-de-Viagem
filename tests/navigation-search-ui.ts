@@ -83,7 +83,7 @@ try{
         searchVisible:!!searchRect&&searchRect.height>40};
     });
     assert.equal(layout.nested,true,'address search is contained in the home panel');
-    assert.equal(layout.titleBeforeSearch,true,'address search is below Bora dar um rolê');
+    assert.equal(layout.titleBeforeSearch,true,'address search is below RUAVO title');
     assert.equal(layout.searchInsideSheet,true,'the initial mobile search stays inside the panel');
     assert.equal(layout.noFloatingSearch,true,'no duplicate search overlays the map');
     assert.equal(layout.searchVisible,true);
@@ -220,7 +220,7 @@ try{
     await page.goto('http://127.0.0.1:3000/tests/fixtures/navigation-home-search.html?vehicle=1');
     await page.waitForFunction(()=>typeof (window as any).__searchGps==='function');
     await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
-    const openPlanning=page.getByRole('button',{name:'Rolê com origem e destino'});
+    const openPlanning=page.getByRole('button',{name:'Rota com origem e destino'});
     await openPlanning.click();
     const form=page.getByRole('dialog',{name:'Escolher origem e destino'});
     assert.equal(await form.getByRole('radio',{name:'Mais turística',exact:true}).isChecked(),true);
@@ -230,7 +230,7 @@ try{
     await form.getByRole('button',{name:'Ver percurso',exact:true}).click();
     let preview=page.getByRole('dialog',{name:'Visualizar viagem'});
     await preview.waitFor();
-    await preview.getByRole('button',{name:'Iniciar rolê',exact:true}).click();
+    await preview.getByRole('button',{name:'Iniciar viagem',exact:true}).click();
     let trip=await page.evaluate(()=>(window as any).__startedRouteTrip);
     assert.equal(trip.modality,'turistica');assert.equal(trip.durationMinutes,30);
     assert.deepEqual(trip.waypointOrder,[[-23.55,-46.63],[-23.53,-46.65],[-23.54,-46.62]]);
@@ -239,7 +239,7 @@ try{
     await form.getByRole('radio',{name:'Mais rápida',exact:true}).check();
     await form.getByRole('button',{name:'Ver percurso',exact:true}).click();
     await preview.waitFor();
-    await preview.getByRole('button',{name:'Iniciar rolê',exact:true}).click();
+    await preview.getByRole('button',{name:'Iniciar viagem',exact:true}).click();
     trip=await page.evaluate(()=>(window as any).__startedRouteTrip);
     assert.equal(trip.modality,'rapida');assert.equal(trip.durationMinutes,10);
     await openPlanning.click();

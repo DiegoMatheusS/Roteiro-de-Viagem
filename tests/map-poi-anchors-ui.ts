@@ -82,13 +82,26 @@ try{
     fixture.map.jumpTo({center:[point.coords[1],point.coords[0]],zoom:18,pitch:0,bearing:0});
   });
   await page.getByRole('button',{name:'Ver Museu do teste',exact:true}).press('Space');
-  await page.getByRole('region',{name:'Detalhes de Museu do teste'}).getByRole('button',{name:'Ver detalhes',exact:true}).click();
-  const actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
-  assert.equal(actions[0].kind,'fuel');assert.equal(actions[0].section,'prices');
+  const museumBalloon=page.getByRole('region',{name:'Detalhes de Museu do teste'});
+  const heading=museumBalloon.locator('h3.role-place-balloon-name');
+  assert.equal((await heading.innerText()).trim(),'Museu do teste');
+  await heading.click();
+  assert.equal(await museumBalloon.isVisible(),true,'o título não deve abrir detalhes');
+  assert.equal(await page.getByRole('dialog',{name:'Estabelecimento'}).count(),0);
+  assert.equal((await page.evaluate(()=>(window as any).__poiAnchors.actions)).length,1,
+    'o título não dispara nenhuma ação');
+  await museumBalloon.getByRole('button',{name:'Ver detalhes',exact:true}).click();
+  let actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
   assert.equal(actions[1].kind,'place');assert.equal(actions[1].id,'admin:museum');
+  await page.getByRole('button',{name:'Ver Museu do teste',exact:true}).press('Space');
+  await museumBalloon.getByRole('button',{name:'Ir para Museu do teste'}).click();
+  actions=await page.evaluate(()=>(window as any).__poiAnchors.actions);
+  assert.equal(actions[0].kind,'fuel');assert.equal(actions[0].section,'prices');
+  assert.equal(actions[2].kind,'go');assert.equal(actions[2].id,'admin:museum');
+  assert.deepEqual(actions[2].coords,[-23.55,-46.63],'Ir encaminha as coordenadas do destino');
   await checkAnchors();
   assert.deepEqual(errors,[]);
   fs.mkdirSync('test-results',{recursive:true});
   await page.screenshot({path:'test-results/poi-anchors.png'});
-  console.log('POI anchors: fixed coordinates through zoom, rotation, pitch, updates and removal; symbols only and details on activation.');
+  console.log('POI anchors: fixed coordinates through zoom, rotation, pitch, updates and removal; symbols only; Ir routes to verified marker coordinates.');
 }finally{await browser.close();await vite.close();}

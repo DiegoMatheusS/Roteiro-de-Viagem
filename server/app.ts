@@ -30,6 +30,7 @@ import {createPlaceFeedbackMailQueue,type PlaceFeedbackMailOptions} from './plac
 import {registerPlaceFeedbackRoutes} from './placeFeedback';
 import {registerPlacePhotoRoutes} from './placePhotos';
 import {registerAddressRoutes} from './addresses';
+import {registerRadarRoutes} from './radars';
 
 const scryptAsync = promisify(scrypt);
 export function createApi(options: { db: FuelDatabase; photoDirectory?: string; mapFetch?: MapFetch; weatherFetch?: MapFetch; traffic?:TrafficOptions; feedbackMail?:PlaceFeedbackMailOptions; requestLimitPerMinute?: number }) {
@@ -99,6 +100,7 @@ export function createApi(options: { db: FuelDatabase; photoDirectory?: string; 
   registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
   registerTollRoutes(app, db, options.mapFetch || fetch, limit);
   registerRoadAlertRoutes(app, db, limit);
+  registerRadarRoutes(app, db, limit);
   registerTrafficRoutes(app,limit,options.traffic);
   const feedbackMail=createPlaceFeedbackMailQueue(db,options.feedbackMail);
   app.locals.feedbackMail=feedbackMail;

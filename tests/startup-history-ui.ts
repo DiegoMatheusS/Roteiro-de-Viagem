@@ -36,8 +36,8 @@ try{
   await page.route('**/src/main.tsx',async route=>{await mainReady;await route.continue();});
   await page.route('**/api/auth/me',async route=>{await authReady;await route.fulfill({json:{user:null}});});
   await page.goto('http://127.0.0.1:3000/',{waitUntil:'commit'});
-  const opening=page.getByRole('main',{name:'Preparando o Rolê'});
-  const logo=opening.getByRole('img',{name:'Rolê',exact:true});
+  const opening=page.getByRole('main',{name:'Preparando o RUAVO'});
+  const logo=opening.getByRole('img',{name:'RUAVO',exact:true});
   await logo.waitFor({state:'visible'});
   await logo.evaluate(image=>image instanceof HTMLImageElement?image.decode():undefined);
   const background=await opening.evaluate(el=>getComputedStyle(el).backgroundColor);
@@ -83,16 +83,23 @@ try{
   const settings=async()=>{
     await page.getByRole('button',{name:'Aba Perfil',exact:true}).click();
     await page.getByRole('button',{name:/Configurações Navegação/}).click();
-    return page.getByLabel('Ícones na tela inicial',{exact:true});
+    return page.getByRole('group',{name:'Densidade dos ícones'});
   };
-  let icons=await settings();await icons.waitFor();assert.equal(await icons.inputValue(),'moderate');
-  for(const mode of ['less','more','moderate']){
-    await icons.selectOption(mode);
+  const labels={less:'Menos',more:'Mais',moderate:'Moderado'} as const;
+  const densityButton=(mode:keyof typeof labels)=>
+    page.getByRole('group',{name:'Densidade dos ícones'})
+      .getByRole('button',{name:new RegExp('^'+labels[mode])});
+  let icons=await settings();await icons.waitFor();
+  assert.equal(await densityButton('moderate').getAttribute('aria-pressed'),'true');
+  for(const mode of ['less','more','moderate'] as const){
+    await densityButton(mode).click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-icon-density:v1')),mode);
+    assert.equal(await densityButton(mode).getAttribute('aria-pressed'),'true');
   }
-  await icons.selectOption('more');await page.reload();icons=await settings();
-  assert.equal(await icons.inputValue(),'more','a preferência de ícones permanece após reabrir o aplicativo');
-  await page.getByText('O Explorar mostra todos.',{exact:false}).waitFor();
+  await densityButton('more').click();await page.reload();icons=await settings();
+  assert.equal(await densityButton('more').getAttribute('aria-pressed'),'true',
+    'a preferência de ícones permanece após reabrir o aplicativo');
+  await page.getByText('O Explorar continua mostrando todos os ícones disponíveis.',{exact:false}).waitFor();
   assert.deepEqual(errors,[]);
   console.log('PASS: abertura branca com logo pulsando antes do JS e durante hidratação, sem mapa/GPS; cancelar exclusão preserva histórico e confirmar remove só a viagem escolhida.');
 }finally{releaseMain();releaseAuth();await browser?.close();await vite.close();}

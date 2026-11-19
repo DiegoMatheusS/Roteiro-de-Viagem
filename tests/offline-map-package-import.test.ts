@@ -54,6 +54,9 @@ test('não suporta pacotes não autorizados nem URLs remotas de prefetch',()=>{
   assert.match(panel,/Confirmo que o pacote foi obtido legalmente/);
   assert.match(panel,/Mapa local completo \(disponível nas camadas\)/);
   assert.match(panel,/deleteOfflineRegion\(item.id\)/);
-  const settings=readFileSync(new URL('../src/components/ProfileAndSettingsTab.tsx',import.meta.url),'utf8');
-  assert.match(settings,/<OfflineRegionsPanel \/>/);
+  const profile=readFileSync(new URL('../src/components/ProfileAndSettingsTab.tsx',import.meta.url),'utf8');
+  const settings=readFileSync(new URL('../src/components/ProfileSettingsHub.tsx',import.meta.url),'utf8');
+  assert.match(profile,/<ProfileSettingsHub/);
+  assert.match(settings,/<OfflineRegionsPanel\s*\/>/);
+  assert.match(settings,/category==='mapa'/);
 });

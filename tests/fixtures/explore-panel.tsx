@@ -5,5 +5,7 @@ import '../../src/index.css';
 import '../../src/role-figma.css';
 import 'leaflet/dist/leaflet.css';
 
+const startedTrips:unknown[]=[];
+Object.assign(window,{__exploreStartedTrips:startedTrips});
 createRoot(document.getElementById('root')!).render(<ToursTab currentVehicle={null}
-  savedTripIds={[]} onStartTrip={()=>{}} onSaveTrip={()=>{}}/>);
+  savedTripIds={[]} onStartTrip={trip=>{startedTrips.push(trip);}} onSaveTrip={()=>{}}/>);

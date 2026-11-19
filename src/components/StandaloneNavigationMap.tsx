@@ -47,6 +47,8 @@ import type {Place} from '../types/admin';
 import type {RoadAlert} from '../types/roadAlerts';
 import {ROAD_ALERT_TYPES} from '../types/roadAlerts';
 import {confirmRoadAlert} from '../hooks/useRoadAlerts';
+import {roadAlertTitle} from '../services/roadAlertPresentation';
+import {RadarAttribution} from './RadarAttribution';
 import {getCurrentDeviceLocation} from '../services/locationService';
 import {MapTrafficControl} from './MapTrafficControl';
 import {createMapLibreTrafficPort} from '../services/mapLibreTraffic';
@@ -190,8 +192,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // symbol layers, so label collisions only need to run inside each source.
         pixelRatio:mapPixelRatio(window.devicePixelRatio,Boolean(latest.current.navigationMode)),
         crossSourceCollisions:false,
-        // Permanent low-contrast source credit; no expandable attribution button.
-        attributionControl:{compact:false}});
+        attributionControl:{compact:true}});
       map.touchZoomRotate.enableRotation();
     }catch{fail();return;}
     const timeout=setTimeout(()=>{
@@ -283,8 +284,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       onStation:(id,section,mode)=>setStation({id,section,mode}),
       onToll:(id,section,entry)=>setToll({id,section,place:entry}),
       onPlace:id=>setPlace(data.current.places.find(entry=>entry.id===id)??null),
-      onGo:entry=>latest.current.onNavigateToPlace?.({id:entry.id,name:entry.name,coords:entry.coords,
-        kind:entry.kind==='place'?entry.category:entry.kind,address:''}),
+      ...(latest.current.onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>latest.current.onGoToPlace?.({id:entry.id,name:entry.name,coords:entry.coords})}:{}),
       onReport:setFeedbackPlace
     });
     // DOM GPS pins and camera commands do not depend on tile/style sources.
@@ -535,6 +535,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       root.dataset.mapBearing=String(map.getBearing());
       root.dataset.mapPitch=String(map.getPitch());
       const bounds=map.getBounds();
+      latest.current.onRoadAlertViewportChange?.({south:bounds.getSouth(),north:bounds.getNorth(),
+        west:bounds.getWest(),east:bounds.getEast()});
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
       // Retain loaded markers at their real coordinates on a far zoom-out.
@@ -765,7 +767,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // The traffic API is deliberately bounded to a 5-km GPS viewport.
         // Opening traffic from city-wide Explore must first enter that safe viewport.
         if(trafficPort&&(trafficPort.getZoom()<16||trafficPort.getViewportRadiusKm(target)>4.5)){
-          trafficMap.easeTo({center:[target[1],target[0]],zoom:Math.max(16,Math.ceil(trafficMap.getZoom())), 
+          trafficMap.easeTo({center:[target[1],target[0]],zoom:Math.max(16,Math.ceil(trafficMap.getZoom())),
             duration:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?0:350});
         }
       }}/>
@@ -840,13 +842,14 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}
     {alert&&<section role="dialog" aria-label="Confirmar ocorrência no mapa" className="absolute left-1/2 top-4 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] bg-white p-4 shadow-xl">
       <div className="flex justify-between gap-3"><div>
-        <p className="text-xs font-semibold text-amber-700">{ROAD_ALERT_TYPES.find(type=>type.id===alert.kind)?.label}</p>
-        <h3 className="font-bold text-slate-900">Ainda continua lá?</h3>
+        <p className="text-xs font-semibold text-amber-700">{alert.source==='pardal'?'Radar cadastrado':ROAD_ALERT_TYPES.find(type=>type.id===alert.kind)?.label}</p>
+        <h3 className="font-bold text-slate-900">{alert.source==='pardal'?roadAlertTitle(alert):'Ainda continua lá?'}</h3>
       </div><button type="button" aria-label="Fechar confirmação de ocorrência" onClick={()=>setAlert(null)} className="min-h-11 min-w-11 text-slate-700">×</button></div>
       {alert.note&&<p className="mt-2 text-xs text-slate-600">{alert.note}</p>}
-      {!checkMessage&&<p className="mt-2 text-xs text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
+      <RadarAttribution alert={alert}/>
+      {alert.source!=='pardal'&&!checkMessage&&<p className="mt-2 text-xs text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
       {checkError&&<p role="alert" className="mt-2 text-xs text-rose-700">{checkError}</p>}
-      {checkMessage?<p role="status" className="mt-2 text-xs text-emerald-700">{checkMessage}</p>:<div className="mt-3 grid grid-cols-2 gap-2">
+      {checkMessage?<p role="status" className="mt-2 text-xs text-emerald-700">{checkMessage}</p>:alert.source!=='pardal'&&<div className="mt-3 grid grid-cols-2 gap-2">
         <button type="button" disabled={checking} onClick={()=>void check(true)} className="min-h-11 rounded-xl bg-blue-600 text-white">Sim</button>
         <button type="button" disabled={checking} onClick={()=>void check(false)} className="min-h-11 rounded-xl border border-slate-200 text-slate-800">Não</button>
       </div>}

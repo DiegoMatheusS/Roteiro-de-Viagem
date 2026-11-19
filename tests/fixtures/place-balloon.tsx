@@ -7,5 +7,6 @@ import 'leaflet/dist/leaflet.css';
 const gps:[number,number]=[-23.55,-46.63];
 createRoot(document.getElementById('root')!).render(<AuthProvider><div style={{width:'100vw',height:'100dvh'}}>
   <InteractiveMap roadStyle userLiveCoords={gps} userGpsAccuracyMeters={5} showFuelStations
+    onGoToPlace={place=>{(window as Window&{__goToPlace?:typeof place}).__goToPlace=place;}}
     navigationMode={new URLSearchParams(location.search).has('navigation')} centerOnUserRequest={1}/>
 </div></AuthProvider>);

@@ -1,6 +1,6 @@
-/* Rolê — adaptação visual das sete telas exportadas do Figma.
+/* RUAVO — adaptação visual das sete telas exportadas do Figma.
  * Apenas apresentação: não substitui GPS, rotas, autenticação ou dados reais. */
-:root { --role-blue: #245ee9; --role-ink: #1f2937; --role-muted: #708091; }
+:root { --ruavo-blue:#175CD3; --ruavo-teal:#14B8A6; --ruavo-amber:#F59E0B; --role-blue:var(--ruavo-blue); --role-ink:#1f2937; --role-muted:#708091; }
 .rdv-figma-bottom-nav {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 35;
   display: grid; grid-template-columns: repeat(4,minmax(0,1fr));
@@ -853,39 +853,59 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
 .rdv-preview-route-map [data-traffic-control] {top:16px !important;bottom:auto !important;right:16px !important;}
 .rdv-explore-map [data-traffic-control] {top:70px !important;bottom:auto !important;right:16px !important;}
 
-
-/* Attribution remains legible as low-contrast background text.
-   No additional information button or expanding overlay covers the map. */
-.rdv-navigation-screen .leaflet-control-attribution,
-.rdv-navigation-screen .maplibregl-ctrl-attrib,
+/* Créditos cartográficos no fundo, discretos e estáticos.
+   A atribuição obrigatória permanece legível, sem botão, sem balão e sem clique.
+   O conteúdo dos links não é removido; apenas sua interação é desativada. */
 .rdv-explore-map .leaflet-control-attribution,
-.rdv-explore-map .maplibregl-ctrl-attrib,
 .rdv-preview-route-map .leaflet-control-attribution,
-.rdv-preview-route-map .maplibregl-ctrl-attrib {
-  background:transparent !important;
-  box-shadow:none !important;
-  border:0 !important;
-  color:#68778a !important;
-  opacity:.62;
-  font-size:8px !important;
-  line-height:1.2 !important;
-  max-width:min(92vw,520px) !important;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
-  padding:1px 3px !important;
-}
-.rdv-navigation-screen .maplibregl-ctrl-attrib-inner,
-.rdv-explore-map .maplibregl-ctrl-attrib-inner,
-.rdv-preview-route-map .maplibregl-ctrl-attrib-inner {
+.rdv-navigation-screen .leaflet-control-attribution,
+.rdv-explore-map .maplibregl-ctrl-attrib,
+.rdv-preview-route-map .maplibregl-ctrl-attrib,
+.rdv-navigation-screen .maplibregl-ctrl-attrib {
   display:block !important;
-  white-space:nowrap !important;
-  overflow:hidden;text-overflow:ellipsis;
+  position:relative !important;
+  max-width:100% !important;
+  width:auto !important;
+  overflow:visible !important;
+  white-space:normal !important;
+  overflow-wrap:break-word;
+  color:#596675 !important;
+  font-size:9px !important;
+  line-height:1.2 !important;
+  background:rgba(245,247,249,.64) !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  margin:0 !important;
+  padding:2px 5px !important;
+  opacity:.72;
+  pointer-events:none !important;
+  cursor:default !important;
 }
-.rdv-navigation-screen .maplibregl-ctrl-attrib-button,
+.rdv-explore-map .maplibregl-ctrl-attrib-inner,
+.rdv-preview-route-map .maplibregl-ctrl-attrib-inner,
+.rdv-navigation-screen .maplibregl-ctrl-attrib-inner {
+  display:block !important;
+  white-space:normal !important;
+  overflow:visible !important;
+}
 .rdv-explore-map .maplibregl-ctrl-attrib-button,
-.rdv-preview-route-map .maplibregl-ctrl-attrib-button {display:none !important;}
+.rdv-preview-route-map .maplibregl-ctrl-attrib-button,
+.rdv-navigation-screen .maplibregl-ctrl-attrib-button {
+  display:none !important;
+}
+.rdv-explore-map .leaflet-control-attribution a,
+.rdv-preview-route-map .leaflet-control-attribution a,
+.rdv-navigation-screen .leaflet-control-attribution a,
+.rdv-explore-map .maplibregl-ctrl-attrib a,
+.rdv-preview-route-map .maplibregl-ctrl-attrib a,
+.rdv-navigation-screen .maplibregl-ctrl-attrib a {
+  color:inherit !important;
+  text-decoration:none !important;
+  pointer-events:none !important;
+}
 
-/* The fallback uses raster OSM. Desaturate only its base layer in Home
-   so buildings and ordinary streets remain gray, never colored POI markers. */
+/* Keep the Home raster base gray without desaturating traffic, alerts or POIs. */
 .rdv-navigation-screen [data-map-engine="leaflet-fallback"] .leaflet-tile-pane {
   filter:grayscale(1) saturate(0) contrast(.90) brightness(1.04) !important;
 }

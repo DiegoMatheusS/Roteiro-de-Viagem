@@ -120,11 +120,14 @@ try {
   await page.getByRole('button',{name:'Abrir menu'}).click();
   await page.getByRole('button',{name:'Abrir meu perfil'}).click();
   await page.getByRole('button',{name:'Configurações'}).click();
-  const themeSelect=page.getByLabel('Tema do Rolê',{exact:true});
+  await page.getByRole('navigation',{name:'Categorias de configurações'})
+    .getByRole('button',{name:'Aparência',exact:true}).click();
+  const themeSelect=page.getByLabel('Tema do mapa',{exact:true});
   await themeSelect.selectOption('dark');
   assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-appearance:v1')),'dark');
   await page.getByRole('button',{name:'Abrir menu'}).click();
-  await page.getByRole('button',{name:'Mapa',exact:true}).click();
+  await page.getByRole('dialog',{name:'Menu do RUAVO'})
+    .getByRole('button',{name:'Mapa',exact:true}).click();
   await page.locator('[data-map-engine][data-role-theme="dark"]').first().waitFor();
   await page.screenshot({path:'test-results/map-dark-mobile.png'});
   await page.reload();

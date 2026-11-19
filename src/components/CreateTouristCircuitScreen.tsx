@@ -49,7 +49,7 @@ export function CreateTouristCircuitScreen({
   const options=mode==='km'?[10,20,30,50]:[1,2,3,4];
 
   return <div className="rdv-create-overlay">
-    <section role="dialog" aria-modal="true" aria-label="Criar um rolê" className="rdv-create-screen">
+    <section role="dialog" aria-modal="true" aria-label="Criar uma viagem" className="rdv-create-screen">
       <div className="rdv-create-map" aria-label="Mapa da sua localização">
         <InteractiveMap roadStyle initialStyle="light" userLiveCoords={coords}
           showFuelStations={false} className="w-full h-full"/>
@@ -58,7 +58,7 @@ export function CreateTouristCircuitScreen({
         <button type="button" aria-label="Voltar" onClick={onClose} className="rdv-create-back">
           <ArrowLeft size={24} strokeWidth={1.9}/>
         </button>
-        <h1>Criar rolê</h1>
+        <h1>Criar viagem</h1>
       </header>
       <div className="rdv-create-origin">
         <Crosshair size={19} strokeWidth={2} aria-hidden="true"/>
@@ -68,7 +68,7 @@ export function CreateTouristCircuitScreen({
 
       <div className="rdv-create-panel" data-testid="figma-create-trip-panel">
         <div className="rdv-create-handle" aria-hidden="true"/>
-        <h2>Quanto você quer rodar?</h2>
+        <h2>{mode==='km'?'Qual distância deseja percorrer?':'Quanto tempo deseja viajar?'}</h2>
 
         <div className="rdv-create-tabs" role="group" aria-label="Tipo de planejamento">
           <button type="button" aria-pressed={mode==='km'} onClick={()=>onModeChange('km')}
@@ -92,7 +92,8 @@ export function CreateTouristCircuitScreen({
           <button type="button" aria-label="Aumentar quantidade" onClick={()=>onStep(true)}>+</button>
         </div>
 
-        <div className="rdv-create-chips" role="group" aria-label="Valores rápidos">
+        <p className="text-center text-xs text-slate-600">Digite {mode==='km'?'a quantidade de quilômetros':'a quantidade de horas'} no campo acima ou use uma sugestão.</p>
+        <div className="rdv-create-chips" role="group" aria-label="Valores sugeridos">
           {options.map(option=><button type="button" key={option}
             aria-pressed={parseTouristTarget(value)===option}
             onClick={()=>mode==='km'?onKmChange(String(option)):onHoursChange(String(option))}
@@ -103,7 +104,7 @@ export function CreateTouristCircuitScreen({
 
         <section aria-label="Destinos próximos" className="mt-1 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
           <p className="text-[12px] font-semibold text-blue-900">
-            Pontos próximos para seu rolê
+            Pontos próximos para sua viagem
           </p>
           {nearbySuggestions.length?<div className="mt-3 space-y-2 max-h-56 overflow-y-auto" data-testid="nearby-tourist-points">
             {nearbySuggestions.map(place=>{
@@ -155,7 +156,7 @@ export function CreateTouristCircuitScreen({
         {error && <p className="rdv-create-message" role="alert">{error}</p>}
 
         <button type="button" className="rdv-create-submit" disabled={busy || Boolean(validation)}
-          onClick={onSubmit}>{busy?'Preparando seu rolê…':'Ver meu trajeto'}</button>
+          onClick={onSubmit}>{busy?'Preparando sua viagem…':'Ver meu trajeto'}</button>
         <p className="rdv-create-disclaimer">Distância e tempo aproximados.</p>
 
         <details className="rdv-create-advanced">

@@ -5,12 +5,49 @@ import { createApi } from '../server/app';
 import { distanceToRouteKm } from '../server/roadAlerts';
 import { upcomingRoadAlert } from '../src/services/roadAlertDistance';
 import { roadAlertBannerText } from '../src/services/roadAlertPresentation';
+import {roadAlertSeverity,roadAlertLayerPriority} from '../src/services/roadAlertPriority';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const route: [number, number][] = [[-23.5,-46.6],[-23.5,-46.59],[-23.5,-46.58]];
+test('map shows all approved hazards inside visible bounds without GPS radius',async()=>{
+  const db=openDatabase(':memory:');
+  const created=new Date().toISOString(),valid=new Date(Date.now()+3600000).toISOString();
+  const expired=new Date(Date.now()-1000).toISOString();
+  const insert=db.prepare(`INSERT INTO road_alerts
+    (id,kind,lat,lng,note,status,created_at,expires_at)
+    VALUES(?,?,?,?,?,?,?,?)`);
+  insert.run('near','accident',-23.5,-46.6,'','approved',created,valid);
+  insert.run('far','roadworks',-23.5,-46.4,'','approved',created,valid);
+  insert.run('outside','accident',-23.5,-45.9,'','approved',created,valid);
+  insert.run('pending','robbery',-23.5,-46.55,'','pending',created,valid);
+  insert.run('expired','accident',-23.5,-46.56,'','approved',created,expired);
+  const server=createApi({db}).listen(0,'127.0.0.1');
+  await new Promise<void>(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${(server.address() as any).port}/api/road-alerts/map`;
+  try{
+    const response=await fetch(`${base}?south=-23.6&north=-23.4&west=-46.7&east=-46.3`);
+    assert.equal(response.status,200);
+    const payload=await response.json() as {alerts:{id:string}[]};
+    assert.deepEqual(payload.alerts.map(a=>a.id).sort(),['far','near']);
+    // Distante do GPS e sem rota, mas dentro da área: permanece visível.
+    const invalid=await fetch(`${base}?south=-23.4&north=-23.6&west=-46.7&east=-46.3`);
+    assert.equal(invalid.status,400);
+  }finally{
+    await new Promise<void>(resolve=>server.close(()=>resolve()));
+    db.close();
+  }
+});
+test('severity changes draw order without filtering alerts by distance',()=>{
+  assert.equal(roadAlertSeverity('accident'),'critical');
+  assert.equal(roadAlertSeverity('roadworks'),'high');
+  assert.equal(roadAlertSeverity('speed_camera'),'info');
+  assert.ok(roadAlertLayerPriority('accident')>roadAlertLayerPriority('roadworks'));
+  assert.ok(roadAlertLayerPriority('roadworks')>roadAlertLayerPriority('speed_camera'));
+});
+
 test('distance to road uses full segments, not only point markers', () => {
   assert.ok(distanceToRouteKm([-23.5, -46.595],route) < 0.01);
   assert.ok(distanceToRouteKm([-23.51, -46.595],route) > 1);

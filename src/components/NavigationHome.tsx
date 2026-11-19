@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Search, X, Route, Users } from 'lucide-react';
+import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Plus, Search, X, Route, Users } from 'lucide-react';
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
@@ -261,6 +261,26 @@ export function NavigationHome(props: NavigationHomeProps) {
     if (position.accuracyMeters > 150) throw new Error('O sinal GPS está impreciso. Tente novamente em local aberto.');
     return choose(position);
   };
+  const goToMapMarker=async(target:{id:string;name:string;coords:[number,number]})=>{
+    if(props.activeTripInProgress){
+      selectMapTarget({name:target.name,coords:target.coords});
+      return;
+    }
+    if(busy)return;
+    setBusy(true);setError('');
+    try{
+      const from=await gpsCoordinates();
+      const choices=await fetchRouteChoices(from,target.coords,undefined,'fast');
+      if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
+      const vehicle=props.currentVehicle?.type===travelMode
+        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
+      const trip=choiceToTrip(choices[0],vehicle,from,{name:target.name,coords:target.coords},savedOriginName.current);
+      props.onStartTrip(trip);
+    }catch(err){
+      setError((err as Error).message);
+      setCollapsed(false);setSheetExpanded(false);
+    }finally{setBusy(false);}
+  };
   const submitCircuit = async (regenerate = false) => {
     const selectedMode = regenerate ? lastCircuitMode : sheet;
     if (busy || (selectedMode !== 'km' && selectedMode !== 'hours') ||
@@ -392,18 +412,17 @@ export function NavigationHome(props: NavigationHomeProps) {
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
-  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do Rolê">
+  return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do RUAVO">
     <div className="absolute inset-0 rdv-flat-map">
       <InteractiveMap roadStyle followUser={false} placeDensityMode={placeDensityMode} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
         userSpeedMetersPerSecond={gps.status==='ready'?gps.position?.speedMetersPerSecond:null} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
+        onGoToPlace={place=>void goToMapMarker(place)}
         destinationCoords={mapTarget?.coords} destinationLabel={mapTarget?.name}
         focusedCoords={mapTarget?.coords} originCoords={displayRoute?.origin} routePath={displayRoute?.options.find(choice=>choice.id===displayRoute?.selectedId)?.routePath || []}
         routeAlternatives={displayRoute?.options || []} selectedRouteId={displayRoute?.selectedId}
         onSelectRoute={id=>setDisplayRoute(current=>current?{...current,selectedId:id}:current)}
-        blueRoute centerOnUserRequest={centerRequest} showFuelStations
-        onNavigateToPlace={place=>selectMapTarget({name:place.name,coords:place.coords,address:place.address})}
-        className="w-full h-full" />
+        blueRoute centerOnUserRequest={centerRequest} showFuelStations className="w-full h-full" />
     </div>
 
     <div className="rdv-figma-home-modes" role="group" aria-label="Modalidade de transporte">
@@ -451,7 +470,11 @@ export function NavigationHome(props: NavigationHomeProps) {
         {error && <p role="alert" className="bg-rose-50 p-3 rounded-xl text-xs text-rose-700">{error}</p>}
         <section className="space-y-3">
           <div>
-            <h2 className="text-[21px] font-bold tracking-[-.045em] text-slate-950">Bora dar um rolê?</h2>
+            <h2 className="flex items-center gap-2.5 text-[21px] font-bold tracking-[-.045em] text-slate-950">
+              <img src="/ruavo-logo.png" alt="" aria-hidden="true" width={36} height={36}
+                className="h-9 w-9 shrink-0 rounded-xl object-contain"/>
+              <span className="min-w-0">RUAVO <span className="block text-[11px] font-medium tracking-normal text-slate-600">Muito além da rota.</span></span>
+            </h2>
           </div>
           <div className="rdv-home-destination-search" data-testid="home-inline-destination-search">
           <form ref={searchFormRef} role="search" aria-label="Busca rápida de destinos" aria-busy={searchBusy}
@@ -474,7 +497,8 @@ export function NavigationHome(props: NavigationHomeProps) {
               className="mt-2 text-sm text-blue-700 font-semibold underline underline-offset-2">
               Não sabe o número? Marcar endereço no mapa
             </button>}
-          <div className="mt-2 flex items-center">
+          {/* Acessos rápidos sempre visíveis logo abaixo da busca, sem abrir o painel. */}
+          <div className="mt-2 flex items-center gap-2 min-w-0" data-testid="home-saved-shortcuts">
             <button type="button" aria-label="Salvos" aria-expanded={showSavedDestinations}
               aria-controls="rdv-home-saved-destinations"
               onClick={()=>{
@@ -483,10 +507,33 @@ export function NavigationHome(props: NavigationHomeProps) {
                 setCollapsed(false);setSheetExpanded(true);
                 setShowSavedDestinations(value=>!value);
               }}
-              className={`inline-flex w-full min-h-[60px] items-center justify-center gap-3 rounded-2xl border px-5 text-lg font-extrabold transition-colors
+              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-[13px] font-bold transition-colors
                 ${showSavedDestinations?'border-blue-600 bg-blue-600 text-white':'border-blue-100 bg-blue-50 text-blue-700'}`}>
-              <Bookmark size={24} strokeWidth={2} aria-hidden="true"/> Salvos
+              <Bookmark size={17} strokeWidth={2} aria-hidden="true"/> Salvos
             </button>
+            <div role="group" aria-label="Locais salvos" data-testid="home-saved-places"
+              className="min-w-0 flex-1 flex items-center gap-2 overflow-x-auto overscroll-x-contain py-1 touch-pan-x">
+              {savedAddresses.map(item=><button key={item.id} type="button" title={item.address}
+                aria-label={`Ir para ${item.label}`}
+                onClick={()=>selectMapTarget({name:item.label,address:item.address,coords:item.coords})}
+                className="inline-flex min-h-10 max-w-[140px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-800 shadow-sm active:bg-blue-50">
+                <MapPin size={15} className="shrink-0 text-blue-600" aria-hidden="true"/>
+                <span className="truncate">{item.label}</span>
+              </button>)}
+              {!savedAddresses.length&&<span className="shrink-0 text-[12px] text-slate-500">
+                {user?'Nenhum local salvo':'Entre para salvar lugares'}
+              </span>}
+              <button type="button" aria-label="Gerenciar locais salvos" title="Adicionar ou organizar salvos"
+                onClick={()=>{
+                  searchInputRef.current?.blur();
+                  cancelTypeahead();
+                  setCollapsed(false);setSheetExpanded(true);
+                  setShowSavedDestinations(true);
+                }}
+                className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700 active:bg-blue-100">
+                <Plus size={18} aria-hidden="true"/>
+              </button>
+            </div>
           </div>
           {showSavedDestinations&&<div id="rdv-home-saved-destinations" role="region"
             aria-label="Endereços salvos na busca" className="mt-2 rounded-2xl border border-blue-100 bg-slate-50 p-3">
@@ -517,14 +564,15 @@ export function NavigationHome(props: NavigationHomeProps) {
             onCancel={()=>setShowManualMap(false)}
             onConfirm={place=>{setShowManualMap(false);selectMapTarget(place);}}/>}
         </div>
+          <h3 className="text-[13px] font-bold text-slate-700">Planejar passeio</h3>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
-              <strong className="rdv-figma-card-title">Por km</strong>
+              <strong className="rdv-figma-card-title">Por distância</strong>
             </button>
             <button type="button" onClick={()=>showSheet('hours')} aria-label="Por tempo — Escolher horas" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Clock3 size={20} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
-              <strong className="rdv-figma-card-title">Por horas</strong>
+              <strong className="rdv-figma-card-title">Por tempo</strong>
             </button>
           </div>
           <button type="button" aria-label="Comboio" onClick={()=>setShowConvoyActions(true)}
@@ -534,7 +582,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           </button>
           <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
             <span className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-blue-700"><Route size={21} strokeWidth={1.9}/></span>
-            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rolê com origem e destino</strong></span><ChevronRight size={17} className="text-slate-400"/>
+            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rota com origem e destino</strong></span><ChevronRight size={17} className="text-slate-400"/>
           </button>
         </section>
         <section className="space-y-2.5">
@@ -620,7 +668,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <h1 className="text-[18px] font-bold">Escolher destino</h1>
         </header>
         <div className="p-5 pt-1 space-y-4 overflow-y-auto">
-          <h2 className="text-xl font-extrabold">Rolê com origem e destino</h2>
+          <h2 className="text-xl font-extrabold">Rota com origem e destino</h2>
           <fieldset className="border border-slate-200 rounded-xl p-3 space-y-2" aria-label="Preferência de rota">
             <legend className="text-sm font-bold px-1">Preferência de rota</legend>
             <label className="flex items-center gap-2 text-sm">

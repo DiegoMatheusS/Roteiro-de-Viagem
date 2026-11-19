@@ -1,14 +1,9 @@
 import { AndroidStatus } from './AndroidStatus';
 import {GpsCalibrationPanel} from './GpsCalibrationPanel';
-import {OfflineRegionsPanel} from './OfflineRegionsPanel';
 import { EmergencyContactsEditor } from './EmergencyContactsEditor';
 import { ProfileFigmaHome } from './ProfileFigmaHome';
+import {ProfileSettingsHub} from './ProfileSettingsHub';
 import React, { useState } from 'react';
-import {useMapAppearance} from '../hooks/useMapAppearance';
-import {useMapIconDensity} from '../hooks/useMapIconDensity';
-import type {MapIconDensity} from '../services/mapIconDensity';
-import {clearAddressHistory} from '../services/addressMemory';
-import type {MapAppearanceMode} from '../services/mapAppearance';
 import { 
   TravelerProfile, 
   Vehicle, 
@@ -26,7 +21,6 @@ import {
   Award, 
   Car, 
   Plus, 
-  Shield, 
   Phone, 
   Home, 
   AlertOctagon, 
@@ -83,10 +77,6 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
   const [editingProfile,setEditingProfile]=useState(false),[profileName,setProfileName]=useState(''),[profileBio,setProfileBio]=useState('');
   const [activeSubTab, setActiveSubTab] = useState<'perfil' | 'garagem' | 'seguranca' | 'privacidade'>('perfil');
   const [showDetails,setShowDetails]=useState(false);
-  const {mode:appearanceMode,setMode:setAppearanceMode}=useMapAppearance();
-  const {mode:iconDensity,setMode:setIconDensity}=useMapIconDensity();
-  const [addressHistoryNotice,setAddressHistoryNotice]=useState('');
-  const [clearingAddresses,setClearingAddresses]=useState(false);
   const openDetails=(tab:'perfil'|'garagem'|'seguranca'|'privacidade')=>{
     setActiveSubTab(tab);setShowDetails(true);
   };
@@ -226,7 +216,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
         <div className="pl-20 pr-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
-              Perfil
+              {activeSubTab==='privacidade'?'Configurações':'Perfil'}
             </h1>
             <p className="text-[11px] text-slate-500">
               Nível do viajante, garagem inteligente e segurança.
@@ -240,7 +230,7 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
             { id: 'perfil', label: 'Meu Perfil & Nível' },
             { id: 'garagem', label: 'Minha Garagem' },
             { id: 'seguranca', label: 'Segurança & SOS' },
-            { id: 'privacidade', label: 'Privacidade' }
+            { id: 'privacidade', label: 'Configurações' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -684,97 +674,10 @@ export const ProfileAndSettingsTab: React.FC<ProfileAndSettingsTabProps> = ({
         {/* ================================================= */}
         {/* SUBTAB 4: PRIVACIDADE (SEÇÃO 8 & LGPD) */}
         {/* ================================================= */}
-        {activeSubTab === 'privacidade' && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 space-y-5 animate-in fade-in">
-            <section className="rounded-2xl border border-blue-100 bg-slate-50 p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-900">Aparência do mapa</h3>
-              <label htmlFor="role-map-theme" className="block text-xs font-medium text-slate-700">
-                Tema do Rolê
-              </label>
-              <select id="role-map-theme" value={appearanceMode}
-                onChange={event=>setAppearanceMode(event.target.value as MapAppearanceMode)}
-                className="w-full min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800">
-                <option value="light">Claro (padrão)</option>
-                <option value="dark">Escuro</option>
-                <option value="system">Seguir sistema</option>
-                <option value="automatic">Automático (18h às 6h)</option>
-              </select>
-              <p className="text-xs text-slate-500">Salvo neste aparelho. O modo automático segue o horário local, sem precisar de internet.</p>
-            </section>
-            <section className="rounded-2xl border border-blue-100 bg-slate-50 p-4 space-y-2">
-              <label htmlFor="role-map-icons" className="block text-sm font-semibold text-slate-900">Ícones na tela inicial</label>
-              <select id="role-map-icons" value={iconDensity}
-                onChange={event=>setIconDensity(event.target.value as MapIconDensity)}
-                className="w-full min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800">
-                <option value="less">Menos</option>
-                <option value="moderate">Moderado</option>
-                <option value="more">Mais</option>
-              </select>
-              <p className="text-xs text-slate-500">Escolha quantos ícones de locais aparecem no Início. O Explorar mostra todos. Salvo neste aparelho.</p>
-            </section>
-            <section className="rounded-2xl border border-blue-100 bg-slate-50 p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-900">Endereços recentes</h3>
-              <p className="text-xs text-slate-600">Os endereços escolhidos na origem e no destino ficam guardados para novas buscas. Seu histórico pessoal fica separado dos locais públicos.</p>
-              <button type="button" disabled={clearingAddresses} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800"
-                onClick={async()=>{setClearingAddresses(true);setAddressHistoryNotice('');try{await clearAddressHistory();setAddressHistoryNotice('Histórico de endereços limpo.');}
-                  catch{setAddressHistoryNotice('Não foi possível limpar agora. Tente novamente com conexão.');}finally{setClearingAddresses(false);}}}>
-                {clearingAddresses?'Limpando…':'Limpar endereços recentes'}
-              </button>
-              {addressHistoryNotice&&<p role="status" className="text-xs text-slate-600">{addressHistoryNotice}</p>}
-            </section>
-            <OfflineRegionsPanel />
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-emerald-600" />
-                Configurações de Privacidade
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Suas informações pessoais, rotas e dados de veículos são 100% privados por padrão.
-              </p>
-            </div>
-
-            <div className="space-y-4 pt-2 border-t border-slate-100 text-xs">
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <strong className="text-slate-800 block">Exibir meu Nível do Viajante publicamente</strong>
-                  <span className="text-slate-500">Mostra a medalha Bronze/Prata/Ouro/Diamante na comunidade</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={profile.showLevelPublicly}
-                  onChange={(e) => onUpdateProfile({ ...profile, showLevelPublicly: e.target.checked })}
-                  className="rounded text-emerald-600"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <strong className="text-slate-800 block">Exibir histórico de medalhas na comunidade</strong>
-                  <span className="text-slate-500">Permite que outros viajantes vejam suas conquistas</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={profile.showMedalsPublicly}
-                  onChange={(e) => onUpdateProfile({ ...profile, showMedalsPublicly: e.target.checked })}
-                  className="rounded text-emerald-600"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <strong className="text-slate-800 block">Proteger endereço de partida e chegada</strong>
-                  <span className="text-slate-500">Nunca revela o número ou rua residencial ao publicar rotas</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={true}
-                  disabled
-                  className="rounded text-emerald-600 opacity-60"
-                />
-              </label>
-            </div>
-          </div>
-        )}
+        {activeSubTab === 'privacidade' && <ProfileSettingsHub
+          profile={profile} onUpdateProfile={onUpdateProfile}
+          accountLabel={accountLabel} onLogin={onLogin} onLogout={onLogout}
+          onOpenProfile={()=>setActiveSubTab('perfil')}/>}
       </div>
       </div>}
 

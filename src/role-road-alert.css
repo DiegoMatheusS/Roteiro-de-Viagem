@@ -103,3 +103,38 @@
 @media(prefers-reduced-motion:reduce) {
   .rdv-alert-top-menu {animation:none;}
 }
+
+/* Confirmação temporária sobre o mapa; não bloqueia a direção nem exige clique. */
+.rdv-alert-success-toast {
+  position:fixed;
+  left:50%;
+  bottom:clamp(138px,31dvh,284px);
+  z-index:120;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  width:max-content;
+  max-width:calc(100vw - 32px);
+  padding:12px 18px;
+  border:1px solid #bbf7d0;
+  border-radius:16px;
+  background:#fff;
+  color:#166534;
+  box-shadow:0 8px 28px rgba(15,23,42,.22);
+  font-size:14px;
+  font-weight:750;
+  line-height:1.35;
+  text-align:center;
+  pointer-events:none;
+  transform:translateX(-50%);
+  animation:rdv-alert-toast-appear 200ms ease-out both;
+}
+.rdv-alert-success-toast svg {flex:none;}
+@keyframes rdv-alert-toast-appear {
+  from {opacity:0;transform:translate(-50%,12px);}
+  to {opacity:1;transform:translate(-50%,0);}
+}
+@media(prefers-reduced-motion:reduce) {
+  .rdv-alert-success-toast {animation:none;}
+}

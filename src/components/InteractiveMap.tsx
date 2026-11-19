@@ -21,6 +21,11 @@ import { createLeafletPlaceMarkerController } from '../services/leafletPlaceMark
 import { PLACE_KINDS, type Place } from '../types/admin';
 import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
+import {roadAlertTitle} from '../services/roadAlertPresentation';
+import {roadAlertLayerPriority} from '../services/roadAlertPriority';
+import {useViewportRoadAlerts,type RoadAlertViewport} from '../hooks/useViewportRoadAlerts';
+import {RadarAttribution} from './RadarAttribution';
+import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
 import { splitRouteAtPosition } from '../services/routeProgress';
@@ -106,6 +111,8 @@ export interface InteractiveMapProps {
   interactive?: boolean;
   className?: string;
   onSelectCoordinates?: (coords: [number, number], placeName?: string) => void;
+  /** Botão Ir inicia uma rota até o marcador selecionado. */
+  onGoToPlace?: (place: {id:string;name:string;coords:[number,number]}) => void;
   showFuelStations?: boolean;
   /** Registered places are independent of fuel-station discovery. */
   showPlaces?:boolean;
@@ -121,9 +128,9 @@ export interface InteractiveMapProps {
   onCameraModeChange?: (mode: CameraMode) => void;
   roadAlerts?: RoadAlert[];
   onRoadAlertUpdated?: () => void;
+  onRoadAlertViewportChange?: (viewport:RoadAlertViewport) => void;
   /** Lista apenas marcadores realmente renderizados dentro do viewport do mapa. */
   onVisiblePlacesChange?: (places: MapVisiblePlace[]) => void;
-  onNavigateToPlace?: (place:MapVisiblePlace) => void;
   /** Cada incremento centraliza o mapa no GPS, sem forçar acompanhamento ao arrastar. */
   centerOnUserRequest?: number;
 }
@@ -171,6 +178,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   convoyParticipants = EMPTY_CONVOY,
   meetingPoints = EMPTY_MEETINGS,
   onSelectCoordinates,
+  onGoToPlace,
   showFuelStations = true,
   showPlaces = true,
   placeDensityMode = 'moderate',
@@ -183,8 +191,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   onCameraModeChange,
   roadAlerts = EMPTY_ROAD_ALERTS,
   onRoadAlertUpdated,
+  onRoadAlertViewportChange,
   onVisiblePlacesChange,
-  onNavigateToPlace,
   centerOnUserRequest = 0,
   className = 'w-full h-full'
 }) => {
@@ -304,17 +312,15 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
-    onReport:setFeedbackPlace,
-    onGo:entry=>onNavigateToPlace?.({id:entry.id,name:entry.name,coords:entry.coords,
-      kind:entry.kind==='place'?entry.category:entry.kind,address:''})
+    onGoToPlace: onGoToPlace ? entry=>onGoToPlace({id:entry.id,name:entry.name,coords:entry.coords}) : undefined,
+    onReport:setFeedbackPlace
   });
   vectorPlaceActionsRef.current={
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
     onPlace:(id)=>{const place=places.find(item=>item.id===id);if(place)setSelectedPlace(place);},
-    onReport:setFeedbackPlace,
-    onGo:entry=>onNavigateToPlace?.({id:entry.id,name:entry.name,coords:entry.coords,
-      kind:entry.kind==='place'?entry.category:entry.kind,address:''})
+    onGoToPlace: onGoToPlace ? entry=>onGoToPlace({id:entry.id,name:entry.name,coords:entry.coords}) : undefined,
+    onReport:setFeedbackPlace
   };
 
 
@@ -358,7 +364,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       // Full-screen road navigation keeps softer pinch increments and animation.
       zoomAnimation: roadStyle || navigationMode,
       fadeAnimation: roadStyle || navigationMode,
-      // Fractional pinch zoom remains smooth; the traffic activation separately chooses integer XYZ zoom.
       zoomSnap: resumeViewport ? 0 : roadStyle || navigationMode ? 0.5 : 1,
       zoomDelta: roadStyle || navigationMode ? 0.5 : 1,
       attributionControl: true
@@ -506,6 +511,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       }
       setViewportRevision(value => value + 1);
       const bounds=map.getBounds();
+      onRoadAlertViewportChange?.({south:bounds.getSouth(),north:bounds.getNorth(),
+        west:bounds.getWest(),east:bounds.getEast()});
       const query=mapPlaceViewport({south:bounds.getSouth(),north:bounds.getNorth(),
         west:bounds.getWest(),east:bounds.getEast()},map.getZoom());
       // Keep already queried markers anchored while zooming out of search range.
@@ -581,6 +588,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
       onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
       onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
+      ...(onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>vectorPlaceActionsRef.current.onGoToPlace?.(entry)}:{}),
       onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
     });
     rasterPlaceControllerRef.current=controller;
@@ -608,6 +616,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           onStation:(id,section,mode)=>vectorPlaceActionsRef.current.onStation(id,section,mode),
           onToll:(id,section,place)=>vectorPlaceActionsRef.current.onToll(id,section,place),
           onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
+      ...(onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>vectorPlaceActionsRef.current.onGoToPlace?.(entry)}:{}),
           onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
         });
         controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
@@ -710,8 +719,14 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         html:createRoadAlertIconElement(alert.kind),
         iconSize:[38,38],iconAnchor:[19,19]
       });
-      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,zIndexOffset:2100}).addTo(group);
-      marker.on('click',()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert));
+      const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100+roadAlertLayerPriority(alert.kind)}).addTo(group);
+      const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert);
+      const element=marker.getElement();
+      if(element){
+        element.setAttribute('aria-label',`${roadAlertTitle(alert)}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
+        const unbind=bindMapMarkerActivation(element,open);
+        marker.once('remove',unbind);
+      }else marker.on('click',open);
       if(record)group.removeLayer(record.marker);
       existing.set(alert.id,{alert,marker});
     }
@@ -1611,17 +1626,18 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         className="absolute top-[max(16px,env(safe-area-inset-top))] left-1/2 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] border border-slate-200 bg-white/95 p-4 shadow-[0_12px_36px_rgba(15,23,42,.22)] backdrop-blur-md">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-amber-700">{ROAD_ALERT_TYPES.find(item => item.id === selectedRoadAlert.kind)?.label}</p>
-            <h3 className="mt-1 text-[15px] font-extrabold text-slate-900">Ainda continua lá?</h3>
+            <p className="text-[11px] font-semibold text-amber-700">{selectedRoadAlert.source==='pardal'?'Radar cadastrado':ROAD_ALERT_TYPES.find(item => item.id === selectedRoadAlert.kind)?.label}</p>
+            <h3 className="mt-1 text-[15px] font-extrabold text-slate-900">{selectedRoadAlert.source==='pardal'?roadAlertTitle(selectedRoadAlert):'Ainda continua lá?'}</h3>
           </div>
           <button type="button" aria-label="Fechar confirmação de ocorrência" onClick={() => setSelectedRoadAlert(null)}
             className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"><X size={20}/></button>
         </div>
         {selectedRoadAlert.note && <p className="mt-2 line-clamp-2 text-xs text-slate-600">{selectedRoadAlert.note}</p>}
-        {!alertCheckDone && <p className="mt-2 text-[11px] text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
+        <RadarAttribution alert={selectedRoadAlert}/>
+        {selectedRoadAlert.source!=='pardal'&&!alertCheckDone && <p className="mt-2 text-[11px] text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
         {alertCheckError && <p role="alert" className="mt-2 text-xs text-rose-700">{alertCheckError}</p>}
         {alertCheckMessage && <p role="status" className="mt-2 text-xs text-emerald-700">{alertCheckMessage}</p>}
-        {!alertCheckDone && <div className="mt-3 grid grid-cols-2 gap-2">
+        {selectedRoadAlert.source!=='pardal'&&!alertCheckDone && <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(true)}
             className="min-h-11 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Sim</button>
           <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(false)}
@@ -1635,7 +1651,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           const target=userLiveCoords??originCoords;
           const map=mapInstanceRef.current;
           if(!map||!target||!trafficPort)return;
-          if(trafficPort.getZoom()<15.5||trafficPort.getViewportRadiusKm(target)>4.5)
+          if(trafficPort.getZoom()<16||trafficPort.getViewportRadiusKm(target)>4.5)
             createHybridCameraPort(map).focus(target,Math.max(16,Math.ceil(map.getZoom())),true);
         }}/>
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
@@ -1702,6 +1718,30 @@ const NativeNavigationMap=React.lazy(()=>import('./StandaloneNavigationMap').cat
 /** All public maps use native MapLibre; the hybrid renderer remains available
  * as fallback when WebGL or the selected base cannot load. */
 export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
+  const [alertViewport,setAlertViewport]=useState<RoadAlertViewport|null>(null);
+  const {alerts:viewportAlerts,reload:reloadViewportAlerts}=useViewportRoadAlerts(alertViewport);
+  const mergedAlerts=useMemo(()=>{
+    const reports=new Map<string,RoadAlert>();
+    for(const alert of props.roadAlerts||[])reports.set(alert.id,alert);
+    for(const alert of viewportAlerts)reports.set(alert.id,alert);
+    return [...reports.values()];
+  },[props.roadAlerts,viewportAlerts]);
+  const updateViewport=React.useCallback((bounds:RoadAlertViewport)=>{
+    setAlertViewport(previous=>{
+      const round=(n:number)=>Math.round(n*1000);
+      if(previous&&round(previous.south)===round(bounds.south)&&
+        round(previous.north)===round(bounds.north)&&
+        round(previous.west)===round(bounds.west)&&
+        round(previous.east)===round(bounds.east))return previous;
+      return bounds;
+    });
+  },[]);
+  const onAlertUpdated=React.useCallback(()=>{
+    reloadViewportAlerts();
+    props.onRoadAlertUpdated?.();
+  },[reloadViewportAlerts,props.onRoadAlertUpdated]);
+  const mapProps={...props,roadAlerts:mergedAlerts,onRoadAlertUpdated:onAlertUpdated,
+    onRoadAlertViewportChange:updateViewport};
   const [fallback,setFallback]=useState(false);
   const [fallbackStyle,setFallbackStyle]=useState<MapStyleType>();
   const [fallbackViewport,setFallbackViewport]=useState<MapFallbackViewport>();
@@ -1712,8 +1752,8 @@ export const InteractiveMap:React.FC<InteractiveMapProps>=(props)=>{
     latestProps.current.onCameraModeChange?.(viewport?.mode??'following');
     setFallback(true);
   },[]);
-  if(fallback)return <HybridInteractiveMap {...props} initialStyle={fallbackStyle??props.initialStyle} resumeViewport={fallbackViewport}/>;
+  if(fallback)return <HybridInteractiveMap {...mapProps} initialStyle={fallbackStyle??props.initialStyle} resumeViewport={fallbackViewport}/>;
   return <React.Suspense fallback={<div className={props.className || 'w-full h-full'} role="status" aria-label="Carregando mapa"/>}>
-    <NativeNavigationMap {...props} onUnavailable={onUnavailable}/>
+    <NativeNavigationMap {...mapProps} onUnavailable={onUnavailable}/>
   </React.Suspense>;
 };

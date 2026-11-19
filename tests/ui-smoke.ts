@@ -103,7 +103,17 @@ try {
   await page.goto('http://127.0.0.1:3000/admin');
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
-  await page.getByRole('heading', {name:'Bora dar um rolê?'}).waitFor();
+  await page.getByRole('heading', {name:/RUAVO/}).waitFor();
+  // A faixa de salvos precisa estar diretamente abaixo da busca, sem clique extra.
+  const homeSavedShortcuts=page.getByTestId('home-saved-shortcuts');
+  await homeSavedShortcuts.waitFor();
+  const homeSearchBounds=await page.getByTestId('home-inline-destination-search').boundingBox();
+  const homeShortcutsBounds=await homeSavedShortcuts.boundingBox();
+  assert.ok(homeSearchBounds&&homeShortcutsBounds&&
+    homeShortcutsBounds.y>=homeSearchBounds.y&&homeShortcutsBounds.y<homeSearchBounds.y+180,
+    'Locais salvos devem ficar imediatamente abaixo da busca no início');
+  assert.equal(await homeSavedShortcuts.getByRole('group',{name:'Locais salvos'}).count(),1);
+  assert.equal(await page.getByRole('button',{name:'Alertas',exact:true}).count(),0);
   await page.screenshot({ path:'test-results/figma-tela-1-inicio.png' });
   // Tela 6: filtros, métricas reais, estado vazio e CTAs iguais ao PNG do Figma.
   await page.getByRole('button',{name:'Aba Viagens'}).click();
@@ -129,7 +139,7 @@ try {
   await page.getByRole('heading',{name:'Explorar',exact:true}).waitFor();
   await page.getByRole('button',{name:'Aba Viagens'}).click();
   await tripsPage.getByRole('button',{name:/^Criar (meu primeiro )?rolê$/}).click();
-  await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+  await page.getByRole('heading',{name:/RUAVO/}).waitFor();
 
   // Tela 5: regressão visual e funcional do novo Explorar em largura Android.
   await page.getByRole('button',{name:'Aba Explorar'}).click();
@@ -154,7 +164,7 @@ try {
   const exploreBox=await exploring.boundingBox();
   const exploreSheet=await exploring.locator('.rdv-explore-sheet').boundingBox();
   assert.ok(exploreBox&&exploreSheet&&exploreBox.height>=840&&
-    exploreSheet.y>360&&exploreSheet.y<480,
+    exploreSheet.y>390&&exploreSheet.y<540,
     'Tela Explorar precisa ter mapa superior e folha inferior conforme PNG');
   await page.screenshot({path:'test-results/figma-tela-5-explorar.png'});
   await exploring.getByRole('button',{name:'Estrada',exact:true}).click();
@@ -191,9 +201,9 @@ try {
   await exploring.getByPlaceholder('Buscar passeios').fill('juquery');
   await exploring.getByRole('heading',{name:'Parque Estadual do Juquery',exact:true}).waitFor();
   await page.getByRole('button',{name:'Aba Início'}).click();
-  await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+  await page.getByRole('heading',{name:/RUAVO/}).waitFor();
 
-  await page.getByRole('button', {name:'Rolê com origem e destino'}).waitFor();
+  await page.getByRole('button', {name:'Rota com origem e destino'}).waitFor();
   // KM/H can show a preview without login or garage; navigation starts on confirmation.
   const guestContext=await browser.newContext({
     viewport:{width:390,height:844},permissions:['geolocation'],
@@ -235,7 +245,7 @@ try {
     }});
   });
   await guestPage.goto('http://127.0.0.1:3000');
-  await guestPage.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+  await guestPage.getByRole('heading',{name:/RUAVO/}).waitFor();
   for(const choice of [
     {name:/Por distância/,label:'Quantidade de quilômetros',amount:'40',mode:'km'},
     {name:/Por tempo/,label:'Quantidade de horas',amount:'1',mode:'hours'}
@@ -244,9 +254,9 @@ try {
     const homeVoice=guestPage.getByRole('button',{name:'Orientações por voz'});
     if((await homeVoice.getAttribute('aria-pressed'))!==String(expectedVoice))await homeVoice.click();
     await guestPage.getByRole('button',{name:choice.name}).click();
-    const modal=guestPage.getByRole('dialog',{name:'Criar um rolê'});
+    const modal=guestPage.getByRole('dialog',{name:'Criar uma viagem'});
     if(choice.mode==='km'){
-      await modal.getByRole('heading',{name:'Criar rolê'}).waitFor();
+      await modal.getByRole('heading',{name:'Criar viagem'}).waitFor();
       const screen=await modal.boundingBox();
       const panel=await modal.getByTestId('figma-create-trip-panel').boundingBox();
       assert.ok(screen && panel && screen.y < 2 && screen.height >= 840,
@@ -296,10 +306,10 @@ try {
     }
     await realPreview.getByRole('button',{name:'Salvar rota'}).click();
     await realPreview.getByRole('button',{name:'Rota salva'}).waitFor();
-    await realPreview.getByRole('button',{name:'Iniciar rolê'}).click();
+    await realPreview.getByRole('button',{name:'Iniciar viagem'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor();
     const navScreen=guestPage.getByLabel('Navegação GPS ativa');
-    assert.equal(await guestPage.getByLabel('Início do Rolê',{exact:true}).count(),0,
+    assert.equal(await guestPage.getByLabel('Início do RUAVO',{exact:true}).count(),0,
       'navigation must dispose the covered home map and its GPS subscription');
     assert.equal(await guestPage.locator('main').count(),0,
       'covered tabs must not retain a second live map during navigation');
@@ -321,7 +331,26 @@ try {
     assert.equal(await navigationVoice.getAttribute('aria-pressed'),String(expectedVoice),
       'A navegação deve respeitar o som escolhido na Home');
     await navScreen.getByRole('status',{name:/Velocímetro/}).waitFor();
+    // Registrar novas ocorrências pertence exclusivamente à navegação ativa.
+    const navigationReporter=navScreen.getByRole('button',{name:'Reportar problema na estrada'});
+    await navigationReporter.waitFor();
     if(choice.mode==='km'){
+      await navigationReporter.click();
+      const reportMenu=guestPage.getByRole('menu',{name:'Escolher ocorrência'});
+      const menuBounds=await reportMenu.boundingBox();
+      assert.ok(menuBounds&&menuBounds.y<100,'Ícones de alerta ficam no topo durante a navegação');
+      const menuAnimation=await reportMenu.evaluate(el=>getComputedStyle(el).animationName);
+      assert.ok(menuAnimation.includes('rdv-alert-drop-down'));
+      await reportMenu.getByRole('menuitem',{name:'Buraco na pista'}).waitFor();
+      await reportMenu.getByRole('menuitem',{name:'Pedágio'}).waitFor();
+      await reportMenu.getByRole('menuitem',{name:'Radar de velocidade'}).waitFor();
+      await reportMenu.getByRole('menuitem',{name:'Buraco na pista'}).click();
+      const reportDialog=guestPage.getByRole('dialog',{name:'Reportar ocorrência na via'});
+      await reportDialog.getByText(/Pare em segurança/).waitFor();
+      await reportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
+      await reportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
+      assert.equal(await reportDialog.locator('textarea').count(),0);
+      await reportDialog.getByRole('button',{name:'Fechar ocorrência'}).click();
       await guestPage.screenshot({path:'test-results/figma-tela-4-navegacao.png'});
       await navScreen.getByRole('button',{name:'Compartilhar',exact:true}).click();
       const sharing=guestPage.getByRole('dialog',{name:'Compartilhar viagem'});
@@ -354,7 +383,7 @@ try {
     await guestPage.getByRole('button',{name:'Encerrar viagem',exact:true}).click();
     await guestPage.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
     await guestPage.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
-    await guestPage.getByLabel('Início do Rolê',{exact:true}).waitFor();
+    await guestPage.getByLabel('Início do RUAVO',{exact:true}).waitFor();
     await guestPage.waitForFunction(()=>(window as any).__activeGpsWatchers===1);
   }
   assert.deepEqual(modes,['km','km','hours'], 'A opção Outra rota refaz a busca por KM antes do teste por horas');
@@ -487,8 +516,8 @@ try {
   assert.equal(await homeVoice.getAttribute('aria-pressed'),'false');
   if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
-  const roleMenu = page.getByRole('dialog', {name:'Menu do Rolê'});
-  await roleMenu.getByRole('button', {name:'Começar um rolê'}).waitFor();
+  const roleMenu = page.getByRole('dialog', {name:'Menu do RUAVO'});
+  await roleMenu.getByRole('button', {name:'Começar uma viagem'}).waitFor();
   assert.ok(parseFloat(await roleMenu.evaluate(el=>getComputedStyle(el).transitionDuration)) > 0, 'O menu deve entrar deslizando de baixo para cima');
   await roleMenu.getByRole('button', {name:'Abrir meu perfil'}).getByText('Entrar ou criar conta').waitFor();
   await roleMenu.getByRole('button', {name:'Abrir meu perfil'}).click();
@@ -522,7 +551,29 @@ try {
   await page.getByText('Central SOS de Emergência').waitFor();
   await page.getByRole('button',{name:'Voltar ao perfil'}).click();
   await figmaProfile.getByRole('button',{name:'Configurações'}).click();
-  await page.getByText('Configurações de Privacidade').waitFor();
+  const categories=page.getByRole('navigation',{name:'Categorias de configurações'});
+  for(const label of ['Mapa','Navegação','Alertas','Aparência','Conta','Privacidade'])
+    await categories.getByRole('button',{name:label,exact:true}).waitFor();
+  const density=page.getByRole('group',{name:'Densidade dos ícones'});
+  await density.getByRole('button',{name:/Mais/}).click();
+  assert.equal(await density.getByRole('button',{name:/Mais/}).getAttribute('aria-pressed'),'true');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-icon-density:v1')),'more');
+  await density.getByRole('button',{name:/Moderado/}).click();
+  await categories.getByRole('button',{name:'Navegação',exact:true}).click();
+  const voicePreference=page.getByRole('checkbox',{name:'Ativar orientações por voz'});
+  await voicePreference.check();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:voice-guidance:v1')),'true');
+  await voicePreference.uncheck();
+  await categories.getByRole('button',{name:'Alertas',exact:true}).click();
+  await page.getByText(/sem filtro de raio/).waitFor();
+  await categories.getByRole('button',{name:'Aparência',exact:true}).click();
+  await page.getByLabel('Tema do mapa').selectOption('dark');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('role:map-appearance:v1')),'dark');
+  await page.getByLabel('Tema do mapa').selectOption('light');
+  await categories.getByRole('button',{name:'Conta',exact:true}).click();
+  await page.getByRole('region',{name:'Configurações da conta'}).getByRole('button',{name:'Meu perfil e nível'}).waitFor();
+  await categories.getByRole('button',{name:'Privacidade',exact:true}).click();
+  await page.getByRole('heading',{name:'Configurações de Privacidade'}).waitFor();
   await page.getByRole('button',{name:'Voltar ao perfil'}).click();
   // O cadastro de veículos permanece no Perfil, não na antiga aba inferior.
   await page.getByRole('button', { name: 'Minha Garagem', exact: true }).click();
@@ -561,7 +612,7 @@ try {
   assert.equal(registeredVehicle.consumption.userConfigured,12.75);
   if(!(await page.getByRole('button',{name:'Abrir menu'}).count())) await page.getByRole('button',{name:'Aba Perfil'}).click();
   await page.getByRole('button', { name: 'Abrir menu' }).click();
-  const accountMenu = page.getByRole('dialog', { name: 'Menu do Rolê' });
+  const accountMenu = page.getByRole('dialog', { name: 'Menu do RUAVO' });
   await accountMenu.getByRole('button', { name: 'Abrir meu perfil' }).getByText('Viajante de teste').waitFor();
   await accountMenu.getByRole('button', { name: 'Início', exact: true }).click();
 
@@ -602,12 +653,12 @@ try {
   await page.getByRole('button',{name:'Encerrar viagem',exact:true}).click();
   await page.getByRole('dialog',{name:'Encerrar viagem'}).getByRole('button',{name:'Sim, encerrar'}).click();
   await page.getByRole('status',{name:'Próxima orientação de navegação'}).waitFor({state:'hidden'});
-  await page.getByRole('heading',{name:'Bora dar um rolê?'}).waitFor();
+  await page.getByRole('heading',{name:/RUAVO/}).waitFor();
   assert.equal(await destinationMap.count(),0,
     'encerrar a navegação volta ao início sem restaurar a prévia desmontada');
   await page.waitForFunction(()=>(window as any).__activeGpsWatchers===1);
   // O formulário detalhado de origem e destino continua disponível separadamente.
-  await page.getByRole('button', {name:'Rolê com origem e destino'}).click();
+  await page.getByRole('button', {name:'Rota com origem e destino'}).click();
   const destinationSheet = page.getByRole('dialog', { name: 'Escolher origem e destino' });
   // Garante que a pesquisa manual funcione mesmo quando o GPS não respondeu ainda.
   await destinationSheet.getByRole('checkbox', { name: 'Sair da minha localização (GPS)' }).uncheck();
@@ -629,7 +680,7 @@ try {
   assert.ok((await tripPreview.innerText()).includes('km'), 'A prévia deve mostrar distância real');
   await tripPreview.getByRole('button', { name: 'Fechar janela' }).click();
   await page.getByRole('button', { name: 'Mais opções de planejamento', exact: true }).click();
-  await page.getByRole('heading',{name:'Rolê',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'RUAVO',exact:true}).waitFor();
   await page.getByRole('button',{name:'Voltar ao Rolê'}).waitFor();
   const vehicleSelector=page.getByTitle('Toque para trocar de veículo rapidamente');
   const vehicleRect=await vehicleSelector.boundingBox();
@@ -721,7 +772,7 @@ try {
       }
     }
     await fuelMarker.click();
-    await page.getByRole('region',{name:'Detalhes de Posto de teste de interface'}).getByRole('button',{name:'Ver detalhes de Posto de teste de interface',exact:true}).click();
+    await page.getByRole('region',{name:'Detalhes de Posto de teste de interface'}).getByRole('button',{name:'Ver detalhes',exact:true}).click();
     if(name.startsWith('Comentários')){
       const sheet=page.getByRole('dialog',{name:'Preços do posto'});
       await sheet.getByRole('button',{name:'Comentários',exact:true}).click();
@@ -852,30 +903,12 @@ try {
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Mapa', exact: true }).click();
   const gpsControl = page.getByRole('button', { name: 'Centralizar mapa na minha localização' });
-  const reportControl = page.getByRole('button', { name: 'Reportar problema na estrada' });
   await gpsControl.waitFor();
-  await reportControl.waitFor();
   const gpsRect = await gpsControl.boundingBox();
-  const reportRect = await reportControl.boundingBox();
-  assert.ok(gpsRect && reportRect && gpsRect.y + gpsRect.height <= reportRect.y + 1, 'GPS precisa ficar acima do alerta');
-  assert.ok(gpsRect.width>=56&&reportRect.width>=56);
+  assert.ok(gpsRect && gpsRect.width>=56, 'O botão de GPS permanece acessível no mapa');
+  assert.equal(await page.getByRole('button',{name:'Reportar problema na estrada'}).count(),0,
+    'Fora da navegação, alertas aparecem como marcadores e não como botão de registro');
   assert.equal(await page.getByRole('status',{name:/Velocímetro/}).count(),0);
-  await reportControl.click();
-  const reportMenu = page.getByRole('menu', { name: 'Escolher ocorrência' });
-  const menuBounds=await reportMenu.boundingBox();
-  assert.ok(menuBounds&&menuBounds.y<100,'Ícones de alerta continuam no topo do telefone');
-  const menuAnimation=await reportMenu.evaluate(el=>getComputedStyle(el).animationName);
-  assert.ok(menuAnimation.includes('rdv-alert-drop-down'));
-  await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).waitFor();
-  await reportMenu.getByRole('menuitem', { name: 'Pedágio' }).waitFor();
-  await reportMenu.getByRole('menuitem', { name: 'Radar de velocidade' }).waitFor();
-  await reportMenu.getByRole('menuitem', { name: 'Buraco na pista' }).click();
-  const reportDialog = page.getByRole('dialog', { name: 'Reportar ocorrência na via' });
-  await reportDialog.getByText(/Pare em segurança/).waitFor();
-  await reportDialog.getByRole('heading',{name:'Deseja fazer o alerta?'}).waitFor();
-  await reportDialog.getByRole('button',{name:'Deslize para alertar'}).waitFor();
-  assert.equal(await reportDialog.locator('textarea').count(),0);
-  await reportDialog.getByRole('button', { name: 'Fechar ocorrência' }).click();
   const expandMapPanel = page.getByRole('button', { name: 'Expandir painel do mapa' });
   const mapPanel = page.getByTestId('map-explore-sheet');
   const initialMapBounds = await mapPanel.boundingBox();
@@ -1001,7 +1034,7 @@ try {
   assert.equal(await restaurantPin.evaluate(el=>document.activeElement===el),true,
     'O marcador visível deve ser acessível pelo teclado');
   await restaurantPin.press('Enter');
-  await page.getByRole('region',{name:'Detalhes de Restaurante revisado pela administração'}).getByRole('button',{name:'Ver detalhes de Restaurante revisado pela administração',exact:true}).click();
+  await page.getByRole('region',{name:'Detalhes de Restaurante revisado pela administração'}).getByRole('button',{name:'Ver detalhes',exact:true}).click();
   const restaurant = page.getByRole('dialog', { name: 'Estabelecimento', exact: true });
   await restaurant.getByRole('heading', { name: /Restaurante revisado pela administração/ }).waitFor();
   await restaurant.getByLabel('Seu comentário', { exact: true }).fill('Comentário de teste da interface.');

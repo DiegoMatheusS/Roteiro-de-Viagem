@@ -63,7 +63,7 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
       style={{transitionProperty:'opacity, visibility'}}
       role="presentation" aria-hidden={!open} inert={!open}
       onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <nav id="role-menu" role="dialog" aria-modal={open} aria-label="Menu do Rolê"
+      <nav id="role-menu" role="dialog" aria-modal={open} aria-label="Menu do RUAVO"
         className={`bg-white rounded-t-[30px] border-t border-slate-100 w-full max-w-xl mx-auto shadow-[0_-14px_50px_rgba(15,23,42,.16)] overflow-y-auto max-h-[90dvh] pb-[max(24px,env(safe-area-inset-bottom))] transform-gpu will-change-transform transition-transform duration-[340ms] ease-[cubic-bezier(.22,1,.36,1)] ${open ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="flex items-center justify-center h-8">
           <div className="w-12 h-1.5 rounded-full bg-slate-300" aria-hidden="true" />
@@ -89,7 +89,7 @@ export function NavigationTabBar({ activeTab, onTabChange, hasActiveConvoy = fal
           <button type="button" onClick={() => navigate('inicio')}
             className="w-full flex items-center gap-3 rounded-[20px] bg-blue-600 text-white py-3.5 px-4 text-left shadow-[0_5px_14px_rgba(37,99,235,.18)]">
             <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><Navigation2 size={21}/></span>
-            <span className="flex-1"><strong className="block text-sm">Começar um rolê</strong><span className="text-xs text-blue-100">Escolha para onde quer ir</span></span>
+            <span className="flex-1"><strong className="block text-sm">Começar uma viagem</strong><span className="text-xs text-blue-100">Escolha para onde quer ir</span></span>
             <ChevronRight size={19}/>
           </button>
         </div>

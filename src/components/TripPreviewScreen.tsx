@@ -84,7 +84,7 @@ export function TripPreviewScreen({
       <header className="rdv-preview-header">
         <button type="button" aria-label="Fechar janela" onClick={onClose}
           className="rdv-preview-back"><ArrowLeft size={24}/></button>
-        <h1>Seu próximo rolê</h1>
+        <h1>Sua próxima viagem</h1>
       </header>
       <div className="rdv-preview-route-type">
         <Route size={16}/>Trajeto verificado
@@ -156,7 +156,7 @@ export function TripPreviewScreen({
         <div className="rdv-preview-actions">
           <button type="button" onClick={onAdjust} className="rdv-preview-adjust">Ajustar</button>
           <button type="button" onClick={onStart} disabled={mapEditing} className="rdv-preview-start">
-            <Play size={16} fill="currentColor"/> Iniciar rolê
+            <Play size={16} fill="currentColor"/> Iniciar viagem
           </button>
         </div>
       </div>

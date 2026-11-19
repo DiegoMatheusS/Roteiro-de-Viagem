@@ -1,5 +1,6 @@
 import { distanceBetweenKm } from './gpsTracking';
 import type { RoadAlert } from '../types/roadAlerts';
+import {radarMatchesDirection} from './radarDirection';
 
 type Coordinates = [number, number];
 
@@ -29,7 +30,7 @@ function segmentTable(route: Coordinates[]): SegmentTable {
  * anything farther than this straight-line radius cannot qualify. */
 const ALERT_SEARCH_RADIUS_KM = 4;
 
-function nearestProgress(point: Coordinates, route: Coordinates[], expectedKm = 0) {
+function nearestProgress(point: Coordinates, route: Coordinates[], expectedKm = 0, direction?:number|null) {
   const { km } = segmentTable(route);
   let accumulated = 0, bestDistance = Infinity, bestAlong = 0, bestScore = Infinity;
   const factor = Math.max(0.01, Math.abs(Math.cos(point[0] * Math.PI / 180)));
@@ -45,7 +46,7 @@ function nearestProgress(point: Coordinates, route: Coordinates[], expectedKm = 
     const along = accumulated + fraction * segmentLength;
     // Different legs of a circular journey can cross the same coordinate.
     const score = distance + Math.abs(along - expectedKm) * 0.08;
-    if (score < bestScore) { bestScore = score; bestDistance = distance; bestAlong = along; }
+    if (score < bestScore&&radarMatchesDirection(direction,a,b)) { bestScore = score; bestDistance = distance; bestAlong = along; }
     accumulated += segmentLength;
   }
   return { distanceKm: bestDistance, alongKm: bestAlong };
@@ -63,10 +64,11 @@ export function upcomingRoadAlert(
     .filter(alert => Date.parse(alert.expiresAt) > currentTime &&
       distanceBetweenKm(position, [alert.lat, alert.lng]) <= ALERT_SEARCH_RADIUS_KM)
     .map(alert => {
-      const found = nearestProgress([alert.lat, alert.lng], route, expected + 1);
+      const found = nearestProgress([alert.lat, alert.lng], route, expected + 1,
+        alert.source==='pardal'?alert.directionDegrees:null);
       return { alert, distanceKm: found.alongKm - user.alongKm, lateralKm: found.distanceKm };
     })
-    .filter(item => item.lateralKm <= 0.35 && item.distanceKm >= -0.15 && item.distanceKm <= 3)
+    .filter(item => item.lateralKm <= (item.alert.source==='pardal'?0.08:0.35) && item.distanceKm >= -0.15 && item.distanceKm <= 3)
     .sort((a,b) => a.distanceKm - b.distanceKm);
   return upcoming[0] ? { alert: upcoming[0].alert, distanceKm: Math.max(0, upcoming[0].distanceKm) } : null;
 }

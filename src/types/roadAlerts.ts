@@ -15,6 +15,7 @@ export const ROAD_ALERT_TYPES = [
 ] as const;
 export type RoadAlertType = typeof ROAD_ALERT_TYPES[number]['id'];
 export type RoadAlertStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+export type RadarKind = 'FIXED'|'SECTION'|'RED_LIGHT';
 export interface RoadAlert {
   id: string;
   kind: RoadAlertType;
@@ -26,6 +27,12 @@ export interface RoadAlert {
   status?: RoadAlertStatus;
   submittedBy?: string;
   reviewedAt?: string | null;
+  source?: 'pardal';
+  cameraKind?: RadarKind;
+  limitKmh?: number | null;
+  directionDegrees?: number | null;
+  dataSource?: string;
+  datasetUpdatedAt?: string;
 }
 export const ROAD_ALERT_TTL_MS: Record<RoadAlertType, number> = {
   pothole: 14 * 86400000,
