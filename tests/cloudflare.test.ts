@@ -28,6 +28,8 @@ test('Cloudflare serves assets without exposing the proxy and validates its conf
     assert.equal(response.headers.get('cache-control'), 'no-store');
   }
   assert.equal((await worker.fetch(new Request(front + '/api/health'), {})).status, 503);
+  assert.equal((await worker.fetch(new Request(front + '/api/health'), {WEB_PROXY_SECRET:secret})).status,503,
+    'sem endereço configurado, nunca encaminha silenciosamente ao antigo Railway');
 });
 
 test('Cloudflare proxy preserves real account sessions, moderation permissions, uploads and client limits', async t => {

@@ -1,3 +1,4 @@
+import {runTransaction} from './database';
 import type { Express, Response } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
@@ -50,10 +51,10 @@ export function registerConvoyRoutes(app:Express,db:FuelDatabase,limit:(key:stri
     if((db.prepare("SELECT COUNT(*) AS count FROM convoys WHERE organizer_id=? AND status='active'").get(user(res).id) as any).count>=10)throw new ApiError('Encerre um comboio antes de criar outro.',409);
     const trip=tripData(req.body.trip),v=vehicle(req.body.organizerUser),id=randomUUID(),code='ROTA-'+randomBytes(5).toString('hex').toUpperCase();
     const snapshot={title:String(req.body.title||trip.tripTitle).slice(0,300),...trip,meetingPoints:points(req.body.meetingPoints||[]),notes:String(req.body.notes||'').slice(0,2000)};
-    db.exec('BEGIN IMMEDIATE');try{
+    runTransaction(db,()=>{
       db.prepare('INSERT INTO convoys(id,code,organizer_id,snapshot,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').run(id,code,user(res).id,JSON.stringify(snapshot),'active',now(),now());
-      db.prepare('INSERT INTO convoy_members(convoy_id,user_id,vehicle_type,vehicle_nickname,joined_at) VALUES(?,?,?,?,?)').run(id,user(res).id,v.type,v.nickname,now());db.exec('COMMIT');
-    }catch(error){db.exec('ROLLBACK');throw error;}
+      db.prepare('INSERT INTO convoy_members(convoy_id,user_id,vehicle_type,vehicle_nickname,joined_at) VALUES(?,?,?,?,?)').run(id,user(res).id,v.type,v.nickname,now());
+    });
     res.status(201).json(view(member(id,res),res));
   });
   app.post('/api/convoys/join',auth,(req,res)=>{
@@ -114,9 +115,9 @@ export function registerConvoyRoutes(app:Express,db:FuelDatabase,limit:(key:stri
     snapshot.meetingPoints.forEach((p:any)=>{p.confirmedArrivedParticipantIds=p.confirmedArrivedParticipantIds.filter((id:string)=>id!==user(res).id);});mutate(row,snapshot);res.json({ok:true});
   });
   app.post('/api/convoys/:id/end',auth,(req,res)=>{
-    const row=member(String(req.params.id),res);organizer(row,res);db.exec('BEGIN IMMEDIATE');try{
+    const row=member(String(req.params.id),res);organizer(row,res);runTransaction(db,()=>{
       db.prepare("UPDATE convoys SET status='completed',updated_at=?,revision=revision+1 WHERE id=?").run(now(),row.id);
-      db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL,location_token=NULL WHERE convoy_id=?').run(row.id);db.exec('COMMIT');
-    }catch(error){db.exec('ROLLBACK');throw error;}res.json({ok:true});
+      db.prepare('UPDATE convoy_members SET sharing=0,lat=NULL,lng=NULL,location_at=NULL,location_token=NULL WHERE convoy_id=?').run(row.id);
+    });res.json({ok:true});
   });
 }

@@ -1,8 +1,9 @@
+import {runTransaction} from './database';
 import {createHash} from 'node:crypto';
 import {unzipSync} from 'fflate';
 import type {Express} from 'express';
 import type {FuelDatabase} from './db';
-import {clientIp} from './http';
+import {clientIp,asyncRoute} from './http';
 import type {Coordinates} from './maps';
 import type {RoadAlert, RadarKind} from '../src/types/roadAlerts';
 import {radarMatchesDirection} from '../src/services/radarDirection';
@@ -34,6 +35,8 @@ export function initializeRadarDatabase(db:FuelDatabase){
     source_csv BLOB,license_text TEXT NOT NULL DEFAULT ''
   );
   INSERT OR IGNORE INTO radar_sync(id,next_attempt_at) VALUES(1,'1970-01-01T00:00:00.000Z');`);
+  if(!(db.prepare('PRAGMA table_info(radar_sync)').all() as {name:string}[]).some(c=>c.name==='source_object_key'))
+    db.exec('ALTER TABLE radar_sync ADD COLUMN source_object_key TEXT');
 }
 // Metadata reads must not copy the complete CSV BLOB on every navigation request.
 const syncRow=(db:FuelDatabase)=>db.prepare(`SELECT release_tag,digest,checked_at,updated_at,
@@ -97,9 +100,13 @@ async function boundedBytes(response:Response,max:number){
   return Buffer.concat(chunks);
 }
 
-export interface RadarSyncOptions{fetcher?:typeof fetch;clock?:()=>number;enabled?:boolean}
+export interface RadarSourceStore{
+  put(key:string,data:Uint8Array):Promise<void>;
+  get(key:string):Promise<Uint8Array|null>;
+}
+export interface RadarSyncOptions{fetcher?:typeof fetch;clock?:()=>number;enabled?:boolean;sourceStore?:RadarSourceStore}
 /** Upstream is contacted by this background job only, never by a map/API request. */
-export function createRadarSync(db:FuelDatabase,{fetcher=fetch,clock=Date.now,enabled=process.env.PARDAL_ENABLED!=='0'}:RadarSyncOptions={}){
+export function createRadarSync(db:FuelDatabase,{fetcher=fetch,clock=Date.now,enabled=process.env.PARDAL_ENABLED!=='0',sourceStore}:RadarSyncOptions={}){
   let pending:Promise<{outcome:string}>|null=null,closed=false;
   const abort=new AbortController();
   const run=(force=false):Promise<{outcome:string}>=>{
@@ -145,18 +152,19 @@ export function createRadarSync(db:FuelDatabase,{fetcher=fetch,clock=Date.now,en
         const csv=Buffer.from(raw).toString('utf8'),licenseText=Buffer.from(license).toString('utf8');
         if(!/ODbL|Open Database License/i.test(licenseText))throw Error('Licença dos radares ausente.');
         const cameras=parseRadarCsv(csv),updatedAt=new Date(clock()).toISOString();
+        const sourceKey=sourceStore?`radars/${asset.digest.slice(7)}/source.csv`:null;
+        // Publish the verified public source before its database generation.
+        if(sourceKey)await sourceStore!.put(sourceKey,raw);
         const insert=db.prepare(`INSERT INTO radar_cameras(id,kind,lat,lng,limit_kmh,source,active,end_lat,end_lng,direction_deg,created_at,updated_at,generation)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET limit_kmh=excluded.limit_kmh,source=excluded.source,
           active=excluded.active,updated_at=excluded.updated_at,generation=excluded.generation`);
-        db.exec('BEGIN IMMEDIATE');
-        try{
+        runTransaction(db,()=>{
           for(const c of cameras)insert.run(c.id,c.kind,c.lat,c.lng,c.limit,c.source,c.active,c.endLat,c.endLng,c.direction,updatedAt,updatedAt,asset.digest);
           db.prepare('DELETE FROM radar_cameras WHERE generation<>?').run(asset.digest);
           db.prepare(`UPDATE radar_sync SET release_tag=?,digest=?,checked_at=?,updated_at=?,source_updated_at=?,
-            next_check_at=?,next_attempt_at=?,last_error='',source_csv=?,license_text=? WHERE id=1`)
-            .run(release.tag_name,asset.digest,checkedAt,updatedAt,release.published_at,nextCheck,nextCheck,Buffer.from(raw),licenseText);
-          db.exec('COMMIT');
-        }catch(error){db.exec('ROLLBACK');throw error;}
+            next_check_at=?,next_attempt_at=?,last_error='',source_csv=?,license_text=?,source_object_key=? WHERE id=1`)
+            .run(release.tag_name,asset.digest,checkedAt,updatedAt,release.published_at,nextCheck,nextCheck,sourceKey?null:Buffer.from(raw),licenseText,sourceKey);
+        });
         return {outcome:'updated'};
       }catch{
         db.prepare("UPDATE radar_sync SET last_error='Atualização indisponível; última base preservada.' WHERE id=1").run();
@@ -219,17 +227,18 @@ export function radarAlertsForBounds(
   return {alerts,truncated};
 }
 
-export function registerRadarRoutes(app:Express,db:FuelDatabase,limit:(key:string,max:number,ms:number)=>void){
+export function registerRadarRoutes(app:Express,db:FuelDatabase,limit:(key:string,max:number,ms:number)=>void,sourceStore?:RadarSourceStore){
   app.get('/api/radars/status',(req,res)=>{
     limit(`radar-status:${clientIp(req)}`,30,60000);res.json(radarStatus(db));
   });
-  app.get('/api/radars/export.csv',(req,res)=>{
+  app.get('/api/radars/export.csv',asyncRoute(async(req,res)=>{
     limit(`radar-export:${clientIp(req)}`,4,60000);
-    const row=db.prepare('SELECT source_csv FROM radar_sync WHERE id=1').get() as {source_csv:Uint8Array|null};
-    if(!row.source_csv){res.status(503).json({error:'Base de radares ainda indisponível.'});return;}
+    const row=db.prepare('SELECT source_csv,source_object_key FROM radar_sync WHERE id=1').get() as {source_csv:Uint8Array|null;source_object_key:string|null};
+    const source=row.source_csv??(row.source_object_key&&sourceStore?await sourceStore.get(row.source_object_key):null);
+    if(!source){res.status(503).json({error:'Base de radares ainda indisponível.'});return;}
     res.setHeader('X-Data-License','ODbL-1.0');res.setHeader('Link','</api/radars/license>; rel="license"');
-    res.type('text/csv').attachment('role-radares-pardal.csv').send(Buffer.from(row.source_csv));
-  });
+    res.type('text/csv').attachment('role-radares-pardal.csv').send(Buffer.from(source));
+  }));
   app.get('/api/radars/license',(_req,res)=>{
     const row=db.prepare('SELECT license_text FROM radar_sync WHERE id=1').get() as {license_text:string};
     res.type('text/plain').send(`${RADAR_ATTRIBUTION}\n${REPOSITORY}\nhttps://opendatacommons.org/licenses/odbl/1-0/\n\n${row.license_text}`);

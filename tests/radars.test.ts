@@ -181,3 +181,32 @@ test('existing API returns saved radars with attribution, exposes only public ex
     assert.equal((await fetch(base+'/radars/sync',{method:'POST'})).status,404,'no public force-refresh endpoint');
   }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));db.close();}
 });
+
+test('object storage exports the verified CSV and failed uploads preserve the last database generation',async()=>{
+  const db=openDatabase(':memory:');let time=Date.parse('2026-11-13T15:00:00Z'),failUploads=false;
+  const objects=new Map<string,Uint8Array>();
+  const sourceStore={
+    async put(key:string,data:Uint8Array){if(failUploads)throw Error('storage unavailable');objects.set(key,Uint8Array.from(data));},
+    async get(key:string){return objects.get(key)??null;},
+  };
+  const firstCsv=csv(east),first=fixture(firstCsv);
+  const server=createApi({db,radarSourceStore:sourceStore}).listen(0,'127.0.0.1');
+  await new Promise<void>(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${(server.address() as any).port}/api`;
+  try{
+    assert.equal((await createRadarSync(db,{sourceStore,fetcher:first.fetcher,clock:()=>time}).run()).outcome,'updated');
+    const row=db.prepare('SELECT source_csv,source_object_key,digest FROM radar_sync').get() as any;
+    assert.equal(row.source_csv,null,'the potentially large public CSV does not occupy a Durable Object row');
+    assert.equal(Buffer.from(objects.get(row.source_object_key)!).toString(),firstCsv);
+    const response=await fetch(base+'/radars/export.csv');
+    assert.equal(response.status,200);assert.equal(await response.text(),firstCsv);
+    time=Date.parse('2026-12-13T15:00:00Z');failUploads=true;
+    const next=fixture(csv(west),'2026-12-12');
+    assert.equal((await createRadarSync(db,{sourceStore,fetcher:next.fetcher,clock:()=>time}).run()).outcome,'failed');
+    const retained=db.prepare('SELECT source_object_key,digest FROM radar_sync').get() as any;
+    assert.equal(retained.source_object_key,row.source_object_key);assert.equal(retained.digest,row.digest);
+    assert.equal(radarAlertsForRoute(db,route,time)[0].limitKmh,60);
+    assert.equal(await (await fetch(base+'/radars/export.csv')).text(),firstCsv);
+    objects.clear();assert.equal((await fetch(base+'/radars/export.csv')).status,503,'a missing object is not exported as an empty dataset');
+  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));db.close();}
+});

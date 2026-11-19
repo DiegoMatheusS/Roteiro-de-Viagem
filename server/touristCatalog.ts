@@ -1,3 +1,4 @@
+import {runTransaction} from './database';
 import type { FuelDatabase } from './db';
 import type { Coordinates, MapFetch } from './maps';
 import type { Place } from '../src/types/admin';
@@ -136,8 +137,7 @@ export async function importTourismRegion(db:FuelDatabase,options:{
       lat=excluded.lat,lng=excluded.lng,source_url=excluded.source_url,
       category=excluded.category,updated_at=excluded.updated_at`);
   let inserted=0,updated=0,unchanged=0;
-  db.exec('BEGIN IMMEDIATE');
-  try{
+  runTransaction(db,()=>{
     for(const item of records){
       const before=current.get(item.id) as {active:number;managed:number}|undefined;
       if(before&&(before.managed===1||before.active===0)){unchanged++;continue;}
@@ -146,7 +146,6 @@ export async function importTourismRegion(db:FuelDatabase,options:{
       location.run(item.id,item.name,item.address,item.lat,item.lng,item.sourceUrl,item.kind,stamp);
       if(before)updated++;else inserted++;
     }
-    db.exec('COMMIT');
-  }catch(error){db.exec('ROLLBACK');throw error;}
+  });
   return {received:elements.length,valid:records.length,inserted,updated,unchanged};
 }

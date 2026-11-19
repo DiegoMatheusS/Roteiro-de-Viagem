@@ -1,3 +1,4 @@
+import {runTransaction} from './database';
 import type { Express, Request } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
@@ -36,7 +37,7 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
   const { db, limit } = options;
   const audit = (actor: string, type: string, id: string, action: string, notes = '') =>
     db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)').run(randomUUID(), actor, type, id, action, notes, now());
-  const transaction = (fn: () => void) => { db.exec('BEGIN'); try { fn(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; } };
+  const transaction = (fn: () => void) => { runTransaction(db,fn); };
   const syncToll = (place: Place) => {
     if (place.kind === 'toll') db.prepare(`INSERT INTO toll_places(id,name,lat,lng,source_url,updated_at) VALUES(?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,lat=excluded.lat,lng=excluded.lng,source_url=excluded.source_url,updated_at=excluded.updated_at`)
