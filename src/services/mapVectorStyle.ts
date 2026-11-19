@@ -133,7 +133,7 @@ export function canRenderVectorMap(): boolean {
  * Aplicada apenas ao carregar/trocar o estilo vetorial. Satélite, relevo,
  * fallback OSM, câmera e traçados de navegação permanecem inalterados.
  */
-export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light',navigationMode=false): void {
+export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light',navigationMode=false,roadStyle=false): void {
   const layers = map.getStyle()?.layers || [];
   for (const layer of layers) {
     const paints = {...roleVectorPaintForLayer(layer,theme),...(navigationMode?roleNavigationPaintForLayer(layer,theme):{})};
@@ -145,7 +145,7 @@ export function applyRoleVectorPalette(map: GlMap,theme:'light'|'dark'='light',n
         // Atualizações do estilo externo podem retirar ou tornar imutável uma camada.
       }
     }
-    if(navigationMode){
+    if(navigationMode||roadStyle){
       const width=roleNavigationRoadWidth(layer);
       if(width){try{map.setPaintProperty(layer.id,'line-width',width as unknown as number);}catch{/* style may have removed layer */}}
     }

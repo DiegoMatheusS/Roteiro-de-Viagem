@@ -92,6 +92,9 @@ try{
   fail=false;
   await map.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   const fallback=page.locator('[data-map-engine="leaflet-fallback"]');await fallback.waitFor();
+  await fallback.evaluate(root=>root.parentElement!.classList.add('rdv-navigation-screen'));
+  assert.match(await fallback.locator('.leaflet-tile-pane').evaluate(el=>getComputedStyle(el).filter),/grayscale\(1\)/,
+    'a base raster no Início permanece cinza');
   // O fallback mostra vermelho automaticamente, mas o botão permanece desligado.
   await fallback.locator('[data-traffic-state="live"][data-traffic-mode="red-only"]').waitFor({timeout:20000});
   assert.equal(await fallback.locator('[data-traffic-control] button[aria-pressed="false"]').count(),1);
@@ -100,6 +103,8 @@ try{
   assert.equal(await fallback.locator('[data-traffic-control] button[aria-pressed="true"]').count(),1);
   assert.ok(statusCalls>=2&&statusCalls<=4,'switching engines consults status without multiplying repeated requests');
   assert.ok(await fallback.locator('.leaflet-role-traffic-pane img').count()>0);
+  assert.doesNotMatch(await fallback.locator('.leaflet-role-traffic-pane').evaluate(el=>getComputedStyle(el).filter),/grayscale|saturate/,
+    'a camada de trânsito conserva as cores');
   await page.getByRole('button',{name:'Remover mapa',exact:true}).click();
   assert.equal(await page.locator('[data-traffic-control]').count(),0);
   assert.deepEqual(errors,[]);

@@ -845,7 +845,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
             if (disposed) return;
             vectorLoaded = true;
             if (vectorTimer) clearTimeout(vectorTimer);
-            applyRoleVectorPalette(gl,appearanceTheme,navigationMode);
+            applyRoleVectorPalette(gl,appearanceTheme,navigationMode,roadStyle);
             vectorMapRef.current = gl;
             setVectorRoutesReady(true);
             setTileError(false);
@@ -1651,8 +1651,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           const target=userLiveCoords??originCoords;
           const map=mapInstanceRef.current;
           if(!map||!target||!trafficPort)return;
-          if(trafficPort.getZoom()<15.5||trafficPort.getViewportRadiusKm(target)>4.5)
-            createHybridCameraPort(map).focus(target,Math.max(15.5,map.getZoom()),true);
+          if(trafficPort.getZoom()<16||trafficPort.getViewportRadiusKm(target)>4.5)
+            createHybridCameraPort(map).focus(target,Math.max(16,Math.ceil(map.getZoom())),true);
         }}/>
       {/* Postos são opcionais: falha na consulta não bloqueia a navegação nem cria avisos repetidos. */}
       {selectedToll && <TollModal key={`${selectedToll.id}:${tollSection}`} toll={selectedToll} vehicleType={tollVehicleType || 'car'} initialSection={tollSection} onClose={() => { setSelectedTollId(null); setCatalogToll(null); }} />}

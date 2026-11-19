@@ -904,3 +904,8 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
   text-decoration:none !important;
   pointer-events:none !important;
 }
+
+/* Keep the Home raster base gray without desaturating traffic, alerts or POIs. */
+.rdv-navigation-screen [data-map-engine="leaflet-fallback"] .leaflet-tile-pane {
+  filter:grayscale(1) saturate(0) contrast(.90) brightness(1.04) !important;
+}

@@ -137,3 +137,26 @@ test('nenhuma categoria de via sugere trânsito antes de carregar dados reais',(
       assert.doesNotMatch(String(color),/^#(?:ff(?:d|e)|d8a|c8b|765)/i,id);
     }
 });
+
+test('Início e Explorar usam vias largas sem ocultar POIs nem alterar rotas e trânsito',()=>{
+  for(const theme of ['light','dark'] as const){
+    const widths=new Map<string,unknown>();
+    const hidden:string[]=[];
+    const map={
+      getStyle:()=>({layers:[
+        {id:'highway_minor',type:'line'},
+        {id:'highway_primary_inner',type:'line'},
+        {id:'role-remaining-line',type:'line'},
+        {id:'role-traffic-colors',type:'raster'},
+        {id:'poi_z16',type:'symbol'},
+      ]}),
+      setPaintProperty:(id:string,key:string,value:unknown)=>{if(key==='line-width')widths.set(id,value);},
+      setLayoutProperty:(id:string,key:string,value:unknown)=>{if(key==='visibility'&&value==='none')hidden.push(id);},
+    } as unknown as GlMap;
+    applyRoleVectorPalette(map,theme,false,true);
+    assert.deepEqual(widths.get('highway_minor'),['interpolate',['linear'],['zoom'],11,2,14,6,16,11,19,20]);
+    assert.deepEqual(widths.get('highway_primary_inner'),['interpolate',['linear'],['zoom'],11,3,14,9,16,16,19,26]);
+    assert.equal(widths.size,2,'somente vias da base recebem a largura de navegação');
+    assert.deepEqual(hidden,[],'POIs continuam disponíveis fora da navegação');
+  }
+});
