@@ -73,7 +73,7 @@ A consulta é limitada a oito postos com preços recentes por comparação, e a 
 
 ## Painel administrativo web
 
-Para hospedar o frontend e o painel no Cloudflare Pages, mantendo API e dados no Railway, consulte [a configuração Cloudflare + Railway](docs/cloudflare.md).
+Para hospedar o site, a API e os dados no Cloudflare, consulte [a implantação nativa no Cloudflare](docs/cloudflare-nativo.md). A [configuração com servidor Node externo](docs/cloudflare.md) continua disponível para instalações existentes.
 
 O **painel administrativo é um site separado** do aplicativo público, mantido no repositório de administração. A rota `/admin` e as URLs `/api/admin/*` no domínio público do viajante respondem 404; o aplicativo público não exibe o painel nem seus links. As APIs de administração continuam disponíveis ao **site administrativo separado** pelo backend do Railway e exigem autenticação, sessão de administrador e permissões no servidor. Remover links não substitui autorização no backend.
 

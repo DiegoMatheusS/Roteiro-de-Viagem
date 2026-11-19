@@ -1,3 +1,4 @@
+import {runTransaction} from './database';
 import type {Express} from 'express';
 import {createHash,randomUUID} from 'node:crypto';
 import type {FuelDatabase} from './db';
@@ -7,7 +8,7 @@ import {PLACE_KINDS} from '../src/types/admin';
 import type {PlaceFeedbackMailQueue} from './placeFeedbackMail';
 
 export function registerPlaceFeedbackRoutes(app:Express,db:FuelDatabase,
-  limit:(key:string,max:number,ms:number)=>void,mail:PlaceFeedbackMailQueue){
+  limit:(key:string,max:number,ms:number)=>void,mail:PlaceFeedbackMailQueue,backgroundTask?:(task:Promise<unknown>)=>void){
   const place=(id:string)=>{
     const row=db.prepare('SELECT id,name,kind,address,lat,lng,source_url FROM stations WHERE id=? AND active=1').get(id) as
       {id:string;name:string;kind:string;address:string;lat:number;lng:number;source_url:string}|undefined;
@@ -44,8 +45,7 @@ export function registerPlaceFeedbackRoutes(app:Express,db:FuelDatabase,
       `Localização: ${target.lat}, ${target.lng}`,`Mapa: ${target.source_url}`,`ID: ${target.id}`,'',
       ...(draft.rating?[`Avaliação: ${draft.rating} de 5 estrelas`]:[]),details,'',
       `Enviado em: ${stamp}`,'As respostas ficam disponíveis para revisão no painel administrativo.'].join('\n');
-    db.exec('BEGIN IMMEDIATE');
-    try{
+    runTransaction(db,()=>{
       if(draft.rating!==undefined)db.prepare(`INSERT INTO place_ratings(place_id,user_id,rating,updated_at) VALUES(?,?,?,?)
         ON CONFLICT(place_id,user_id) DO UPDATE SET rating=excluded.rating,updated_at=excluded.updated_at`).run(target.id,actor,draft.rating,stamp);
       db.prepare(`INSERT INTO reports(id,target_type,target_id,user_id,reason,details,status,created_at) VALUES(?,'places',?,?,'dados_estabelecimento',?,?,?)
@@ -54,9 +54,9 @@ export function registerPlaceFeedbackRoutes(app:Express,db:FuelDatabase,
       const report=db.prepare("SELECT id FROM reports WHERE target_type='places' AND target_id=? AND user_id=?").get(target.id,actor) as {id:string};
       db.prepare(`INSERT INTO place_feedback_mail(id,report_id,user_id,request_hash,subject,body,created_at,next_attempt_at) VALUES(?,?,?,?,?,?,?,?)`)
         .run(id,report.id,actor,hash,`Rolê: avaliação e relato — ${target.name.replace(/[\r\n]/g,' ').slice(0,150)}`,body,stamp,stamp);
-      db.exec('COMMIT');
-    }catch(error){db.exec('ROLLBACK');throw error;}
-    void mail.flush().catch(()=>{});
+    });
+    const delivery=mail.flush().catch(()=>{});
+    backgroundTask?.(delivery);
     res.status(201).json({message:'Respostas enviadas.',...summary(target.id,actor)});
   });
   app.get('/api/admin/feedback-email',auth,administrator,(_req,res)=>res.json(mail.status()));

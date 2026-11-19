@@ -17,3 +17,6 @@ test-results/
 keystore.properties
 android/local.properties
 android/.gradle/
+.wrangler/
+.dev.vars*
+cloudflare-dist/

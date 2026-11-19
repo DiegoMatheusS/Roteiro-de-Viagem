@@ -1,5 +1,4 @@
 // Cloudflare Pages advanced mode. Secrets are runtime bindings, never browser code.
-const DEFAULT_BACKEND = 'https://roteiro-api-production.up.railway.app';
 const error = (message, status) => protect(Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } }));
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -34,7 +33,7 @@ export default {
     if (typeof env.WEB_PROXY_SECRET !== 'string' || env.WEB_PROXY_SECRET.length < 32) return error('O serviço ainda não está configurado.', 503);
     let backend;
     try {
-      backend = new URL(env.RDV_BACKEND_ORIGIN || DEFAULT_BACKEND);
+      backend = new URL(env.RDV_BACKEND_ORIGIN || '');
       if (backend.protocol !== 'https:' || backend.username || backend.password || backend.pathname !== '/' || backend.search || backend.hash || backend.origin === url.origin) throw new Error();
     } catch { return error('O serviço ainda não está configurado.', 503); }
     backend.pathname = url.pathname;

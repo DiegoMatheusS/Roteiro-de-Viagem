@@ -1,9 +1,9 @@
+import {runTransaction} from './database';
 import type { Express } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
 import { clientIp, ApiError, auth, administrator, user, now, asyncRoute, observationDate } from './http';
-import { sanitizePhoto } from './photos';
 import { validateCoordinates, type Coordinates, type MapFetch } from './maps';
 import type { RouteToll } from '../src/types/tolls';
 import { distanceBetweenKm } from '../src/services/gpsTracking';
@@ -29,7 +29,8 @@ export function tollPassages(path: Coordinates[], point: Coordinates) {
 const headingMatches = (a: number, b: number) => Math.abs((a - b + 540) % 360 - 180) <= 60;
 
 export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapFetch,
-  limit: (key: string, max: number, ms: number) => void) {
+  limit: (key: string, max: number, ms: number) => void,
+  sanitizePhoto:(buffer:Buffer)=>Promise<Buffer>) {
   db.exec(`CREATE TABLE IF NOT EXISTS toll_places(id TEXT PRIMARY KEY,name TEXT NOT NULL,lat REAL NOT NULL,lng REAL NOT NULL,source_url TEXT NOT NULL,updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS toll_entries(id TEXT PRIMARY KEY,toll_id TEXT NOT NULL REFERENCES toll_places(id),user_id TEXT NOT NULL REFERENCES users(id),vehicle_type TEXT NOT NULL,price REAL,heading REAL,observed_at TEXT NOT NULL,valid_until TEXT,status TEXT NOT NULL DEFAULT 'pending',image_data BLOB,notes TEXT NOT NULL DEFAULT '',reviewer_id TEXT REFERENCES users(id),created_at TEXT NOT NULL,reviewed_at TEXT);
     CREATE INDEX IF NOT EXISTS toll_entries_place ON toll_entries(toll_id,status,vehicle_type,observed_at DESC);
@@ -142,13 +143,11 @@ export function registerTollRoutes(app: Express, db: FuelDatabase, fetcher: MapF
     const observedAt = req.body.observedAt ? observationDate(req.body.observedAt) : entry.observed_at;
     const validUntil = new Date(new Date(observedAt).getTime() + 90 * 86400000).toISOString();
     if (approve && validUntil <= now()) throw new ApiError('A evidência venceu; solicite uma informação atual.');
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    runTransaction(db,()=>{
       db.prepare('UPDATE toll_entries SET status=?,price=?,heading=?,observed_at=?,valid_until=?,notes=?,reviewer_id=?,reviewed_at=? WHERE id=? AND status=\'pending\'')
         .run(approve ? 'approved' : 'rejected', price, heading, observedAt, validUntil, notes, user(res).id, now(), id);
       db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)').run(randomUUID(), user(res).id, 'tolls', id, req.body.action, notes, now());
-      db.exec('COMMIT');
-    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    });
     res.json({ ok: true });
   });
 }

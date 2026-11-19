@@ -1,0 +1,16 @@
+{
+  "$schema":"node_modules/wrangler/config-schema.json",
+  "name":"ruavo-api",
+  "main":"cloudflare-dist/worker.js",
+  "no_bundle":true,
+  "build":{"command":"node scripts/build-cloudflare.mjs"},
+  "compatibility_date":"2026-11-19",
+  "compatibility_flags":["nodejs_compat"],
+  "workers_dev":true,
+  "observability":{"enabled":true},
+  "durable_objects":{"bindings":[{"name":"RUAVO_DATABASE","class_name":"RuavoDatabase"}]},
+  "migrations":[{"tag":"v1","new_sqlite_classes":["RuavoDatabase"]}],
+  "r2_buckets":[{"binding":"RADAR_SOURCES","bucket_name":"ruavo-radar-sources"}],
+  "images":{"binding":"IMAGES"},
+  "vars":{"NODE_ENV":"production","PARDAL_ENABLED":"1"}
+}

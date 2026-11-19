@@ -1,3 +1,4 @@
+import {runTransaction} from './database';
 import { randomUUID } from 'node:crypto';
 import type { FuelDatabase } from './db';
 
@@ -16,12 +17,11 @@ export function bootstrapInitialAdmin(
   if (!email || !hash ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 180 ||
       !/^[a-f0-9]{32}:[a-f0-9]{128}$/.test(hash))
-    throw new Error('Configuração da conta administrativa inicial inválida. Confira as variáveis privadas do Railway.');
+    throw new Error('Configuração da conta administrativa inicial inválida. Confira as variáveis privadas do backend.');
 
-  db.exec('BEGIN IMMEDIATE');
-  try {
+  return runTransaction(db,(): 'already-configured'|'created'|'promoted' => {
     const admin = db.prepare("SELECT id FROM users WHERE role='admin' AND blocked_at IS NULL AND deleted_at IS NULL LIMIT 1").get();
-    if (admin) { db.exec('COMMIT'); return 'already-configured'; }
+    if (admin) return 'already-configured';
 
     const account = db.prepare('SELECT id,blocked_at,deleted_at FROM users WHERE email=?')
       .get(email) as { id: string; blocked_at: string | null; deleted_at: string | null } | undefined;
@@ -32,15 +32,10 @@ export function bootstrapInitialAdmin(
       db.prepare("UPDATE users SET password_hash=?,role='admin' WHERE id=?")
         .run(hash, account.id);
       db.prepare('DELETE FROM sessions WHERE user_id=?').run(account.id);
-      db.exec('COMMIT');
       return 'promoted';
     }
     db.prepare('INSERT INTO users(id,email,display_name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)')
       .run(randomUUID(), email, 'Administrador', hash, 'admin', new Date().toISOString());
-    db.exec('COMMIT');
     return 'created';
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  });
 }

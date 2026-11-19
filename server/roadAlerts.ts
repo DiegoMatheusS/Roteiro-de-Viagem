@@ -1,3 +1,4 @@
+import {runTransaction} from './database';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import type { FuelDatabase } from './db';
@@ -133,8 +134,7 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
       throw new ApiError('Aproxime-se do local da ocorrência para confirmar.');
     const present = req.body.present ? 1 : 0;
     let removed = false, yes = 0, no = 0;
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    runTransaction(db,()=>{
       const inserted = db.prepare('INSERT OR IGNORE INTO road_alert_checks(alert_id,user_id,present,created_at) VALUES(?,?,?,?)')
         .run(alert.id, reporter.id, present, now());
       if (inserted.changes !== 1) throw new ApiError('Você já respondeu sobre esta ocorrência.', 409);
@@ -145,8 +145,7 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
         removed = db.prepare("UPDATE road_alerts SET status='expired', expires_at=? WHERE id=? AND status='approved'")
           .run(now(),alert.id).changes === 1;
       }
-      db.exec('COMMIT');
-    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    });
     res.json({ok:true,removed,yes,no});
   });
 
@@ -183,16 +182,14 @@ export function registerRoadAlertRoutes(app: Express, db: FuelDatabase, limit: (
     if (!row || row.status !== previousStatus) throw new ApiError('Alerta indisponível para revisão.', 409);
     if (action !== 'revoke' && row.expires_at <= now()) throw new ApiError('A ocorrência expirou. Peça um novo registro.', 409);
     const reviewedAt = now();
-    db.exec('BEGIN');
-    try {
+    runTransaction(db,()=>{
       const updated = db.prepare(`UPDATE road_alerts SET status=?,reviewed_by=?,reviewed_at=?
         WHERE id=? AND status=?`)
         .run(action === 'approve' ? 'approved' : 'rejected', user(res).id, reviewedAt, row.id, previousStatus);
       if (updated.changes !== 1) throw new ApiError('Este alerta já foi analisado.', 409);
       db.prepare('INSERT INTO moderation_actions VALUES(?,?,?,?,?,?,?)')
         .run(randomUUID(), user(res).id, 'road_alerts', row.id, action, '', reviewedAt);
-      db.exec('COMMIT');
-    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    });
     res.json({ ok: true, status: action === 'approve' ? 'approved' : 'rejected' });
   });
 }

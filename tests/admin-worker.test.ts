@@ -60,4 +60,7 @@ test('admin Worker refuses to proxy without the server-side secret', async () =>
   });
   assert.equal(response.status, 503);
   assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal((await adminWorker.fetch(new Request(adminOrigin + '/api/admin/summary'), {
+    WEB_PROXY_SECRET: proxySecret,
+  })).status,503,'o endereço do backend é obrigatório também no site administrativo');
 });
