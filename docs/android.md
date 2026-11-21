@@ -2,7 +2,7 @@
 
 A interface é embutida no app; a conta, tarifas, previsão e Comboio usam o backend HTTPS. O código público da origem é configuração de build, não credencial. Uma compilação de CI sem origem serve para testes nativos, não para distribuir um app conectado.
 
-O endereço padrão é `https://roteiro-api-production.up.railway.app`; `RDV_API_URL` substitui esse endereço quando necessário. Testes de emulador usam uma origem local fechada para não consultar contas do serviço real.
+O endereço padrão é `https://ruavo-api.dmsdiego2013.workers.dev`; `RDV_API_URL` substitui esse endereço quando necessário. Testes de emulador usam uma origem local fechada para não consultar contas do serviço real.
 
 ## APK para seu celular
 
