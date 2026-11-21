@@ -1,5 +1,6 @@
-import type {DurableObjectNamespace,DurableObjectState,R2Bucket,ImagesBinding,Request as WorkerRequest} from '@cloudflare/workers-types';
+import type {DurableObjectNamespace,R2Bucket,ImagesBinding,Request as WorkerRequest} from '@cloudflare/workers-types';
 import {httpServerHandler} from 'cloudflare:node';
+import {DurableObject} from 'cloudflare:workers';
 import {createServer} from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {isIP} from 'node:net';
@@ -28,12 +29,37 @@ interface Env{
 }
 const defaultDatabase='ruavo-production';
 const databaseId=(env:Env)=>env.RUAVO_DATABASE.idFromName(env.RUAVO_DATABASE_NAME||defaultDatabase);
-type HealthComponent='proxy-secret'|'public-app-url'|'durable-object'|'database-restore'|'database-http'|'database-alarm';
+type HealthComponent='proxy-secret'|'public-app-url'|'database-binding'|'durable-object'|'database-initialize'|
+  'database-restore'|'database-http'|'database-alarm';
+const healthCauses=[
+  [/Configuração da conta administrativa inicial inválida/i,'admin-config'],
+  [/já recebeu outro arquivo de restauração/i,'restore-file-conflict'],
+  [/Arquivo de restauração ausente/i,'restore-file-unavailable'],
+  [/SQL is not (?:enabled|supported|available)|sqlite-backed Durable Objects/i,'sqlite-storage'],
+  [/Durable Object class .*(?:not found|not exported|does not exist)|does not export a Durable Object class/i,'class-unavailable'],
+  [/Durable Object .* (?:reset|restarted)/i,'actor-reset'],
+  [/internal error/i,'runtime-internal'],
+] as const;
+function healthCause(error:object){
+  if('overloaded' in error&&error.overloaded===true)return 'overloaded';
+  if('message' in error&&typeof error.message==='string'){
+    const message=error.message;
+    const known=healthCauses.find(([pattern])=>pattern.test(message));
+    if(known)return known[1];
+  }
+  if('code' in error&&typeof error.code==='string'&&/^(?:ERR|SQLITE)_[A-Z0-9_]{1,48}$/.test(error.code))return error.code;
+  if('retryable' in error&&error.retryable===true)return 'retryable';
+  if('remote' in error&&error.remote===true)return 'remote';
+  return 'unclassified';
+}
 function unavailable(url:URL,component:HealthComponent,error?:unknown){
   const headers=new Headers({'Cache-Control':'no-store'});
   if(url.pathname==='/api/health'){
     headers.set('X-Ruavo-Health-Error',component);
-    if(error)console.error('RUAVO health failure',component,error);
+    if(error&&typeof error==='object'){
+      headers.set('X-Ruavo-Health-Cause',healthCause(error));
+      console.error('RUAVO health failure',component,error);
+    }
   }
   return Response.json({error:'O servidor ainda não está configurado.'},{status:503,headers});
 }
@@ -47,41 +73,41 @@ const sources=(bucket:R2Bucket):RadarSourceStore=>({
 
 /** One persistent SQLite actor retains the existing single-database model.
  * No local volume, process interval or ephemeral container stores user data. */
-export class RuavoDatabase{
-  private readonly db;
-  private readonly api;
-  private readonly radarSync;
+export class RuavoDatabase extends DurableObject<Env>{
+  private runtime?:ReturnType<RuavoDatabase['openDatabase']>;
   private restoration?:Promise<void>;
-  constructor(private readonly ctx:DurableObjectState,private readonly env:Env){
-    this.db=durableSqlite(ctx.storage);
-    initializeDatabase(this.db);
+  private openDatabase(){
+    const {ctx,env}=this;
+    const db=durableSqlite(ctx.storage);
+    initializeDatabase(db);
     if(!env.RUAVO_RESTORE_OBJECT)
-      bootstrapInitialAdmin(this.db,{email:env.RDV_BOOTSTRAP_ADMIN_EMAIL,passwordHash:env.RDV_BOOTSTRAP_ADMIN_HASH});
+      bootstrapInitialAdmin(db,{email:env.RDV_BOOTSTRAP_ADMIN_EMAIL,passwordHash:env.RDV_BOOTSTRAP_ADMIN_HASH});
     const sourceStore=sources(env.RADAR_SOURCES);
-    this.api=createApi({db:this.db,migrateLocalPhotos:false,photoDirectory:'/tmp/ruavo-photos',
+    const api=createApi({db,migrateLocalPhotos:false,photoDirectory:'/tmp/ruavo-photos',
       sanitizePhoto:bytes=>sanitizeEdgePhoto(env.IMAGES as unknown as PhotoImagesBinding,bytes),
       backgroundTask:task=>ctx.waitUntil(task),
       traffic:{key:()=>env.TOMTOM_TRAFFIC_API_KEY||'',redOnlyPng:edgeTrafficRedOnlyPng,
         publicOrigin:req=>req.get('X-Ruavo-Api-Origin')||''},radarSourceStore:sourceStore});
-    this.radarSync=createRadarSync(this.db,{enabled:env.PARDAL_ENABLED!=='0',sourceStore});
+    const radarSync=createRadarSync(db,{enabled:env.PARDAL_ENABLED!=='0',sourceStore});
+    return {db,api,radarSync};
   }
-  private async restoreIfConfigured(){
+  private async restoreIfConfigured(db:ReturnType<typeof durableSqlite>){
     const key=this.env.RUAVO_RESTORE_OBJECT;
     if(!key)return;
-    this.restoration??=restoreFromR2(this.db,this.env.RADAR_SOURCES,key).catch(error=>{
+    this.restoration??=restoreFromR2(db,this.env.RADAR_SOURCES,key).catch(error=>{
       this.restoration=undefined;
       throw error;
     });
     await this.restoration;
   }
-  private async schedule(){
+  private async schedule({db,api}:ReturnType<RuavoDatabase['openDatabase']>){
     const times:number[]=[];
     if(this.env.PARDAL_ENABLED!=='0'){
-      const radar=this.db.prepare('SELECT next_attempt_at,next_check_at FROM radar_sync WHERE id=1').get() as {next_attempt_at:string;next_check_at:string|null};
+      const radar=db.prepare('SELECT next_attempt_at,next_check_at FROM radar_sync WHERE id=1').get() as {next_attempt_at:string;next_check_at:string|null};
       times.push(Math.max(Date.parse(radar.next_attempt_at),radar.next_check_at?Date.parse(radar.next_check_at):0));
     }
-    if(this.api.locals.feedbackMail.status().configured){
-      const mail=this.db.prepare('SELECT MIN(next_attempt_at) AS due FROM place_feedback_mail WHERE sent_at IS NULL').get() as {due:string|null};
+    if(api.locals.feedbackMail.status().configured){
+      const mail=db.prepare('SELECT MIN(next_attempt_at) AS due FROM place_feedback_mail WHERE sent_at IS NULL').get() as {due:string|null};
       if(mail.due)times.push(Date.parse(mail.due));
     }
     const due=times.filter(Number.isFinite);
@@ -91,16 +117,18 @@ export class RuavoDatabase{
     if(previous===null||previous>next)await this.ctx.storage.setAlarm(next);
   }
   async fetch(request:Request):Promise<Response>{
-    let component:HealthComponent='database-restore';
+    let component:HealthComponent='database-initialize';
     try{
-      await this.restoreIfConfigured();
+      const runtime=this.runtime??=this.openDatabase();
+      component='database-restore';
+      await this.restoreIfConfigured(runtime.db);
       component='database-http';
       const context={waitUntil:(task:Promise<unknown>)=>this.ctx.waitUntil(task),passThroughOnException(){},props:{}};
-      const server=createServer(this.api);
+      const server=createServer(runtime.api);
       try{
         const response=await httpServerHandler(server).fetch(request,this.env,context);
         component='database-alarm';
-        await this.schedule();
+        await this.schedule(runtime);
         component='database-http';
         return response;
       }finally{server.close();}
@@ -112,9 +140,10 @@ export class RuavoDatabase{
   }
   async alarm(){
     if(this.ctx.id.toString()!==databaseId(this.env).toString())return;
-    await this.restoreIfConfigured();
-    try{await this.radarSync.run();await this.api.locals.feedbackMail.flush();}
-    finally{await this.schedule();}
+    const runtime=this.runtime??=this.openDatabase();
+    await this.restoreIfConfigured(runtime.db);
+    try{await runtime.radarSync.run();await runtime.api.locals.feedbackMail.flush();}
+    finally{await this.schedule(runtime);}
   }
 }
 
@@ -124,6 +153,7 @@ export default {
     if(url.pathname!=='/api'&&!url.pathname.startsWith('/api/'))return new Response('RUAVO API',{status:404});
     if(!env.WEB_PROXY_SECRET||env.WEB_PROXY_SECRET.length<32)return unavailable(url,'proxy-secret');
     if(!validOrigin(env.PUBLIC_APP_URL))return unavailable(url,'public-app-url');
+    if(!env.RUAVO_DATABASE)return unavailable(url,'database-binding');
     const headers=new Headers(request.headers),provided=Buffer.from(headers.get('X-Rdv-Proxy-Key')||''),expected=Buffer.from(env.WEB_PROXY_SECRET);
     const forwarded=headers.get('X-Rdv-Client-Ip')||'';
     const trusted=provided.length===expected.length&&timingSafeEqual(provided,expected)&&isIP(forwarded);
