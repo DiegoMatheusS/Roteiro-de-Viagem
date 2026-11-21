@@ -33,8 +33,8 @@ const options={
   },
 };
 let runtime;
-const start=async()=>{
-  runtime=new Miniflare(convertV4MiniflareOptions(options));
+const start=async(extraBindings={})=>{
+  runtime=new Miniflare(convertV4MiniflareOptions({...options,bindings:{...options.bindings,...extraBindings}}));
   await runtime.ready;
 };
 const request=async(path,body,cookie='',origin=publicOrigin)=>{
@@ -76,6 +76,12 @@ try{
   assert.equal((await response.json()).user.displayName,'Teste Worker','a conta e a sessão sobrevivem ao reinício');
   assert.equal((await request('/api/auth/logout',{},cookie)).status,200);
   assert.equal((await (await request('/api/auth/me',undefined,cookie)).json()).user,null);
+  await runtime.dispose();runtime=null;
+  await start({RDV_BOOTSTRAP_ADMIN_EMAIL:'fixture-admin@example.invalid'});
+  response=await request('/api/health');
+  assert.equal(response.status,503);
+  assert.equal(response.headers.get('X-Ruavo-Health-Error'),'database-initialize');
+  assert.equal(response.headers.get('X-Ruavo-Health-Cause'),'admin-config');
   console.log('PASS: Cloudflare runtime, SQLite persistence, registration/session, CSRF, admin roles and traffic PNG delivery.');
 }finally{
   if(runtime)await runtime.dispose();

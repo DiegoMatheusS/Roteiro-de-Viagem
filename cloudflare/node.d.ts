@@ -5,3 +5,12 @@ declare module 'cloudflare:node'{
     fetch(request:Request,env:unknown,ctx:{waitUntil(task:Promise<unknown>):void}):Promise<Response>;
   };
 }
+
+declare module 'cloudflare:workers'{
+  import type {DurableObjectState} from '@cloudflare/workers-types';
+  export abstract class DurableObject<Env>{
+    protected ctx:DurableObjectState;
+    protected env:Env;
+    constructor(ctx:DurableObjectState,env:Env);
+  }
+}
