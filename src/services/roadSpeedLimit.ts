@@ -30,7 +30,7 @@ export function distanceMeters(a: readonly [number, number], b: readonly [number
   return Math.hypot(dx, dy);
 }
 
-function distanceToWay(coords: readonly [number, number], way: RoadWay): number {
+export function distanceToWay(coords: readonly [number, number], way: RoadWay): number {
   const geometry = way.geometry;
   if (!geometry || geometry.length < 2) return Infinity;
   const latitude = coords[0] * Math.PI / 180;
@@ -50,6 +50,11 @@ function distanceToWay(coords: readonly [number, number], way: RoadWay): number 
     closest = Math.min(closest, Math.hypot(ax + fraction * dx, ay + fraction * dy));
   }
   return closest;
+}
+
+export function isHighwayRoad(tags: RoadWay['tags']): boolean {
+  return /^(motorway|trunk)(_link)?$/.test(tags?.highway ?? '') ||
+    /(?:^|[;\s])(?:BR|[A-Z]{2})[- ]?\d{2,4}(?=$|[;\s])/i.test(tags?.ref ?? '');
 }
 
 export function resolveRoadSpeedLimit(

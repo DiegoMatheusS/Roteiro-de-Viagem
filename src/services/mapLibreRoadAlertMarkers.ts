@@ -1,9 +1,10 @@
-import { Marker, type Map as MapLibreMap } from 'maplibre-gl';
+import { Marker, Popup, type Map as MapLibreMap } from 'maplibre-gl';
 import type { RoadAlert } from '../types/roadAlerts';
 import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import { createRoadAlertIconElement, roadAlertMarkerChange, selectVisibleRoadAlerts } from './mapRoadAlerts';
 import {roadAlertTitle} from './roadAlertPresentation';
 import {roadAlertLayerPriority,roadAlertSeverity} from './roadAlertPriority';
+import type {MarkerPopupAnchor} from './mapMarkerPopup';
 
 export interface RoadAlertPinController {
   update(alerts: readonly RoadAlert[]):void;
@@ -19,7 +20,7 @@ interface TrackedRoadAlert {
  */
 export function createRoleMaplibreRoadAlertController(
   map: MapLibreMap,
-  onSelect: (alert: RoadAlert) => void
+  onSelect: (alert: RoadAlert, anchor: MarkerPopupAnchor | null) => void
 ): RoadAlertPinController {
   const markers = new Map<string,TrackedRoadAlert>();
   let destroyed=false;
@@ -41,7 +42,17 @@ export function createRoleMaplibreRoadAlertController(
       event.stopPropagation();
       // Use the latest approved report: note/expiry may change without
       // re-creating the marker or losing focus.
-      onSelect(markers.get(alert.id)?.alert??alert);
+      const current=markers.get(alert.id)?.alert??alert;
+      onSelect(current,current.kind==='speed_camera'?{
+        element:button,
+        mount(content,close){
+          const popup=new Popup({className:'role-place-balloon-popup role-radar-popup',offset:21,
+            maxWidth:'285px',closeButton:false,closeOnClick:false,focusAfterOpen:false})
+            .setLngLat([current.lng,current.lat]).setDOMContent(content).addTo(map);
+          popup.on('close',close);
+          return ()=>{popup.off('close',close);popup.remove();};
+        }
+      }:null);
     });
     return new Marker({element:button,anchor:'center'})
       .setLngLat([alert.lng,alert.lat]).addTo(map);

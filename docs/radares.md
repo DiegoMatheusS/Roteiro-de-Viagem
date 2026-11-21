@@ -48,6 +48,10 @@ informado, os dois sentidos são considerados. No cliente, o próximo aviso tamb
 usa progresso e distância pela rota. `expiresAt` limita a validade da resposta
 em cache do cliente e não apaga os radares persistidos.
 
+No mapa, os radares aparecem a partir do zoom 12 e dentro de 3 km da localização
+atual. O raio sobe para 8 km quando o mapa identifica a rodovia junto ao GPS.
+Tocar no marcador abre o balão na sua posição. Tocar fora fecha o balão.
+
 ## Atribuição
 
 Dados sob **ODbL 1.0**, © colaboradores do OpenStreetMap e fontes públicas

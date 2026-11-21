@@ -45,10 +45,10 @@ import {PlaceFeedbackModal} from './PlaceFeedbackModal';
 import {TollModal} from './TollModal';
 import type {Place} from '../types/admin';
 import type {RoadAlert} from '../types/roadAlerts';
-import {ROAD_ALERT_TYPES} from '../types/roadAlerts';
 import {confirmRoadAlert} from '../hooks/useRoadAlerts';
-import {roadAlertTitle} from '../services/roadAlertPresentation';
-import {RadarAttribution} from './RadarAttribution';
+import {MapRoadAlertDialog} from './MapRoadAlertDialog';
+import type {MarkerPopupAnchor} from '../services/mapMarkerPopup';
+import {mapPositionIsOnHighway,radarAlertsInView,RADAR_MIN_ZOOM} from '../services/mapRadarVisibility';
 import {getCurrentDeviceLocation} from '../services/locationService';
 import {MapTrafficControl} from './MapTrafficControl';
 import {createMapLibreTrafficPort} from '../services/mapLibreTraffic';
@@ -88,6 +88,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const [feedbackPlace,setFeedbackPlace]=useState<RoleVectorMarker|null>(null);
   const [toll,setToll]=useState<{id:string;section:'prices'|'comments';place:Place|null}|null>(null);
   const [alert,setAlert]=useState<RoadAlert|null>(null);
+  const [alertMarker,setAlertMarker]=useState<MarkerPopupAnchor|null>(null);
   const [checking,setChecking]=useState(false);
   const [checkError,setCheckError]=useState('');
   const [checkMessage,setCheckMessage]=useState('');
@@ -276,9 +277,28 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const navigation=createRoleNavigationPins(map);
     const trip=createRoleTripPins(map,{openFuel:(id,section)=>setStation({id,section})});
     const weather=createRoleWeatherPins(map);
-    const alerts=createRoleMaplibreRoadAlertController(map,entry=>{
-      setAlert(entry);setCheckError('');setCheckMessage('');
+    const alerts=createRoleMaplibreRoadAlertController(map,(entry,marker)=>{
+      setAlert(entry);setAlertMarker(marker);setCheckError('');setCheckMessage('');
     });
+    let lastAlertInputs:unknown[]=[];
+    const refreshRoadAlerts=(reevaluateRoad=false)=>{
+      if(disposed||failed)return;
+      const p=latest.current;
+      const zoom=map.getZoom();
+      const closeZoom=zoom>=RADAR_MIN_ZOOM;
+      const gps=closeZoom?p.userLiveCoords:undefined;
+      const inputs=[p.roadAlerts,gps?.[0],gps?.[1],p.userGpsAccuracyMeters,closeZoom];
+      if(!reevaluateRoad&&inputs.every((value,index)=>value===lastAlertInputs[index]))return;
+      lastAlertInputs=inputs;
+      const entries=p.roadAlerts??[];
+      const highway=!!gps&&entries.some(entry=>entry.kind==='speed_camera')&&
+        mapPositionIsOnHighway(map.isStyleLoaded()?map:null,gps,p.userGpsAccuracyMeters);
+      const visible=radarAlertsInView(entries,gps,zoom,highway);
+      alerts.update(visible);
+      setAlert(current=>current?.kind==='speed_camera' &&
+        !visible.some(entry=>entry.id===current.id)?null:current);
+    };
+    const updateRadarZoom=()=>refreshRoadAlerts();
     const registeredBuildings=createRegisteredBuildingController(map);
     const markers=createRoleMaplibreMarkerController(map,{
       onStation:(id,section,mode)=>setStation({id,section,mode}),
@@ -329,6 +349,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         p.navigationMode||p.userDeviceHeadingDegrees==null?p.userSpeedMetersPerSecond:null);
       bearing=p.navigationMode&&courseModeRef.current?(course??0):0;
       try{
+        refreshRoadAlerts();
         if(!loaded||!map.isStyleLoaded()){
           updateLiveViewport();
           if(!waitingForIdle){waitingForIdle=true;map.once('idle',retry);}
@@ -367,7 +388,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         // marker responsive, but do not rebuild static overlays on each fix.
         const overlayInputs=[stableList(p.stops),stableList(p.meetingPoints),
           stableList(p.convoyParticipants),stableList(p.weatherPoints),p.showRainLayer,
-          stableList(p.roadAlerts),Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,p.showPlaces,
+          Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,p.showPlaces,
           stableList(p.tolls),p.tollVehicleType,data.current.stations,data.current.places,
           stableList(p.routePath)];
         const overlaysChanged=overlayInputs.some((value,index)=>value!==lastOverlayInputs[index]);
@@ -377,7 +398,6 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           syncEditablePin();
           trip.updateParticipants(p.convoyParticipants||[]);
           weather.update(p.weatherPoints||[],p.showRainLayer??false);
-          alerts.update(p.roadAlerts||[]);
           drawn=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
             places:p.showPlaces===false?[]:data.current.places,tolls:p.tolls||[],
             navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType,viewportScopedPlaces:p.showPlaces!==false});
@@ -554,6 +574,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     const publishIdle=()=>{
       const root=container.current?.parentElement;
       if(root&&!disposed){
+        refreshRoadAlerts(true);
         root.dataset.mapIdle='true';tileErrors=0;
         if(styleTimeout){clearTimeout(styleTimeout);styleTimeout=null;}
       }
@@ -576,6 +597,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(root&&!disposed)root.dataset.mapIdle='false';
     };
     map.on('movestart',markBusy);
+    map.on('zoom',updateRadarZoom);
     map.on('idle',publishIdle);
     map.on('moveend',publishViewport);
     map.on('move',publishDrivingViewport);
@@ -724,6 +746,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         map.off(event,gestureEnd);
       map.off('moveend',gestureEnd);
       map.off('move',publishDrivingViewport);
+      map.off('zoom',updateRadarZoom);
       map.off('click',select);map.off('dragstart',userGesture);map.off('zoomstart',userZoomGesture);map.off('rotatestart',userGesture);map.off('pitchstart',userGesture);
       editablePin?.remove();
       map.off('error',onError);map.off('webglcontextlost',fail);map.off('load',load);map.off('idle',retry);map.off('moveend',publishViewport);map.off('idle',publishIdle);map.off('movestart',markBusy);map.off('style.load',styleLoaded);
@@ -840,19 +863,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     {place&&<PlaceModal place={place} onClose={()=>setPlace(null)}/>}
     {feedbackPlace&&<PlaceFeedbackModal key={feedbackPlace.id} place={feedbackPlace} onClose={()=>setFeedbackPlace(null)}/>}
     {toll&&selectedToll&&<TollModal key={`${toll.id}:${toll.section}`} toll={selectedToll} vehicleType={props.tollVehicleType||'car'} initialSection={toll.section} onClose={()=>setToll(null)}/>}
-    {alert&&<section role="dialog" aria-label="Confirmar ocorrência no mapa" className="absolute left-1/2 top-4 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] bg-white p-4 shadow-xl">
-      <div className="flex justify-between gap-3"><div>
-        <p className="text-xs font-semibold text-amber-700">{alert.source==='pardal'?'Radar cadastrado':ROAD_ALERT_TYPES.find(type=>type.id===alert.kind)?.label}</p>
-        <h3 className="font-bold text-slate-900">{alert.source==='pardal'?roadAlertTitle(alert):'Ainda continua lá?'}</h3>
-      </div><button type="button" aria-label="Fechar confirmação de ocorrência" onClick={()=>setAlert(null)} className="min-h-11 min-w-11 text-slate-700">×</button></div>
-      {alert.note&&<p className="mt-2 text-xs text-slate-600">{alert.note}</p>}
-      <RadarAttribution alert={alert}/>
-      {alert.source!=='pardal'&&!checkMessage&&<p className="mt-2 text-xs text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
-      {checkError&&<p role="alert" className="mt-2 text-xs text-rose-700">{checkError}</p>}
-      {checkMessage?<p role="status" className="mt-2 text-xs text-emerald-700">{checkMessage}</p>:alert.source!=='pardal'&&<div className="mt-3 grid grid-cols-2 gap-2">
-        <button type="button" disabled={checking} onClick={()=>void check(true)} className="min-h-11 rounded-xl bg-blue-600 text-white">Sim</button>
-        <button type="button" disabled={checking} onClick={()=>void check(false)} className="min-h-11 rounded-xl border border-slate-200 text-slate-800">Não</button>
-      </div>}
-    </section>}
+    {alert&&<MapRoadAlertDialog alert={alert} marker={alertMarker} busy={checking}
+      error={checkError} message={checkMessage} onClose={()=>setAlert(null)}
+      onConfirm={present=>void check(present)}/>}
   </div>;
 }
