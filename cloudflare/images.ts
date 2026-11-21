@@ -65,5 +65,5 @@ export async function edgeTrafficRedOnlyPng(bytes:Buffer):Promise<Buffer>{
     if(!(red>=145&&green<=105&&blue<=135&&red>=green*1.7&&red>=blue*1.5)){image.data[i+3]=0;continue;}
     image.data[i]=232;image.data[i+1]=33;image.data[i+2]=48;
   }
-  return PNG.sync.write(image);
+  return Buffer.from(PNG.sync.write(image));
 }

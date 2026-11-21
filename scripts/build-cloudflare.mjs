@@ -6,6 +6,8 @@ const result=await build({
   entryPoints:['cloudflare/index.ts'],outfile:'cloudflare-dist/worker.js',
   bundle:true,format:'esm',platform:'node',target:'es2022',
   mainFields:['module','main'],external:['cloudflare:node','cloudflare:workers'],
+  // The browser codec avoids pngjs's dependency on private Node zlib internals.
+  alias:{pngjs:'pngjs/browser.js'},
   sourcemap:true,metafile:true,
   // Workerd supports requiring Node built-ins. Third-party code is bundled.
   banner:{js:"import {createRequire as createNodeRequire} from 'node:module'; const require=createNodeRequire(import.meta.url);"},
