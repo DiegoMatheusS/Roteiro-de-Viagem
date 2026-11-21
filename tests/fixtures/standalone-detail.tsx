@@ -4,6 +4,7 @@ import {InteractiveMap} from '../../src/components/InteractiveMap';
 import type {ConvoyParticipant,MeetingPoint} from '../../src/types';
 import type {RoadAlert} from '../../src/types/roadAlerts';
 import '../../src/index.css';
+import 'leaflet/dist/leaflet.css';
 const path:[number,number][]=[[-23.55,-46.63],[-23.555,-46.625],[-23.56,-46.62]];
 const now=new Date().toISOString();
 const radars:RoadAlert[]=new URLSearchParams(location.search).has('radars')?[{
