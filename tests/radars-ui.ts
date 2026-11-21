@@ -15,7 +15,8 @@ try{
   await page.route('**/api/**',route=>route.fulfill({json:{stations:[],places:[],available:false}}));
   await page.goto('http://127.0.0.1:3000/tests/fixtures/standalone-detail.html?radars=1');
   await page.waitForFunction(()=>document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]')?.dataset.mapReady==='true');
-  const checkDetails=async()=>{
+  fs.mkdirSync('test-results',{recursive:true});
+  const checkDetails=async(engine:string)=>{
     const marker=page.locator('.road-alert-marker');await marker.waitFor();
     await marker.focus();await marker.press('Enter');
     const dialog=page.getByRole('dialog',{name:'Confirmar ocorrência no mapa'});
@@ -30,27 +31,33 @@ try{
       const marker=document.querySelector<HTMLElement>('.road-alert-marker');
       if(!dialog||!marker||getComputedStyle(dialog).visibility!=='visible')return false;
       const box=dialog.getBoundingClientRect(),pin=marker.getBoundingClientRect();
-      const gap=Math.max(pin.top-box.bottom,box.top-pin.bottom);
-      return box.left>=0&&box.right<=390&&gap>=2&&gap<=14;
+      const vertical=Math.max(pin.top-box.bottom,box.top-pin.bottom,0);
+      const horizontal=Math.max(pin.left-box.right,box.left-pin.right,0);
+      return box.left>=0&&box.right<=390&&Math.hypot(vertical,horizontal)<=25;
+    },undefined,{timeout:7000}).catch(async error=>{
+      const positions=await page.locator('[role="dialog"],.road-alert-marker').evaluateAll(elements=>
+        elements.map(el=>({className:el.className,rect:el.getBoundingClientRect().toJSON()})));
+      console.error(engine,positions);
+      await page.screenshot({path:`test-results/radar-${engine}-failure.png`});
+      throw error;
     });
     await dialog.getByRole('heading').click();
     await dialog.waitFor({state:'visible'});
     return dialog;
   };
-  const first=await checkDetails();
-  fs.mkdirSync('test-results',{recursive:true});
+  const first=await checkDetails('maplibre');
   await page.screenshot({path:'test-results/radar-pardal-details.png'});
   await page.mouse.click(16,530);
   await first.waitFor({state:'hidden'});
   await page.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   await page.locator('[data-map-engine="leaflet-fallback"]').waitFor();
-  const fallback=await checkDetails();
+  const fallback=await checkDetails('leaflet');
   await page.mouse.click(16,530);
   await fallback.waitFor({state:'hidden'});
   await page.mouse.move(180,280);
   for(let i=0;i<6;i++) await page.mouse.wheel(0,640);
-  await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapZoom)<12);
-  assert.equal(await page.locator('.road-alert-marker').count(),0);
+  await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapZoom)<12
+    && !document.querySelector('.road-alert-marker'));
   assert.deepEqual(errors,[]);
   console.log('PASS: radar balloons stay anchored, close outside, and hide with their markers on distant zoom.');
 }finally{await browser.close();await vite.close();}

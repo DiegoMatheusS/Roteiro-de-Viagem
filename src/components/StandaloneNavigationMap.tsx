@@ -47,6 +47,7 @@ import type {Place} from '../types/admin';
 import type {RoadAlert} from '../types/roadAlerts';
 import {confirmRoadAlert} from '../hooks/useRoadAlerts';
 import {MapRoadAlertDialog} from './MapRoadAlertDialog';
+import type {MarkerPopupAnchor} from '../services/mapMarkerPopup';
 import {mapPositionIsOnHighway,radarAlertsInView,RADAR_MIN_ZOOM} from '../services/mapRadarVisibility';
 import {getCurrentDeviceLocation} from '../services/locationService';
 import {MapTrafficControl} from './MapTrafficControl';
@@ -87,7 +88,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
   const [feedbackPlace,setFeedbackPlace]=useState<RoleVectorMarker|null>(null);
   const [toll,setToll]=useState<{id:string;section:'prices'|'comments';place:Place|null}|null>(null);
   const [alert,setAlert]=useState<RoadAlert|null>(null);
-  const [alertMarker,setAlertMarker]=useState<HTMLElement|null>(null);
+  const [alertMarker,setAlertMarker]=useState<MarkerPopupAnchor|null>(null);
   const [checking,setChecking]=useState(false);
   const [checkError,setCheckError]=useState('');
   const [checkMessage,setCheckMessage]=useState('');

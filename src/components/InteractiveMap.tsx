@@ -25,6 +25,7 @@ import {roadAlertTitle} from '../services/roadAlertPresentation';
 import {roadAlertLayerPriority} from '../services/roadAlertPriority';
 import {useViewportRoadAlerts,type RoadAlertViewport} from '../hooks/useViewportRoadAlerts';
 import {MapRoadAlertDialog} from './MapRoadAlertDialog';
+import type {MarkerPopupAnchor} from '../services/mapMarkerPopup';
 import {mapPositionIsOnHighway,radarAlertsInView,RADAR_MIN_ZOOM} from '../services/mapRadarVisibility';
 import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -330,7 +331,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [tileError, setTileError] = useState(false);
   const [tileRetryCount, setTileRetryCount] = useState(0);
   const [selectedRoadAlert, setSelectedRoadAlert] = useState<RoadAlert | null>(null);
-  const [alertMarker, setAlertMarker] = useState<HTMLElement | null>(null);
+  const [alertMarker, setAlertMarker] = useState<MarkerPopupAnchor | null>(null);
   const [alertCheckBusy, setAlertCheckBusy] = useState(false);
   const [alertCheckMessage, setAlertCheckMessage] = useState('');
   const [alertCheckError, setAlertCheckError] = useState('');
@@ -691,9 +692,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     }
   }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations,showPlaces, tollVehicleType, viewportRevision, hasMapReady]);
 
-  const openRoadAlert = (alert: RoadAlert, marker?: HTMLElement) => {
+  const openRoadAlert = (alert: RoadAlert, marker: MarkerPopupAnchor | null) => {
     setSelectedRoadAlert(alert);
-    setAlertMarker(marker??null);
+    setAlertMarker(marker);
     setAlertCheckMessage('');
     setAlertCheckError('');
   };
@@ -734,10 +735,22 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         iconSize:[38,38],iconAnchor:[19,19]
       });
       const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100+roadAlertLayerPriority(alert.kind)}).addTo(group);
-      const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert,marker.getElement());
+      const open=()=>{
+        const current=existing.get(alert.id)?.alert??alert;
+        const map=mapInstanceRef.current,element=marker.getElement();
+        openRoadAlertRef.current(current,current.kind==='speed_camera'&&map&&element?{
+          element,
+          mount(content,close){
+            const popup=L.popup({className:'role-place-balloon-popup role-radar-popup',offset:[0,-8],
+              minWidth:0,maxWidth:285,autoPanPadding:[12,12],closeButton:false,closeOnClick:false})
+              .setLatLng(marker.getLatLng()).setContent(content).openOn(map);
+            popup.on('remove',close);
+            return ()=>{popup.off('remove',close);popup.remove();};
+          }
+        }:null);
+      };
       const element=marker.getElement();
       if(element){
-        element.dataset.roadAlertId=alert.id;
         element.setAttribute('aria-label',`${roadAlertTitle(alert)}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
         const unbind=bindMapMarkerActivation(element,open);
         marker.once('remove',unbind);

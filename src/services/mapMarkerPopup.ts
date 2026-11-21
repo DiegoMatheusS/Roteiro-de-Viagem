@@ -1,3 +1,8 @@
+export interface MarkerPopupAnchor {
+  element: HTMLElement;
+  mount(content: HTMLElement, onClose: () => void): () => void;
+}
+
 /** Own activation locally: marker clicks must not also select a map coordinate. */
 export function bindMarkerPopup<T extends {getElement(): HTMLElement; togglePopup(): unknown}>(marker:T):T {
   const element=marker.getElement();

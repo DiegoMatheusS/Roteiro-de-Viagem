@@ -69,12 +69,14 @@ test('MapLibre and Leaflet reuse unchanged alert pins and refresh selected repor
   assert.match(ui,/roadAlertFallbackMarkersRef/);
   assert.match(ui,/roadAlertMarkerChange\(record\?\.alert\|\|null,alert\)/);
   assert.match(ui,/record!\.marker\.setLatLng\(\[alert\.lat,alert\.lng\]\)/);
-  assert.match(ui,/openRoadAlertRef\.current\(existing\.get\(alert\.id\)\?\.alert\?\?alert,marker\.getElement\(\)\)/);
+  assert.match(ui,/const current=existing\.get\(alert\.id\)\?\.alert\?\?alert/);
+  assert.match(ui,/openRoadAlertRef\.current\(current,/);
   assert.match(ui,/controller\.update\(roadAlertInputRef\.current\)/);
   assert.match(ui,/controller\.update\(visibleRoadAlertInput\)/);
   assert.match(ui,/\},\[vectorRoutesReady\]\)/);
   assert.match(renderer,/record!\.marker\.setLngLat\(\[alert\.lng,alert\.lat\]\)/);
-  assert.match(renderer,/onSelect\(markers\.get\(alert\.id\)\?\.alert\?\?alert,button\)/);
+  assert.match(renderer,/const current=markers\.get\(alert\.id\)\?\.alert\?\?alert/);
+  assert.match(renderer,/onSelect\(current,/);
   assert.match(renderer,/if\(!wanted\.has\(id\)\)\{record\.marker\.remove\(\);markers\.delete\(id\);\}/);
   assert.doesNotMatch(renderer,/\.setHTML\(|innerHTML/);
 });
