@@ -341,7 +341,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       mapPositionIsOnHighway(vectorRoutesReady?vectorMapRef.current:null,userLiveCoords,userGpsAccuracyMeters);
     return radarAlertsInView(roadAlerts,userLiveCoords,zoom,highway);
   },[roadAlerts,userLiveCoords,userGpsAccuracyMeters,radarZoom,viewportRevision,vectorRoutesReady,hasMapReady]);
-  roadAlertInputRef.current=visibleRoadAlertInput;
+  // The hybrid fallback's camera is owned by Leaflet. Keep radar markers and
+  // their popups in that same layer, including when the vector base recovers.
+  const radarMarkers=useMemo(()=>visibleRoadAlertInput.filter(alert=>alert.kind==='speed_camera'),[visibleRoadAlertInput]);
+  const vectorRoadAlerts=useMemo(()=>visibleRoadAlertInput.filter(alert=>alert.kind!=='speed_camera'),[visibleRoadAlertInput]);
+  roadAlertInputRef.current=vectorRoadAlerts;
   useEffect(()=>{
     setSelectedRoadAlert(current=>current?.kind==='speed_camera' &&
       !visibleRoadAlertInput.some(alert=>alert.id===current.id)?null:current);
@@ -707,12 +711,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     const group=roadAlertGroupRef.current;
     if(!group)return;
     const existing=roadAlertFallbackMarkersRef.current;
-    if(vectorAlertsReady){
-      group.clearLayers();
-      existing.clear();
-      return;
-    }
-    const visible=selectVisibleRoadAlerts(visibleRoadAlertInput);
+    const visible=selectVisibleRoadAlerts(vectorAlertsReady?radarMarkers:visibleRoadAlertInput);
     const wanted=new Set(visible.map(alert=>alert.id));
     for(const [id,record] of existing){
       if(!wanted.has(id)){group.removeLayer(record.marker);existing.delete(id);}
@@ -758,7 +757,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       if(record)group.removeLayer(record.marker);
       existing.set(alert.id,{alert,marker});
     }
-  },[visibleRoadAlertInput,vectorAlertsReady]);
+  },[visibleRoadAlertInput,radarMarkers,vectorAlertsReady]);
 
   // Install the vector controller once per MapLibre lifecycle. Reloading
   // reports uses its incremental update; the other icons stay mounted.
@@ -777,8 +776,6 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           (alert,marker)=>openRoadAlertRef.current(alert,marker));
         controller.update(roadAlertInputRef.current);
         vectorRoadAlertControllerRef.current=controller;
-        roadAlertGroupRef.current?.clearLayers();
-        roadAlertFallbackMarkersRef.current.clear();
         setVectorAlertsReady(true);
       }catch{
         controller?.destroy();
@@ -796,13 +793,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   useEffect(()=>{
     const controller=vectorRoadAlertControllerRef.current;
     if(!controller)return;
-    try{controller.update(visibleRoadAlertInput);}
+    try{controller.update(vectorRoadAlerts);}
     catch{
       controller.destroy();
       vectorRoadAlertControllerRef.current=null;
       setVectorAlertsReady(false);
     }
-  },[visibleRoadAlertInput]);
+  },[vectorRoadAlerts]);
 
   // Mapa vetorial MapLibre (base) mantendo temporariamente marcadores e gestos Leaflet.
   // Caso WebGL ou OpenFreeMap não carregue, cai para os tiles OSM sem deixar o mapa vazio.

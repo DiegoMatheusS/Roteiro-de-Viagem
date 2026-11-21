@@ -29,10 +29,9 @@ test('renderer nativo preserva acesso por teclado e confirmação no mesmo modal
   const renderer=read('src/services/mapLibreRoadAlertMarkers.ts');
   const icons=read('src/services/mapRoadAlerts.ts');
   const dialog=read('src/components/MapRoadAlertDialog.tsx');
-  assert.match(ui,/selectVisibleRoadAlerts\(visibleRoadAlertInput\)/);
+  assert.match(ui,/selectVisibleRoadAlerts\(vectorAlertsReady\?radarMarkers:visibleRoadAlertInput\)/);
   assert.match(ui,/L\.marker\(\[alert\.lat,alert\.lng\]/);
   assert.match(ui,/createRoleMaplibreRoadAlertController\(gl,/);
-  assert.match(ui,/roadAlertGroupRef\.current\?\.clearLayers\(\)/);
   assert.match(ui,/setVectorAlertsReady\(false\)/);
   assert.match(ui,/setVectorAlertsReady\(true\)/);
   assert.match(ui,/setSelectedRoadAlert\(alert\)/);
@@ -72,7 +71,7 @@ test('MapLibre and Leaflet reuse unchanged alert pins and refresh selected repor
   assert.match(ui,/const current=existing\.get\(alert\.id\)\?\.alert\?\?alert/);
   assert.match(ui,/openRoadAlertRef\.current\(current,/);
   assert.match(ui,/controller\.update\(roadAlertInputRef\.current\)/);
-  assert.match(ui,/controller\.update\(visibleRoadAlertInput\)/);
+  assert.match(ui,/controller\.update\(vectorRoadAlerts\)/);
   assert.match(ui,/\},\[vectorRoutesReady\]\)/);
   assert.match(renderer,/record!\.marker\.setLngLat\(\[alert\.lng,alert\.lat\]\)/);
   assert.match(renderer,/const current=markers\.get\(alert\.id\)\?\.alert\?\?alert/);

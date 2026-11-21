@@ -51,6 +51,7 @@ try{
   await first.waitFor({state:'hidden'});
   await page.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   await page.locator('[data-map-engine="leaflet-fallback"]').waitFor();
+  await page.locator('.road-alert-marker.leaflet-marker-icon').waitFor();
   const fallback=await checkDetails('leaflet');
   await page.mouse.click(16,530);
   await fallback.waitFor({state:'hidden'});
