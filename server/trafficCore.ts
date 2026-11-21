@@ -27,9 +27,7 @@ export function createTrafficService({fetcher=fetch,key=()=>process.env.TOMTOM_T
       try{
         await Promise.resolve(); // Store even a synchronously failing provider before cleanup.
         const response=await fetcher(`https://api.tomtom.com/maps/orbis/traffic/flow/raster/tile/${z}/${x}/${y}?apiVersion=2&style=${style==='red'?'light':style}&tileSize=256`,{
-          headers:{'TomTom-Api-Key':key().trim(),Accept:'image/png'},signal:AbortSignal.timeout(6000),
-          // Workers supports manual redirects. Reject non-2xx responses below without forwarding the key.
-          redirect:'manual'
+          headers:{'TomTom-Api-Key':key().trim(),Accept:'image/png'},signal:AbortSignal.timeout(6000),redirect:'error'
         });
         if(!response.ok||!response.headers.get('content-type')?.startsWith('image/png')||
           Number(response.headers.get('content-length'))>MAX_TILE_BYTES||!response.body){

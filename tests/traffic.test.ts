@@ -16,7 +16,7 @@ test('traffic proxies real provider PNG unchanged, authenticates by header, coal
     calls++;assert.equal(new URL(String(url)).hostname,'api.tomtom.com');
     assert.match(String(url),/\/maps\/orbis\/traffic\/flow\/raster\/tile\/12\/2044\/1360\?apiVersion=2&style=light&tileSize=256$/);
     assert.ok(!String(url).includes(key));assert.equal(new Headers(options?.headers).get('TomTom-Api-Key'),key);
-    assert.equal(options?.redirect,'manual');assert.ok(options?.signal);
+    assert.equal(options?.redirect,'error');assert.ok(options?.signal);
     return new Response(new Uint8Array(image),{headers:{'Content-Type':'image/png','Cache-Control':'max-age=60'}});
   }});
   const [one,two]=await Promise.all([service.getTile('light','12','2044','1360'),service.getTile('light','12','2044','1360')]);
