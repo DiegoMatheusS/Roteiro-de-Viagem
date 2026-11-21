@@ -28,7 +28,11 @@ interface Env{
 }
 const defaultDatabase='ruavo-production';
 const databaseId=(env:Env)=>env.RUAVO_DATABASE.idFromName(env.RUAVO_DATABASE_NAME||defaultDatabase);
-const unavailable=()=>Response.json({error:'O servidor ainda não está configurado.'},{status:503,headers:{'Cache-Control':'no-store'}});
+function unavailable(url:URL,component:'proxy-secret'|'public-app-url'|'durable-object'){
+  const headers=new Headers({'Cache-Control':'no-store'});
+  if(url.pathname==='/api/health')headers.set('X-Ruavo-Health-Error',component);
+  return Response.json({error:'O servidor ainda não está configurado.'},{status:503,headers});
+}
 const validOrigin=(value:string|undefined)=>{
   try{const url=new URL(value||'');return url.protocol==='https:'&&url.origin===value&&!url.username&&!url.password;}catch{return false;}
 };
@@ -103,7 +107,8 @@ export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const url=new URL(request.url);
     if(url.pathname!=='/api'&&!url.pathname.startsWith('/api/'))return new Response('RUAVO API',{status:404});
-    if(!env.WEB_PROXY_SECRET||env.WEB_PROXY_SECRET.length<32||!validOrigin(env.PUBLIC_APP_URL))return unavailable();
+    if(!env.WEB_PROXY_SECRET||env.WEB_PROXY_SECRET.length<32)return unavailable(url,'proxy-secret');
+    if(!validOrigin(env.PUBLIC_APP_URL))return unavailable(url,'public-app-url');
     const headers=new Headers(request.headers),provided=Buffer.from(headers.get('X-Rdv-Proxy-Key')||''),expected=Buffer.from(env.WEB_PROXY_SECRET);
     const forwarded=headers.get('X-Rdv-Client-Ip')||'';
     const trusted=provided.length===expected.length&&timingSafeEqual(provided,expected)&&isIP(forwarded);
@@ -117,6 +122,6 @@ export default {
       // Importable Cloudflare types include platform-only extensions. This is
       // the same standard Request object at the runtime boundary.
       return await object.fetch(new Request(request,{headers}) as unknown as WorkerRequest) as unknown as Response;
-    }catch{return unavailable();}
+    }catch{return unavailable(url,'durable-object');}
   },
 };
