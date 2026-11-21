@@ -58,7 +58,13 @@ export async function sanitizeEdgePhoto(images:PhotoImagesBinding,bytes:Buffer):
 
 /** Only real provider pixels become red congestion, just like the Node codec. */
 export async function edgeTrafficRedOnlyPng(bytes:Buffer):Promise<Buffer>{
-  const image=PNG.sync.read(bytes,{checkCRC:true});
+  // The async decoder uses the public zlib stream API supported by Workers.
+  const image=await new Promise<PNG>((resolve,reject)=>{
+    new PNG({checkCRC:true}).parse(bytes,(error,result)=>{
+      if(error)reject(error);
+      else resolve(result);
+    });
+  });
   if(image.width!==256||image.height!==256)throw Error('Bloco de trânsito inválido.');
   for(let i=0;i<image.data.length;i+=4){
     const red=image.data[i],green=image.data[i+1],blue=image.data[i+2];
