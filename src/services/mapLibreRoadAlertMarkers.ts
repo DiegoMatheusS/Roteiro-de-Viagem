@@ -19,7 +19,7 @@ interface TrackedRoadAlert {
  */
 export function createRoleMaplibreRoadAlertController(
   map: MapLibreMap,
-  onSelect: (alert: RoadAlert) => void
+  onSelect: (alert: RoadAlert, element: HTMLElement) => void
 ): RoadAlertPinController {
   const markers = new Map<string,TrackedRoadAlert>();
   let destroyed=false;
@@ -41,7 +41,7 @@ export function createRoleMaplibreRoadAlertController(
       event.stopPropagation();
       // Use the latest approved report: note/expiry may change without
       // re-creating the marker or losing focus.
-      onSelect(markers.get(alert.id)?.alert??alert);
+      onSelect(markers.get(alert.id)?.alert??alert,button);
     });
     return new Marker({element:button,anchor:'center'})
       .setLngLat([alert.lng,alert.lat]).addTo(map);

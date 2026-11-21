@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { RouteStop, WeatherPoint, ConvoyParticipant, MeetingPoint, RouteModality } from '../types';
-import { Layers, Mountain, Eye, Sparkles, X } from 'lucide-react';
+import { Layers, Mountain, Eye, Sparkles } from 'lucide-react';
 import { useFuelStations } from '../hooks/useFuelStations';
 import { FuelStationModal } from './FuelStationModal';
 import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
@@ -19,12 +19,13 @@ import { PlaceModal } from './PlaceModal';
 import { PlaceFeedbackModal } from './PlaceFeedbackModal';
 import { createLeafletPlaceMarkerController } from '../services/leafletPlaceMarkers';
 import { PLACE_KINDS, type Place } from '../types/admin';
-import { ROAD_ALERT_TYPES, type RoadAlert } from '../types/roadAlerts';
+import type { RoadAlert } from '../types/roadAlerts';
 import { confirmRoadAlert } from '../hooks/useRoadAlerts';
 import {roadAlertTitle} from '../services/roadAlertPresentation';
 import {roadAlertLayerPriority} from '../services/roadAlertPriority';
 import {useViewportRoadAlerts,type RoadAlertViewport} from '../hooks/useViewportRoadAlerts';
-import {RadarAttribution} from './RadarAttribution';
+import {MapRoadAlertDialog} from './MapRoadAlertDialog';
+import {mapPositionIsOnHighway,radarAlertsInView,RADAR_MIN_ZOOM} from '../services/mapRadarVisibility';
 import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
 import { mapContributionIcon } from './mapContributionIcon';
@@ -239,8 +240,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const roadAlertGroupRef = useRef<L.LayerGroup | null>(null);
   const roadAlertFallbackMarkersRef=useRef<Map<string,{marker:L.Marker;alert:RoadAlert}>>(new Map());
   const vectorRoadAlertControllerRef=useRef<RoadAlertPinController|null>(null);
-  const roadAlertInputRef=useRef(roadAlerts);
-  roadAlertInputRef.current=roadAlerts;
+  const roadAlertInputRef=useRef(EMPTY_ROAD_ALERTS);
   const navigationPinGroupRef = useRef<L.LayerGroup | null>(null);
   const livePinGroupRef = useRef<L.LayerGroup | null>(null);
   const liveFallbackRef = useRef<L.Marker | null>(null);
@@ -275,6 +275,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [viewportCenter, setViewportCenter] = useState<[number, number] | null>(null);
   const [placeViewport,setPlaceViewport]=useState<MapPlaceQuery|null>(null);
   const [viewportRevision, setViewportRevision] = useState(0);
+  const [radarZoom, setRadarZoom] = useState(false);
   const visibleCallbackRef = useRef(onVisiblePlacesChange);
   visibleCallbackRef.current = onVisiblePlacesChange;
   const visibleKeyRef = useRef('');
@@ -329,17 +330,27 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [tileError, setTileError] = useState(false);
   const [tileRetryCount, setTileRetryCount] = useState(0);
   const [selectedRoadAlert, setSelectedRoadAlert] = useState<RoadAlert | null>(null);
+  const [alertMarker, setAlertMarker] = useState<HTMLElement | null>(null);
   const [alertCheckBusy, setAlertCheckBusy] = useState(false);
   const [alertCheckMessage, setAlertCheckMessage] = useState('');
   const [alertCheckError, setAlertCheckError] = useState('');
-  const [alertCheckDone, setAlertCheckDone] = useState(false);
+  const visibleRoadAlertInput=useMemo(()=>{
+    const zoom=mapInstanceRef.current?.getZoom()??0;
+    const highway=radarZoom && roadAlerts.some(alert=>alert.kind==='speed_camera') &&
+      mapPositionIsOnHighway(vectorRoutesReady?vectorMapRef.current:null,userLiveCoords,userGpsAccuracyMeters);
+    return radarAlertsInView(roadAlerts,userLiveCoords,zoom,highway);
+  },[roadAlerts,userLiveCoords,userGpsAccuracyMeters,radarZoom,viewportRevision,vectorRoutesReady,hasMapReady]);
+  roadAlertInputRef.current=visibleRoadAlertInput;
+  useEffect(()=>{
+    setSelectedRoadAlert(current=>current?.kind==='speed_camera' &&
+      !visibleRoadAlertInput.some(alert=>alert.id===current.id)?null:current);
+  },[visibleRoadAlertInput]);
   const checkRoadAlert = async (present: boolean) => {
     if (!selectedRoadAlert || alertCheckBusy) return;
     setAlertCheckBusy(true); setAlertCheckError('');
     try {
       const gps = await getCurrentDeviceLocation();
       const answer = await confirmRoadAlert(selectedRoadAlert.id, present, gps);
-      setAlertCheckDone(true);
       setAlertCheckMessage(answer.removed
         ? 'Ocorrência retirada do mapa após confirmação da comunidade.'
         : 'Confirmação registrada. Obrigado por ajudar a manter o mapa atualizado.');
@@ -525,10 +536,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         return current && current[0]===next[0] && current[1]===next[1] ? current : next;
       });
     };
+    const updateRadarZoom=()=>setRadarZoom(map.getZoom()>=RADAR_MIN_ZOOM);
+    map.on('zoom', updateRadarZoom);
+    updateRadarZoom();
     map.on('moveend', handleMovement);
     map.on('zoomend', handleMovement);
     handleMovement();
-    return () => { map.off('moveend', handleMovement); map.off('zoomend', handleMovement); };
+    return () => { map.off('zoom', updateRadarZoom); map.off('moveend', handleMovement); map.off('zoomend', handleMovement); };
   }, [hasMapReady, routePath.length, originCoords?.[0], originCoords?.[1]]);
 
   useEffect(() => {
@@ -677,11 +691,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     }
   }, [fuel.stations, places, tolls, stops, navigationMode, showFuelStations,showPlaces, tollVehicleType, viewportRevision, hasMapReady]);
 
-  const openRoadAlert = (alert: RoadAlert) => {
+  const openRoadAlert = (alert: RoadAlert, marker?: HTMLElement) => {
     setSelectedRoadAlert(alert);
+    setAlertMarker(marker??null);
     setAlertCheckMessage('');
     setAlertCheckError('');
-    setAlertCheckDone(false);
   };
   const openRoadAlertRef=useRef(openRoadAlert);
   openRoadAlertRef.current=openRoadAlert;
@@ -697,7 +711,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       existing.clear();
       return;
     }
-    const visible=selectVisibleRoadAlerts(roadAlerts);
+    const visible=selectVisibleRoadAlerts(visibleRoadAlertInput);
     const wanted=new Set(visible.map(alert=>alert.id));
     for(const [id,record] of existing){
       if(!wanted.has(id)){group.removeLayer(record.marker);existing.delete(id);}
@@ -720,7 +734,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         iconSize:[38,38],iconAnchor:[19,19]
       });
       const marker=L.marker([alert.lat,alert.lng],{icon,keyboard:true,title:roadAlertTitle(alert),zIndexOffset:2100+roadAlertLayerPriority(alert.kind)}).addTo(group);
-      const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert);
+      const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert,marker.getElement());
       const element=marker.getElement();
       if(element){
         element.setAttribute('aria-label',`${roadAlertTitle(alert)}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
@@ -730,7 +744,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       if(record)group.removeLayer(record.marker);
       existing.set(alert.id,{alert,marker});
     }
-  },[roadAlerts,vectorAlertsReady]);
+  },[visibleRoadAlertInput,vectorAlertsReady]);
 
   // Install the vector controller once per MapLibre lifecycle. Reloading
   // reports uses its incremental update; the other icons stay mounted.
@@ -746,7 +760,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       let controller:RoadAlertPinController|null=null;
       try{
         controller=createRoleMaplibreRoadAlertController(gl,
-          alert=>openRoadAlertRef.current(alert));
+          (alert,marker)=>openRoadAlertRef.current(alert,marker));
         controller.update(roadAlertInputRef.current);
         vectorRoadAlertControllerRef.current=controller;
         roadAlertGroupRef.current?.clearLayers();
@@ -768,13 +782,13 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   useEffect(()=>{
     const controller=vectorRoadAlertControllerRef.current;
     if(!controller)return;
-    try{controller.update(roadAlerts);}
+    try{controller.update(visibleRoadAlertInput);}
     catch{
       controller.destroy();
       vectorRoadAlertControllerRef.current=null;
       setVectorAlertsReady(false);
     }
-  },[roadAlerts]);
+  },[visibleRoadAlertInput]);
 
   // Mapa vetorial MapLibre (base) mantendo temporariamente marcadores e gestos Leaflet.
   // Caso WebGL ou OpenFreeMap não carregue, cai para os tiles OSM sem deixar o mapa vazio.
@@ -1622,28 +1636,9 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         O mapa não conseguiu carregar os blocos de imagem. Verifique sua conexão.
         <button type="button" className="ml-2 font-bold text-blue-700 underline" onClick={() => setTileRetryCount(count => count + 1)}>Tentar novamente</button>
       </div>}
-      {selectedRoadAlert && <section role="dialog" aria-label="Confirmar ocorrência no mapa"
-        className="absolute top-[max(16px,env(safe-area-inset-top))] left-1/2 z-[70] w-[min(330px,calc(100%-24px))] -translate-x-1/2 rounded-[22px] border border-slate-200 bg-white/95 p-4 shadow-[0_12px_36px_rgba(15,23,42,.22)] backdrop-blur-md">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-amber-700">{selectedRoadAlert.source==='pardal'?'Radar cadastrado':ROAD_ALERT_TYPES.find(item => item.id === selectedRoadAlert.kind)?.label}</p>
-            <h3 className="mt-1 text-[15px] font-extrabold text-slate-900">{selectedRoadAlert.source==='pardal'?roadAlertTitle(selectedRoadAlert):'Ainda continua lá?'}</h3>
-          </div>
-          <button type="button" aria-label="Fechar confirmação de ocorrência" onClick={() => setSelectedRoadAlert(null)}
-            className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"><X size={20}/></button>
-        </div>
-        {selectedRoadAlert.note && <p className="mt-2 line-clamp-2 text-xs text-slate-600">{selectedRoadAlert.note}</p>}
-        <RadarAttribution alert={selectedRoadAlert}/>
-        {selectedRoadAlert.source!=='pardal'&&!alertCheckDone && <p className="mt-2 text-[11px] text-slate-500">Confirme somente se estiver perto do local e com o veículo parado.</p>}
-        {alertCheckError && <p role="alert" className="mt-2 text-xs text-rose-700">{alertCheckError}</p>}
-        {alertCheckMessage && <p role="status" className="mt-2 text-xs text-emerald-700">{alertCheckMessage}</p>}
-        {selectedRoadAlert.source!=='pardal'&&!alertCheckDone && <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(true)}
-            className="min-h-11 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Sim</button>
-          <button type="button" disabled={alertCheckBusy} onClick={() => void checkRoadAlert(false)}
-            className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-50">Não</button>
-        </div>}
-      </section>}
+      {selectedRoadAlert && <MapRoadAlertDialog alert={selectedRoadAlert} marker={alertMarker}
+        busy={alertCheckBusy} error={alertCheckError} message={alertCheckMessage}
+        onClose={()=>setSelectedRoadAlert(null)} onConfirm={present=>void checkRoadAlert(present)}/>}
       <div ref={mapContainerRef} className="w-full h-full" />
       <MapTrafficControl port={trafficPort} navigation={navigationMode}
         location={userLiveCoords??originCoords??null}
