@@ -28,6 +28,7 @@ export function createRoleMaplibreRoadAlertController(
     const button=document.createElement('button');
     button.type='button';
     button.className='road-alert-marker rdv-maplibre-road-alert';
+    button.dataset.roadAlertId=alert.id;
     button.dataset.alertSeverity=roadAlertSeverity(alert.kind);
     button.setAttribute('aria-label',`${label}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
     button.title=label;

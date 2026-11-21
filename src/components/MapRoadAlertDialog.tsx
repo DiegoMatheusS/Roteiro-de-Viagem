@@ -21,16 +21,24 @@ export function MapRoadAlertDialog({ alert, marker, busy, error, message, onClos
   const panel = useRef<HTMLElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const tip = useRef<HTMLSpanElement>(null);
+  const currentMarker = useRef<HTMLElement | null>(marker);
 
   useLayoutEffect(() => {
     const balloon = panel.current, body = content.current, pointer = tip.current;
     const frame = balloon?.parentElement;
     if (!anchor || !balloon || !body || !pointer || !frame) return;
+    const selector = `[data-road-alert-id="${CSS.escape(alert.id)}"]`;
+    currentMarker.current = anchor;
     let pending = 0;
     let lastLayout = '';
     const position = () => {
-      const pin = anchor.getBoundingClientRect(), bounds = frame.getBoundingClientRect();
-      if (!anchor.isConnected || pin.bottom < bounds.top || pin.top > bounds.bottom ||
+      // When the raster renderer upgrades its markers, follow the replacement
+      // for the selected report instead of keeping the detached Leaflet node.
+      const previous = currentMarker.current;
+      const activeMarker = previous && frame.contains(previous) ? previous : frame.querySelector<HTMLElement>(selector);
+      currentMarker.current = activeMarker;
+      const pin = activeMarker?.getBoundingClientRect(), bounds = frame.getBoundingClientRect();
+      if (!pin || pin.bottom < bounds.top || pin.top > bounds.bottom ||
           pin.right < bounds.left || pin.left > bounds.right) {
         balloon.style.visibility = 'hidden';
         lastLayout = '';
@@ -66,13 +74,13 @@ export function MapRoadAlertDialog({ alert, marker, busy, error, message, onClos
       balloon.style.visibility = '';
       body.style.maxHeight = '';
     };
-  }, [anchor]);
+  }, [anchor, alert.id]);
 
   useEffect(() => {
     if (!anchor) return;
     const outside = (event: PointerEvent) => {
       if (event.target instanceof Node && !panel.current?.contains(event.target) &&
-          !anchor.contains(event.target)) onClose();
+          !currentMarker.current?.contains(event.target)) onClose();
     };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     document.addEventListener('pointerdown', outside, true);

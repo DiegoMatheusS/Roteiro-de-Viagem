@@ -737,6 +737,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       const open=()=>openRoadAlertRef.current(existing.get(alert.id)?.alert??alert,marker.getElement());
       const element=marker.getElement();
       if(element){
+        element.dataset.roadAlertId=alert.id;
         element.setAttribute('aria-label',`${roadAlertTitle(alert)}. ${alert.source==='pardal'?'Ver detalhes do radar':'Confirmar se ainda está no local'}`);
         const unbind=bindMapMarkerActivation(element,open);
         marker.once('remove',unbind);

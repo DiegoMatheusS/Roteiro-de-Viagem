@@ -25,10 +25,14 @@ try{
     assert.doesNotMatch(await dialog.innerText(),/colaboradores/i);
     assert.equal(await dialog.getByRole('button',{name:'Sim',exact:true}).count(),0);
     assert.equal(await dialog.getByRole('button',{name:'Não',exact:true}).count(),0);
-    const box=await dialog.boundingBox(),pin=await marker.boundingBox();
-    assert.ok(box&&pin);assert.ok(box.x>=0&&box.x+box.width<=390);
-    const gap=Math.max(pin.y-(box.y+box.height),box.y-(pin.y+pin.height));
-    assert.ok(gap>=2&&gap<=14,'The balloon stays close to the marker, above or below');
+    await page.waitForFunction(()=>{
+      const dialog=document.querySelector<HTMLElement>('[role="dialog"]');
+      const marker=document.querySelector<HTMLElement>('.road-alert-marker');
+      if(!dialog||!marker||getComputedStyle(dialog).visibility!=='visible')return false;
+      const box=dialog.getBoundingClientRect(),pin=marker.getBoundingClientRect();
+      const gap=Math.max(pin.top-box.bottom,box.top-pin.bottom);
+      return box.left>=0&&box.right<=390&&gap>=2&&gap<=14;
+    });
     await dialog.getByRole('heading').click();
     await dialog.waitFor({state:'visible'});
     return dialog;
