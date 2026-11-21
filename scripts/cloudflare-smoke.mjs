@@ -80,7 +80,7 @@ try{
   await start({RDV_BOOTSTRAP_ADMIN_EMAIL:'fixture-admin@example.invalid'});
   response=await request('/api/health');
   assert.equal(response.status,503);
-  assert.equal(response.headers.get('X-Ruavo-Health-Error'),'database-initialize');
+  assert.equal(response.headers.get('X-Ruavo-Health-Error'),'database-admin');
   assert.equal(response.headers.get('X-Ruavo-Health-Cause'),'admin-config');
   console.log('PASS: Cloudflare runtime, SQLite persistence, registration/session, CSRF, admin roles and traffic PNG delivery.');
 }finally{

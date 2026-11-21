@@ -29,13 +29,27 @@ interface Env{
 }
 const defaultDatabase='ruavo-production';
 const databaseId=(env:Env)=>env.RUAVO_DATABASE.idFromName(env.RUAVO_DATABASE_NAME||defaultDatabase);
-type HealthComponent='proxy-secret'|'public-app-url'|'database-binding'|'durable-object'|'database-initialize'|
+type StartupComponent='database-storage'|'database-schema'|'database-admin'|'database-api';
+type HealthComponent='proxy-secret'|'public-app-url'|'database-binding'|'durable-object'|StartupComponent|
   'database-restore'|'database-http'|'database-alarm';
+class DatabaseStartupError extends Error{
+  constructor(readonly component:StartupComponent,cause:unknown){
+    super('Falha ao abrir a API do banco.',{cause});
+  }
+}
 const healthCauses=[
   [/Configuração da conta administrativa inicial inválida/i,'admin-config'],
+  [/conta selecionada está bloqueada ou excluída/i,'admin-account-inactive'],
   [/já recebeu outro arquivo de restauração/i,'restore-file-conflict'],
   [/Arquivo de restauração ausente/i,'restore-file-unavailable'],
+  [/Migre o backup para o esquema atual/i,'legacy-alert-schema'],
   [/SQL is not (?:enabled|supported|available)|sqlite-backed Durable Objects/i,'sqlite-storage'],
+  [/database or disk is full|(?:quota|storage limit).*(?:exceeded|reached)/i,'storage-limit'],
+  [/no such (?:table|column|module)/i,'sqlite-missing-schema'],
+  [/database disk image is malformed|database corruption/i,'sqlite-corrupt'],
+  [/attempt to write a readonly database/i,'sqlite-readonly'],
+  [/database is locked/i,'sqlite-locked'],
+  [/not authorized|SQLITE_AUTH/i,'sqlite-unauthorized'],
   [/Durable Object class .*(?:not found|not exported|does not exist)|does not export a Durable Object class/i,'class-unavailable'],
   [/Durable Object .* (?:reset|restarted)/i,'actor-reset'],
   [/internal error/i,'runtime-internal'],
@@ -46,6 +60,8 @@ function healthCause(error:object){
     const message=error.message;
     const known=healthCauses.find(([pattern])=>pattern.test(message));
     if(known)return known[1];
+    const sqlCode=/\bSQLITE_[A-Z0-9_]{1,40}\b/.exec(message);
+    if(sqlCode)return sqlCode[0];
   }
   if('code' in error&&typeof error.code==='string'&&/^(?:ERR|SQLITE)_[A-Z0-9_]{1,48}$/.test(error.code))return error.code;
   if('retryable' in error&&error.retryable===true)return 'retryable';
@@ -77,19 +93,28 @@ export class RuavoDatabase extends DurableObject<Env>{
   private runtime?:ReturnType<RuavoDatabase['openDatabase']>;
   private restoration?:Promise<void>;
   private openDatabase(){
-    const {ctx,env}=this;
-    const db=durableSqlite(ctx.storage);
-    initializeDatabase(db);
-    if(!env.RUAVO_RESTORE_OBJECT)
-      bootstrapInitialAdmin(db,{email:env.RDV_BOOTSTRAP_ADMIN_EMAIL,passwordHash:env.RDV_BOOTSTRAP_ADMIN_HASH});
-    const sourceStore=sources(env.RADAR_SOURCES);
-    const api=createApi({db,migrateLocalPhotos:false,photoDirectory:'/tmp/ruavo-photos',
-      sanitizePhoto:bytes=>sanitizeEdgePhoto(env.IMAGES as unknown as PhotoImagesBinding,bytes),
-      backgroundTask:task=>ctx.waitUntil(task),
-      traffic:{key:()=>env.TOMTOM_TRAFFIC_API_KEY||'',redOnlyPng:edgeTrafficRedOnlyPng,
-        publicOrigin:req=>req.get('X-Ruavo-Api-Origin')||''},radarSourceStore:sourceStore});
-    const radarSync=createRadarSync(db,{enabled:env.PARDAL_ENABLED!=='0',sourceStore});
-    return {db,api,radarSync};
+    let component:StartupComponent='database-storage';
+    try{
+      const {ctx,env}=this;
+      const db=durableSqlite(ctx.storage);
+      db.prepare('SELECT 1').get();
+      component='database-schema';
+      initializeDatabase(db);
+      component='database-admin';
+      if(!env.RUAVO_RESTORE_OBJECT)
+        bootstrapInitialAdmin(db,{email:env.RDV_BOOTSTRAP_ADMIN_EMAIL,passwordHash:env.RDV_BOOTSTRAP_ADMIN_HASH});
+      component='database-api';
+      const sourceStore=sources(env.RADAR_SOURCES);
+      const api=createApi({db,migrateLocalPhotos:false,photoDirectory:'/tmp/ruavo-photos',
+        sanitizePhoto:bytes=>sanitizeEdgePhoto(env.IMAGES as unknown as PhotoImagesBinding,bytes),
+        backgroundTask:task=>ctx.waitUntil(task),
+        traffic:{key:()=>env.TOMTOM_TRAFFIC_API_KEY||'',redOnlyPng:edgeTrafficRedOnlyPng,
+          publicOrigin:req=>req.get('X-Ruavo-Api-Origin')||''},radarSourceStore:sourceStore});
+      const radarSync=createRadarSync(db,{enabled:env.PARDAL_ENABLED!=='0',sourceStore});
+      return {db,api,radarSync};
+    }catch(error){
+      throw new DatabaseStartupError(component,error);
+    }
   }
   private async restoreIfConfigured(db:ReturnType<typeof durableSqlite>){
     const key=this.env.RUAVO_RESTORE_OBJECT;
@@ -117,7 +142,7 @@ export class RuavoDatabase extends DurableObject<Env>{
     if(previous===null||previous>next)await this.ctx.storage.setAlarm(next);
   }
   async fetch(request:Request):Promise<Response>{
-    let component:HealthComponent='database-initialize';
+    let component:HealthComponent='database-storage';
     try{
       const runtime=this.runtime??=this.openDatabase();
       component='database-restore';
@@ -135,6 +160,7 @@ export class RuavoDatabase extends DurableObject<Env>{
     }catch(error){
       const url=new URL(request.url);
       if(url.pathname!=='/api/health')throw error;
+      if(error instanceof DatabaseStartupError)return unavailable(url,error.component,error.cause);
       return unavailable(url,component,error);
     }
   }
