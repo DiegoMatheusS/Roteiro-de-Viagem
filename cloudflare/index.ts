@@ -28,9 +28,13 @@ interface Env{
 }
 const defaultDatabase='ruavo-production';
 const databaseId=(env:Env)=>env.RUAVO_DATABASE.idFromName(env.RUAVO_DATABASE_NAME||defaultDatabase);
-function unavailable(url:URL,component:'proxy-secret'|'public-app-url'|'durable-object'){
+type HealthComponent='proxy-secret'|'public-app-url'|'durable-object'|'database-restore'|'database-http'|'database-alarm';
+function unavailable(url:URL,component:HealthComponent,error?:unknown){
   const headers=new Headers({'Cache-Control':'no-store'});
-  if(url.pathname==='/api/health')headers.set('X-Ruavo-Health-Error',component);
+  if(url.pathname==='/api/health'){
+    headers.set('X-Ruavo-Health-Error',component);
+    if(error)console.error('RUAVO health failure',component,error);
+  }
   return Response.json({error:'O servidor ainda não está configurado.'},{status:503,headers});
 }
 const validOrigin=(value:string|undefined)=>{
@@ -87,13 +91,24 @@ export class RuavoDatabase{
     if(previous===null||previous>next)await this.ctx.storage.setAlarm(next);
   }
   async fetch(request:Request):Promise<Response>{
-    await this.restoreIfConfigured();
-    const context={waitUntil:(task:Promise<unknown>)=>this.ctx.waitUntil(task),passThroughOnException(){},props:{}};
-    const server=createServer(this.api);
+    let component:HealthComponent='database-restore';
     try{
-      const response=await httpServerHandler(server).fetch(request,this.env,context);
-      await this.schedule();return response;
-    }finally{server.close();}
+      await this.restoreIfConfigured();
+      component='database-http';
+      const context={waitUntil:(task:Promise<unknown>)=>this.ctx.waitUntil(task),passThroughOnException(){},props:{}};
+      const server=createServer(this.api);
+      try{
+        const response=await httpServerHandler(server).fetch(request,this.env,context);
+        component='database-alarm';
+        await this.schedule();
+        component='database-http';
+        return response;
+      }finally{server.close();}
+    }catch(error){
+      const url=new URL(request.url);
+      if(url.pathname!=='/api/health')throw error;
+      return unavailable(url,component,error);
+    }
   }
   async alarm(){
     if(this.ctx.id.toString()!==databaseId(this.env).toString())return;
@@ -122,6 +137,6 @@ export default {
       // Importable Cloudflare types include platform-only extensions. This is
       // the same standard Request object at the runtime boundary.
       return await object.fetch(new Request(request,{headers}) as unknown as WorkerRequest) as unknown as Response;
-    }catch{return unavailable(url,'durable-object');}
+    }catch(error){return unavailable(url,'durable-object',error);}
   },
 };
