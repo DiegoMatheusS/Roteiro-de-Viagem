@@ -9,6 +9,7 @@ import {bootstrapInitialAdmin} from '../server/bootstrap-admin';
 import {createRadarSync,type RadarSourceStore} from '../server/radars';
 import {durableSqlite} from './sqlite';
 import {edgeTrafficRedOnlyPng,sanitizeEdgePhoto,type PhotoImagesBinding} from './images';
+import {restoreFromR2} from './restore';
 
 interface Env{
   RUAVO_DATABASE:DurableObjectNamespace;
@@ -22,7 +23,11 @@ interface Env{
   TOMTOM_TRAFFIC_API_KEY?:string;
   RDV_BOOTSTRAP_ADMIN_EMAIL?:string;
   RDV_BOOTSTRAP_ADMIN_HASH?:string;
+  RUAVO_DATABASE_NAME?:string;
+  RUAVO_RESTORE_OBJECT?:string;
 }
+const defaultDatabase='ruavo-production';
+const databaseId=(env:Env)=>env.RUAVO_DATABASE.idFromName(env.RUAVO_DATABASE_NAME||defaultDatabase);
 const unavailable=()=>Response.json({error:'O servidor ainda não está configurado.'},{status:503,headers:{'Cache-Control':'no-store'}});
 const validOrigin=(value:string|undefined)=>{
   try{const url=new URL(value||'');return url.protocol==='https:'&&url.origin===value&&!url.username&&!url.password;}catch{return false;}
@@ -38,10 +43,12 @@ export class RuavoDatabase{
   private readonly db;
   private readonly api;
   private readonly radarSync;
+  private restoration?:Promise<void>;
   constructor(private readonly ctx:DurableObjectState,private readonly env:Env){
     this.db=durableSqlite(ctx.storage);
     initializeDatabase(this.db);
-    bootstrapInitialAdmin(this.db,{email:env.RDV_BOOTSTRAP_ADMIN_EMAIL,passwordHash:env.RDV_BOOTSTRAP_ADMIN_HASH});
+    if(!env.RUAVO_RESTORE_OBJECT)
+      bootstrapInitialAdmin(this.db,{email:env.RDV_BOOTSTRAP_ADMIN_EMAIL,passwordHash:env.RDV_BOOTSTRAP_ADMIN_HASH});
     const sourceStore=sources(env.RADAR_SOURCES);
     this.api=createApi({db:this.db,migrateLocalPhotos:false,photoDirectory:'/tmp/ruavo-photos',
       sanitizePhoto:bytes=>sanitizeEdgePhoto(env.IMAGES as unknown as PhotoImagesBinding,bytes),
@@ -49,6 +56,15 @@ export class RuavoDatabase{
       traffic:{key:()=>env.TOMTOM_TRAFFIC_API_KEY||'',redOnlyPng:edgeTrafficRedOnlyPng,
         publicOrigin:req=>req.get('X-Ruavo-Api-Origin')||''},radarSourceStore:sourceStore});
     this.radarSync=createRadarSync(this.db,{enabled:env.PARDAL_ENABLED!=='0',sourceStore});
+  }
+  private async restoreIfConfigured(){
+    const key=this.env.RUAVO_RESTORE_OBJECT;
+    if(!key)return;
+    this.restoration??=restoreFromR2(this.db,this.env.RADAR_SOURCES,key).catch(error=>{
+      this.restoration=undefined;
+      throw error;
+    });
+    await this.restoration;
   }
   private async schedule(){
     const times:number[]=[];
@@ -67,6 +83,7 @@ export class RuavoDatabase{
     if(previous===null||previous>next)await this.ctx.storage.setAlarm(next);
   }
   async fetch(request:Request):Promise<Response>{
+    await this.restoreIfConfigured();
     const context={waitUntil:(task:Promise<unknown>)=>this.ctx.waitUntil(task),passThroughOnException(){},props:{}};
     const server=createServer(this.api);
     try{
@@ -75,6 +92,8 @@ export class RuavoDatabase{
     }finally{server.close();}
   }
   async alarm(){
+    if(this.ctx.id.toString()!==databaseId(this.env).toString())return;
+    await this.restoreIfConfigured();
     try{await this.radarSync.run();await this.api.locals.feedbackMail.flush();}
     finally{await this.schedule();}
   }
@@ -94,7 +113,7 @@ export default {
     headers.set('X-Ruavo-Api-Origin',url.origin);
     if(isIP(client))headers.set('X-Rdv-Client-Ip',client);
     try{
-      const object=env.RUAVO_DATABASE.get(env.RUAVO_DATABASE.idFromName('ruavo-production'));
+      const object=env.RUAVO_DATABASE.get(databaseId(env));
       // Importable Cloudflare types include platform-only extensions. This is
       // the same standard Request object at the runtime boundary.
       return await object.fetch(new Request(request,{headers}) as unknown as WorkerRequest) as unknown as Response;

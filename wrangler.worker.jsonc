@@ -7,6 +7,7 @@
   "compatibility_date":"2026-11-19",
   "compatibility_flags":["nodejs_compat"],
   "workers_dev":true,
+  "keep_vars":true,
   "observability":{"enabled":true},
   "durable_objects":{"bindings":[{"name":"RUAVO_DATABASE","class_name":"RuavoDatabase"}]},
   "migrations":[{"tag":"v1","new_sqlite_classes":["RuavoDatabase"]}],

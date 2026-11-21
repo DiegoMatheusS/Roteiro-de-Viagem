@@ -83,6 +83,29 @@ O CSV verificado dos radares é salvo no R2 antes da troca transacional da base.
 Falhas preservam a geração anterior. Alarmes consultam a data mensal salva no
 banco e retomam as tentativas de e-mail; não dependem de um processo sempre ativo.
 
+## Restaurar o backup do Railway
+
+Gere o arquivo de restauração a partir de uma cópia privada do SQLite:
+
+```bash
+node --import tsx scripts/export-cloudflare-restore.mjs roteiro.sqlite restauracao.json
+```
+
+Envie o JSON para o bucket privado `ruavo-radar-sources`. No Worker
+`ruavo-api`, adicione a variável de execução `RUAVO_RESTORE_OBJECT` em
+**Production**, com o nome exato do arquivo enviado ao bucket.
+
+Salve a variável e acesse `/api/health`. O Worker importa o backup em uma
+transação e responde com `{"ok":true}` após concluir. A restauração exige
+um banco sem dados do app e mantém o catálogo de radares já sincronizado.
+Para usar uma instância nova, configure também `RUAVO_DATABASE_NAME` no mesmo
+salvamento. Use esse nome no Data Studio durante a conferência e preserve a
+variável para continuar usando a instância restaurada.
+
+Confira as contagens e a tabela `ruavo_restore` no Data Studio antes de
+trocar a origem dos sites. Remova `RUAVO_RESTORE_OBJECT` após validar o
+banco. Mantenha o arquivo de restauração em acesso privado.
+
 ## Ligar os sites e o Android
 
 1. Nos projetos Pages público e administrativo, configure `RDV_BACKEND_ORIGIN`
