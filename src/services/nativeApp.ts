@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { DeviceLocation } from './locationService';
+import type { AndroidChannel } from './androidUpdatePolicy';
 export const isNativeApp = () => Capacitor.isNativePlatform();
 export const TravelNative = registerPlugin<{
   request(options: { path: string; method: string; body?: string; form?: { name: string; value?: string; data?: string; mime?: string }[]; binary?: boolean }): Promise<{ status: number; body: string }>;
@@ -8,6 +9,8 @@ export const TravelNative = registerPlugin<{
   state(): Promise<{ tripId: string; lastTripId?:string; stoppedTripId?:string; convoyId?: string; stoppedLocationToken?:string; distanceKm: number; running: boolean; position?: DeviceLocation; deviceHeadingDegrees?:number|null }>;
   setConvoy(options: { convoyId: string; enabled: boolean; locationToken?: string }): Promise<void>;
   diagnostics():Promise<{preciseLocation:boolean;approximateLocation:boolean;gpsEnabled:boolean;notificationsEnabled:boolean;tracking:boolean;apiConfigured:boolean;androidVersion:string;appVersion:string}>;
+  installedAndroidBuild():Promise<{versionCode:number;channel:AndroidChannel}>;
+  openAndroidUpdate(options:{url:string}):Promise<void>;
   openDeviceSettings(options:{section:'app'|'location'|'notifications'}):Promise<void>;
   openExternal(options:{url:string}):Promise<void>;
   copyText(options:{text:string}):Promise<void>;

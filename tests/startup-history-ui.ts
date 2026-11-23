@@ -101,5 +101,47 @@ try{
     'a preferência de ícones permanece após reabrir o aplicativo');
   await page.getByText('O Explorar continua mostrando todos os ícones disponíveis.',{exact:false}).waitFor();
   assert.deepEqual(errors,[]);
+  const android=await browser.newPage({viewport:{width:390,height:844}});
+  const downloadUrl='https://ruavo.example/RUAVO-teste.apk';
+  await android.addInitScript(downloadUrl=>{
+    const bridge=window as any;
+    const calls={requests:[] as string[],links:[] as string[]};
+    bridge.__androidUpdateCalls=calls;
+    bridge.androidBridge={};
+    bridge.Capacitor={
+      PluginHeaders:[{name:'TravelNative',methods:['installedAndroidBuild','request','openAndroidUpdate','stopTracking']
+        .map(name=>({name,rtype:'promise'}))}],
+      async nativePromise(_plugin:string,method:string,options:{path:string;url:string}){
+        if(method==='installedAndroidBuild')
+          return {channel:'debug',versionCode:Number(localStorage.getItem('fixture-android-build')??'19')};
+        if(method==='openAndroidUpdate'){calls.links.push(options.url);return;}
+        if(method==='request'){
+          calls.requests.push(options.path);
+          if(options.path==='/android/update?channel=debug'){
+            if(localStorage.getItem('fixture-android-offline')==='yes')throw Error('Offline');
+            return {status:200,body:JSON.stringify({update:{minVersionCode:20,downloadUrl}})};
+          }
+          return {status:200,body:JSON.stringify({user:null,places:[],stations:[]})};
+        }
+      }
+    };
+  },downloadUrl);
+  await android.route(/^https:\/\//,route=>route.abort());
+  await android.goto('http://127.0.0.1:3000/');
+  const required=android.getByRole('heading',{name:'Atualização obrigatória',exact:true});
+  await required.waitFor();
+  assert.deepEqual(await android.evaluate(()=>(window as any).__androidUpdateCalls.requests),['/android/update?channel=debug']);
+  assert.equal(await android.getByRole('button',{name:'Aba Viagens',exact:true}).count(),0);
+  await android.getByRole('button',{name:'Atualizar agora',exact:true}).click();
+  assert.deepEqual(await android.evaluate(()=>(window as any).__androidUpdateCalls.links),[downloadUrl]);
+  await android.evaluate(()=>localStorage.setItem('fixture-android-offline','yes'));
+  await android.reload();
+  await required.waitFor();
+  await android.evaluate(()=>localStorage.setItem('fixture-android-build','20'));
+  await android.reload();
+  await android.getByRole('button',{name:'Aba Viagens',exact:true}).waitFor();
+  assert.equal(await required.count(),0,'a versão instalada igual ao mínimo libera a navegação offline');
+  await android.close();
   console.log('PASS: abertura branca com logo pulsando antes do JS e durante hidratação, sem mapa/GPS; cancelar exclusão preserva histórico e confirmar remove só a viagem escolhida.');
+  console.log('PASS: atualização Android bloqueia a versão anterior, abre o download e libera o app após instalar a versão mínima.');
 }finally{releaseMain();releaseAuth();await browser?.close();await vite.close();}

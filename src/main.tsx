@@ -4,6 +4,7 @@ import './index.css';
 import 'leaflet/dist/leaflet.css';
 import { AuthProvider } from './contexts/AuthContext';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { AndroidUpdateGate } from './components/AndroidUpdateGate';
 
 const SharedRoutePage = lazy(() => import('./components/SharedRoutePage'));
 // Only local development loads the admin UI for legacy smoke tests. The production
@@ -27,4 +28,4 @@ function AppEntry() {
   return <App />;
 }
 
-createRoot(document.getElementById('root')!).render(<AuthProvider><AppEntry /></AuthProvider>);
+createRoot(document.getElementById('root')!).render(<AndroidUpdateGate><AuthProvider><AppEntry /></AuthProvider></AndroidUpdateGate>);
