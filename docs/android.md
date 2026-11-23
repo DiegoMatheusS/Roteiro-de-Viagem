@@ -61,6 +61,18 @@ Se o armazenamento de artifacts do GitHub estiver cheio, é preciso liberar arti
 
 Pushes na branch `main` também geram o pacote de teste conectado. A pasta `android-dist` contém APK/AAB de preparação, assinados apenas com a chave descartável de CI, e o `apksigner.jar` para aplicar a chave definitiva fora do runner. Os arquivos `roteiro-para-assinar` precisam ser assinados pelo proprietário antes da distribuição; a chave privada definitiva nunca é incluída nesses artefatos.
 
+## Atualização obrigatória
+
+O RUAVO consulta a versão mínima na abertura do Android. Quando a versão instalada fica abaixo do mínimo, a tela **Atualização obrigatória** abre o endereço oficial ao tocar em **Atualizar agora**. A regra é independente para o APK de teste (`debug`) e para o app de distribuição (`release`).
+
+Depois de publicar a versão assinada e conferir que o endereço já permite instalá-la, configure **Workers → ruavo-api → Settings → Runtime variables and secrets**. Adicione a variável de texto `RUAVO_ANDROID_UPDATES` com um JSON como este, substituindo a versão e o endereço pelos da publicação.
+
+```json
+{"release":{"minVersionCode":54,"downloadUrl":"https://play.google.com/store/apps/details?id=br.com.roteirodeviagem.app"}}
+```
+
+Use `debug` para publicar uma regra do APK de teste, com o endereço HTTPS desse pacote. Para liberar um canal, retire sua entrada do JSON. A última regra confirmada funciona offline. Uma primeira abertura sem conexão segue com o acesso offline do app. A tela passa a valer para os APKs que já têm a verificação de atualização.
+
 ## Testes automatizados
 
 **Validar Android** compila APK debug, testes instrumentados, APK release e AAB. O release de CI usa uma chave descartável, apaga esses pacotes ao terminar e não serve para instalação ou publicação; a distribuição usa a chave do proprietário.

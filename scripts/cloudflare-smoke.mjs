@@ -48,6 +48,11 @@ try{
   await start();
   let response=await request('/api/health');
   assert.equal(response.status,200,await response.text());
+  response=await request('/api/android/update?channel=debug');
+  assert.equal(response.headers.get('Cache-Control'),'no-store');
+  assert.deepEqual(await response.json(),{update:null});
+  assert.equal((await request('/api/android/update?channel=invalid')).status,400);
+  assert.equal((await request('/api/android/update?channel=debug',{})).status,405);
   assert.equal((await request('/api/auth/register',{},'','https://untrusted.example')).status,403);
   response=await request('/api/auth/register',{email:'worker@example.invalid',displayName:'Teste Worker',password:'fixture-password-123'});
   assert.equal(response.status,201,await response.clone().text());
@@ -71,17 +76,26 @@ try{
     'redirecionamentos da TomTom nunca levam a chave para outro domínio');
   assert.equal((await request('/api/admin/summary',undefined,cookie)).status,403);
   await runtime.dispose();runtime=null;
-  await start();
+  const debugUpdate={minVersionCode:853,downloadUrl:'https://ruavo-test.example/RUAVO-teste.apk'};
+  const releaseUpdate={minVersionCode:54,downloadUrl:'https://play.google.com/store/apps/details?id=br.com.roteirodeviagem.app'};
+  await start({RUAVO_ANDROID_UPDATES:JSON.stringify({debug:debugUpdate,release:releaseUpdate})});
+  assert.deepEqual(await (await request('/api/android/update?channel=debug')).json(),{update:debugUpdate});
+  assert.deepEqual(await (await request('/api/android/update?channel=release')).json(),{update:releaseUpdate});
   response=await request('/api/auth/me',undefined,cookie);
   assert.equal((await response.json()).user.displayName,'Teste Worker','a conta e a sessão sobrevivem ao reinício');
   assert.equal((await request('/api/auth/logout',{},cookie)).status,200);
   assert.equal((await (await request('/api/auth/me',undefined,cookie)).json()).user,null);
   await runtime.dispose();runtime=null;
-  await start({RDV_BOOTSTRAP_ADMIN_EMAIL:'fixture-admin@example.invalid'});
+  await start({RDV_BOOTSTRAP_ADMIN_EMAIL:'fixture-admin@example.invalid',RUAVO_ANDROID_UPDATES:JSON.stringify({
+    debug:debugUpdate,release:{...releaseUpdate,downloadUrl:'http://ruavo-test.example/RUAVO.apk'}
+  })});
   response=await request('/api/health');
   assert.equal(response.status,503);
   assert.equal(response.headers.get('X-Ruavo-Health-Error'),'database-admin');
   assert.equal(response.headers.get('X-Ruavo-Health-Cause'),'admin-config');
+  assert.deepEqual(await (await request('/api/android/update?channel=debug')).json(),{update:debugUpdate},
+    'a consulta de atualização funciona durante uma falha do banco');
+  assert.equal((await request('/api/android/update?channel=release')).status,503);
   console.log('PASS: Cloudflare runtime, SQLite persistence, registration/session, CSRF, admin roles and traffic PNG delivery.');
 }finally{
   if(runtime)await runtime.dispose();

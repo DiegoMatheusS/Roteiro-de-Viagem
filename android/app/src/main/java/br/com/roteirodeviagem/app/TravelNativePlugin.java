@@ -56,7 +56,11 @@ public class TravelNativePlugin extends Plugin {
         String base = origin(), path = call.getString("path", ""), method = call.getString("method", "GET");
         if (!path.startsWith("/") || path.startsWith("//") || path.contains("..") || !method.matches("GET|POST|PUT|PATCH|DELETE")) throw new Exception("Solicitação inválida.");
         URL url = new URL(base + "/api" + path); connection = (HttpURLConnection)url.openConnection();
-        connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(15000); connection.setReadTimeout(30000); connection.setRequestMethod(method);
+        boolean checkingUpdate = method.equals("GET") && path.startsWith("/android/update?");
+        connection.setInstanceFollowRedirects(false);
+        connection.setConnectTimeout(checkingUpdate ? 1500 : 15000);
+        connection.setReadTimeout(checkingUpdate ? 1500 : 30000);
+        connection.setRequestMethod(method);
         String cookie = CookieManager.getInstance().getCookie(url.toString()); if (cookie != null) connection.setRequestProperty("Cookie", cookie);
         JSArray form = call.getArray("form"); String body = call.getString("body");
         if (form != null && form.length()>0) {
@@ -134,6 +138,29 @@ public class TravelNativePlugin extends Plugin {
     result.put("tracking",TravelLocationService.running);result.put("androidVersion",Build.VERSION.RELEASE);
     try { result.put("appVersion",getContext().getPackageManager().getPackageInfo(getContext().getPackageName(),0).versionName); }catch(Exception ignored) {result.put("appVersion","");}
     try {origin();result.put("apiConfigured",true);}catch(Exception ignored){result.put("apiConfigured",false);}call.resolve(result);
+  }
+  @PluginMethod public void installedAndroidBuild(PluginCall call) {
+    try {
+      String packageName = getContext().getPackageName();
+      android.content.pm.PackageInfo info = getContext().getPackageManager().getPackageInfo(packageName, 0);
+      JSObject result = new JSObject();
+      result.put("versionCode", Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode);
+      result.put("channel", packageName.endsWith(".debug") ? "debug" : "release");
+      call.resolve(result);
+    } catch (PackageManager.NameNotFoundException error) {
+      call.reject("Não foi possível identificar a versão do aplicativo.");
+    }
+  }
+  @PluginMethod public void openAndroidUpdate(PluginCall call) {
+    Uri link = Uri.parse(call.getString("url", ""));
+    try {
+      if (!"https".equals(link.getScheme()) || link.getHost() == null || link.getUserInfo() != null ||
+          (link.getPort() != -1 && link.getPort() != 443)) throw new IllegalArgumentException();
+      getActivity().startActivity(new Intent(Intent.ACTION_VIEW, link));
+      call.resolve();
+    } catch (Exception error) {
+      call.reject("Não foi possível abrir o link de atualização.");
+    }
   }
   @PluginMethod public void openDeviceSettings(PluginCall call) {
     String section=call.getString("section","app");Intent intent;

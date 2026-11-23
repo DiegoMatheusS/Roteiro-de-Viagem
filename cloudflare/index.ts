@@ -11,6 +11,7 @@ import {createRadarSync,type RadarSourceStore} from '../server/radars';
 import {durableSqlite} from './sqlite';
 import {edgeTrafficRedOnlyPng,sanitizeEdgePhoto,type PhotoImagesBinding} from './images';
 import {restoreFromR2} from './restore';
+import {isAndroidChannel,parseAndroidUpdatePolicy} from '../src/services/androidUpdatePolicy';
 
 interface Env{
   RUAVO_DATABASE:DurableObjectNamespace;
@@ -26,6 +27,7 @@ interface Env{
   RDV_BOOTSTRAP_ADMIN_HASH?:string;
   RUAVO_DATABASE_NAME?:string;
   RUAVO_RESTORE_OBJECT?:string;
+  RUAVO_ANDROID_UPDATES?:string;
 }
 const defaultDatabase='ruavo-production';
 const databaseId=(env:Env)=>env.RUAVO_DATABASE.idFromName(env.RUAVO_DATABASE_NAME||defaultDatabase);
@@ -177,6 +179,21 @@ export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const url=new URL(request.url);
     if(url.pathname!=='/api'&&!url.pathname.startsWith('/api/'))return new Response('RUAVO API',{status:404});
+    if(url.pathname==='/api/android/update'){
+      const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
+      if(request.method!=='GET')return Response.json({error:'Método não permitido.'},{status:405,headers:{...headers,Allow:'GET'}});
+      const channel=url.searchParams.get('channel');
+      if(!isAndroidChannel(channel))return Response.json({error:'Canal Android inválido.'},{status:400,headers});
+      try{
+        const config=JSON.parse(env.RUAVO_ANDROID_UPDATES||'{}');
+        const rule=config?.[channel];
+        const update=parseAndroidUpdatePolicy(rule);
+        if(rule!=null&&!update)throw new Error('Regra inválida');
+        return Response.json({update},{headers});
+      }catch{
+        return Response.json({error:'Configuração de atualização inválida.'},{status:503,headers});
+      }
+    }
     if(!env.WEB_PROXY_SECRET||env.WEB_PROXY_SECRET.length<32)return unavailable(url,'proxy-secret');
     if(!validOrigin(env.PUBLIC_APP_URL))return unavailable(url,'public-app-url');
     if(!env.RUAVO_DATABASE)return unavailable(url,'database-binding');
