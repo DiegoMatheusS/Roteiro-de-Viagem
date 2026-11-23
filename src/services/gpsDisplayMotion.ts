@@ -1,5 +1,5 @@
 import type {CameraPoint} from './mapCameraController';
-import {shortestHeadingTransition} from './gpsHeading';
+import {shortestHeadingTransition,validGpsHeading} from './gpsHeading';
 import {navigationRoadHeading} from './navigationRoadHeading';
 
 export interface GpsDisplayInput {
@@ -31,8 +31,26 @@ const valid=(point?:CameraPoint):point is CameraPoint=>Boolean(point&&point.leng
   point.every(Number.isFinite)&&Math.abs(point[0])<=90&&Math.abs(point[1])<=180);
 const same=(a?:CameraPoint,b?:CameraPoint)=>a?.[0]===b?.[0]&&a?.[1]===b?.[1];
 const normalized=(angle:number)=>(angle%360+360)%360;
+const headingDifference=(a:number,b:number)=>Math.abs(shortestHeadingTransition(a,b)-a);
 const distance=(a:CameraPoint,b:CameraPoint)=>Math.hypot((a[0]-b[0])*111320,
   (a[1]-b[1])*111320*Math.cos(a[0]*Math.PI/180));
+const pointsToward=(angle:number,next:number,previous:number)=>
+  headingDifference(angle,next)<=45&&headingDifference(angle,next)<headingDifference(angle,previous);
+
+function confirmsTurn(origin:CameraPoint,position:CameraPoint,next:number,previous:number,input:GpsDisplayInput){
+  const north=(position[0]-origin[0])*111320;
+  const east=(position[1]-origin[1])*111320*Math.cos(origin[0]*Math.PI/180);
+  const course=validGpsHeading(input.headingDegrees,input.speedMetersPerSecond);
+  const accuracy=Number.isFinite(input.accuracyMeters)?input.accuracyMeters!:12;
+  const agreesWithCourse=course!==null&&pointsToward(course,next,previous);
+  const minimumMeters=agreesWithCourse?2:Math.max(6,Math.min(24,accuracy*1.5));
+  if(Math.hypot(north,east)<minimumMeters)return false;
+  const displacementHeading=normalized(Math.atan2(east,north)*180/Math.PI);
+  // A fix spanning a corner can move diagonally while the reported course
+  // already points along the new street.
+  return agreesWithCourse?headingDifference(displacementHeading,next)<=65:
+    pointsToward(displacementHeading,next,previous);
+}
 
 /** Presentation only: interpolate received positions and road directions,
  * never extrapolate. Raw GPS still owns guidance, distance, speed and sharing.
@@ -44,6 +62,7 @@ export function createGpsDisplayMotion(paint:(point:CameraPoint,heading?:number)
   let lastPath:CameraPoint[]|undefined;
   let startedAt=0,duration=0,receivedAt:number|undefined,sampleTime:number|undefined;
   let stationaryAnchor:CameraPoint|undefined;
+  let pendingTurn:{heading:number;origin:CameraPoint}|undefined;
   let frame:number|null=null,destroyed=false;
   let hidden=typeof document!=='undefined'&&document.hidden;
   const cancel=()=>{if(frame!==null)clock.cancel(frame);frame=null;};
@@ -66,7 +85,7 @@ export function createGpsDisplayMotion(paint:(point:CameraPoint,heading?:number)
   };
   const clear=()=>{
     cancel();from=target=raw=stationaryAnchor=undefined;
-    fromHeading=targetHeading=undefined;lastPath=undefined;
+    fromHeading=targetHeading=undefined;lastPath=undefined;pendingTurn=undefined;
     receivedAt=sampleTime=undefined;duration=0;
   };
   const visibility=()=>{hidden=document.hidden;clear();};
@@ -95,15 +114,31 @@ export function createGpsDisplayMotion(paint:(point:CameraPoint,heading?:number)
       const ignoreJitter=stopped&&stationaryAnchor&&distance(stationaryAnchor,point)<=jitterRadius;
       if(!stopped)stationaryAnchor=undefined;
       else if(!ignoreJitter)stationaryAnchor=[...point];
+      const previousFix=raw;
       raw=[...point];receivedAt=now;sampleTime=timestamp;lastPath=input.routePath;
       if(ignoreJitter&&input.enabled&&!input.reducedMotion&&!routeChanged)return snapshot();
       const next=ignoreJitter?stationaryAnchor!:point;
       const roadHeading=input.enabled?navigationRoadHeading(input.routePath,next,input.headingDegrees,
         input.speedMetersPerSecond,input.accuracyMeters,input.travelledKm,input.totalKm):null;
-      const heading=roadHeading??previous.headingDegrees;
       const disconnected=elapsed>4000||interval>4000;
       const jump=previous.position&&distance(previous.position,next)>
         Math.max(100,Math.max(0,input.speedMetersPerSecond??0)*3);
+      const previousHeading=previous.targetHeadingDegrees;
+      let heading=roadHeading??previousHeading;
+      if(previousHeading!==undefined&&roadHeading!==null&&headingDifference(previousHeading,roadHeading)>=15){
+        heading=previousHeading;
+        if(previousFix&&!duplicate&&!stopped&&!disconnected&&!jump){
+          // The nearest segment can be across the corner for a single noisy
+          // fix. Accumulate real displacement for slow turns too.
+          if(!pendingTurn||headingDifference(pendingTurn.heading,roadHeading)>30||routeChanged)
+            pendingTurn={heading:roadHeading,origin:previousFix};
+          if(confirmsTurn(pendingTurn.origin,next,roadHeading,previousHeading,input)){
+            heading=roadHeading;
+            pendingTurn=undefined;
+          }
+        }else if(!duplicate)pendingTurn=undefined;
+      }else pendingTurn=undefined;
+      if(stopped&&previousHeading!==undefined)heading=previousHeading;
       const animate=input.enabled&&!input.reducedMotion&&previous.position&&!disconnected&&!jump&&
         (!same(previous.position,next)||(heading!==undefined&&heading!==previous.headingDegrees));
       cancel();from=animate?previous.position:[...next];target=[...next];startedAt=now;

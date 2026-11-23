@@ -324,8 +324,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         navigationMode:p.navigationMode??false,roadStyle:p.roadStyle??false});
       if(p.navigationMode&&motion.targetHeadingDegrees!==undefined){
         course=updateMapCourse(course,motion.targetHeadingDegrees,null);
-        bearing=courseModeRef.current?(course??0):0;
       }
+      bearing=p.navigationMode&&courseModeRef.current?(course??0):0;
       camera.update({navigationMode:p.navigationMode??false,followUser:p.followUser??true,
         position:p.userLiveCoords?motion.target:undefined,followDurationMs:motion.durationMs,
         centerRequest:p.centerOnUserRequest||0,reducedMotion:reducedMotion(),bearing,
@@ -345,9 +345,6 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         lastCenterRequest=p.centerOnUserRequest??0;
         courseModeRef.current=true;setCourseMode(true);
       }
-      course=updateMapCourse(course,p.navigationMode?p.userHeadingDegrees:p.userDeviceHeadingDegrees??p.userHeadingDegrees,
-        p.navigationMode||p.userDeviceHeadingDegrees==null?p.userSpeedMetersPerSecond:null);
-      bearing=p.navigationMode&&courseModeRef.current?(course??0):0;
       try{
         refreshRoadAlerts();
         if(!loaded||!map.isStyleLoaded()){
@@ -537,8 +534,6 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       orient:()=>{
       if(disposed||failed||!loaded||!latest.current.navigationMode||camera.snapshot().mode!=='exploring')return;
       // Explicit orientation must also work while route tiles are loading.
-      const p=latest.current;
-      course=updateMapCourse(course,navigation.liveMotion().targetHeadingDegrees??p.userHeadingDegrees,p.userSpeedMetersPerSecond);
       bearing=courseModeRef.current?(course??0):0;
       orientMapLibreCamera(map,bearing,reducedMotion());
     }};

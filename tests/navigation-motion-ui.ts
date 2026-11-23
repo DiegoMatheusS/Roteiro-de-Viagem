@@ -69,12 +69,24 @@ try{
       `${engine}: traffic must update during GPS follow, without waiting for moveend (${firstFullTraffic-sampledAt} ms)`);
     assert.equal(await page.getByTestId('raw-latitude').textContent(),'-23.5499','interpolation never rewrites the real GPS fix');
     assert.equal(await page.locator('.user-live-marker').evaluate(element=>element===(window as any).__originalMotionMarker),true);
-    // Position and road bearing share the same clock through a real 90° turn.
-    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.54964,lon:-46.63,timestamp:22000,speed:10,heading:0}));
+    const assertFacingNorth=async()=>{
+      const style=await page.locator('.user-live-marker svg').evaluate(el=>(el as SVGElement).style.transform);
+      assert.equal(style,'rotate(0deg)',`${engine}: a noisy fix cannot turn the arrow`);
+      if(!fallback)assert.ok(Math.abs(Number(await page.locator('[data-map-engine]').getAttribute('data-map-bearing')))<.1,
+        'a noisy fix cannot rotate the driving map');
+    };
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.54983,lon:-46.63,timestamp:21750,speed:10,heading:179}));
+    await page.waitForTimeout(1000);
+    await assertFacingNorth();
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.54964,lon:-46.63,timestamp:22750,speed:10,heading:0}));
     await page.waitForTimeout(1100);
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.54962,lon:-46.62994,timestamp:23750,speed:10,heading:2}));
+    await page.waitForTimeout(1100);
+    await assertFacingNorth();
+    // Position and road bearing share the same clock through a real 90° turn.
     const angles=await page.evaluate(async()=>{
       const api=(window as any).__navigationMotion;const start=performance.now(),angles:number[]=[];
-      api.setFix({lat:-23.5496,lon:-46.6299,timestamp:23000,speed:10,heading:90});
+      api.setFix({lat:-23.5496,lon:-46.6299,timestamp:24750,speed:10,heading:90});
       await new Promise<void>(resolve=>{
         const frame=()=>{
           angles.push(Number(document.querySelector<SVGElement>('.user-live-marker svg')?.style.transform.match(/rotate\(([-.\d]+)deg\)/)?.[1]));
@@ -84,15 +96,16 @@ try{
     });
     assert.ok(angles.some(angle=>angle>10&&angle<80),`${engine}: arrow sweeps through intermediate turn angles`);
     assert.ok(Math.abs(angles.at(-1)!-90)<.1,`${engine}: arrow ends aligned to the new street`);
+    if(!fallback)await page.waitForFunction(()=>Math.abs(Number(document.querySelector<HTMLElement>('[data-map-engine]')?.dataset.mapBearing)-90)<.1);
     // Stop jitter and loss during an animation must not drag the viewport.
-    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6299,timestamp:24000,speed:0,heading:240}));
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6299,timestamp:25750,speed:0,heading:240}));
     await page.waitForTimeout(1100);
     const stopped=await page.locator('.map-destination-dot').boundingBox();assert.ok(stopped);
-    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.54957,lon:-46.6299,timestamp:25000,speed:0,heading:270}));
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.54957,lon:-46.6299,timestamp:26750,speed:0,heading:270}));
     await page.waitForTimeout(1100);
     const jitter=await page.locator('.map-destination-dot').boundingBox();assert.ok(jitter);
     assert.ok(Math.hypot(stopped.x-jitter.x,stopped.y-jitter.y)<1,`${engine}: stationary noise is suppressed`);
-    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6298,timestamp:26000,speed:10,heading:90}));
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6298,timestamp:27750,speed:10,heading:90}));
     await page.waitForTimeout(300);
     await page.evaluate(()=>{(window as any).__motionHidden=true;document.dispatchEvent(new Event('visibilitychange'));});
     await page.waitForTimeout(100);
@@ -102,13 +115,13 @@ try{
     assert.ok(Math.hypot(background.x-still.x,background.y-still.y)<1,`${engine}: background stops the old trajectory`);
     await page.evaluate(()=>{
       (window as any).__motionHidden=false;document.dispatchEvent(new Event('visibilitychange'));
-      (window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6298,timestamp:27000,speed:10,heading:90});
+      (window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6298,timestamp:28750,speed:10,heading:90});
     });
     await page.waitForTimeout(150);
     const resumed=await page.locator('.map-destination-dot').boundingBox();assert.ok(resumed);
     assert.ok(Math.hypot(resumed.x-background.x,resumed.y-background.y)>2,
       `${engine}: a fresh fix at the same coordinates resumes following after background`);
-    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6297,timestamp:28000,speed:10,heading:90}));
+    await page.evaluate(()=>(window as any).__navigationMotion.setFix({lat:-23.5496,lon:-46.6297,timestamp:29750,speed:10,heading:90}));
     await page.waitForTimeout(300);await page.evaluate(()=>(window as any).__navigationMotion.setLost(true));await page.waitForTimeout(100);
     assert.equal(await page.locator('.user-live-marker').getAttribute('data-gps-state'),'stale');
     const held=await page.locator('.map-destination-dot').boundingBox();assert.ok(held);await page.waitForTimeout(600);
@@ -116,7 +129,9 @@ try{
     assert.ok(Math.hypot(held.x-after.x,held.y-after.y)<1,`${engine}: loss stops the in-flight camera`);
     await page.evaluate(()=>(window as any).__navigationMotion.setShow(false));await page.locator('.user-live-marker').waitFor({state:'detached'});
     assert.deepEqual(errors,[]);
-    console.log(`PASS: ${engine} smooth GPS/camera, road direction, gradual turns, stop/loss/disposal (${samples.length} frames; drift ${arrowDrift.toFixed(2)} px).`);
+    const frameTimes=samples.slice(1).map((sample,index)=>sample.time-samples[index].time).sort((a,b)=>a-b);
+    const p95=frameTimes[Math.floor(frameTimes.length*.95)];
+    console.log(`PASS: ${engine} smooth GPS/camera, rejects false turns, rotates on real turns (${samples.length} frames / ${samples.at(-1)!.time.toFixed(0)} ms; p95 frame interval ${p95.toFixed(1)} ms; arrow drift ${arrowDrift.toFixed(2)} px).`);
     await page.close();
   }
 }finally{await browser?.close();await vite.close();}
