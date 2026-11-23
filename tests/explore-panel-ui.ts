@@ -27,6 +27,10 @@ try{
     await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[
       {id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}}));
     await page.route('**/api/**',route=>route.fulfill({json:{available:false,places:[],stations:[],items:[]}}));
+    await page.route(/\/api\/road-alerts\/map\?/,route=>route.fulfill({json:{alerts:[{
+      id:'pardal:explore',kind:'speed_camera',source:'pardal',lat:-23.552,lng:-46.627,
+      cameraKind:'FIXED',limitKmh:50,createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60000).toISOString()
+    }]}}));
     await page.route('**/api/places/search',route=>route.fulfill({json:{places:[
       {id:'admin:explore-park',name:'Parque do teste Explorar',kind:'park',lat:-23.54,lng:-46.61,address:'Endereço do teste',description:'',website:'',phone:'',active:true},
       {id:'admin:explore-museum',name:'Museu do teste Explorar',kind:'museum',lat:-23.56,lng:-46.65,address:'Endereço do teste',description:'',website:'',phone:'',active:true},
@@ -89,6 +93,21 @@ try{
     assert.equal(photoRequests,0,'o painel fechado não carrega fotografias fora de vista');
     await page.locator('[data-poi-id="admin:cafe-0"]:visible').first().waitFor();
     assert.equal(await page.locator('[data-poi-id^="admin:cafe-"]:visible').count(),12,'Explorar mantém todos os ícones vizinhos, sem suprimir colisões');
+    await map.locator('.road-alert-marker').waitFor();
+    const keyboardMap=map.locator(fallback?'.leaflet-container':'.maplibregl-canvas');
+    await keyboardMap.press('Minus');
+    if(fallback){
+      await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapZoom)<=12);
+      await keyboardMap.press('Minus');
+    }
+    await page.waitForFunction(engine=>Number(document.querySelector<HTMLElement>(`[data-map-engine="${engine}"]`)?.dataset.mapZoom)<12,
+      fallback?'leaflet-fallback':'maplibre-standalone');
+    await map.locator('.road-alert-marker').waitFor({state:'detached'});
+    assert.equal(await map.locator('[data-poi-id^="admin:cafe-"]:visible').count(),12,
+      'afastar o zoom em Explorar mantém os estabelecimentos');
+    await region.getByRole('button',{name:'Centralizar nas redondezas do GPS'}).click();
+    await centered();
+    await map.locator('.road-alert-marker').waitFor();
     const pin=page.locator('.managed-place-marker[aria-label="Ver Parque do teste Explorar"]:visible').first();
     await pin.waitFor({state:'visible'});
     const pinBox=await pin.boundingBox(),collapsedBox=await sheet.boundingBox();

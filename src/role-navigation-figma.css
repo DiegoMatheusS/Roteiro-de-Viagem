@@ -2,6 +2,9 @@
    Referência: navegacao.png (402 x 874). */
 .rdv-nav-figma-root {
   --rdv-nav-panel-height: calc(142px + env(safe-area-inset-bottom,0px));
+  --rdv-nav-right-controls-bottom: calc(var(--rdv-nav-panel-height) + 11px);
+  --rdv-nav-map-button-height: 64px;
+  --rdv-nav-control-gap: 10px;
   --rdv-nav-guidance-top: calc(env(safe-area-inset-top,0px) + 8px);
   --rdv-nav-guidance-height: 88px;
   position: fixed;
@@ -126,9 +129,11 @@
   line-height:1.28;
   letter-spacing:-.012em;
 }
-.rdv-nav-figma-root[data-upcoming-alert="true"] .rdv-nav-left-controls,
-.rdv-nav-figma-root[data-upcoming-alert="true"] .rdv-nav-right-controls {
-  bottom:calc(var(--rdv-nav-panel-height) + 128px);
+.rdv-nav-figma-root[data-upcoming-alert="true"] {
+  --rdv-nav-right-controls-bottom:calc(var(--rdv-nav-panel-height) + 128px);
+}
+.rdv-nav-figma-root[data-upcoming-alert="true"] .rdv-nav-left-controls {
+  bottom:var(--rdv-nav-right-controls-bottom);
 }
 .rdv-nav-left-controls {
   position:absolute;
@@ -157,16 +162,20 @@
   position:absolute;
   z-index:28;
   right:20px;
-  bottom:calc(var(--rdv-nav-panel-height) + 11px);
+  bottom:var(--rdv-nav-right-controls-bottom);
   display:flex;
   flex-direction:column;
   align-items:flex-end;
-  gap:10px;
+  gap:var(--rdv-nav-control-gap);
   pointer-events:none; /* Espaços vazios continuam disponíveis para gestos no mapa. */
 }
 .rdv-nav-right-controls button {pointer-events:auto;}
+/* O trânsito fica no mapa, acima dos botões de voz e GPS. */
+.rdv-nav-traffic-control {
+  bottom:calc(var(--rdv-nav-right-controls-bottom) + 2 * (var(--rdv-nav-map-button-height) + var(--rdv-nav-control-gap)));
+}
 .rdv-nav-map-button {
-  width:56px;height:64px;
+  width:56px;height:var(--rdv-nav-map-button-height);
   padding:7px 3px 5px;
   border:0;
   border-radius:14px;
@@ -269,11 +278,10 @@
 .rdv-nav-extra-buttons {display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding-top:11px;}
 .rdv-nav-extra-action {display:flex;align-items:center;gap:6px;min-height:40px;padding:6px 10px;border:1px solid #dce4ed;border-radius:11px;color:#245ee6;background:#fff;font-size:12px;font-weight:600;}
 @media(max-height:680px) {
-  .rdv-nav-figma-root {--rdv-nav-panel-height:calc(132px + env(safe-area-inset-bottom,0px));--rdv-nav-guidance-height:80px;}
+  .rdv-nav-figma-root {--rdv-nav-panel-height:calc(132px + env(safe-area-inset-bottom,0px));--rdv-nav-guidance-height:80px;--rdv-nav-map-button-height:50px;}
   .rdv-nav-bottom {padding-top:10px;}
   .rdv-nav-guidance {padding:8px 14px;}
   .rdv-nav-guidance-copy strong {font-size:25px;}
-  .rdv-nav-map-button {height:50px;}
 }
 @media(max-width:359px) {
   .rdv-nav-bottom {padding-left:13px;padding-right:13px;}

@@ -223,7 +223,7 @@ export function MapTab(props: MapTabProps) {
   return <div className="relative w-full h-[100dvh] min-h-[420px] overflow-hidden bg-slate-50 rdv-flat-map" data-role-theme={appearanceTheme}
     data-map-sheet-expanded={sheetExpanded} data-map-suggestions-visible={showAddressSuggestions}>
     <InteractiveMap convoyParticipants={props.convoyParticipants} meetingPoints={props.meetingPoints} originCoords={mapTarget ? exploreRoute?.origin : trip?.originCoords} destinationCoords={mapTarget ? mapTarget.coords : trip?.destinationCoords} originLabel={trip?.originName} destinationLabel={mapTarget?.name || trip?.destinationName} routePath={mapTarget ? exploreRoute?.options.find(option=>option.id===exploreRoute?.selectedId)?.routePath || [] : trip?.routePath || []}
-      touristHighlights placeDensityMode={placeDensityMode} routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
+      placeDensityMode={placeDensityMode} routeAlternatives={mapTarget ? exploreRoute?.options || [] : []}
       onSelectCoordinates={()=>setSheetExpanded(false)}
       onGoToPlace={place=>void goToMapMarker(place)}
       selectedRouteId={exploreRoute?.selectedId}
