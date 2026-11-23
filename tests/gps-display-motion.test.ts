@@ -125,6 +125,40 @@ test('a verified street turn rotates the display gradually while preserving the 
   close(turn.headingDegrees!,0);close(turn.targetHeadingDegrees!,90);f.advance(500);
   close(f.motion.snapshot().headingDegrees!,45);f.advance(500);close(f.motion.snapshot().headingDegrees!,90);
 });
+test('an inverted GPS course or a noisy fix across the corner cannot turn the driving view',()=>{
+  const f=fixture();
+  const fix=(position:CameraPoint,headingDegrees:number,speedMetersPerSecond=10)=>{
+    const sample=f.update(position[0],undefined,{position,headingDegrees,speedMetersPerSecond,routePath:road,accuracyMeters:8});
+    f.advance(750);
+    return sample;
+  };
+  fix([-23.5498,-46.63],0);
+  close(fix([-23.54973,-46.63],179).targetHeadingDegrees!,0);
+  fix([-23.54966,-46.63],2);
+  close(fix([-23.54962,-46.62994],2).targetHeadingDegrees!,0);
+  fix([-23.54961,-46.63],0);
+  close(fix([-23.5496,-46.62993],86).targetHeadingDegrees!,90);
+  close(fix([-23.54959,-46.62991],260,0).targetHeadingDegrees!,90);
+  close(fix([-23.5496,-46.62998],270).targetHeadingDegrees!,270);
+  f.motion.destroy();
+});
+test('a slow turn without GPS course is confirmed by successive positions past the corner',()=>{
+  const f=fixture();
+  const fix=(position:CameraPoint)=>{
+    const sample=f.update(position[0],undefined,{position,routePath:road,accuracyMeters:3,
+      speedMetersPerSecond:1,headingDegrees:null});
+    f.advance(1000);
+    return sample;
+  };
+  fix([-23.54961,-46.63]);
+  for(let step=1;step<=5;step++){
+    const result=fix([-23.5496,-46.63+step*.00001]);
+    close(result.targetHeadingDegrees!,0);
+    assert.ok(result.durationMs>0,'a seta continua avançando enquanto confirma a curva');
+  }
+  close(fix([-23.5496,-46.62991]).targetHeadingDegrees!,90);
+  f.motion.destroy();
+});
 test('north wrap takes the short turn and stationary GPS noise cannot rotate the arrow',()=>{
   const f=fixture();f.update(-23.55,10000,{headingDegrees:359});f.advance(1000);
   f.update(-23.5499,11000,{headingDegrees:1});f.advance(500);

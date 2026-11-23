@@ -56,7 +56,16 @@ public class TravelLocationTest {
   assertTrue("O WebView deve responder à ponte nativa em até 60 segundos",callback.await(60,TimeUnit.SECONDS));return value.get();
  }
  private void start(String action,String tripId,String origin,String token){activity.onActivity(a->{Intent intent=new Intent(a,TravelLocationService.class).setAction(action).putExtra("tripId",tripId).putExtra("distanceKm",5.0).putExtra("convoyId","native-fixture").putExtra("origin",origin).putExtra("cookie","rdv_session=instrumentation-fixture").putExtra("locationToken",token);ContextCompat.startForegroundService(a,intent);});}
- private void position(double lat,double lng) {Location point=new Location(LocationManager.GPS_PROVIDER);point.setLatitude(lat);point.setLongitude(lng);point.setAccuracy(3);point.setTime(System.currentTimeMillis());point.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());manager.setTestProviderLocation(LocationManager.GPS_PROVIDER,point);}
+ private void position(double lat,double lng){position(lat,lng,Float.NaN,Float.NaN);}
+ private void position(double lat,double lng,float speed,float bearing) {
+  Location point=new Location(LocationManager.GPS_PROVIDER);
+  point.setLatitude(lat);point.setLongitude(lng);point.setAccuracy(3);
+  if(Float.isFinite(speed))point.setSpeed(speed);
+  if(Float.isFinite(bearing))point.setBearing(bearing);
+  point.setTime(System.currentTimeMillis());
+  point.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
+  manager.setTestProviderLocation(LocationManager.GPS_PROVIDER,point);
+ }
  private void observedPosition(double lat,double lng) throws Exception {
   // Feed the Android provider until its asynchronous listener receives this fix.
   // Never call the service's callback directly: this must exercise Android delivery.
@@ -139,12 +148,27 @@ public class TravelLocationTest {
   float[] result=new float[2];activity.onActivity(a->{android.webkit.WebView web=a.getBridge().getWebView();int[] offset=new int[2];web.getLocationOnScreen(offset);float scale=(float)(web.getWidth()/point.optDouble("width"));result[0]=offset[0]+(float)point.optDouble("x")*scale;result[1]=offset[1]+(float)point.optDouble("y")*scale;});return result;
  }
  private double navigationZoom() throws Exception {return Double.parseDouble(js("Number(document.querySelector('[data-map-engine]').dataset.mapZoom)"));}
+ private void replayNavigationFix(double lat,double lng,float reportedBearing,int expectedBearing) throws Exception {
+  long[] lastInjection={0};
+  await("O mapa acompanha o GPS em "+lat+","+lng+" com rumo "+expectedBearing,()->{
+   if(SystemClock.elapsedRealtime()-lastInjection[0]>=1000){
+    position(lat,lng,10,reportedBearing);
+    lastInjection[0]=SystemClock.elapsedRealtime();
+   }
+   return Boolean.parseBoolean(js("(()=>{const map=document.querySelector('[data-map-engine]');if(!map?.dataset.mapCenter)return false;"
+    +"const [lat,lng]=JSON.parse(map.dataset.mapCenter);"
+    +"const arrow=document.querySelector('.user-live-marker svg')?.style.transform;"
+    +"const bearing=Number(arrow?.slice(7,-4));"
+    +"return Math.abs(lat-("+lat+"))<0.000002 && Math.abs(lng-("+lng+"))<0.000002 "
+    +"&& Math.abs(Number(map.dataset.mapBearing)-"+expectedBearing+")<1 && Math.abs(bearing-"+expectedBearing+")<1;})()"));
+  });
+ }
  @Test public void navigationAcceptsPanAndBothPinchDirectionsOnTheGpsArrow() throws Exception {
   activity=ActivityScenario.launch(MainActivity.class);
   await("A home do aplicativo",()->Boolean.parseBoolean(js("document.querySelector('[aria-label=\"Início do RUAVO\"]') != null")),60000);
   // Seed only this guest fixture and mock the base style; the real app,
   // native GPS service, map renderer and Android touch dispatch stay active.
-  js("(()=>{const original=window.fetch;window.fetch=(input,init)=>{const url=typeof input==='string'?input:input.url;if(url&&url.includes('tiles.openfreemap.org/'))return Promise.resolve(new Response(JSON.stringify({version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}),{headers:{'Content-Type':'application/json'}}));return original(input,init);};window.__navigationGesturePrevious={active:localStorage.getItem('rdv_private_v2_guest_active_trip'),trips:localStorage.getItem('rdv_private_v2_guest_trips')};const trip={id:'native-touch-fixture',title:'Teste de gestos',originName:'Origem',originCoords:[-23.55,-46.63],destinationName:'Destino',destinationCoords:[-23.54,-46.62],modality:'rapida',returnModality:'auto',isCircular:false,distanceKm:2,durationMinutes:5,drivingMinutes:5,vehicleId:'role-guest-navigation',routePath:[[-23.55,-46.63],[-23.54,-46.62]],routeSteps:[],routingSource:'OSRM',stops:[],weatherPoints:[],hasRainRisk:false,peopleCount:1,vehicleGroupType:'single_vehicle',groupVehiclesCount:1,participants:[],splitExpenses:false,foodCostPerPerson:0,fuelPricePerLiter:0,estimatedFuelLiters:0,estimatedFuelCost:0,knownTollsCost:0,totalFoodCost:0,totalEstimatedCost:0,costPerPerson:0,status:'in_progress',createdAt:new Date().toISOString(),trackingDeviceId:localStorage.getItem('rdv_device_v1'),trackedDistanceKm:0};localStorage.setItem('rdv_private_v2_guest_trips',JSON.stringify([trip]));localStorage.setItem('rdv_private_v2_guest_active_trip',JSON.stringify(trip));window.dispatchEvent(new Event('rdv:remote-state'));return true;})()");
+  js("(()=>{const original=window.fetch;window.fetch=(input,init)=>{const url=typeof input==='string'?input:input.url;if(url&&url.includes('tiles.openfreemap.org/'))return Promise.resolve(new Response(JSON.stringify({version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}),{headers:{'Content-Type':'application/json'}}));return original(input,init);};window.__navigationGesturePrevious={active:localStorage.getItem('rdv_private_v2_guest_active_trip'),trips:localStorage.getItem('rdv_private_v2_guest_trips')};const trip={id:'native-touch-fixture',title:'Teste de gestos',originName:'Origem',originCoords:[-23.55,-46.63],destinationName:'Destino',destinationCoords:[-23.5496,-46.6285],modality:'rapida',returnModality:'auto',isCircular:false,distanceKm:2,durationMinutes:5,drivingMinutes:5,vehicleId:'role-guest-navigation',routePath:[[-23.55,-46.63],[-23.5496,-46.63],[-23.5496,-46.6285]],routeSteps:[],routingSource:'OSRM',stops:[],weatherPoints:[],hasRainRisk:false,peopleCount:1,vehicleGroupType:'single_vehicle',groupVehiclesCount:1,participants:[],splitExpenses:false,foodCostPerPerson:0,fuelPricePerLiter:0,estimatedFuelLiters:0,estimatedFuelCost:0,knownTollsCost:0,totalFoodCost:0,totalEstimatedCost:0,costPerPerson:0,status:'in_progress',createdAt:new Date().toISOString(),trackingDeviceId:localStorage.getItem('rdv_device_v1'),trackedDistanceKm:0};localStorage.setItem('rdv_private_v2_guest_trips',JSON.stringify([trip]));localStorage.setItem('rdv_private_v2_guest_active_trip',JSON.stringify(trip));window.dispatchEvent(new Event('rdv:remote-state'));return true;})()");
   java.util.concurrent.ScheduledExecutorService fixes=java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
   try{
    await("O botão de retomar a viagem",()->Boolean.parseBoolean(js("[...document.querySelectorAll('aside[aria-label=\"Viagem em andamento\"] button')].some(b=>b.textContent.trim()==='Retomar navegação')")));
@@ -180,6 +204,11 @@ public class TravelLocationTest {
    await("O sinal recente atualiza a mesma seta",()->Boolean.parseBoolean(js("document.querySelector('.user-live-marker')?.dataset.gpsState==='live' && window.__lastGpsArrow===document.querySelector('.user-live-marker')")));
    js("document.querySelector('[aria-label=\"Centralizar mapa na minha localização\"]').click();true");
    await("GPS restaura o enquadramento inicial",()->Boolean.parseBoolean(js("Number(document.querySelector('[data-map-engine]')?.dataset.mapZoom)===18.5 && Math.abs(Number(document.querySelector('[data-map-engine]')?.dataset.mapPitch)-55)<0.01")));
+   replayNavigationFix(-23.5498,-46.63,0,0);
+   replayNavigationFix(-23.54973,-46.63,179,0);
+   replayNavigationFix(-23.54964,-46.63,0,0);
+   replayNavigationFix(-23.54962,-46.62996,2,0);
+   replayNavigationFix(-23.5496,-46.6299,90,90);
   }finally{
    fixes.shutdownNow();js("(()=>{const old=window.__navigationGesturePrevious;if(old){for(const [key,value] of [['rdv_private_v2_guest_active_trip',old.active],['rdv_private_v2_guest_trips',old.trips]]){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}window.dispatchEvent(new Event('rdv:remote-state'));}return true;})()");
   }
