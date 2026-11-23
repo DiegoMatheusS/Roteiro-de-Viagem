@@ -1,4 +1,5 @@
-import type { Place } from '../types/admin';
+import {TOURIST_PLACE_KINDS,type Place} from '../types/admin';
+import {EXPLORE_CATALOG} from '../catalogs/explore';
 import type { FuelStation, FuelPrice } from '../types/fuel';
 import type { RouteToll } from '../types/tolls';
 import { fuelPriceLabel, tollPriceLabel } from './mapPriceLabels';
@@ -7,7 +8,7 @@ import { distanceBetweenKm } from './gpsTracking';
 export type RoleVectorMarker = (
   | { kind:'fuel'; id:string; coords:[number,number]; name:string; priceLabel:string|null;prices?:readonly FuelPrice[];managed?:boolean }
   | { kind:'toll'; id:string; coords:[number,number]; name:string; priceLabel:string|null; place:Place|null;managed?:boolean }
-  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string; managed?:boolean }
+  | { kind:'place'; id:string; coords:[number,number]; name:string; category:Place['kind']; description?:string; managed?:boolean; catalogAddress?:string }
 ) & {routeService?:boolean};
 
 /** Stable identity and visual metadata used by the incremental vector renderer.
@@ -30,6 +31,12 @@ export function toMarkerLngLat([lat,lon]:[number,number]): [number,number] {
   return [lon,lat];
 }
 
+const touristCatalog:RoleVectorMarker[]=EXPLORE_CATALOG.flatMap(place=>{
+  const category=TOURIST_PLACE_KINDS.find(kind=>kind===place.kind);
+  if(!place.curated||!category)return [];
+  return [{kind:'place',id:place.id,name:place.name,coords:place.coords,category,catalogAddress:place.address}];
+});
+
 /** Route tariffs already combine the lane nodes of a plaza within 200 m.
  * Keep that same plaza as one marker instead of adding an unpriced lane. */
 export function isRouteTollPlace(place:Place,tolls:readonly RouteToll[]):boolean {
@@ -48,6 +55,7 @@ export function selectRoleVectorMarkers(options: {
   navigationMode: boolean;
   tollVehicleType?: 'car'|'motorcycle';
   viewportScopedPlaces?:boolean;
+  includeTouristCatalog?:boolean;
 }): RoleVectorMarker[] {
   const entries: RoleVectorMarker[] = [];
   const freshFuelPlaces=new Map(options.places.filter(place=>place.active&&place.kind==='fuel').map(place=>[place.id,place]));
@@ -86,6 +94,9 @@ export function selectRoleVectorMarkers(options: {
     } else {
       add({kind:'place',id:place.id,coords,name:place.name,category:place.kind,description:place.description,managed:place.managed});
     }
+  }
+  if(options.includeTouristCatalog){
+    for(const place of touristCatalog)add(place);
   }
   return entries;
 }

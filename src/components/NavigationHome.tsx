@@ -414,7 +414,7 @@ export function NavigationHome(props: NavigationHomeProps) {
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
   return <div className="relative bg-[#eaf0ef] h-[100dvh] overflow-hidden rdv-navigation-screen" data-role-theme={appearanceTheme} aria-label="Início do RUAVO">
     <div className="absolute inset-0 rdv-flat-map">
-      <InteractiveMap roadStyle followUser={false} placeDensityMode={placeDensityMode} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
+      <InteractiveMap roadStyle touristHighlights followUser={false} placeDensityMode={placeDensityMode} userLiveCoords={liveCoords} userLastKnownCoords={gps.lastKnownPosition?.coords}
         userHeadingDegrees={gps.status==='ready'?gps.position?.headingDegrees:null}
         userSpeedMetersPerSecond={gps.status==='ready'?gps.position?.speedMetersPerSecond:null} onSelectCoordinates={()=>{setCollapsed(true);setSheetExpanded(false);}}
         onGoToPlace={place=>void goToMapMarker(place)}

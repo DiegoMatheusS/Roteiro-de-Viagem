@@ -45,16 +45,33 @@ try{
     await dialog.waitFor({state:'visible'});
     return dialog;
   };
+  const checkMenuLayer=async()=>{
+    const marker=page.locator('.road-alert-marker'),overlay=page.getByTestId('radar-menu-overlap');
+    const pin=await marker.boundingBox();assert.ok(pin);
+    const x=pin.x+pin.width/2,y=pin.y+pin.height/2;
+    await overlay.evaluate((button,{x,y})=>{
+      const parent=button.parentElement!.getBoundingClientRect();
+      button.style.left=`${x-parent.left-23}px`;button.style.top=`${y-parent.top-23}px`;
+      delete button.dataset.clicked;
+      button.removeAttribute('hidden');
+    },{x,y});
+    await page.mouse.click(x,y);
+    assert.equal(await overlay.getAttribute('data-clicked'),'true','o menu recebe o toque por cima do radar');
+    assert.equal(await page.getByRole('dialog',{name:'Confirmar ocorrência no mapa'}).count(),0);
+    await overlay.evaluate(button=>button.setAttribute('hidden',''));
+  };
   const first=await checkDetails('maplibre');
   await page.screenshot({path:'test-results/radar-pardal-details.png'});
   await page.mouse.click(16,530);
   await first.waitFor({state:'hidden'});
+  await checkMenuLayer();
   await page.locator('.maplibregl-canvas').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
   await page.locator('[data-map-engine="leaflet-fallback"]').waitFor();
   await page.locator('.road-alert-marker.leaflet-marker-icon').waitFor();
   const fallback=await checkDetails('leaflet');
   await page.mouse.click(16,530);
   await fallback.waitFor({state:'hidden'});
+  await checkMenuLayer();
   await page.mouse.move(180,280);
   for(let i=0;i<6;i++) await page.mouse.wheel(0,640);
   await page.waitForFunction(()=>Number(document.querySelector<HTMLElement>('[data-map-engine="leaflet-fallback"]')?.dataset.mapZoom)<12

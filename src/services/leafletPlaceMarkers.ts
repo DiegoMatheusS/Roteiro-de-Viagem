@@ -5,6 +5,7 @@ import {bindLeafletPlaceBalloon} from './leafletPlaceBalloon';
 import type {RoleMarkerActions} from './placeBalloon';
 import type {PoiVisibilityContext} from './mapPoiPresentation';
 import {selectVisiblePois} from './poiDensity';
+import '../role-map-poi.css';
 
 /** Preserve pins and the selected balloon through viewport/price refreshes. */
 export function createLeafletPlaceMarkerController(map:L.Map,actions:RoleMarkerActions){
@@ -19,14 +20,18 @@ export function createLeafletPlaceMarkerController(map:L.Map,actions:RoleMarkerA
     const selected=[...records].find(([,record])=>record.marker.isPopupOpen())?.[0];
     const layout=selectVisiblePois([...records.values()].map(record=>record.entry),{
       zoom:map.getZoom(),width:size.x,height:size.y,project:coords=>map.latLngToContainerPoint(coords),
-      navigationMode:context.navigationMode,showRouteServices:context.showRouteServices,selectedKey:selected,densityMode:context.densityMode
+      navigationMode:context.navigationMode,showRouteServices:context.showRouteServices,selectedKey:selected,
+      densityMode:context.densityMode,touristHighlights:context.touristHighlights
     });
     visibleKeys=layout.keys;
     for(const [key,record] of records){
       const element=record.marker.getElement();if(!element)continue;
       const visible=visibleKeys.has(key);
       if(record.visible!==visible){record.visible=visible;element.style.display=visible?'':'none';}
-      if(record.size!==layout.size){record.size=layout.size;element.style.setProperty('--role-poi-scale',String(layout.size/38));}
+      if(record.size!==layout.size){
+        record.size=layout.size;element.style.setProperty('--role-poi-scale',String(layout.size/38));
+        record.balloon.setIconSize(layout.size);
+      }
       if(!visible&&record.marker.isPopupOpen())record.marker.closePopup();
     }
   };
@@ -68,7 +73,8 @@ export function createLeafletPlaceMarkerController(map:L.Map,actions:RoleMarkerA
       applyVisibility();
     },
     setContext(inputs:PoiVisibilityContext){
-      const changed=inputs.navigationMode!==context.navigationMode||inputs.showRouteServices!==context.showRouteServices||inputs.densityMode!==context.densityMode;
+      const changed=inputs.navigationMode!==context.navigationMode||inputs.showRouteServices!==context.showRouteServices||
+        inputs.densityMode!==context.densityMode||inputs.touristHighlights!==context.touristHighlights;
       context=inputs;if(changed)applyVisibility();
     },
     visibleKeys(){return visibleKeys;},

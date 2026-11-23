@@ -1,4 +1,4 @@
-import {poiCategory} from './mapPoiPresentation';
+import {isTouristPoi,poiCategory} from './mapPoiPresentation';
 import {rolePlaceMarkerKey,type RoleVectorMarker} from './vectorPlaceData';
 import type {MapIconDensity} from './mapIconDensity';
 
@@ -7,6 +7,8 @@ export interface PoiDensityView {
   project:(coords:[number,number])=>{x:number;y:number};
   navigationMode?:boolean;showRouteServices?:boolean;selectedKey?:string;
   densityMode?:MapIconDensity|'all';
+  touristHighlights?:boolean;
+  overviewZoom?:number;
 }
 /** Screen pixels keep the same clearance under rotation, tilt and either map engine. */
 export function poiDensity(zoom:number,width:number,height:number,mode:MapIconDensity='moderate'){
@@ -19,28 +21,40 @@ export function poiDensity(zoom:number,width:number,height:number,mode:MapIconDe
 }
 const importance:Record<string,number>={
   landmark:90,historic:90,nature_reserve:90,scenic_road:90,waterfall:85,viewpoint:85,
-  museum:80,park:75,beach:75,theatre:65,trail:65,attraction:60,
+  museum:80,park:75,beach:75,lake:70,theatre:65,trail:65,attraction:60,
   toll:45,fuel:35,square:35,shopping:30,other:25,restaurant:25,cafe:25,hotel:25,inn:25,supermarket:25
 };
 /** A deterministic selection, never clusters displaced from their real coordinates.
  * Paid highlighting and names do not affect rank. The user's selected pin stays. */
 export function selectVisiblePois(entries:readonly RoleVectorMarker[],view:PoiDensityView){
-  const layout=poiDensity(view.zoom,view.width,view.height,view.densityMode==='all'?undefined:view.densityMode),keys=new Set<string>();
+  const overviewZoom=view.overviewZoom??view.zoom;
+  const overview=view.touristHighlights&&!view.navigationMode&&!view.showRouteServices&&overviewZoom<12;
+  const size=Math.round(Math.min(58,38+4*(12-overviewZoom)));
+  const layout=overview?{size,gap:size+10,limit:5}:
+    poiDensity(view.zoom,view.width,view.height,view.densityMode==='all'?undefined:view.densityMode);
+  const keys=new Set<string>();
   if(!Number.isFinite(view.zoom)||!Number.isFinite(view.width)||!Number.isFinite(view.height)||view.width<=0||view.height<=0||
     (!layout.limit&&view.densityMode!=='all'))return {...layout,keys};
   const candidates=entries.flatMap(entry=>{
-    const point=view.project(entry.coords);
-    if(!Number.isFinite(point.x)||!Number.isFinite(point.y)||point.x<0||point.y<0||point.x>view.width||point.y>view.height)return [];
     const key=rolePlaceMarkerKey(entry),category=poiCategory(entry);
+    const selected=key===view.selectedKey;
+    const catalog=entry.kind==='place'&&entry.catalogAddress!==undefined;
+    if(!selected&&(overview?!isTouristPoi(category):catalog))return [];
+    const point=view.project(entry.coords);
+    const margin=overview&&!selected?size/2:0;
+    if(!Number.isFinite(point.x)||!Number.isFinite(point.y)||
+      point.x<margin||point.y<margin||point.x>view.width-margin||point.y>view.height-margin)return [];
     let rank=importance[category]??25;
+    if(overview&&catalog)rank+=20;
     if(view.navigationMode&&(entry.kind==='fuel'||entry.kind==='toll'))rank+=60;
     if((view.showRouteServices||view.navigationMode)&&entry.routeService)rank+=100;
-    if(key===view.selectedKey)rank+=10000;
-    return [{key,point,rank}];
-  }).sort((a,b)=>b.rank-a.rank||(a.key<b.key?-1:a.key>b.key?1:0));
+    if(selected)rank+=10000;
+    const centerDistance=overview?(point.x-view.width/2)**2+(point.y-view.height/2)**2:0;
+    return [{key,point,rank,centerDistance}];
+  }).sort((a,b)=>b.rank-a.rank||a.centerDistance-b.centerDistance||(a.key<b.key?-1:a.key>b.key?1:0));
   // Explore shows every real point in view, including neighbouring businesses.
   // Only the home/navigation overview thins pins; never displace coordinates.
-  if(view.densityMode==='all')return {...layout,keys:new Set(candidates.map(item=>item.key))};
+  if(!overview&&view.densityMode==='all')return {...layout,keys:new Set(candidates.map(item=>item.key))};
   const cells=new Map<string,{x:number;y:number}[]>();
   for(const candidate of candidates){
     const {point,key}=candidate,x=Math.floor(point.x/layout.gap),y=Math.floor(point.y/layout.gap);

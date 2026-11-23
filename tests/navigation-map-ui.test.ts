@@ -56,6 +56,12 @@ test('navegação, alertas e botão Google funcionam sem login obrigatório',()=
   assert.match(google,/TravelNative\.signInGoogle/);
 });
 
+test('o login explícito no Android limpa a conta Google lembrada antes de abrir o seletor',()=>{
+  const bridge=source('android/app/src/main/java/br/com/roteirodeviagem/app/TravelNativePlugin.java');
+  const signIn=bridge.slice(bridge.indexOf('void signInGoogle('),bridge.indexOf('void googleSignInResult('));
+  assert.match(signIn,/client\.signOut\(\)\.addOnCompleteListener[\s\S]*?!task\.isSuccessful\(\)[\s\S]*?return;[\s\S]*?startActivityForResult\(call,client\.getSignInIntent\(\)/);
+});
+
 test('navegação não mostra aviso persistente de voz indisponível',()=>{
   const voice=source('src/components/VoiceGuidanceControl.tsx');
   assert.match(voice,/disabled=\{!supported\}/);

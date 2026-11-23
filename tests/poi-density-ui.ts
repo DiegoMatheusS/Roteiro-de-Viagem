@@ -49,6 +49,18 @@ try{
   }
   assert.ok(counts[0]<counts[1]&&counts[1]<counts[2]&&counts[2]<counts[3],`home preferences and unlimited Explore apply in both engines: ${counts}`);
   assert.ok(counts[3]>=250,'every closely packed on-screen place remains in Explore');
+  if(!navigation){
+    await page.evaluate(()=>(window as any).__poiDensity.setTouristHighlights(true));
+    const city=await page.evaluate(()=>(window as any).__poiDensity.stats());
+    await setView(9);
+    const wide=await page.evaluate(()=>(window as any).__poiDensity.stats());
+    assert.equal(city.length,5);
+    assert.ok(wide.length>0&&wide.length<=5);
+    assert.ok(wide.every((pin:any)=>pin.kind==='place'&&pin.width>city[0].width&&pin.error<1.25));
+    await setView(15);
+    const detail=await page.evaluate(()=>(window as any).__poiDensity.stats());
+    assert.ok(detail.length>5,'aproximar o mapa volta aos marcadores normais');
+  }
   await page.evaluate(()=>(window as any).__poiDensity.setDensity('moderate'));
   await setView(17);
   const cdp=await page.context().newCDPSession(page);

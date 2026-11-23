@@ -386,9 +386,10 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           !p.navigationMode&&!p.roadStyle&&!p.blueRoute);
         // GPS can trigger many renders while driving. Keep the live navigation
         // marker responsive, but do not rebuild static overlays on each fix.
+        const touristHighlights=p.touristHighlights===true&&p.showPlaces!==false&&!p.navigationMode;
         const overlayInputs=[stableList(p.stops),stableList(p.meetingPoints),
           stableList(p.convoyParticipants),stableList(p.weatherPoints),p.showRainLayer,
-          Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,p.showPlaces,
+          Boolean(p.onDragWaypoint),p.navigationMode,p.showFuelStations,p.showPlaces,touristHighlights,
           stableList(p.tolls),p.tollVehicleType,data.current.stations,data.current.places,
           stableList(p.routePath)];
         const overlaysChanged=overlayInputs.some((value,index)=>value!==lastOverlayInputs[index]);
@@ -400,7 +401,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           weather.update(p.weatherPoints||[],p.showRainLayer??false);
           drawn=selectRoleVectorMarkers({stations:p.showFuelStations===false?[]:data.current.stations,
             places:p.showPlaces===false?[]:data.current.places,tolls:p.tolls||[],
-            navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType,viewportScopedPlaces:p.showPlaces!==false});
+            navigationMode:p.navigationMode??false,tollVehicleType:p.tollVehicleType,viewportScopedPlaces:p.showPlaces!==false,
+            includeTouristCatalog:touristHighlights});
           registeredBuildings.update(p.navigationMode?[]:drawn);
         }
         weather.avoidPosition(p.userLiveCoords??p.userLastKnownCoords);
@@ -413,7 +415,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           lastMarkerInputs=markerInputs;
           markers.update(drawn,{zoom:map.getZoom(),navigationMode:p.navigationMode??false,
             location:p.userLiveCoords,accuracyMeters:p.userGpsAccuracyMeters,
-            showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1,densityMode:p.placeDensityMode});
+            showRouteServices:!p.navigationMode&&(p.routePath?.length??0)>1,densityMode:p.placeDensityMode,touristHighlights});
         }
         const nextInputs=[p.originCoords,p.destinationCoords,stableList(p.routePath),stableList(p.routeAlternatives)];
         if(nextInputs.some((value,index)=>value!==fitInputs[index])){
@@ -781,7 +783,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     data-map-offline-available={availableRegions.length}
     data-map-style-menu={styleMenu?'open':'closed'}
     data-role-theme={appearanceTheme} data-map-network={offline?'offline':'online'}>
-    <div ref={container} className="w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
+    <div ref={container} className="isolate w-full" style={{height:showBaseSelector?'calc(100% - 64px)':'100%'}}/>
     <MapTrafficControl port={trafficPort} offline={offline||Boolean(regionId)}
       navigation={Boolean(props.navigationMode)} location={props.userLiveCoords??props.originCoords??null}
       onRequestFullTraffic={()=>{

@@ -22,9 +22,11 @@ const meetings:MeetingPoint[]=[{id:'meeting',title:'Ponto de encontro',category:
   coords:[-23.547,-46.626],order:1,confirmedArrivedParticipantIds:[]}];
 function Fixture(){
   const [participants,setParticipants]=useState(people);
-  return <><div style={{width:390,height:620}}><InteractiveMap routePath={path}
+  return <><div style={{position:'relative',width:390,height:620}}><InteractiveMap routePath={path}
     convoyParticipants={participants} meetingPoints={meetings} roadAlerts={radars} showFuelStations={false}
-    userLiveCoords={radars.length?path[1]:undefined} followUser={radars.length?false:undefined}/></div>
+    userLiveCoords={radars.length?path[1]:undefined} followUser={radars.length?false:undefined}/>
+    {radars.length>0&&<button hidden data-testid="radar-menu-overlap" style={{position:'absolute',zIndex:25,width:46,height:46}}
+      onClick={event=>{event.currentTarget.dataset.clicked='true';}}>Menu</button>}</div>
     <button onClick={()=>setParticipants(current=>current.map(person=>person.id==='rider'?
       {...person,coords:[-23.553,-46.624],lastLocationTimestamp:new Date().toISOString()}:person))}>Mover participante</button>
   </>;

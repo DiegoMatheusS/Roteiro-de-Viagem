@@ -18,6 +18,12 @@ export function bindLeafletPlaceBalloon(marker:L.Marker,entry:RoleVectorMarker,a
   marker.on('popupclose',dispose);marker.on('remove',dispose);
   const unbind=element?bindMapMarkerActivation(element,()=>marker.togglePopup()):()=>{};
   return {
+    setIconSize(size:number){
+      const popup=marker.getPopup();
+      if(!popup)return;
+      popup.options.offset=[0,-Math.max(20,size/2+1)];
+      if(marker.isPopupOpen())popup.update();
+    },
     update(next:RoleVectorMarker){
       current=next;const nextSignature=placeBalloonSignature(next);
       if(nextSignature!==signature){signature=nextSignature;marker.getPopup()?.update();}

@@ -1,6 +1,7 @@
 import type {RoleVectorMarker} from './vectorPlaceData';
 import {placeIconKind} from './placeIconKind';
 import type {MapIconDensity} from './mapIconDensity';
+import {TOURIST_PLACE_KINDS} from '../types/admin';
 
 export type Coordinates=[number,number];
 export interface PoiVisibilityContext {
@@ -9,12 +10,13 @@ export interface PoiVisibilityContext {
   /** Route planning keeps route-scoped fuel and toll pins tappable in overview. */
   showRouteServices?:boolean;
   densityMode?:MapIconDensity|'all';
+  touristHighlights?:boolean;
   location?:Coordinates;
   accuracyMeters?:number;
 }
-const TOURIST=new Set(['waterfall','viewpoint','park','square','museum','theatre','scenic_road',
-  'landmark','historic','beach','trail','nature_reserve','attraction']);
+const TOURIST=new Set<string>(TOURIST_PLACE_KINDS);
 
+export const isTouristPoi=(category:string)=>TOURIST.has(category);
 export function poiCategory(marker:RoleVectorMarker):string {
   return marker.kind==='place'?placeIconKind(marker.category,marker.name):marker.kind;
 }
@@ -24,7 +26,7 @@ export function poiAccent(category:string):string {
   if(category==='restaurant'||category==='cafe')return '#ea580c';
   if(category==='hotel'||category==='inn')return '#7c3aed';
   if(category==='shopping'||category==='supermarket')return '#db2777';
-  if(TOURIST.has(category))return '#15803d';
+  if(isTouristPoi(category))return '#15803d';
   return '#0369a1';
 }
 /** Eligible candidates at a valid zoom. Screen-space density then chooses
