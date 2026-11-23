@@ -40,11 +40,11 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
   const abort=new AbortController();let disposed=false;
   const element=document.createElement('section');element.className='role-place-balloon';
   element.setAttribute('aria-label',`Detalhes de ${entry.name}`);
-  const rating=document.createElement('div');rating.append(createRatingStars({average:null,count:0}));
+  const catalogAddress=entry.kind==='place'?entry.catalogAddress:undefined;
   // O título é informativo: tocar no nome não abre modais nem altera a navegação.
   const heading=document.createElement('h3');heading.className='role-place-balloon-name';
   heading.textContent=entry.name;
-  element.append(rating,heading);
+  element.append(heading);
   const priceList=document.createElement('dl');priceList.className='role-place-balloon-prices';
   priceList.setAttribute('aria-label','Preços por combustível');
   const renderPrices=(prices:readonly FuelPrice[],state:'ready'|'loading'|'error'='ready')=>{
@@ -68,15 +68,19 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
   }else{
     const category=document.createElement('p');category.className='role-place-balloon-category';
     category.textContent=entry.kind==='toll'?(entry.priceLabel||'Tarifa não informada'):
-      PLACE_KINDS.find(kind=>kind.id===placeIconKind(entry.category,entry.name))?.label||'Estabelecimento';element.append(category);
+      catalogAddress||PLACE_KINDS.find(kind=>kind.id===placeIconKind(entry.category,entry.name))?.label||'Estabelecimento';element.append(category);
   }
-  void fuelApi<PlaceRatingSummary>(`/places/${encodeURIComponent(entry.id)}/feedback`,{signal:abort.signal}).then(summary=>{
-    if(!disposed)rating.replaceChildren(createRatingStars(summary));
-  }).catch(()=>{
-    if(disposed)return;
-    rating.replaceChildren();const status=document.createElement('span');status.className='role-place-rating';
-    status.textContent='Avaliações indisponíveis';rating.append(status);
-  });
+  if(catalogAddress===undefined){
+    const rating=document.createElement('div');
+    rating.append(createRatingStars({average:null,count:0}));element.prepend(rating);
+    void fuelApi<PlaceRatingSummary>(`/places/${encodeURIComponent(entry.id)}/feedback`,{signal:abort.signal}).then(summary=>{
+      if(!disposed)rating.replaceChildren(createRatingStars(summary));
+    }).catch(()=>{
+      if(disposed)return;
+      rating.replaceChildren();const status=document.createElement('span');status.className='role-place-rating';
+      status.textContent='Avaliações indisponíveis';rating.append(status);
+    });
+  }
   const footer=document.createElement('div');footer.className='role-place-balloon-actions';
   // "Ir" é a única ação que inicia uma rota. Quando este mapa não possui
   // fluxo de navegação (ex.: prévia somente leitura), não mostramos um botão sem efeito.
@@ -95,21 +99,22 @@ export function createPlaceBalloon(entry:RoleVectorMarker,actions:RoleMarkerActi
       else actions.onToll(entry.id,'prices',entry.place);});
     footer.append(contribute);
   }
-  // Mantém "Ver detalhes" para todos os locais, inclusive postos e pedágios.
-  // O nome acima permanece um título estático, sem eventos de clique.
-  const details=document.createElement('button');details.type='button';
-  details.className='role-place-balloon-details';details.textContent='Ver detalhes';
-  details.addEventListener('click',()=>{
-    close();
-    if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
-    else if(entry.kind==='toll')actions.onToll(entry.id,'prices',entry.place);
-    else actions.onPlace(entry.id);
-  });
-  footer.append(details);
-  const info=document.createElement('button');info.type='button';info.className='role-place-balloon-info';
-  info.setAttribute('aria-label','Avaliar ou informar problema no estabelecimento');
-  const glyph=document.createElement('span');glyph.setAttribute('aria-hidden','true');glyph.textContent='i';info.append(glyph);
-  info.addEventListener('click',()=>{close();actions.onReport(entry);});footer.append(info);element.append(footer);
+  if(catalogAddress===undefined){
+    const details=document.createElement('button');details.type='button';
+    details.className='role-place-balloon-details';details.textContent='Ver detalhes';
+    details.addEventListener('click',()=>{
+      close();
+      if(entry.kind==='fuel')actions.onStation(entry.id,'prices');
+      else if(entry.kind==='toll')actions.onToll(entry.id,'prices',entry.place);
+      else actions.onPlace(entry.id);
+    });
+    footer.append(details);
+    const info=document.createElement('button');info.type='button';info.className='role-place-balloon-info';
+    info.setAttribute('aria-label','Avaliar ou informar problema no estabelecimento');
+    const glyph=document.createElement('span');glyph.setAttribute('aria-hidden','true');glyph.textContent='i';info.append(glyph);
+    info.addEventListener('click',()=>{close();actions.onReport(entry);});footer.append(info);
+  }
+  if(footer.childElementCount)element.append(footer);
   for(const type of ['click','dblclick','pointerdown','mousedown','touchstart','wheel'] as const)
     element.addEventListener(type,event=>event.stopPropagation(),{passive:true});
   return {element,dispose(){disposed=true;abort.abort();}};

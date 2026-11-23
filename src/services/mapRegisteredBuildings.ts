@@ -67,7 +67,7 @@ export function selectRegisteredBuildingFootprints(
   const chosen=new Map<string,Highlight|null>();
   let inspected=0;
   for(const marker of markers){
-    if(marker.kind!=='place'||!validMarkerPosition(marker.coords)||!visible(marker.coords))continue;
+    if(marker.kind!=='place'||marker.catalogAddress!==undefined||!validMarkerPosition(marker.coords)||!visible(marker.coords))continue;
     if(++inspected>32)break;
     let candidates:readonly Feature[];
     try{candidates=lookup(marker.coords);}catch{continue;}
@@ -122,7 +122,7 @@ export function createRegisteredBuildingController(map:MapLibreMap):RegisteredBu
     // on every GPS-driven camera idle with no building geometries available.
     if(allowTileRetry)pendingTileRetry=false;
     else if(signature==='[]'&&layerPresent&&zoom>=REGISTERED_BUILDING_MIN_ZOOM &&
-      entries.some(entry=>entry.kind==='place'))pendingTileRetry=true;
+      entries.some(entry=>entry.kind==='place'&&entry.catalogAddress===undefined))pendingTileRetry=true;
     let source=map.getSource(REGISTERED_BUILDINGS_SOURCE) as GeoJSONSource|undefined;
     if(!source){
       map.addSource(REGISTERED_BUILDINGS_SOURCE,{type:'geojson',data});
@@ -156,7 +156,7 @@ export function createRegisteredBuildingController(map:MapLibreMap):RegisteredBu
   return {
     update(markers){
       if(destroyed)return;
-      const key=markers.filter(entry=>entry.kind==='place').map(entry=>
+      const key=markers.filter(entry=>entry.kind==='place').filter(entry=>entry.catalogAddress===undefined).map(entry=>
         [entry.id,entry.coords.join(','),entry.category].join(':')).join('|');
       if(key===descriptorsKey&&map.getSource(REGISTERED_BUILDINGS_SOURCE))return;
       descriptorsKey=key;entries=markers;

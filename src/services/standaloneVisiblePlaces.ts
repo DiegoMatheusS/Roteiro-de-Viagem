@@ -16,8 +16,9 @@ export function standaloneVisiblePlaces(input:{
 }):MapVisiblePlace[]{
   const addresses=new Map([...input.stations,...input.places].map(place=>[place.id,place.address]));
   const all:MapVisiblePlace[]=[
-    ...input.markers.filter(marker=>input.zoom===undefined||poiVisibleAtZoom(marker,input.zoom)||
-      (input.showRouteServices&&(marker.kind==='fuel'||marker.kind==='toll')))
+    ...input.markers.filter(marker=>(marker.kind!=='place'||marker.catalogAddress===undefined)&&
+      (input.zoom===undefined||poiVisibleAtZoom(marker,input.zoom)||
+      (input.showRouteServices&&(marker.kind==='fuel'||marker.kind==='toll'))))
       .map(marker=>({id:marker.id,name:marker.name,
       kind:marker.kind==='place'?marker.category:marker.kind,address:addresses.get(marker.id)||'',coords:marker.coords})),
     ...selectTripStops(input.stops).map(stop=>({id:'stop:'+stop.name+':'+stop.lat+':'+stop.lng,

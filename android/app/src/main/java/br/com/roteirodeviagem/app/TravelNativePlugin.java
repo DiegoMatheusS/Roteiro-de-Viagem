@@ -24,6 +24,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 import com.getcapacitor.annotation.ActivityCallback;
 import androidx.activity.result.ActivityResult;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.common.api.ApiException;
@@ -177,7 +178,23 @@ public class TravelNativePlugin extends Plugin {
     try {
       GoogleSignInOptions options=new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
         .requestEmail().requestIdToken(clientId).build();
-      startActivityForResult(call,GoogleSignIn.getClient(getContext(),options).getSignInIntent(),"googleSignInResult");
+      GoogleSignInClient client=GoogleSignIn.getClient(getContext(),options);
+      // Clear the app's remembered Google account before an explicit sign-in.
+      client.signOut().addOnCompleteListener(task -> {
+        if (!task.isSuccessful()) {
+          call.reject("Não foi possível preparar a seleção da conta Google. Tente novamente.");
+          return;
+        }
+        if (getActivity().isFinishing() || getActivity().isDestroyed()) {
+          call.reject("A tela foi encerrada. Tente novamente.");
+          return;
+        }
+        try {
+          startActivityForResult(call,client.getSignInIntent(),"googleSignInResult");
+        } catch (Exception error) {
+          call.reject("Não foi possível abrir a seleção de conta do Google.");
+        }
+      });
     } catch(Exception error){call.reject("Não foi possível iniciar o login Google: "+error.getMessage());}
   }
   @ActivityCallback public void googleSignInResult(PluginCall call,ActivityResult result) {

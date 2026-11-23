@@ -120,6 +120,7 @@ export interface InteractiveMapProps {
   showPlaces?:boolean;
   /** Explore shows all returned places; other screens keep the overview budget. */
   placeDensityMode?:import('../services/mapIconDensity').MapIconDensity|'all';
+  touristHighlights?:boolean;
   navigationMode?: boolean;
   travelledDistanceKm?: number;
   totalRouteKm?: number;
@@ -184,6 +185,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   showFuelStations = true,
   showPlaces = true,
   placeDensityMode = 'moderate',
+  touristHighlights = false,
   navigationMode = false,
   travelledDistanceKm = 0,
   totalRouteKm = 0,
@@ -308,8 +310,11 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const [feedbackPlace,setFeedbackPlace]=useState<RoleVectorMarker|null>(null);
   // Keep the current data/actions available to async MapLibre initialization.
   // Changing one confirmed fuel price must not rebuild every other pin.
-  const vectorPlaceInputsRef=useRef({stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces});
-  vectorPlaceInputsRef.current={stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,viewportScopedPlaces:showPlaces};
+  const includeTouristCatalog=showPlaces&&touristHighlights&&!navigationMode;
+  const placeInputs={stations:fuel.stations,places,tolls,navigationMode,tollVehicleType,
+    viewportScopedPlaces:showPlaces,includeTouristCatalog};
+  const vectorPlaceInputsRef=useRef(placeInputs);
+  vectorPlaceInputsRef.current=placeInputs;
   const vectorPlaceActionsRef=useRef<RoleMarkerActions>({
     onStation:(id,section,mode)=>openStation(id,section,mode),
     onToll:(id,section,place)=>openToll(id,section,place),
@@ -616,7 +621,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   },[hasMapReady,vectorMarkersReady]);
   useEffect(()=>{
     rasterPlaceControllerRef.current?.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
-  },[fuel.stations,places,tolls,tollVehicleType,showPlaces,vectorMarkersReady]);
+  },[fuel.stations,places,tolls,tollVehicleType,showPlaces,vectorMarkersReady,includeTouristCatalog]);
 
   // Install MapLibre pins once per vector map lifecycle, not after every
   // station price refresh. The Leaflet fallback remains available until ready.
@@ -664,17 +669,17 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       vectorPlaceControllerRef.current=null;
       setVectorMarkersReady(false);
     }
-  },[fuel.stations,places,tolls,navigationMode,tollVehicleType]);
+  },[fuel.stations,places,tolls,navigationMode,tollVehicleType,includeTouristCatalog]);
 
   // Update presentation context without rebuilding pins or reloading tiles.
   useEffect(()=>{
     const gl=vectorMapRef.current;
     const inputs={zoom:gl?.getZoom()??mapInstanceRef.current?.getZoom()??0,navigationMode,
       location:userLiveCoords,accuracyMeters:userGpsAccuracyMeters,
-      showRouteServices:!navigationMode&&routePath.length>1,densityMode:placeDensityMode};
+      showRouteServices:!navigationMode&&routePath.length>1,densityMode:placeDensityMode,touristHighlights:includeTouristCatalog};
     vectorPlaceControllerRef.current?.setContext(inputs);
     rasterPlaceControllerRef.current?.setContext(inputs);
-  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady,hasMapReady,routePath.length,placeDensityMode]);
+  },[userLiveCoords,userGpsAccuracyMeters,navigationMode,vectorMarkersReady,hasMapReady,routePath.length,placeDensityMode,includeTouristCatalog]);
 
   // Usa exatamente as coleções cujos marcadores são desenhados pelas camadas acima.
   // Ao arrastar ou ampliar o mapa a lista muda, mas nenhum local fictício é criado.
@@ -1650,7 +1655,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       {selectedRoadAlert && <MapRoadAlertDialog alert={selectedRoadAlert} marker={alertMarker}
         busy={alertCheckBusy} error={alertCheckError} message={alertCheckMessage}
         onClose={()=>setSelectedRoadAlert(null)} onConfirm={present=>void checkRoadAlert(present)}/>}
-      <div ref={mapContainerRef} className="w-full h-full" />
+      <div ref={mapContainerRef} className="isolate w-full h-full" />
       <MapTrafficControl port={trafficPort} navigation={navigationMode}
         location={userLiveCoords??originCoords??null}
         onRequestFullTraffic={()=>{

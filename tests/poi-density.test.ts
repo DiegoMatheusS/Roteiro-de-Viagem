@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {poiDensity,selectVisiblePois} from '../src/services/poiDensity';
-import {rolePlaceMarkerKey,type RoleVectorMarker} from '../src/services/vectorPlaceData';
+import {rolePlaceMarkerKey,selectRoleVectorMarkers,type RoleVectorMarker} from '../src/services/vectorPlaceData';
 import {standaloneVisiblePlaces} from '../src/services/standaloneVisiblePlaces';
 
 const entry=(id:string,x:number,y:number,category:'square'|'landmark'|'park'='square'):RoleVectorMarker=>
@@ -55,4 +55,32 @@ test('nearby list still lets the user find places whose icon is hidden by densit
   const places=standaloneVisiblePlaces({markers,stations:[],places:[],stops:[],
     center:[0,0],contains:()=>true,zoom:10});
   assert.deepEqual(places.map(place=>place.id),['hidden','shown']);
+});
+
+test('the tourist overview highlights five separated attractions and grows at wider zooms',()=>{
+  const attractions=[entry('near-square',215,420),entry('landmark-1',100,80,'landmark'),
+    entry('park-1',100,500,'park'),entry('park-2',310,670,'park'),entry('landmark-2',310,200,'landmark'),
+    entry('park-3',310,445,'park'),entry('overlap',302,203,'park'),entry('offscreen',-1,450,'landmark')];
+  const station:RoleVectorMarker={kind:'fuel',id:'fuel',coords:[200,600],name:'Posto',priceLabel:null};
+  const overview={...view,touristHighlights:true,densityMode:'all' as const};
+  const close=selectVisiblePois([...attractions,station],{...overview,zoom:15});
+  const city=selectVisiblePois([...attractions,station],{...overview,zoom:11});
+  const wide=selectVisiblePois([...attractions,station],{...overview,zoom:8});
+  assert.equal(wide.keys.size,5);
+  assert.ok(wide.size>city.size&&city.size>close.size);
+  assert.ok(wide.keys.has('place:landmark-2'));
+  assert.ok(!wide.keys.has('place:overlap')&&!wide.keys.has('fuel:fuel')&&!wide.keys.has('place:offscreen'));
+  assert.ok(close.keys.has('fuel:fuel'));
+  assert.ok(selectVisiblePois([...attractions,station],{...overview,navigationMode:true}).keys.has('fuel:fuel'));
+});
+
+test('curated destinations are available beyond the nearby API zoom without adding close-up pins',()=>{
+  const input={stations:[],places:[],tolls:[],navigationMode:false};
+  assert.deepEqual(selectRoleVectorMarkers(input),[]);
+  const catalog=selectRoleVectorMarkers({...input,includeTouristCatalog:true});
+  const ibirapuera=catalog.find(place=>place.id==='sp-parque-ibirapuera');
+  assert.ok(ibirapuera?.kind==='place'&&ibirapuera.catalogAddress);
+  const project=()=>({x:200,y:400});
+  assert.ok(selectVisiblePois([ibirapuera],{...view,project,zoom:7,touristHighlights:true}).keys.has('place:'+ibirapuera.id));
+  assert.equal(selectVisiblePois([ibirapuera],{...view,project,zoom:15,touristHighlights:true}).keys.size,0);
 });

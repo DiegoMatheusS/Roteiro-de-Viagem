@@ -60,7 +60,8 @@ export function createRoleMaplibreMarkerController(
     if(active?.key===key){closeBalloon();return;}
     closeBalloon();
     const content=createPlaceBalloon(entry,actions,closeBalloon);
-    const popup=new Popup({className:'role-place-balloon-popup',offset:22,maxWidth:'300px',focusAfterOpen:false})
+    const markerSize=markers.get(key)?.size||38;
+    const popup=new Popup({className:'role-place-balloon-popup',offset:Math.max(22,markerSize/2+3),maxWidth:'300px',focusAfterOpen:false})
       .setLngLat(toMarkerLngLat(entry.coords)).setDOMContent(content.element).addTo(gl);
     const record={key,popup,content,signature:placeBalloonSignature(entry)};
     active=record;markers.get(key)?.marker.getElement().setAttribute('aria-expanded','true');
@@ -74,24 +75,27 @@ export function createRoleMaplibreMarkerController(
     if(destroyed)return;
     const box=gl.getContainer(),center=gl.getCenter();
     const viewKey=JSON.stringify([gl.getZoom(),center.lng,center.lat,gl.getBearing(),gl.getPitch(),
-      box.clientWidth,box.clientHeight,context.navigationMode,context.showRouteServices,context.densityMode,active?.key]);
+      box.clientWidth,box.clientHeight,context.navigationMode,context.showRouteServices,context.densityMode,context.touristHighlights,active?.key]);
     if(!layoutDirty&&viewKey===lastView)return;
     layoutDirty=false;lastView=viewKey;
     const layout=selectVisiblePois([...markers.values()].map(record=>record.entry),{
       zoom:gl.getZoom(),width:box.clientWidth,height:box.clientHeight,
       project:coords=>gl.project(toMarkerLngLat(coords)),navigationMode:context.navigationMode,
-      showRouteServices:context.showRouteServices,selectedKey:active?.key,densityMode:context.densityMode
+      showRouteServices:context.showRouteServices,selectedKey:active?.key,densityMode:context.densityMode,touristHighlights:context.touristHighlights
     });
     visibleKeys=layout.keys;
     for(const record of markers.values()){
-      const visible=visibleKeys.has(rolePlaceMarkerKey(record.entry));
+      const key=rolePlaceMarkerKey(record.entry),visible=visibleKeys.has(key);
       const element=record.marker.getElement();
       if(record.visible!==visible){
         record.visible=visible;
         element.style.display=visible?'':'none';
       }
-      if(record.size!==layout.size){record.size=layout.size;element.style.setProperty('--role-poi-scale',String(layout.size/38));}
-      if(!visible&&active?.key===rolePlaceMarkerKey(record.entry))closeBalloon();
+      if(record.size!==layout.size){
+        record.size=layout.size;element.style.setProperty('--role-poi-scale',String(layout.size/38));
+        if(visible&&active?.key===key)active.popup.setOffset(Math.max(22,layout.size/2+3));
+      }
+      if(!visible&&active?.key===key)closeBalloon();
     }
   };
   const buildMarker=(entry:RoleVectorMarker):{marker:Marker;unbind:()=>void}=>{
