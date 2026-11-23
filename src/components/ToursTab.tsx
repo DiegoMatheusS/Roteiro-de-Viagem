@@ -181,7 +181,7 @@ export function ToursTab({currentVehicle,onStartTrip,onSaveTrip,savedTripIds}:To
       {voiceError&&<p role="status" className="rdv-explore-search-note">{voiceError}</p>}
     </header>
     <div className="rdv-explore-map" aria-label="Mapa das redondezas">
-      <InteractiveMap roadStyle touristHighlights initialStyle="light" userLiveCoords={origin}
+      <InteractiveMap roadStyle initialStyle="light" userLiveCoords={origin}
         focusedCoords={mapFocus} focusedZoom={12.5} placeDensityMode="all"
         onGoToPlace={place=>void loadRoute(place,false,true)}
         showFuelStations={false} className="w-full h-full"/>

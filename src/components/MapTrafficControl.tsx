@@ -31,7 +31,7 @@ export function MapTrafficControl({port,offline=false,navigation=false,location,
     state==='live'?'Trânsito completo ativo.':'Trânsito ainda não disponível neste mapa.';
   return <div data-traffic-state={state} data-traffic-control
     data-traffic-enabled={fullTraffic} data-traffic-mode={fullTraffic?'full':'red-only'}
-    className={`absolute z-30 ${navigation?'right-6 bottom-[calc(var(--rdv-nav-panel-height)+159px)]':'right-5 bottom-[386px] rdv-map-traffic-control'}`}>
+    className={`absolute z-30 ${navigation?'right-6 rdv-nav-traffic-control':'right-5 bottom-[386px] rdv-map-traffic-control'}`}>
     <button type="button"
       aria-label={fullTraffic?'Ocultar trânsito completo':'Mostrar trânsito'}
       aria-pressed={fullTraffic}

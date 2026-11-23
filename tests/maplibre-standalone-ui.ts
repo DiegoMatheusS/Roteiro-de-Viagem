@@ -363,9 +363,22 @@ try{
   const guidance=page.getByRole('status',{name:'Próxima orientação de navegação',exact:true});
   await guidance.getByText('Primeira curva',{exact:true}).waitFor();
   const reportButton=page.getByRole('button',{name:'Reportar problema na estrada',exact:true});
+  const trafficButton=page.getByRole('button',{name:'Mostrar trânsito',exact:true});
+  const voiceButton=page.getByRole('button',{name:/^Orientações por voz/});
+  const gpsButton=page.getByRole('button',{name:'Centralizar mapa na minha localização',exact:true});
+  const navViewports=[{width:390,height:844},{width:360,height:640}];
+  const checkRightControls=async()=>{
+    await trafficButton.waitFor();
+    const [traffic,voice,gps]=await Promise.all([trafficButton.boundingBox(),voiceButton.boundingBox(),gpsButton.boundingBox()]);
+    assert.ok(traffic&&voice&&gps&&traffic.y>=0&&traffic.y+traffic.height<voice.y&&voice.y+voice.height<gps.y,
+      'trânsito, voz e GPS ficam em posições separadas');
+    await trafficButton.click({trial:true});
+    await gpsButton.click({trial:true});
+  };
   assert.equal(await reportButton.count(),1,'navigation has one persistent report button');
-  for(const viewport of [{width:390,height:844},{width:360,height:640}]){
+  for(const viewport of navViewports){
     await page.setViewportSize(viewport);
+    await checkRightControls();
     assert.equal(await reportButton.evaluate(element=>{
       const r=element.getBoundingClientRect(),top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
       return r.width>=56&&r.height>=56&&r.top>=0&&r.bottom<=innerHeight&&!!top&&(top===element||element.contains(top));
@@ -374,6 +387,22 @@ try{
     await page.getByRole('menu',{name:'Escolher ocorrência'}).waitFor();
     await page.getByRole('button',{name:'Fechar opções de alerta',exact:true}).click();
   }
+  await page.route('**/api/road-alerts/route',route=>route.fulfill({json:{alerts:[{
+    id:'pardal:navigation',kind:'speed_camera',source:'pardal',lat:0,lng:.004,
+    cameraKind:'FIXED',limitKmh:50,createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60000).toISOString()
+  }]}}));
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  const radarBanner=page.getByTestId('road-alert-banner');
+  await radarBanner.waitFor();
+  for(const viewport of navViewports){
+    await page.setViewportSize(viewport);
+    await checkRightControls();
+    const [gps,banner]=await Promise.all([gpsButton.boundingBox(),radarBanner.boundingBox()]);
+    assert.ok(gps&&banner&&gps.y+gps.height<banner.y,'o alerta de radar fica abaixo do GPS');
+  }
+  await page.unroute('**/api/road-alerts/route');
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await radarBanner.waitFor({state:'hidden'});
   await page.setViewportSize({width:420,height:850});
   const hud=await page.evaluate(()=>{
     const guidance=document.querySelector('.rdv-nav-guidance')!.getBoundingClientRect();
