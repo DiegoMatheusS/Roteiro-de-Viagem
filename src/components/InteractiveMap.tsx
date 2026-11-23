@@ -642,7 +642,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
           onPlace:id=>vectorPlaceActionsRef.current.onPlace(id),
       ...(onGoToPlace?{onGoToPlace:(entry:RoleVectorMarker)=>vectorPlaceActionsRef.current.onGoToPlace?.(entry)}:{}),
           onReport:entry=>vectorPlaceActionsRef.current.onReport(entry)
-        });
+        },()=>mapInstanceRef.current?.getZoom()??gl.getZoom());
         controller.update(selectRoleVectorMarkers(vectorPlaceInputsRef.current));
         vectorPlaceControllerRef.current=controller;
         setVectorMarkersReady(true);

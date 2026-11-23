@@ -8,6 +8,7 @@ export interface PoiDensityView {
   navigationMode?:boolean;showRouteServices?:boolean;selectedKey?:string;
   densityMode?:MapIconDensity|'all';
   touristHighlights?:boolean;
+  overviewZoom?:number;
 }
 /** Screen pixels keep the same clearance under rotation, tilt and either map engine. */
 export function poiDensity(zoom:number,width:number,height:number,mode:MapIconDensity='moderate'){
@@ -26,8 +27,9 @@ const importance:Record<string,number>={
 /** A deterministic selection, never clusters displaced from their real coordinates.
  * Paid highlighting and names do not affect rank. The user's selected pin stays. */
 export function selectVisiblePois(entries:readonly RoleVectorMarker[],view:PoiDensityView){
-  const overview=view.touristHighlights&&!view.navigationMode&&!view.showRouteServices&&view.zoom<12;
-  const size=Math.round(Math.min(58,38+4*(12-view.zoom)));
+  const overviewZoom=view.overviewZoom??view.zoom;
+  const overview=view.touristHighlights&&!view.navigationMode&&!view.showRouteServices&&overviewZoom<12;
+  const size=Math.round(Math.min(58,38+4*(12-overviewZoom)));
   const layout=overview?{size,gap:size+10,limit:5}:
     poiDensity(view.zoom,view.width,view.height,view.densityMode==='all'?undefined:view.densityMode);
   const keys=new Set<string>();

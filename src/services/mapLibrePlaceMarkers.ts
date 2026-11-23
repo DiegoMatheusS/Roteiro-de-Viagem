@@ -42,7 +42,8 @@ interface TrackedRoleMarker {
 }
 export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
-  actions: RoleMarkerActions
+  actions: RoleMarkerActions,
+  readOverviewZoom:()=>number=()=>gl.getZoom()
 ):RoleMarkerController {
   const markers=new Map<string,TrackedRoleMarker>();
   let destroyed=false;
@@ -73,13 +74,13 @@ export function createRoleMaplibreMarkerController(
   };
   const applyVisibility=()=>{
     if(destroyed)return;
-    const box=gl.getContainer(),center=gl.getCenter();
-    const viewKey=JSON.stringify([gl.getZoom(),center.lng,center.lat,gl.getBearing(),gl.getPitch(),
+    const box=gl.getContainer(),center=gl.getCenter(),zoom=gl.getZoom(),overviewZoom=readOverviewZoom();
+    const viewKey=JSON.stringify([zoom,overviewZoom,center.lng,center.lat,gl.getBearing(),gl.getPitch(),
       box.clientWidth,box.clientHeight,context.navigationMode,context.showRouteServices,context.densityMode,context.touristHighlights,active?.key]);
     if(!layoutDirty&&viewKey===lastView)return;
     layoutDirty=false;lastView=viewKey;
     const layout=selectVisiblePois([...markers.values()].map(record=>record.entry),{
-      zoom:gl.getZoom(),width:box.clientWidth,height:box.clientHeight,
+      zoom,overviewZoom,width:box.clientWidth,height:box.clientHeight,
       project:coords=>gl.project(toMarkerLngLat(coords)),navigationMode:context.navigationMode,
       showRouteServices:context.showRouteServices,selectedKey:active?.key,densityMode:context.densityMode,touristHighlights:context.touristHighlights
     });

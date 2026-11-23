@@ -71,6 +71,8 @@ test('the tourist overview highlights five separated attractions and grows at wi
   assert.ok(wide.keys.has('place:landmark-2'));
   assert.ok(!wide.keys.has('place:overlap')&&!wide.keys.has('fuel:fuel')&&!wide.keys.has('place:offscreen'));
   assert.ok(close.keys.has('fuel:fuel'));
+  assert.ok(selectVisiblePois([...attractions,station],{...overview,zoom:11.5,overviewZoom:12.5}).keys.has('fuel:fuel'),
+    'the hybrid map follows the visible camera zoom instead of its vector layer zoom');
   assert.ok(selectVisiblePois([...attractions,station],{...overview,navigationMode:true}).keys.has('fuel:fuel'));
 });
 
