@@ -39,6 +39,7 @@ try{
   const opening=page.getByRole('main',{name:'Preparando o RUAVO'});
   const logo=opening.getByRole('img',{name:'RUAVO',exact:true});
   await logo.waitFor({state:'visible'});
+  await opening.getByText('Preparando o aplicativo…',{exact:true}).waitFor({state:'visible'});
   await logo.evaluate(image=>image instanceof HTMLImageElement?image.decode():undefined);
   const background=await opening.evaluate(el=>getComputedStyle(el).backgroundColor);
   assert.equal(background,'rgb(255, 255, 255)');
@@ -49,6 +50,7 @@ try{
   const authentication=page.waitForRequest('**/api/auth/me');
   releaseMain();await authentication;
   await logo.waitFor({state:'visible'});
+  await opening.getByText('Preparando o aplicativo…',{exact:true}).waitFor({state:'visible'});
   assert.equal(await page.locator('[data-map-engine]').count(),0,'hidratação não monta um mapa temporário');
   assert.equal(await page.evaluate(()=>(window as any).__startupGpsWatches),0,'abertura não liga o GPS');
   await page.emulateMedia({reducedMotion:'reduce'});
