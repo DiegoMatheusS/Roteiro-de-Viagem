@@ -56,7 +56,7 @@ export function CreateTouristCircuitScreen({
   return <div className="rdv-create-overlay">
     <section role="dialog" aria-modal="true" aria-label="Criar uma viagem" className="rdv-create-screen" data-panel-compact={compact}>
       <div className="rdv-create-map" aria-label="Mapa da sua localização">
-        <InteractiveMap roadStyle initialStyle="light" userLiveCoords={coords}
+        <InteractiveMap roadStyle initialStyle="light" userLiveCoords={originLabel?undefined:coords} focusedCoords={originLabel?coords:undefined}
           showFuelStations={false} className="w-full h-full"/>
       </div>
       <header className="rdv-create-header">
