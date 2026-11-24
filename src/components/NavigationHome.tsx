@@ -83,6 +83,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
   const [travelMode,setTravelMode] = useState<'car'|'motorcycle'>(props.currentVehicle?.type==='motorcycle'?'motorcycle':'car');
   useEffect(()=>{if(props.currentVehicle)setTravelMode(props.currentVehicle.type);},[props.currentVehicle?.id,props.currentVehicle?.type]);
+  const navigationVehicle = props.currentVehicle?.type === travelMode
+    ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE, type:travelMode};
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [circuitPreviewId,setCircuitPreviewId] = useState<string|null>(null);
   const circuitHistory = React.useRef<[number,number][][]>([]);
@@ -165,7 +167,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     if(!target.closest('[data-panel-grip]'))return;
     dragStart.current=event.clientY;
     swallowNextClick.current=false;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    target.closest('[data-panel-grip]')?.setPointerCapture(event.pointerId);
   };
   useEffect(()=>{
     const close=(event:Event)=>{
@@ -232,6 +234,7 @@ export function NavigationHome(props: NavigationHomeProps) {
 
   const showSheet = (value:'km'|'hours'|'destination') => {
     if(busy)return;
+    if (!sheet && value === 'destination') setDestinationRoutePreference('tourist');
     setError('');setSheet(value);
     if(value==='km'||value==='hours') {circuitHistory.current=[];circuitPlaceHistory.current=[];setSelectedNearbyIds([]);}
   };
@@ -239,11 +242,6 @@ export function NavigationHome(props: NavigationHomeProps) {
   const currentValue = sheet === 'km' ? km : hours;
   const validation = sheet === 'km' || sheet === 'hours' ? getTouristTargetError(sheet, currentValue) : '';
   const warning = sheet === 'km' || sheet === 'hours' ? getTouristTargetWarning(sheet, currentValue) : '';
-  const requireVehicle = () => {
-    if (props.currentVehicle) return true;
-    setError('Cadastre seu carro ou sua moto em Perfil → Minha Garagem para criar um roteiro.');
-    return false;
-  };
   const gpsCoordinates = async (): Promise<[number,number]> => {
     // A position may only identify a saved origin when fresh, accurate and
     // stationary. Otherwise keep real GPS coordinates, never a guessed address.
@@ -272,9 +270,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       const from=await gpsCoordinates();
       const choices=await fetchRouteChoices(from,target.coords,undefined,'fast');
       if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
-      const vehicle=props.currentVehicle?.type===travelMode
-        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
-      const trip=choiceToTrip(choices[0],vehicle,from,{name:target.name,coords:target.coords},savedOriginName.current);
+      const trip=choiceToTrip(choices[0],navigationVehicle,from,{name:target.name,coords:target.coords},savedOriginName.current);
       props.onStartTrip(trip);
     }catch(err){
       setError((err as Error).message);
@@ -305,7 +301,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         interests,selectedPlaceIds:selectedNearbyIds,avoidWaypoints:avoided,
         visitedWaypoints,visitedPlaceIds,
         excludePlaceIds:regenerate?circuitPlaceHistory.current:[],
-        vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
+        vehicle:navigationVehicle });
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
@@ -325,22 +321,20 @@ export function NavigationHome(props: NavigationHomeProps) {
     setMapEditError('');setMapEditing(true);
     const current=preview;
     try{
-      const vehicle=props.currentVehicle?.type===travelMode
-        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
-      const altered=await recalculateDragRoute(current,position,vehicle);
+      const altered=await recalculateDragRoute(current,position,navigationVehicle);
       setPreview(existing=>existing?.id===current.id?altered:existing);
     }catch(err){setMapEditError((err as Error).message);}
     finally{setMapEditing(false);}
   };
   const submitDestination = async () => {
-    if (busy || !dest.coords || (!useGps && !origin.coords) || !requireVehicle()) return;
+    if (busy || !dest.coords || (!useGps && !origin.coords)) return;
     setError('');setBusy(true);
     try {
       const originCoords = useGps ? await gpsCoordinates() : origin.coords!;
       const choices=await fetchRouteChoices(originCoords,dest.coords,undefined,destinationRoutePreference);
       const choice=choices[0];
       if(!choice)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
-      const trip=choiceToTrip(choice,props.currentVehicle!,originCoords,{name:dest.name,coords:dest.coords},
+      const trip=choiceToTrip(choice,navigationVehicle,originCoords,{name:dest.name,coords:dest.coords},
         useGps?savedOriginName.current:origin.name);
       if(destinationRoutePreference==='tourist'&&(choice.kind==='fast'||choice.kind==='alternative')){
         trip.routeWarnings=[...(trip.routeWarnings||[]),
@@ -350,14 +344,14 @@ export function NavigationHome(props: NavigationHomeProps) {
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const suggestDestination = async (place:Place) => {
-    if(busy || !requireVehicle())return;
+    if(busy)return;
     setBusy(true);setError('');
     try {
       const originCoords = await gpsCoordinates();
       const draft = createRoadDraft({originName:savedOriginName.current,originCoords,
         destinationName:place.name,destinationCoords:[place.lat,place.lng],
-        vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
-      const trip = await prepareRoadPreview(draft, props.currentVehicle!);
+        vehicle:navigationVehicle,circular:false,limits:{mode:'destination'}});
+      const trip = await prepareRoadPreview(draft, navigationVehicle);
       setPreview(trip);
     } catch(err) {setError((err as Error).message);} finally {setBusy(false);}
   };
@@ -410,6 +404,23 @@ export function NavigationHome(props: NavigationHomeProps) {
     const n = Math.max(sheet === 'km' ? 1 : 0.1,(parseTouristTarget(currentValue) || 0) + (increase ? amount : -amount));
     if(sheet === 'km')setKm(String(n));else setHours(String(n));
   };
+  const changeOriginMode = (gpsEnabled:boolean) => {
+    setUseGps(gpsEnabled);
+    setSelectedNearbyIds([]);
+    setError('');
+  };
+  const originControls = <>
+    <label className="flex items-center gap-2 text-sm min-h-11">
+      <input type="checkbox" checked={useGps} disabled={busy}
+        onChange={event=>changeOriginMode(event.target.checked)}/> Sair da minha localização (GPS)
+    </label>
+    {useGps && gps.error && <button type="button" disabled={busy}
+      onClick={()=>changeOriginMode(false)} className="min-h-11 text-sm font-bold text-blue-700 underline">
+      Escolher ponto de partida
+    </button>}
+    {!useGps && <LocationSearch label="Origem" value={origin} bias={liveCoords} allowManualPin
+      onChange={value=>{setOrigin(value);setSelectedNearbyIds([]);setError('');}}/>}
+  </>;
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
@@ -628,8 +639,8 @@ export function NavigationHome(props: NavigationHomeProps) {
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet==='km'||sheet==='hours') && !preview && <CreateTouristCircuitScreen
       mode={sheet} km={km} hours={hours} travelMode={travelMode} coords={useGps?liveCoords:origin.coords}
-      originLabel={useGps?undefined:origin.name||'Escolha a origem'}
-      originControls={<><label className="flex items-center gap-2 text-sm min-h-11"><input type="checkbox" checked={useGps} onChange={e=>{setUseGps(e.target.checked);setSelectedNearbyIds([]);}}/> Sair da minha localização (GPS)</label>{!useGps&&<LocationSearch label="Origem" value={origin} onChange={value=>{setOrigin(value);setSelectedNearbyIds([]);}} bias={liveCoords} allowManualPin/>}</>}
+      originLabel={useGps?undefined:origin.name||'Escolha o ponto de partida'}
+      originControls={originControls}
       onDestination={()=>showSheet('destination')}
       tripType={tripType} preference={preference} busy={busy}
       nearbySuggestions={nearbySuggestions}
@@ -658,7 +669,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onSave={()=>props.onSaveTrip(preview)}
       onAdjust={()=>{
         if(props.currentVehicle){props.onViewTripDetails(preview);setPreview(null);}
-        else{setPreview(null);setSheet(lastCircuitMode);}
+        else{setPreview(null);setSheet(preview.id===circuitPreviewId?lastCircuitMode:'destination');}
       }}
       onStart={()=>{props.onStartTrip(preview);setPreview(null);}}
     />}
@@ -684,11 +695,9 @@ export function NavigationHome(props: NavigationHomeProps) {
                 onChange={()=>setDestinationRoutePreference('fast')}/> Mais rápida — prioriza tempo de viagem
             </label>
           </fieldset>
-          <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)}/> Sair da minha localização (GPS)</label>
-          {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords} allowManualPin/>}
+          {originControls}
           <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} allowManualPin placeholder="Cidade, endereço, parque ou restaurante"/>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-          {!props.currentVehicle && <button type="button" className="text-xs font-bold underline text-blue-700" onClick={()=>{closeSheet();props.onOpenProfile();}}>Cadastrar meu veículo no Perfil</button>}
         </div>
         <footer className="shrink-0 bg-white border-t border-slate-100 px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"><button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
             className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button></footer>

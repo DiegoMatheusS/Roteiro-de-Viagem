@@ -68,7 +68,7 @@ export function createLeafletPlaceMarkerController(map:L.Map,actions:RoleMarkerA
           zIndexOffset:entry.kind==='toll'?1700:entry.kind==='fuel'?1500:1400,riseOnHover:true}).addTo(group);
         const element=marker.getElement();
         if(element){element.dataset.poiId=entry.id;element.classList.add(entry.kind==='fuel'?'fuel-station-marker':entry.kind==='toll'?'toll-marker':'registered-place-marker');}
-        records.set(key,{marker,entry,signature,coords:[...entry.coords],balloon:bindLeafletPlaceBalloon(marker,entry,actions),visible:null,size:0});
+        records.set(key,{marker,entry,signature,coords:[...entry.coords],balloon:bindLeafletPlaceBalloon(map,marker,entry,actions),visible:null,size:0});
       }
       applyVisibility();
     },

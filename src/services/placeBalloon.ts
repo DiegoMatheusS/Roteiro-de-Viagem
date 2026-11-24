@@ -15,6 +15,14 @@ export interface RoleMarkerActions {
   onGoToPlace?:(place:RoleVectorMarker)=>void;
   onReport:(entry:RoleVectorMarker)=>void;
 }
+/** The renderer spans the map behind the planning sheet. Only its exposed area can show a popup. */
+export function visibleMapBottom(container:HTMLElement):number {
+  const map = container.closest('.leaflet-container') ?? container;
+  const surface = map.closest('.rdv-flat-map, .rdv-explore-map');
+  const sheet = surface?.parentElement?.querySelector(':scope > .rdv-figma-home-sheet, :scope > .rdv-explore-sheet');
+  const bottom = map.getBoundingClientRect().bottom;
+  return sheet?.getClientRects().length ? Math.min(bottom, sheet.getBoundingClientRect().top) : bottom;
+}
 export const placeBalloonSignature=(entry:RoleVectorMarker)=>JSON.stringify(entry);
 const starPath='m12 2.5 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.3l6.5-.9L12 2.5Z';
 export function createRatingStars(summary:PlaceRatingSummary):HTMLElement{

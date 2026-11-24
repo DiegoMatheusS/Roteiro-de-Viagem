@@ -8,7 +8,7 @@ const circuit=readFileSync(new URL('../src/components/CreateTouristCircuitScreen
 test('saved places are visible just below the main search without expanding Salvos',()=>{
   const search=home.indexOf('data-testid="home-inline-destination-search"');
   const shortcuts=home.indexOf('data-testid="home-saved-shortcuts"');
-  const planner=home.indexOf('Planejar passeio');
+  const planner=home.indexOf('Planejar trajeto');
   assert.ok(search>=0&&shortcuts>search&&planner>shortcuts,
     'saved places must appear immediately after the search, before journey planning');
   assert.match(home,/data-testid="home-saved-places"/);
