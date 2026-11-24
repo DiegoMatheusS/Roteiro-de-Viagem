@@ -15,3 +15,5 @@ body {margin:0;}
 @media (prefers-reduced-motion:reduce) {
   .rdv-startup-logo {animation:none;}
 }
+
+.rdv-startup-message {position:absolute;top:calc(50% + 72px);left:16px;right:16px;text-align:center;color:#334155;font:600 14px/1.4 system-ui,sans-serif;}
