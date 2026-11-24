@@ -41,6 +41,13 @@ try{
       await page.screenshot({path:`test-results/radar-${engine}-failure.png`});
       throw error;
     });
+    const layerOrder=await dialog.evaluate(el=>{
+      const popup=el.closest('.maplibregl-popup,.leaflet-popup')!;
+      const pin=document.querySelector<HTMLElement>('.road-alert-marker')!;
+      if(popup.classList.contains('leaflet-popup'))return Number(getComputedStyle(popup.closest('.leaflet-popup-pane')!).zIndex)>Number(getComputedStyle(pin.closest('.leaflet-marker-pane')!).zIndex);
+      return Number(getComputedStyle(popup).zIndex)>Number(getComputedStyle(pin).zIndex);
+    });
+    assert.ok(layerOrder,'the balloon layer is above even high-priority radar icons');
     await dialog.getByRole('heading').click();
     await dialog.waitFor({state:'visible'});
     return dialog;
@@ -61,6 +68,12 @@ try{
     await overlay.evaluate(button=>button.setAttribute('hidden',''));
   };
   const first=await checkDetails('maplibre');
+  const meeting=page.locator('.meeting-point-marker');await meeting.waitFor();
+  await meeting.press('Enter');await first.waitFor({state:'hidden'});
+  await page.locator('.maplibregl-popup').waitFor();
+  assert.equal(await page.locator('.maplibregl-popup').count(),1,'radar closes when another category opens');
+  await checkDetails('maplibre');
+  assert.equal(await page.locator('.maplibregl-popup').count(),1,'opening radar closes other marker popups');
   await page.screenshot({path:'test-results/radar-pardal-details.png'});
   await page.mouse.click(16,530);
   await first.waitFor({state:'hidden'});
