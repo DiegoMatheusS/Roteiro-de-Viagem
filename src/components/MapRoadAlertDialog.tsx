@@ -30,15 +30,9 @@ export function MapRoadAlertDialog({ alert, marker, busy, error, message, onClos
 
   useEffect(() => {
     if (!anchor || !content) return;
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !content.contains(event.target) &&
-          !anchor.element.contains(event.target)) close.current();
-    };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') close.current(); };
-    document.addEventListener('pointerdown', outside, true);
     document.addEventListener('keydown', escape);
     return () => {
-      document.removeEventListener('pointerdown', outside, true);
       document.removeEventListener('keydown', escape);
     };
   }, [anchor, content]);

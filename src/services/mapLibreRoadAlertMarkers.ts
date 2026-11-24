@@ -4,7 +4,7 @@ import { ROAD_ALERT_TYPES } from '../types/roadAlerts';
 import { createRoadAlertIconElement, roadAlertMarkerChange, selectVisibleRoadAlerts } from './mapRoadAlerts';
 import {roadAlertTitle} from './roadAlertPresentation';
 import {roadAlertLayerPriority,roadAlertSeverity} from './roadAlertPriority';
-import type {MarkerPopupAnchor} from './mapMarkerPopup';
+import {bindExclusiveMapLibrePopup,type MarkerPopupAnchor} from './mapMarkerPopup';
 
 export interface RoadAlertPinController {
   update(alerts: readonly RoadAlert[]):void;
@@ -46,8 +46,8 @@ export function createRoleMaplibreRoadAlertController(
       onSelect(current,current.kind==='speed_camera'?{
         element:button,
         mount(content,close){
-          const popup=new Popup({className:'role-place-balloon-popup role-radar-popup',offset:21,
-            maxWidth:'285px',closeButton:false,closeOnClick:false,focusAfterOpen:false})
+          const popup=bindExclusiveMapLibrePopup(new Popup({className:'role-place-balloon-popup role-radar-popup',offset:21,
+            maxWidth:'285px',closeButton:false,closeOnClick:false,focusAfterOpen:false}),button)
             .setLngLat([current.lng,current.lat]).setDOMContent(content).addTo(map);
           popup.on('close',close);
           return ()=>{popup.off('close',close);popup.remove();};

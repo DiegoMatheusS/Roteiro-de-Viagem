@@ -25,7 +25,7 @@ import {roadAlertTitle} from '../services/roadAlertPresentation';
 import {roadAlertLayerPriority} from '../services/roadAlertPriority';
 import {useViewportRoadAlerts,type RoadAlertViewport} from '../hooks/useViewportRoadAlerts';
 import {MapRoadAlertDialog} from './MapRoadAlertDialog';
-import type {MarkerPopupAnchor} from '../services/mapMarkerPopup';
+import {trackMapBalloon,type MarkerPopupAnchor} from '../services/mapMarkerPopup';
 import {mapPositionIsOnHighway,radarAlertsInView,RADAR_MIN_ZOOM} from '../services/mapRadarVisibility';
 import {bindMapMarkerActivation} from '../services/mapMarkerActivation';
 import { getCurrentDeviceLocation } from '../services/locationService';
@@ -390,6 +390,23 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       attributionControl: true
     });
 
+    let activePopup:L.Popup|null=null;
+    let releasePopup:(()=>void)|undefined;
+    const popupOpened=(event:L.PopupEvent)=>{
+      const popup=event.popup,element=popup.getElement();
+      if(!element)return;
+      releasePopup?.();
+      activePopup=popup;
+      let anchor:HTMLElement|null=null;
+      map.eachLayer(layer=>{if(layer instanceof L.Marker&&layer.getPopup()===popup)anchor=layer.getElement()??null;});
+      releasePopup=trackMapBalloon(element,anchor,()=>map.closePopup(popup));
+    };
+    const popupClosed=(event:L.PopupEvent)=>{
+      if(activePopup!==event.popup)return;
+      releasePopup?.();releasePopup=undefined;activePopup=null;
+    };
+    map.on('popupopen',popupOpened);map.on('popupclose',popupClosed);
+
     // Estilo Waze: zoom apenas por pinça ou gesto; sem controles + e −.
 
     const group = L.layerGroup().addTo(map);
@@ -498,6 +515,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       idleFollow.dispose();idleFollowRef.current=null;
       unbindManualZoom();
       map.stop();
+      releasePopup?.();map.off('popupopen',popupOpened);map.off('popupclose',popupClosed);
       map.remove();
       mapInstanceRef.current = null;
     };
