@@ -566,7 +566,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             onConfirm={place=>{setShowManualMap(false);selectMapTarget(place);}}/>}
         </div>
           <h3 className="text-[13px] font-bold text-slate-700">Planejar trajeto</h3>
-          <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-blue-200 rounded-[18px] p-3 flex items-center gap-3">
+          <button type="button" aria-label="Rota com origem e destino" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-blue-200 rounded-[18px] p-3 flex items-center gap-3">
             <Route size={22} className="text-blue-700 shrink-0"/><span className="flex-1"><strong className="block text-sm text-slate-900">Rota com origem e destino</strong><small className="text-slate-600">Ponto A → B</small></span><ChevronRight size={17}/>
           </button>
           <div className="grid grid-cols-2 gap-3">
@@ -670,7 +670,7 @@ export function NavigationHome(props: NavigationHomeProps) {
           <button type="button" aria-label="Voltar" onClick={closeSheet} className="min-w-11 min-h-11 flex items-center justify-center"><X size={20}/></button>
           <h1 className="text-[18px] font-bold">Escolher destino</h1>
         </header>
-        <div className="p-5 pt-1 space-y-4 overflow-y-auto">
+        <div className="p-5 pt-1 space-y-4 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <h2 className="text-xl font-extrabold">Rota com origem e destino</h2>
           <div className="rdv-create-tabs rdv-route-mode-tabs" role="group" aria-label="Tipo de planejamento"><button type="button" className="is-selected" aria-pressed={true}>Destino</button><button type="button" aria-pressed={false} disabled={busy} onClick={()=>showSheet('km')}>Rolê · km</button><button type="button" aria-pressed={false} disabled={busy} onClick={()=>showSheet('hours')}>Rolê · horas</button></div>
           <fieldset className="border border-slate-200 rounded-xl p-3 space-y-2" aria-label="Preferência de rota">
@@ -689,9 +689,9 @@ export function NavigationHome(props: NavigationHomeProps) {
           <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} allowManualPin placeholder="Cidade, endereço, parque ou restaurante"/>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
           {!props.currentVehicle && <button type="button" className="text-xs font-bold underline text-blue-700" onClick={()=>{closeSheet();props.onOpenProfile();}}>Cadastrar meu veículo no Perfil</button>}
-          <button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
-            className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button>
         </div>
+        <footer className="shrink-0 bg-white border-t border-slate-100 px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"><button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
+            className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button></footer>
       </section>
     </div>}
 
