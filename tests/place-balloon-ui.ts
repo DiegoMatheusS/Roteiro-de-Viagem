@@ -116,6 +116,12 @@ try{
       'Ir envia as coordenadas verificadas ao fluxo de navegação, sem modal de detalhes');
     await parkBalloon.waitFor({state:'hidden'});
     await pin.press('Enter');await balloon.waitFor();
+    await park.press('Enter');await parkBalloon.waitFor();
+    await balloon.waitFor({state:'hidden'});
+    assert.equal(await page.locator('.role-place-balloon-popup').count(),1,'only the latest place balloon remains');
+    await page.mouse.click(8,8);
+    await parkBalloon.waitFor({state:'hidden'});
+    await pin.press('Enter');await balloon.waitFor();
     assert.equal(await page.evaluate(()=>{const event=new Event('rdv:close-overlay',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);
     await balloon.waitFor({state:'hidden'});
     assert.deepEqual(errors,[]);await page.close();
