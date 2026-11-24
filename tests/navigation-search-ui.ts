@@ -217,13 +217,22 @@ try{
     await numbered.first().click();
     await destinationPanel.getByRole('heading',{name:'Avenida Paulista, 1000'}).waitFor();
     await page.getByRole('button',{name:'Sair da visualização do destino'}).click();
+    await page.getByRole('button',{name:'Rota com origem e destino'}).click();
+    const guestForm=page.getByRole('dialog',{name:'Escolher origem e destino'});
+    await guestForm.getByRole('textbox',{name:'Destino',exact:true}).fill('Museu de teste');
+    await guestForm.getByRole('button',{name:'Buscar destino',exact:true}).click();
+    await guestForm.getByRole('button',{name:/Museu de teste Cidade de teste/}).click();
+    await guestForm.getByRole('button',{name:'Ver percurso'}).click();
+    const guestPreview=page.getByRole('dialog',{name:'Visualizar viagem'});
+    await guestPreview.getByRole('button',{name:'Ajustar',exact:true}).click();
+    assert.equal(await guestForm.getByRole('textbox',{name:'Destino',exact:true}).inputValue(),'Museu de teste');
     await page.goto('http://127.0.0.1:3000/tests/fixtures/navigation-home-search.html?vehicle=1');
     await page.waitForFunction(()=>typeof (window as any).__searchGps==='function');
     await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
     const openPlanning=page.getByRole('button',{name:'Rota com origem e destino'});
     await openPlanning.click();
     const form=page.getByRole('dialog',{name:'Escolher origem e destino'});
-    assert.equal(await form.getByRole('radio',{name:'Mais turística',exact:true}).isChecked(),true);
+    assert.equal(await form.getByRole('radio',{name:/^Mais turística/}).isChecked(),true);
     await form.getByRole('textbox',{name:'Destino',exact:true}).fill('Museu de teste');
     await form.getByRole('button',{name:'Buscar destino',exact:true}).click();
     await form.getByRole('button',{name:/Museu de teste Cidade de teste/}).click();
@@ -235,15 +244,15 @@ try{
     assert.equal(trip.modality,'turistica');assert.equal(trip.durationMinutes,30);
     assert.deepEqual(trip.waypointOrder,[[-23.55,-46.63],[-23.53,-46.65],[-23.54,-46.62]]);
     await openPlanning.click();
-    assert.equal(await form.getByRole('radio',{name:'Mais turística',exact:true}).isChecked(),true);
-    await form.getByRole('radio',{name:'Mais rápida',exact:true}).check();
+    assert.equal(await form.getByRole('radio',{name:/^Mais turística/}).isChecked(),true);
+    await form.getByRole('radio',{name:/^Mais rápida/}).check();
     await form.getByRole('button',{name:'Ver percurso',exact:true}).click();
     await preview.waitFor();
     await preview.getByRole('button',{name:'Iniciar viagem',exact:true}).click();
     trip=await page.evaluate(()=>(window as any).__startedRouteTrip);
     assert.equal(trip.modality,'rapida');assert.equal(trip.durationMinutes,10);
     await openPlanning.click();
-    assert.equal(await form.getByRole('radio',{name:'Mais turística',exact:true}).isChecked(),true,
+    assert.equal(await form.getByRole('radio',{name:/^Mais turística/}).isChecked(),true,
       'reopening origin/destination restores the tourist default');
     await form.getByRole('button',{name:'Ver percurso',exact:true}).click();
     await preview.waitFor();

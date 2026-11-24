@@ -9,8 +9,8 @@ test('single Comboio button sits immediately after KM/Hours in the public home',
   const km=home.indexOf("Escolher KM");
   const hours=home.indexOf("Escolher horas");
   const convoy=home.indexOf('onClick={()=>setShowConvoyActions(true)}');
-  const destination=home.indexOf("showSheet('destination')} className=");
-  assert.ok(km>=0&&hours>km&&convoy>hours&&destination>convoy,'botão logo abaixo de KM/horas e antes do destino');
+  const destination=home.indexOf('aria-label="Rota com origem e destino"');
+  assert.ok(destination>=0&&km>destination&&hours>km&&convoy>hours,'destino, km, horas e comboio devem seguir a ordem de planejamento');
   assert.match(home,/<ConvoyActionModal[\s\S]*onCreate=\{\(\)=>\{setShowConvoyActions\(false\);setShowCreateConvoy\(true\);\}\}/);
   assert.match(home,/onJoin=\{\(\)=>\{setShowConvoyActions\(false\);props\.onJoinConvoy\(\);\}\}/);
   assert.match(home,/<CreateConvoyModal[\s\S]*onCreate=\{props\.onCreateConvoy\}/);

@@ -13,6 +13,9 @@ interface CreateTouristCircuitScreenProps {
   hours: string;
   travelMode: 'car' | 'motorcycle';
   coords?: [number,number];
+  originLabel?: string;
+  originControls?: React.ReactNode;
+  onDestination?: () => void;
   tripType: 'round_trip' | 'one_way';
   preference: CircuitPreference;
   busy: boolean;
@@ -43,15 +46,17 @@ export function CreateTouristCircuitScreen({
   mode, km, hours, travelMode, coords, tripType, preference, busy, warning,
   validation, error, onClose, onModeChange, onKmChange, onHoursChange,
   onStep, onTripTypeChange, onPreferenceChange, onTravelModeChange, onSubmit,
-  nearbySuggestions = [], selectedNearbyIds = [], onToggleNearby, onClearNearby
+  nearbySuggestions = [], selectedNearbyIds = [], onToggleNearby, onClearNearby,
+  originLabel, originControls, onDestination
 }: CreateTouristCircuitScreenProps) {
+  const [compact,setCompact]=React.useState(false);
   const value=mode==='km'?km:hours;
   const options=mode==='km'?[10,20,30,50]:[1,2,3,4];
 
   return <div className="rdv-create-overlay">
-    <section role="dialog" aria-modal="true" aria-label="Criar uma viagem" className="rdv-create-screen">
+    <section role="dialog" aria-modal="true" aria-label="Criar uma viagem" className="rdv-create-screen" data-panel-compact={compact}>
       <div className="rdv-create-map" aria-label="Mapa da sua localização">
-        <InteractiveMap roadStyle initialStyle="light" userLiveCoords={coords}
+        <InteractiveMap roadStyle initialStyle="light" userLiveCoords={originLabel?undefined:coords} focusedCoords={originLabel?coords:undefined}
           showFuelStations={false} className="w-full h-full"/>
       </div>
       <header className="rdv-create-header">
@@ -62,25 +67,28 @@ export function CreateTouristCircuitScreen({
       </header>
       <div className="rdv-create-origin">
         <Crosshair size={19} strokeWidth={2} aria-hidden="true"/>
-        <span>{coords?'Da sua localização atual':'Ative o GPS para definir a origem'}</span>
+        <span>{originLabel??(coords?'Da sua localização atual':'Ative o GPS para definir a origem')}</span>
         {coords && <Check size={19} aria-hidden="true"/>}
       </div>
 
       <div className="rdv-create-panel" data-testid="figma-create-trip-panel">
-        <div className="rdv-create-handle" aria-hidden="true"/>
+        <button type="button" className="rdv-create-panel-toggle" aria-expanded={!compact} onClick={()=>setCompact(v=>!v)}>{compact?'Expandir configurações':'Recolher para ver o mapa'}</button>
+        <div className="rdv-create-scroll" hidden={compact}>
         <h2>{mode==='km'?'Qual distância deseja percorrer?':'Quanto tempo deseja viajar?'}</h2>
 
-        <div className="rdv-create-tabs" role="group" aria-label="Tipo de planejamento">
-          <button type="button" aria-pressed={mode==='km'} onClick={()=>onModeChange('km')}
+        <div className={`rdv-create-tabs ${onDestination?'rdv-route-mode-tabs':''}`} role="group" aria-label="Tipo de planejamento">
+          {onDestination&&<button type="button" aria-pressed={false} disabled={busy} onClick={onDestination}>Destino</button>}
+          <button type="button" disabled={busy} aria-pressed={mode==='km'} onClick={()=>onModeChange('km')}
             className={mode==='km'?'is-selected':''}>
             <Route size={17} strokeWidth={1.7}/> Distância · km
           </button>
-          <button type="button" aria-pressed={mode==='hours'} onClick={()=>onModeChange('hours')}
+          <button type="button" disabled={busy} aria-pressed={mode==='hours'} onClick={()=>onModeChange('hours')}
             className={mode==='hours'?'is-selected':''}>
             <Clock3 size={17} strokeWidth={1.7}/> Duração · horas
           </button>
         </div>
 
+        {originControls}
         <div className="rdv-create-stepper">
           <button type="button" aria-label="Diminuir quantidade" onClick={()=>onStep(false)}>−</button>
           <label className="rdv-create-value">
@@ -155,18 +163,16 @@ export function CreateTouristCircuitScreen({
         {validation && <p className="rdv-create-message" role="alert">{validation}</p>}
         {error && <p className="rdv-create-message" role="alert">{error}</p>}
 
-        <button type="button" className="rdv-create-submit" disabled={busy || Boolean(validation)}
-          onClick={onSubmit}>{busy?'Preparando sua viagem…':'Ver meu trajeto'}</button>
-        <p className="rdv-create-disclaimer">Distância e tempo aproximados.</p>
-
         <details className="rdv-create-advanced">
-          <summary>Preferências do trajeto</summary>
+          <summary>Preferências do trajeto: {preference==='curvas'?'Mais curvas':preference==='cidades'?'Cidades turísticas':'Rota tranquila'}</summary>
           <div role="group" aria-label="Preferência turística" className="rdv-create-preference-options">
             {([['tranquila','Rota tranquila'],['curvas','Mais curvas'],['cidades','Cidades turísticas']] as const)
               .map(([id,label])=><button key={id} type="button" aria-pressed={preference===id}
                 onClick={()=>onPreferenceChange(id)} className={preference===id?'is-selected':''}>{label}</button>)}
           </div>
         </details>
+        </div>
+        <footer className="rdv-create-action"><button type="button" className="rdv-create-submit" disabled={busy || Boolean(validation)} onClick={onSubmit}>{busy?'Preparando sua viagem…':'Ver meu trajeto'}</button><p className="rdv-create-disclaimer">Distância e tempo aproximados.</p></footer>
       </div>
     </section>
   </div>;

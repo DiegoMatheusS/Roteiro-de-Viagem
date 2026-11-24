@@ -71,7 +71,10 @@ export function NavigationHome(props: NavigationHomeProps) {
   const gps = useDeviceLocation(true, 'role-home');
   const locationAccess = useGpsPermissionAction(gps.retry);
   const liveCoords = gps.status === 'ready' ? gps.position?.coords : undefined;
-  const touristOrigin=useTouristDiscoveryAnchor(liveCoords);
+  const [origin, setOrigin] = useState<LocationSelection>({name:''});
+  const [useGps, setUseGps] = useState(true);
+  const gpsTouristOrigin=useTouristDiscoveryAnchor(liveCoords);
+  const touristOrigin=useGps?gpsTouristOrigin:origin.coords;
   const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(placeIconKind(place.kind,place.name))).slice(0,5), [places]);
@@ -80,6 +83,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [lastCircuitMode,setLastCircuitMode] = useState<CircuitMode>('km');
   const [travelMode,setTravelMode] = useState<'car'|'motorcycle'>(props.currentVehicle?.type==='motorcycle'?'motorcycle':'car');
   useEffect(()=>{if(props.currentVehicle)setTravelMode(props.currentVehicle.type);},[props.currentVehicle?.id,props.currentVehicle?.type]);
+  const navigationVehicle = props.currentVehicle?.type === travelMode
+    ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE, type:travelMode};
   const [preview, setPreview] = useState<TripPlan|null>(null);
   const [circuitPreviewId,setCircuitPreviewId] = useState<string|null>(null);
   const circuitHistory = React.useRef<[number,number][][]>([]);
@@ -155,15 +160,14 @@ export function NavigationHome(props: NavigationHomeProps) {
     if(delta>0){if(sheetExpanded)setSheetExpanded(false);else setCollapsed(true);}
     else{if(collapsed)setCollapsed(false);else setSheetExpanded(true);}
   };
-  // O painel inteiro acompanha o dedo, exceto botões, inputs e a lista rolável.
+  // Apenas a alça inicia o gesto do painel.
   const startPanelDrag = (event:React.PointerEvent<HTMLDivElement>)=>{
     if(!event.isPrimary)return;
     const target=event.target as HTMLElement;
-    if(target.closest('input,textarea,select,a,[data-panel-scroll]'))return;
-    if(target.closest('button')&&!target.closest('[data-panel-grip]'))return;
+    if(!target.closest('[data-panel-grip]'))return;
     dragStart.current=event.clientY;
     swallowNextClick.current=false;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    target.closest('[data-panel-grip]')?.setPointerCapture(event.pointerId);
   };
   useEffect(()=>{
     const close=(event:Event)=>{
@@ -212,9 +216,7 @@ export function NavigationHome(props: NavigationHomeProps) {
     })
   ]))].slice(0,40),[completedTrips]);
   const [preference, setPreference] = useState<'tranquila'|'curvas'|'cidades'>('tranquila');
-  const [origin, setOrigin] = useState<LocationSelection>({name:''});
   const [dest, setDest] = useState<LocationSelection>({name:''});
-  const [useGps, setUseGps] = useState(true);
   const [destinationRoutePreference,setDestinationRoutePreference] = useState<RoutePreference>('tourist');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   // Carrega pedágios após abrir a prévia, sem confundir ausência de dados com rota sem cobrança.
@@ -231,19 +233,15 @@ export function NavigationHome(props: NavigationHomeProps) {
   }, [preview?.id, props.currentVehicle?.type]);
 
   const showSheet = (value:'km'|'hours'|'destination') => {
+    if(busy)return;
+    if (!sheet && value === 'destination') setDestinationRoutePreference('tourist');
     setError('');setSheet(value);
-    if(value==='destination')setDestinationRoutePreference('tourist');
     if(value==='km'||value==='hours') {circuitHistory.current=[];circuitPlaceHistory.current=[];setSelectedNearbyIds([]);}
   };
   const closeSheet = () => { if (busy) return; setSheet(null);setPreview(null);setError(''); };
   const currentValue = sheet === 'km' ? km : hours;
   const validation = sheet === 'km' || sheet === 'hours' ? getTouristTargetError(sheet, currentValue) : '';
   const warning = sheet === 'km' || sheet === 'hours' ? getTouristTargetWarning(sheet, currentValue) : '';
-  const requireVehicle = () => {
-    if (props.currentVehicle) return true;
-    setError('Cadastre seu carro ou sua moto em Perfil → Minha Garagem para criar um roteiro.');
-    return false;
-  };
   const gpsCoordinates = async (): Promise<[number,number]> => {
     // A position may only identify a saved origin when fresh, accurate and
     // stationary. Otherwise keep real GPS coordinates, never a guessed address.
@@ -272,9 +270,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       const from=await gpsCoordinates();
       const choices=await fetchRouteChoices(from,target.coords,undefined,'fast');
       if(!choices.length)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
-      const vehicle=props.currentVehicle?.type===travelMode
-        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
-      const trip=choiceToTrip(choices[0],vehicle,from,{name:target.name,coords:target.coords},savedOriginName.current);
+      const trip=choiceToTrip(choices[0],navigationVehicle,from,{name:target.name,coords:target.coords},savedOriginName.current);
       props.onStartTrip(trip);
     }catch(err){
       setError((err as Error).message);
@@ -293,18 +289,19 @@ export function NavigationHome(props: NavigationHomeProps) {
     if (target === null) return;
     setError('');setBusy(true);
     try {
-      const coords = await gpsCoordinates();
+      const coords = useGps ? await gpsCoordinates() : origin.coords;
+      if(!coords)throw new Error('Escolha uma origem para o rolê.');
       const interests = preference === 'curvas' ? ['panoramico','natureza'] :
         preference === 'cidades' ? ['museus','historico'] : [];
       // A navegação turística é pública: nenhum login ou veículo salvo é exigido.
       // Sem veículo, a rota é real e navegável; consumo não é estimado.
       const avoided = regenerate ? circuitHistory.current : [];
       const trip = await generateVerifiedTouristCircuit({ mode, target, tripType,
-        originName:savedOriginName.current,originCoords:coords,
+        originName:useGps?savedOriginName.current:origin.name,originCoords:coords,
         interests,selectedPlaceIds:selectedNearbyIds,avoidWaypoints:avoided,
         visitedWaypoints,visitedPlaceIds,
         excludePlaceIds:regenerate?circuitPlaceHistory.current:[],
-        vehicle:props.currentVehicle?.type===travelMode ? props.currentVehicle : {...GUEST_NAVIGATION_VEHICLE,type:travelMode} });
+        vehicle:navigationVehicle });
       if (trip.routePath.length < 2 || trip.routingSource !== 'OSRM') {
         throw new Error('Não foi possível encontrar uma rota rodoviária válida. Tente novamente.');
       }
@@ -324,22 +321,20 @@ export function NavigationHome(props: NavigationHomeProps) {
     setMapEditError('');setMapEditing(true);
     const current=preview;
     try{
-      const vehicle=props.currentVehicle?.type===travelMode
-        ?props.currentVehicle:{...GUEST_NAVIGATION_VEHICLE,type:travelMode};
-      const altered=await recalculateDragRoute(current,position,vehicle);
+      const altered=await recalculateDragRoute(current,position,navigationVehicle);
       setPreview(existing=>existing?.id===current.id?altered:existing);
     }catch(err){setMapEditError((err as Error).message);}
     finally{setMapEditing(false);}
   };
   const submitDestination = async () => {
-    if (busy || !dest.coords || (!useGps && !origin.coords) || !requireVehicle()) return;
+    if (busy || !dest.coords || (!useGps && !origin.coords)) return;
     setError('');setBusy(true);
     try {
       const originCoords = useGps ? await gpsCoordinates() : origin.coords!;
       const choices=await fetchRouteChoices(originCoords,dest.coords,undefined,destinationRoutePreference);
       const choice=choices[0];
       if(!choice)throw new Error('Nenhuma rota rodoviária encontrada para esse destino.');
-      const trip=choiceToTrip(choice,props.currentVehicle!,originCoords,{name:dest.name,coords:dest.coords},
+      const trip=choiceToTrip(choice,navigationVehicle,originCoords,{name:dest.name,coords:dest.coords},
         useGps?savedOriginName.current:origin.name);
       if(destinationRoutePreference==='tourist'&&(choice.kind==='fast'||choice.kind==='alternative')){
         trip.routeWarnings=[...(trip.routeWarnings||[]),
@@ -349,14 +344,14 @@ export function NavigationHome(props: NavigationHomeProps) {
     } catch (err) {setError((err as Error).message);} finally {setBusy(false);}
   };
   const suggestDestination = async (place:Place) => {
-    if(busy || !requireVehicle())return;
+    if(busy)return;
     setBusy(true);setError('');
     try {
       const originCoords = await gpsCoordinates();
       const draft = createRoadDraft({originName:savedOriginName.current,originCoords,
         destinationName:place.name,destinationCoords:[place.lat,place.lng],
-        vehicle:props.currentVehicle!,circular:false,limits:{mode:'destination'}});
-      const trip = await prepareRoadPreview(draft, props.currentVehicle!);
+        vehicle:navigationVehicle,circular:false,limits:{mode:'destination'}});
+      const trip = await prepareRoadPreview(draft, navigationVehicle);
       setPreview(trip);
     } catch(err) {setError((err as Error).message);} finally {setBusy(false);}
   };
@@ -409,6 +404,23 @@ export function NavigationHome(props: NavigationHomeProps) {
     const n = Math.max(sheet === 'km' ? 1 : 0.1,(parseTouristTarget(currentValue) || 0) + (increase ? amount : -amount));
     if(sheet === 'km')setKm(String(n));else setHours(String(n));
   };
+  const changeOriginMode = (gpsEnabled:boolean) => {
+    setUseGps(gpsEnabled);
+    setSelectedNearbyIds([]);
+    setError('');
+  };
+  const originControls = <>
+    <label className="flex items-center gap-2 text-sm min-h-11">
+      <input type="checkbox" checked={useGps} disabled={busy}
+        onChange={event=>changeOriginMode(event.target.checked)}/> Sair da minha localização (GPS)
+    </label>
+    {useGps && gps.error && <button type="button" disabled={busy}
+      onClick={()=>changeOriginMode(false)} className="min-h-11 text-sm font-bold text-blue-700 underline">
+      Escolher ponto de partida
+    </button>}
+    {!useGps && <LocationSearch label="Origem" value={origin} bias={liveCoords} allowManualPin
+      onChange={value=>{setOrigin(value);setSelectedNearbyIds([]);setError('');}}/>}
+  </>;
   const sheetStage:HomeSheetStage=collapsed?'collapsed':sheetExpanded?'expanded':'resting';
   const sheetDragHeight=draggedHomeSheetHeight(sheetStage,dragOffset);
   // Controles ancorados à área do mapa, nunca à altura nem ao arraste do painel.
@@ -455,7 +467,7 @@ export function NavigationHome(props: NavigationHomeProps) {
         data-panel-grip
         aria-expanded={!collapsed}
         style={{touchAction:'none'}}
-        className="mx-auto w-full h-9 flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing select-none" >
+        className="mx-auto w-full min-h-11 flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing select-none" >
         <span className="bg-slate-300 rounded-full w-11 h-1.5"/>
       </button>
       {!collapsed && <div data-panel-scroll className="rdv-figma-sheet-content flex-1 min-h-0 w-full max-w-xl mx-auto overflow-y-auto overscroll-contain px-5 sm:px-5 pb-8 space-y-5">
@@ -488,7 +500,7 @@ export function NavigationHome(props: NavigationHomeProps) {
             onFocus={()=>{setCollapsed(false);setSheetExpanded(true);}}
             className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-900 placeholder:text-slate-600"/>
           <button type="button" aria-label="Pesquisar destino" onClick={()=>void submitQuickSearch()} disabled={searchBusy || searchPlace.name.trim().length<3}
-            className="w-9 h-9 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
+            className="w-11 h-11 shrink-0 rounded-xl text-blue-600 disabled:text-slate-400 flex items-center justify-center">
             {searchBusy?<span className="text-xs font-bold">...</span>:<ChevronRight size={20}/>}
           </button>
         </form>
@@ -564,7 +576,10 @@ export function NavigationHome(props: NavigationHomeProps) {
             onCancel={()=>setShowManualMap(false)}
             onConfirm={place=>{setShowManualMap(false);selectMapTarget(place);}}/>}
         </div>
-          <h3 className="text-[13px] font-bold text-slate-700">Planejar passeio</h3>
+          <h3 className="text-[13px] font-bold text-slate-700">Planejar trajeto</h3>
+          <button type="button" aria-label="Rota com origem e destino" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-blue-200 rounded-[18px] p-3 flex items-center gap-3">
+            <Route size={22} className="text-blue-700 shrink-0"/><span className="flex-1"><strong className="block text-sm text-slate-900">Rota com origem e destino</strong><small className="text-slate-600">Ponto A → B</small></span><ChevronRight size={17}/>
+          </button>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={()=>showSheet('km')} aria-label="Por distância — Escolher KM" className="rdv-figma-card">
               <span className="rdv-figma-card-icon"><Route size={19} strokeWidth={1.6}/><ChevronRight size={17} className="-rotate-45"/></span>
@@ -579,10 +594,6 @@ export function NavigationHome(props: NavigationHomeProps) {
             className="w-full text-left bg-white border border-blue-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
             <span className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-50 text-blue-700"><Users size={21} strokeWidth={1.9}/></span>
             <span className="flex-1"><strong className="text-[13px] block text-slate-900">Comboio</strong></span><ChevronRight size={17} className="text-slate-400"/>
-          </button>
-          <button type="button" onClick={()=>showSheet('destination')} className="w-full text-left bg-white border border-slate-200 rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(15,23,42,.035)]">
-            <span className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-blue-700"><Route size={21} strokeWidth={1.9}/></span>
-            <span className="flex-1"><strong className="text-[13px] block text-slate-900">Rota com origem e destino</strong></span><ChevronRight size={17} className="text-slate-400"/>
           </button>
         </section>
         <section className="space-y-2.5">
@@ -627,13 +638,16 @@ export function NavigationHome(props: NavigationHomeProps) {
       onMapRoute={(origin,options,selectedId)=>setDisplayRoute({origin,options,selectedId})}
       onClose={()=>{setMapTarget(null);setDisplayRoute(null);setCollapsed(false);}} />}
     {(sheet==='km'||sheet==='hours') && !preview && <CreateTouristCircuitScreen
-      mode={sheet} km={km} hours={hours} travelMode={travelMode} coords={liveCoords}
+      mode={sheet} km={km} hours={hours} travelMode={travelMode} coords={useGps?liveCoords:origin.coords}
+      originLabel={useGps?undefined:origin.name||'Escolha o ponto de partida'}
+      originControls={originControls}
+      onDestination={()=>showSheet('destination')}
       tripType={tripType} preference={preference} busy={busy}
       nearbySuggestions={nearbySuggestions}
       selectedNearbyIds={selectedNearbyIds}
       onToggleNearby={toggleNearby}
       onClearNearby={()=>setSelectedNearbyIds([])}
-      warning={warning} validation={validation} error={error}
+      warning={warning} validation={!useGps&&!origin.coords?'Escolha uma origem para o rolê.':validation} error={error}
       onClose={closeSheet} onModeChange={setSheet}
       onKmChange={setKm} onHoursChange={setHours} onStep={stepValue}
       onTripTypeChange={()=>setTripType(value=>value==='round_trip'?'one_way':'round_trip')}
@@ -655,7 +669,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       onSave={()=>props.onSaveTrip(preview)}
       onAdjust={()=>{
         if(props.currentVehicle){props.onViewTripDetails(preview);setPreview(null);}
-        else{setPreview(null);setSheet(lastCircuitMode);}
+        else{setPreview(null);setSheet(preview.id===circuitPreviewId?lastCircuitMode:'destination');}
       }}
       onStart={()=>{props.onStartTrip(preview);setPreview(null);}}
     />}
@@ -664,30 +678,29 @@ export function NavigationHome(props: NavigationHomeProps) {
       <section role="dialog" aria-modal="true" aria-label="Escolher origem e destino"
         className="rdv-figma-preview bg-white w-full max-w-xl mx-auto flex flex-col min-h-[56dvh] max-h-[75dvh] overflow-hidden">
         <header className="flex gap-3 items-center p-4 bg-white border-b border-slate-100">
-          <button type="button" aria-label="Voltar" onClick={closeSheet}><X size={20}/></button>
+          <button type="button" aria-label="Voltar" onClick={closeSheet} className="min-w-11 min-h-11 flex items-center justify-center"><X size={20}/></button>
           <h1 className="text-[18px] font-bold">Escolher destino</h1>
         </header>
-        <div className="p-5 pt-1 space-y-4 overflow-y-auto">
+        <div className="p-5 pt-1 space-y-4 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <h2 className="text-xl font-extrabold">Rota com origem e destino</h2>
+          <div className="rdv-create-tabs rdv-route-mode-tabs" role="group" aria-label="Tipo de planejamento"><button type="button" className="is-selected" aria-pressed={true}>Destino</button><button type="button" aria-pressed={false} disabled={busy} onClick={()=>showSheet('km')}>Rolê · km</button><button type="button" aria-pressed={false} disabled={busy} onClick={()=>showSheet('hours')}>Rolê · horas</button></div>
           <fieldset className="border border-slate-200 rounded-xl p-3 space-y-2" aria-label="Preferência de rota">
             <legend className="text-sm font-bold px-1">Preferência de rota</legend>
             <label className="flex items-center gap-2 text-sm">
               <input type="radio" name="destination-route-preference" checked={destinationRoutePreference==='tourist'}
-                onChange={()=>setDestinationRoutePreference('tourist')}/> Mais turística
+                onChange={()=>setDestinationRoutePreference('tourist')}/> Mais turística — prioriza atrações
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="radio" name="destination-route-preference" checked={destinationRoutePreference==='fast'}
-                onChange={()=>setDestinationRoutePreference('fast')}/> Mais rápida
+                onChange={()=>setDestinationRoutePreference('fast')}/> Mais rápida — prioriza tempo de viagem
             </label>
           </fieldset>
-          <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={useGps} onChange={e=>setUseGps(e.target.checked)}/> Sair da minha localização (GPS)</label>
-          {!useGps && <LocationSearch label="Origem" value={origin} onChange={setOrigin} bias={liveCoords} allowManualPin/>}
+          {originControls}
           <LocationSearch label="Destino" value={dest} onChange={setDest} bias={liveCoords} allowManualPin placeholder="Cidade, endereço, parque ou restaurante"/>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
-          {!props.currentVehicle && <button type="button" className="text-xs font-bold underline text-blue-700" onClick={()=>{closeSheet();props.onOpenProfile();}}>Cadastrar meu veículo no Perfil</button>}
-          <button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
-            className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button>
         </div>
+        <footer className="shrink-0 bg-white border-t border-slate-100 px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"><button type="button" onClick={()=>void submitDestination()} disabled={busy||!dest.coords||(!useGps&&!origin.coords)}
+            className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50">{busy?'Calculando...':'Ver percurso'}</button></footer>
       </section>
     </div>}
 

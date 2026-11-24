@@ -8,7 +8,7 @@ import {selectVisiblePois} from './poiDensity';
 import {bindMapMarkerActivation} from './mapMarkerActivation';
 import type { Place } from '../types/admin';
 import '../role-map-poi.css';
-import {createPlaceBalloon,placeBalloonSignature,type RoleMarkerActions} from './placeBalloon';
+import {createPlaceBalloon,visibleMapBottom,placeBalloonSignature,type RoleMarkerActions} from './placeBalloon';
 export type {RoleMarkerActions} from './placeBalloon';
 
 /** Leaflet-generated SVG glyphs are DOM nodes, never HTML derived from user data. */
@@ -43,7 +43,8 @@ interface TrackedRoleMarker {
 export function createRoleMaplibreMarkerController(
   gl: MapLibreMap,
   actions: RoleMarkerActions,
-  readOverviewZoom:()=>number=()=>gl.getZoom()
+  readOverviewZoom:()=>number=()=>gl.getZoom(),
+  panHostBy?:(dy:number)=>void
 ):RoleMarkerController {
   const markers=new Map<string,TrackedRoleMarker>();
   let destroyed=false;
@@ -71,6 +72,15 @@ export function createRoleMaplibreMarkerController(
       markers.get(key)?.marker.getElement().setAttribute('aria-expanded','false');
       if(active===record)active=null;
     });
+    if (panHostBy) {
+      const container = gl.getContainer();
+      const limit = visibleMapBottom(container);
+      const host = container.closest('.leaflet-container') ?? container;
+      if (limit < host.getBoundingClientRect().bottom) {
+        const overlap = popup.getElement().getBoundingClientRect().bottom + 16 - limit;
+        if (overlap > 0) panHostBy(Math.ceil(overlap));
+      }
+    }
   };
   const applyVisibility=()=>{
     if(destroyed)return;

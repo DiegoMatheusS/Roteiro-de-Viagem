@@ -104,6 +104,18 @@ try {
   await page.getByRole('heading', { name: 'Acesso exclusivo do administrador' }).waitFor();
   await page.goto('http://127.0.0.1:3000');
   await page.getByRole('heading', {name:/RUAVO/}).waitFor();
+  for (const width of [320,390,1366]) {
+    await page.setViewportSize({width,height:844});
+    const tabs=await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button')
+      .evaluateAll(buttons=>buttons.map(button=>{
+        const {left,right,width,height}=button.getBoundingClientRect();
+        return {left,right,width,height};
+      }));
+    assert.equal(tabs.length,4);
+    assert.ok(tabs.every((tab,i)=>tab.width>=44&&tab.height>=44&&(i===0||tab.left>=tabs[i-1].right-1)),
+      `As quatro abas devem aceitar toque sem sobreposição em ${width}px`);
+  }
+  await page.setViewportSize({width:390,height:844});
   // A faixa de salvos precisa estar diretamente abaixo da busca, sem clique extra.
   const homeSavedShortcuts=page.getByTestId('home-saved-shortcuts');
   await homeSavedShortcuts.waitFor();
@@ -264,6 +276,21 @@ try {
       assert.ok(panel.y > 0.3 * 844 && panel.y < 0.47 * 844,
         'Painel Criar Rolê deve deixar o mapa visível no topo');
       await guestPage.screenshot({path:'test-results/figma-tela-2-criar-role.png'});
+      for(const name of ['Diminuir quantidade','Aumentar quantidade']){
+        const bounds=await modal.getByRole('button',{name}).boundingBox();
+        assert.ok(bounds&&bounds.width>=44&&bounds.height>=44);
+      }
+      const tabs=modal.getByRole('group',{name:'Tipo de planejamento'});
+      assert.equal(await tabs.getByRole('button',{name:'Distância · km'}).getAttribute('aria-pressed'),'true');
+      await tabs.getByRole('button',{name:'Destino',exact:true}).click();
+      const direct=guestPage.getByRole('dialog',{name:'Escolher origem e destino'});
+      await direct.getByRole('button',{name:'Rolê · horas'}).click();
+      await modal.getByRole('button',{name:'Distância · km'}).click();
+      await modal.getByRole('button',{name:'Recolher para ver o mapa'}).click();
+      await modal.getByRole('button',{name:'Ver meu trajeto'}).waitFor({state:'visible'});
+      assert.equal(await modal.getByLabel('Quantidade de quilômetros').isVisible(),false);
+      await modal.getByRole('button',{name:'Expandir configurações'}).click();
+      await modal.getByLabel('Quantidade de quilômetros').waitFor({state:'visible'});
     }
     await modal.getByLabel(choice.label).fill(choice.amount);
     if(choice.mode==='km'){
@@ -499,6 +526,12 @@ try {
   await blockedPage.getByRole('button',{name:'Permitir localização'}).waitFor();
   await blockedPage.getByRole('button',{name:'Permitir localização'}).click();
   await blockedPage.getByText(/ícone ao lado do endereço do site/).waitFor();
+  await blockedPage.getByRole('button',{name:/Por distância/}).click();
+  await blockedPage.getByRole('button',{name:'Escolher ponto de partida'}).click();
+  const manualTrip=blockedPage.getByRole('dialog',{name:'Criar uma viagem'});
+  await manualTrip.getByRole('textbox',{name:'Origem',exact:true}).waitFor();
+  await manualTrip.getByRole('button',{name:'Destino',exact:true}).click();
+  await blockedPage.getByRole('dialog',{name:'Escolher origem e destino'}).getByRole('textbox',{name:'Origem',exact:true}).waitFor();
   await blockedContext.close();
   const homeGps = page.getByRole('button', {name:'Atualizar GPS'});
   const homeVoice = page.getByRole('button', {name:'Orientações por voz'});
@@ -665,6 +698,12 @@ try {
   await destinationSheet.getByLabel('Origem', { exact: true }).fill('Parada');
   await destinationSheet.getByRole('button', { name: 'Buscar origem', exact: true }).click();
   await destinationSheet.getByRole('button', { name: /Parada Beta de teste/ }).click();
+  await destinationSheet.getByRole('button',{name:'Rolê · km'}).click();
+  const circuitFromManual=page.getByRole('dialog',{name:'Criar uma viagem'});
+  assert.equal(await circuitFromManual.getByRole('checkbox',{name:'Sair da minha localização (GPS)'}).isChecked(),false);
+  assert.match(await circuitFromManual.getByLabel('Origem',{exact:true}).inputValue(),/Parada Beta/);
+  await circuitFromManual.getByRole('group',{name:'Tipo de planejamento'}).getByRole('button',{name:'Destino',exact:true}).click();
+  assert.match(await destinationSheet.getByLabel('Origem',{exact:true}).inputValue(),/Parada Beta/);
   await destinationSheet.getByLabel('Destino', { exact: true }).fill('Parada');
   await destinationSheet.getByRole('button', { name: 'Buscar destino', exact: true }).click();
   await destinationSheet.getByRole('button', { name: /Parada Alfa de teste/ }).first().click();
