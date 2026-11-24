@@ -1,5 +1,9 @@
-.role-place-balloon-popup {z-index:25;pointer-events:auto;}
-.role-radar-popup {z-index:2100;}
+/* MapLibre marker priorities (including radar) stay below every popup.
+ * Leaflet already separates marker and popup panes; do not raise the map itself
+ * above the navigation menus or bottom sheets. */
+.maplibregl-map .maplibregl-popup {z-index:4000;}
+.role-place-balloon-popup {pointer-events:auto;}
+.leaflet-popup-pane {z-index:700; }
 .role-place-balloon-popup .maplibregl-popup-content,
 .role-place-balloon-popup .leaflet-popup-content-wrapper {background:#fff;color:#17243b;border-radius:18px;box-shadow:0 5px 24px #0f172a40;padding:0;}
 .role-place-balloon-popup .maplibregl-popup-close-button {width:34px;height:34px;font-size:22px;right:2px;top:1px;color:#52617a;border-radius:50%;}
