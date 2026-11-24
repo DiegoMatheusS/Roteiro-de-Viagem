@@ -6,6 +6,7 @@ import { toMarkerLngLat,validMarkerPosition,rolePlaceMarkerKey,rolePlaceMarkerSi
 import {poiCategory,type PoiVisibilityContext} from './mapPoiPresentation';
 import {selectVisiblePois} from './poiDensity';
 import {bindMapMarkerActivation} from './mapMarkerActivation';
+import {bindExclusiveMapLibrePopup} from './mapMarkerPopup';
 import type { Place } from '../types/admin';
 import '../role-map-poi.css';
 import {createPlaceBalloon,visibleMapBottom,placeBalloonSignature,type RoleMarkerActions} from './placeBalloon';
@@ -63,7 +64,9 @@ export function createRoleMaplibreMarkerController(
     closeBalloon();
     const content=createPlaceBalloon(entry,actions,closeBalloon);
     const markerSize=markers.get(key)?.size||38;
-    const popup=new Popup({className:'role-place-balloon-popup',offset:Math.max(22,markerSize/2+3),maxWidth:'300px',focusAfterOpen:false})
+    const marker=markers.get(key)?.marker;
+    if(!marker){content.dispose();return;}
+    const popup=bindExclusiveMapLibrePopup(new Popup({className:'role-place-balloon-popup',offset:Math.max(22,markerSize/2+3),maxWidth:'300px',focusAfterOpen:false}),marker.getElement())
       .setLngLat(toMarkerLngLat(entry.coords)).setDOMContent(content.element).addTo(gl);
     const record={key,popup,content,signature:placeBalloonSignature(entry)};
     active=record;markers.get(key)?.marker.getElement().setAttribute('aria-expanded','true');
