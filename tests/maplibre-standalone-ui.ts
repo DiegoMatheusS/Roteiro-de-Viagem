@@ -201,7 +201,9 @@ try{
   await page.locator('.maplibregl-popup').waitFor();
   for(const [style,label] of [['satellite','Satélite Real'],['topo','Relevo / Serras'],['light','Ruas (Rolê)']] as const){
     await page.getByTitle('Alterar visual do mapa').click();
-    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\$&'))}).click();
+    await page.locator('.maplibregl-popup').waitFor({state:'detached'});
+    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\    await page.getByTitle('Alterar visual do mapa').click();
+    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\$&'))}).click();'))}).click();
     await page.waitForFunction(expected=>{
       const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
       return root?.dataset.mapStyleReady===expected && root.dataset.mapIdle==='true';
@@ -210,7 +212,10 @@ try{
     assert.equal(await map.getAttribute('data-map-zoom'),detailZoom);
     assert.equal(await organizerElement.evaluate(element=>element.isConnected),true,'style changes preserve existing participants');
     assert.equal(await page.locator('.meeting-point-marker').count(),1);
-    assert.equal(await page.locator('.maplibregl-popup').count(),1,'meeting popup stays open');
+    assert.equal(await page.locator('.maplibregl-popup').count(),0,'outside tap closes the meeting popup, including when changing map style');
+    await page.locator('.meeting-point-marker').click();
+    await page.locator('.maplibregl-popup').waitFor();
+    assert.equal(await page.locator('.maplibregl-popup').count(),1,'meeting balloon can reopen after the style change');
     assert.ok(Number(await page.locator('[data-role-vector-routes]').getAttribute('data-role-vector-routes'))>0);
   }
   await page.locator('.maplibregl-popup-close-button').click();
