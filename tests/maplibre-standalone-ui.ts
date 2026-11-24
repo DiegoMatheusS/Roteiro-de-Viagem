@@ -202,8 +202,7 @@ try{
   for(const [style,label] of [['satellite','Satélite Real'],['topo','Relevo / Serras'],['light','Ruas (Rolê)']] as const){
     await page.getByTitle('Alterar visual do mapa').click();
     await page.locator('.maplibregl-popup').waitFor({state:'detached'});
-    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\    await page.getByTitle('Alterar visual do mapa').click();
-    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\$&'))}).click();'))}).click();
+    await page.getByRole('button',{name:new RegExp(label.replace(/[()]/g,'\\$&'))}).click();
     await page.waitForFunction(expected=>{
       const root=document.querySelector<HTMLElement>('[data-map-engine="maplibre-standalone"]');
       return root?.dataset.mapStyleReady===expected && root.dataset.mapIdle==='true';
