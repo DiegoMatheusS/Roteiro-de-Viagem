@@ -909,3 +909,22 @@ body:has([role="dialog"][aria-modal="true"]) .rdv-figma-bottom-nav {
 .rdv-navigation-screen [data-map-engine="leaflet-fallback"] .leaflet-tile-pane {
   filter:grayscale(1) saturate(0) contrast(.90) brightness(1.04) !important;
 }
+
+/* Mobile controls: preserve the existing map and marker density. */
+.rdv-navigation-screen .rdv-figma-home-modes {z-index:25;}
+.rdv-create-back {min-width:44px;min-height:44px;}
+.rdv-create-tabs button,.rdv-create-chips button,.rdv-create-preference-options button {min-height:44px;}
+.rdv-route-mode-tabs {grid-template-columns:repeat(3,minmax(0,1fr));}
+.rdv-route-mode-tabs button {font-size:12px;gap:3px;flex-wrap:wrap;}
+.rdv-create-advanced {margin-top:16px;}
+.rdv-create-advanced summary {min-height:44px;padding-block:12px;color:#334155;}
+.rdv-create-panel {display:flex;flex-direction:column;padding:0;overflow:hidden;}
+.rdv-create-panel-toggle {flex:none;min-height:44px;width:100%;font-size:12px;font-weight:600;color:#475569;background:white;}
+.rdv-create-scroll {flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 20px 12px;}
+.rdv-create-scroll[hidden] {display:none;}
+.rdv-create-action {flex:none;background:white;border-top:1px solid #e2e8f0;padding:10px 20px max(10px,env(safe-area-inset-bottom,0px));}
+.rdv-create-action .rdv-create-submit {margin-top:0;}
+.rdv-create-action .rdv-create-disclaimer {margin-top:5px;}
+.rdv-create-screen[data-panel-compact=true] .rdv-create-panel {height:auto;}
+.rdv-create-screen[data-panel-compact=true] .rdv-create-map {height:100%;}
+@media(max-width:360px) {.rdv-figma-home-modes {left:12px;gap:6px;}.rdv-figma-mode {padding-inline:10px;font-size:14px;}.rdv-route-mode-tabs button svg {display:none;}}
