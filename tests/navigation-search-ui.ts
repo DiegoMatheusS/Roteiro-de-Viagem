@@ -6,6 +6,7 @@ const vite=await createServer({server:{host:'127.0.0.1',port:3000,strictPort:tru
 await vite.listen();
 let browser;
 let releaseSearch:()=>void=()=>{};
+let releaseNearby:()=>void=()=>{};
 try{
   browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH,
     args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
@@ -22,6 +23,20 @@ try{
   await page.route('https://tiles.openfreemap.org/**',route=>route.fulfill({json:{version:8,sources:{},layers:[
     {id:'background',type:'background',paint:{'background-color':'#eaf0ef'}}]}}));
   await page.route('**/api/**',route=>route.fulfill({json:{stations:[],places:[],options:[]}}));
+  const nearbyQueries:number[]=[];
+  if(screen==='home'){
+    const pendingNearby=new Promise<void>(resolve=>{releaseNearby=resolve;});
+    await page.route('**/api/places/search',async route=>{
+      const {points,bounds,radiusKm}=route.request().postDataJSON();
+      if(bounds||radiusKm!==5)return route.fallback();
+      const latitude=points[0][0];
+      nearbyQueries.push(latitude);
+      if(latitude===-23.554)await pendingNearby;
+      const name=latitude===-23.554?'Parque da nova área':'Parque sugerido';
+      const places=[{id:name,name,kind:'park',lat:latitude,lng:-46.63,active:true,address:''}];
+      await route.fulfill({json:{places}});
+    });
+  }
   const fastest={id:'fast-route',kind:'fast',distanceKm:10,durationMinutes:10,
     routePath:[[-23.55,-46.63],[-23.54,-46.62]],routeSteps:[],trafficStatus:'unavailable',tollStatus:'unchecked'};
   const tourist={id:'museum-route',kind:'tourist',distanceKm:20,durationMinutes:30,
@@ -61,14 +76,36 @@ try{
     throw error;
   });
   await marker.evaluate(element=>(window as any).__searchArrow=element);
+  const suggested=page.getByRole('region',{name:'Viagens sugeridas'});
+  const originalSuggestion=suggested.getByRole('button',{name:/Parque sugerido/});
+  if(screen==='home')await originalSuggestion.waitFor();
   await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()-6_001}));
   await page.waitForFunction(()=>document.querySelector('.user-live-marker')?.getAttribute('data-gps-state')==='stale');
   assert.equal(await marker.evaluate(element=>element===(window as any).__searchArrow),true,`${screen}: signal loss must keep the same arrow`);
+  if(screen==='home')assert.equal(await originalSuggestion.isVisible(),true,
+    'a temporary GPS signal loss keeps the loaded suggestion');
   await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
   await page.waitForFunction(()=>document.querySelector('.user-live-marker')?.getAttribute('data-gps-state')==='live');
   const input=page.getByRole('searchbox',{name:'Para onde quer ir?'});
   const submit=page.getByRole('button',{name:'Pesquisar destino',exact:true});
   if(screen==='home'){
+    const homeGps=page.getByRole('button',{name:'Atualizar GPS',exact:true});
+    assert.equal(await homeGps.locator('svg.lucide-locate-fixed').getAttribute('width'),'22');
+    await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.5501,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
+    const nextNearby=page.waitForRequest(request=>{
+      if(!request.url().endsWith('/api/places/search'))return false;
+      const {points,bounds,radiusKm}=request.postDataJSON();
+      return radiusKm===5&&!bounds&&points[0][0]===-23.554;
+    });
+    await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.554,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
+    await nextNearby;
+    assert.equal(await originalSuggestion.isVisible(),true,
+      'the card stays visible while an updated search for the nearby area is pending');
+    releaseNearby();
+    await suggested.getByRole('button',{name:/Parque da nova área/}).waitFor();
+    assert.deepEqual(nearbyQueries,[-23.55,-23.554],'small GPS changes do not repeat the nearby search');
+    assert.equal(await originalSuggestion.count(),0,'a successful search replaces previous cards');
+    await page.evaluate(()=>(window as any).__searchGps({coords:{latitude:-23.55,longitude:-46.63,accuracy:6,speed:0,heading:90},timestamp:Date.now()}));
     const layout=await page.evaluate(()=>{
       const heading=document.querySelector('.rdv-figma-home-sheet h2');
       const search=document.querySelector('[data-testid="home-inline-destination-search"]');
@@ -270,4 +307,4 @@ try{
   await page.close();
   }
   console.log('PASS: Home/Map search defaults to fastest; origin/destination defaults to tourist, manual switching and scenic route survive adjustment.');
-}finally{releaseSearch();await browser?.close();await vite.close();}
+}finally{releaseSearch();releaseNearby();await browser?.close();await vite.close();}
