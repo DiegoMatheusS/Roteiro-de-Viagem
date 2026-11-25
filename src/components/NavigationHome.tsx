@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bookmark, ChevronRight, Clock3, Compass, Crosshair, MapPin, Navigation, Plus, Search, X, Route, Users } from 'lucide-react';
+import { Bookmark, ChevronRight, Clock3, Compass, LocateFixed, MapPin, Navigation, Plus, Search, X, Route, Users } from 'lucide-react';
 import type { Vehicle, TripPlan } from '../types';
 import type { Place } from '../types/admin';
 import { TOURIST_PLACE_KINDS } from '../types/admin';
@@ -75,7 +75,8 @@ export function NavigationHome(props: NavigationHomeProps) {
   const [useGps, setUseGps] = useState(true);
   const gpsTouristOrigin=useTouristDiscoveryAnchor(liveCoords);
   const touristOrigin=useGps?gpsTouristOrigin:origin.coords;
-  const places = useNearbyPlaces(liveCoords ? [liveCoords] : [], Boolean(liveCoords));
+  const places = useNearbyPlaces(gpsTouristOrigin ? [gpsTouristOrigin] : [], Boolean(gpsTouristOrigin), 5,
+    {keepNearbyWhileLoading:true});
   const recent = useMemo(() => [...props.trips].sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5), [props.trips]);
   const suggested = useMemo(() => places.filter(place => touristKinds.includes(placeIconKind(place.kind,place.name))).slice(0,5), [places]);
   const [sheet, setSheet] = useState<'km'|'hours'|'destination'|null>(null);
@@ -450,7 +451,7 @@ export function NavigationHome(props: NavigationHomeProps) {
       className="rdv-home-map-right-controls">
       <button type="button" aria-label="Atualizar GPS" onClick={()=>{if(gps.status==='ready'){setCenterRequest(value=>value+1);}else{void locationAccess.request().then(granted=>{if(granted)setCenterRequest(value=>value+1);});}}}
         className="w-14 h-14 rounded-full shadow-[0_4px_18px_rgba(15,23,42,.16)] bg-white text-blue-700 border border-slate-200 flex items-center justify-center">
-        <Crosshair size={30} strokeWidth={2.2}/>
+        <LocateFixed size={22} aria-hidden="true"/>
       </button>
       <VoiceGuidanceControl guidance={null} variant="map"/>
     </div>
@@ -606,9 +607,9 @@ export function NavigationHome(props: NavigationHomeProps) {
               <span className="text-[10px] text-slate-400 block">{new Date(trip.createdAt).toLocaleDateString('pt-BR')}</span></span><ChevronRight size={17} className="text-slate-400"/>
           </button>)}
         </section>
-        <section className="space-y-2.5">
-          <div className="flex items-center justify-between gap-3"><h2 className="text-[16px] font-extrabold tracking-tight text-slate-950">Viagens sugeridas</h2><button type="button" className="text-blue-600 text-xs font-semibold shrink-0" onClick={props.onOpenAllSuggestions}>Ver todas <ChevronRight size={14} className="inline"/></button></div>
-          {suggested.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-2xl p-4">{liveCoords?'Ainda não há pontos turísticos cadastrados próximos.':'Ative o GPS para descobrir pontos turísticos reais próximos.'}</p>}
+        <section className="space-y-2.5" aria-labelledby="home-suggested-trips-title">
+          <div className="flex items-center justify-between gap-3"><h2 id="home-suggested-trips-title" className="text-[16px] font-extrabold tracking-tight text-slate-950">Viagens sugeridas</h2><button type="button" className="text-blue-600 text-xs font-semibold shrink-0" onClick={props.onOpenAllSuggestions}>Ver todas <ChevronRight size={14} className="inline"/></button></div>
+          {suggested.length===0 && <p className="text-xs bg-slate-50 text-slate-500 rounded-2xl p-4">{gpsTouristOrigin?'Ainda não há pontos turísticos cadastrados próximos.':'Ative o GPS para descobrir pontos turísticos reais próximos.'}</p>}
           {suggested.map(place=><button type="button" key={place.id} disabled={busy} onClick={()=>void suggestDestination(place)} className="w-full p-3 border rounded-[18px] border-slate-200 bg-white shadow-[0_2px_7px_rgba(15,23,42,.035)] flex gap-3 text-left items-center min-h-[68px] disabled:opacity-50">
             <span className="w-12 h-12 bg-emerald-50 rounded-[13px] text-emerald-700 flex shrink-0 items-center justify-center"><TouristCategoryIcon kind={place.kind} name={place.name}/></span>
             <span className="flex-1 min-w-0"><strong className="text-[13px] truncate block text-slate-900">{place.name}</strong><small className="text-[11px] text-slate-500 truncate block">{place.address||'Atração turística cadastrada'}</small></span><ChevronRight size={17} className="text-slate-400"/>

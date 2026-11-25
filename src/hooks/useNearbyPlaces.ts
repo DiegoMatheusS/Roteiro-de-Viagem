@@ -4,25 +4,31 @@ import {sampleRoutePath} from '../types/itinerary';
 import type {Place} from '../types/admin';
 import {retainedPlacesWithinBounds,type PlaceBounds} from '../services/mapPlaceViewport';
 import {bindPlaceRefresh} from '../services/placeRefresh';
+import {distanceBetweenKm} from '../services/gpsTracking';
 
 // The displayed places belong to one sampled itinerary. A new area must not
 // inherit the old area's markers, including before React runs its next effect.
 const cache=new Map<string,{places:Place[];until:number}>();
 const OK_TTL=120_000,FAILURE_TTL=30_000;
 type PlaceView={key:string;places:Place[]};
+type NearbyPlaceOptions={bounds?:PlaceBounds;refreshMs?:number;includeFuel?:boolean;keepNearbyWhileLoading?:boolean};
 
-export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusKm=5,options?:{bounds?:PlaceBounds;refreshMs?:number;includeFuel?:boolean}){
+export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusKm=5,options?:NearbyPlaceOptions){
   const sampled=sampleRoutePath(points);
   const key=JSON.stringify([radiusKm,sampled,options?.bounds,options?.includeFuel]);
   const initial=useMemo(()=>cache.get(key),[key]);
   const [view,setView]=useState<PlaceView>(()=>({key,places:initial?.places||[]}));
+  const retainPreviousPlaces=()=>{
+    if(options?.bounds)return retainedPlacesWithinBounds(view.places,options.bounds);
+    if(!options?.keepNearbyWhileLoading||sampled.length!==1)return [];
+    return view.places.filter(place=>place.active!==false&&distanceBetweenKm(sampled[0],[place.lat,place.lng])<=radiusKm);
+  };
   useEffect(()=>{
     if(!enabled||!sampled.length){setView({key,places:[]});return;}
     let disposed=false;
     let controller:AbortController|null=null;
     let cached=cache.get(key);
-    // A zoom or small pan keeps the last known points inside the new bounds.
-    const startingPlaces=cached?.places??retainedPlacesWithinBounds(view.places,options?.bounds);
+    const startingPlaces=cached?.places??retainPreviousPlaces();
     setView({key,places:startingPlaces});
     const pause=()=>{controller?.abort();controller=null;};
     const load=(fresh=false)=>{
@@ -54,7 +60,7 @@ export function useNearbyPlaces(points:[number,number][],enabled:boolean,radiusK
     return ()=>{disposed=true;pause();stop();};
     // key already includes the sampled itinerary; no fetch on equivalent input.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[key,enabled,options?.refreshMs]);
+  },[key,enabled,options?.refreshMs,options?.keepNearbyWhileLoading]);
   if(!enabled||!sampled.length)return [];
-  return view.key===key?view.places:(initial?.places??retainedPlacesWithinBounds(view.places,options?.bounds));
+  return view.key===key?view.places:(initial?.places??retainPreviousPlaces());
 }
