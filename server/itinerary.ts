@@ -197,7 +197,7 @@ export function registerItineraryRoutes(app: Express, options: { db: FuelDatabas
     const nearPath = sampleRoutePath(road.geometry!, 50);
     const included = new Set(ordered.map(stop => stop.location.id));
     const suggestions: SuggestedStop[] = nearbyPlaceRows(db, nearPath, 3)
-      .filter(place => !included.has(place.id)).slice(0, 8).map(place => {
+      .filter(place => place.kind !== 'police' && !included.has(place.id)).slice(0, 8).map(place => {
         let closest = 0;
         const base = [origin, ...manualStops.map(stop => stop.location.coords!), destination];
         base.forEach((point, index) => { if (distanceBetweenKm(point, [place.lat, place.lng]) < distanceBetweenKm(base[closest], [place.lat, place.lng])) closest = index; });

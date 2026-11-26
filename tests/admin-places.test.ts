@@ -53,6 +53,57 @@ test('cadastro manual rejeita categoria, coordenadas e site inválidos', async (
   } finally { await f.close(); }
 });
 
+test('cadastros policiais ativos servem o SOS sem Overpass e a exclusão prevalece sobre o mapa externo', async () => {
+  const manual = { ...draft, kind: 'police', name: 'Delegacia da Vila', lat: -23.542, lng: -46.66 };
+  const imported = { type: 'node', id: 8901, lat: -23.55, lon: -46.66,
+    tags: { amenity: 'police', name: 'Posto rodoviário do teste' } };
+  const osmReference = (id: number) => ({ reference: `https://www.openstreetmap.org/node/${id}`, expectedKind: 'police' });
+  let providerUp = false;
+  const routedTo: number[] = [];
+  const f = await fixture(async (url, options) => {
+    if (options?.method === 'POST') {
+      const query = new URLSearchParams(String(options.body)).get('data') || '';
+      if (query.includes('node(8901)')) return Response.json({ elements: [imported] });
+      if (query.includes('node(8902)')) return Response.json({ elements: [
+        { ...imported, id: 8902, tags: { amenity: 'restaurant', name: 'Restaurante' } }
+      ] });
+      if (query.includes('node(8903)')) return Response.json({ elements: [
+        { ...imported, id: 8903, tags: { ...imported.tags, access: 'private' } }
+      ] });
+      if (!providerUp) return new Response(null, { status: 503 });
+      return Response.json({ elements: [imported, { type: 'node', id: 8904, lat: manual.lat, lon: manual.lng,
+        tags: { amenity: 'police', name: 'DELEGACIA DA VILA' } }] });
+    }
+    const coords = new URL(String(url)).pathname.split('/').at(-1)!.split(';').map(point => point.split(',').map(Number));
+    routedTo.push(coords[1][1]);
+    const distance = coords[1][1] === manual.lat ? 900 : 1800;
+    return Response.json({ code: 'Ok', routes: [{ distance, legs: [{ distance, duration: 60 }],
+      geometry: { coordinates: coords } }] });
+  });
+  const search = () => f.call('/sos/police-route', { originCoords: [-23.54, -46.66] });
+  try {
+    const manualResult = await f.call('/admin/places', manual, f.cookie);
+    assert.equal(manualResult.status, 201);
+    const importResult = await f.call('/admin/places', osmReference(8901), f.cookie);
+    assert.equal(importResult.status, 201);
+    assert.equal(importResult.body.kind, 'police');
+    for (const id of [8902, 8903]) assert.equal((await f.call('/admin/places', osmReference(id), f.cookie)).status, 422);
+    const places = (await f.call('/admin/places?kind=police', undefined, f.cookie)).body.items;
+    assert.equal(places.length, 2);
+    assert.ok(places.every((place: any) => place.kind === 'police'));
+    const route = await search();
+    assert.equal(route.status, 200);
+    assert.deepEqual(route.body.station, { name: manual.name, coords: [manual.lat, manual.lng] });
+    assert.deepEqual(routedTo.sort((a, b) => a - b), [imported.lat, manual.lat]);
+    const remove = (id: string) => f.call(`/admin/places/${encodeURIComponent(id)}`, { confirmed: true }, f.cookie, 'DELETE');
+    assert.equal((await remove(manualResult.body.id)).status, 200);
+    providerUp = true;
+    assert.equal((await search()).body.station.name, imported.tags.name);
+    assert.equal((await remove(importResult.body.id)).status, 200);
+    assert.equal((await search()).status, 404);
+  } finally { await f.close(); }
+});
+
 test('pedágio manual publica tarifas por categoria, atualiza posição e respeita exclusão e reativação', async () => {
   const f = await fixture();
   try {

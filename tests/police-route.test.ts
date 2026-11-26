@@ -4,6 +4,7 @@ import express from 'express';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { registerPoliceRoute } from '../server/policeRoute';
 import { ApiError } from '../server/http';
+import { openDatabase } from '../server/db';
 import { updatePoliceRoute } from '../src/services/mapLibrePoliceRoute';
 import type { PoliceRoute } from '../src/types/policeRoute';
 
@@ -13,9 +14,10 @@ test('SOS routes to the closest public police station by road and handles missin
   const tags = { amenity: 'police' };
   const calls: string[] = [];
   let responseMode = 'stations';
+  const db = openDatabase(':memory:');
   const app = express();
   app.use(express.json());
-  registerPoliceRoute(app, async (url, options) => {
+  registerPoliceRoute(app, db, async (url, options) => {
     const target = String(url);
     if (options?.method === 'POST') {
       assert.match(new URLSearchParams(String(options.body)).get('data')!, /\["amenity"="police"\]/);
@@ -61,6 +63,7 @@ test('SOS routes to the closest public police station by road and handles missin
     assert.equal((await search()).status, 503);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
+    db.close();
   }
 });
 

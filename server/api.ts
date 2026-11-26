@@ -104,7 +104,7 @@ export function createApi(options: { db: FuelDatabase; sanitizePhoto:(buffer:Buf
   registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
   registerTollRoutes(app, db, options.mapFetch || fetch, limit, sanitizePhoto);
   registerRoadAlertRoutes(app, db, limit);
-  registerPoliceRoute(app, options.mapFetch || fetch, limit);
+  registerPoliceRoute(app, db, options.mapFetch || fetch, limit);
   registerRadarRoutes(app, db, limit, options.radarSourceStore);
   registerTrafficRoutes(app,limit,options.traffic);
   const feedbackMail=createPlaceFeedbackMailQueue(db,options.feedbackMail);

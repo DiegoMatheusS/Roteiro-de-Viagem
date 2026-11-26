@@ -1,5 +1,6 @@
 export const PLACE_KINDS = [
   { id: 'fuel', label: 'Posto de combustível', icon: '⛽' },
+  { id: 'police', label: 'Delegacia ou posto policial', icon: '👮' },
   { id: 'restaurant', label: 'Restaurante', icon: '🍽️' },
   { id: 'toll', label: 'Pedágio', icon: '🛣️' },
   { id: 'supermarket', label: 'Mercado', icon: '🛒' },

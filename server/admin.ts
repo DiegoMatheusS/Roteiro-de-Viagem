@@ -60,7 +60,7 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     // Catálogo turístico amplo: um único ponto por tela Explorar, limite de resultados.
     const viewport=req.body.bounds!==undefined;
     const points = validate(() => validateCoordinates(req.body.points, viewport?1:radiusKm > 10 ? 3 : 25));
-    const rows=viewport?validate(()=>viewportPlaceRows(db,req.body.bounds,req.body.includeFuel===true)):nearbyPlaceRows(db,points,radiusKm,true);
+    const rows=viewport?validate(()=>viewportPlaceRows(db,req.body.bounds,req.body.includeFuel===true)):nearbyPlaceRows(db,points,radiusKm,{ excludeFuel: true });
     const places = rows
       .sort((a,b) => Number(b.managed) - Number(a.managed) ||
         distanceBetweenKm(points[0],[a.lat,a.lng]) - distanceBetweenKm(points[0],[b.lat,b.lng]))
@@ -130,6 +130,9 @@ export function registerAdminRoutes(app: Express, options: { db: FuelDatabase; m
     if (req.body.reference !== undefined) {
       const reference = text(req.body.reference, 300, true);
       try { place = await lookupMapPlace(reference, options.mapFetch); } catch (error) { throw new ApiError((error as Error).message, 422); }
+      if (req.body.expectedKind === 'police' && place.kind !== 'police') {
+        throw new ApiError('Informe o link de uma delegacia ou posto policial com atendimento ao público.', 422);
+      }
     } else {
       if (!PLACE_KINDS.some(kind => kind.id === req.body.kind)) throw new ApiError('Escolha uma categoria válida.');
       const [[lat, lng]] = validate(() => validateCoordinates([[req.body.lat, req.body.lng]]));
