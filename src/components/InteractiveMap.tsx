@@ -55,6 +55,8 @@ import {changedStaticLayers,type StaticLayerInputs} from '../services/mapStaticL
 import type {RoleMarkerController,RoleMarkerActions} from '../services/mapLibrePlaceMarkers';
 import {MapTrafficControl} from './MapTrafficControl';
 import {createLeafletTrafficPort} from '../services/leafletTraffic';
+import type { PoliceRoute } from '../types/policeRoute';
+import { addLeafletPoliceRoute } from '../services/leafletPoliceRoute';
 
 const EMPTY_ROAD_ALERTS: RoadAlert[] = [];
 // Stable defaults prevent a GPS-driven parent render from recreating all map layers.
@@ -81,6 +83,7 @@ export interface InteractiveMapProps {
   originLabel?: string;
   destinationLabel?: string;
   routePath?: [number, number][];
+  policeRoute?: PoliceRoute;
   /** Percursos simultâneos; um está selecionado e os demais permanecem clicáveis. */
   routeAlternatives?: {id:string; routePath:[number,number][]}[];
   selectedRouteId?: string;
@@ -159,6 +162,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   originLabel = 'Origem',
   destinationLabel = 'Destino',
   routePath = EMPTY_ROUTE,
+  policeRoute,
   routeAlternatives = EMPTY_ALTERNATIVES,
   selectedRouteId,
   onSelectRoute,
@@ -256,6 +260,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
   const convoyPinGroupRef = useRef<L.LayerGroup|null>(null);
   const convoyFallbackMarkersRef = useRef<Map<string,{marker:L.Marker;signature:string}>>(new Map());
   const followSuspendedRef = useRef(resumeViewport?.mode==='exploring');
+  const policeOverviewRef = useRef(false);
   const idleFollowRef=useRef<ReturnType<typeof createNavigationIdleFollow>|null>(null);
   const latestLiveCoords=useRef(userLiveCoords);
   const followRefreshRef=useRef(false);
@@ -431,7 +436,8 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
         cameraModeChangeRef.current?.('following');
         const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false;
         // Leaflet owns the fallback camera, so never move MapLibre independently.
-        createHybridCameraPort(map).recenter(point,true,reducedMotion);
+        createHybridCameraPort(map).recenter(point,true,reducedMotion,policeOverviewRef.current);
+        policeOverviewRef.current=false;
         return true;
       }
     });
@@ -439,6 +445,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // Only a user's drag suspends following; programmatic GPS panning does not.
     const pauseFollowing = () => {
       if(!navigationModeRef.current)return;
+      policeOverviewRef.current=false;
       idleFollow.activity();
       if(followSuspendedRef.current)return;
       // Interrupt our animation once on first contact, before Leaflet's pan
@@ -581,6 +588,7 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
     // Consume only after a valid fix and map exist; a permission request can
     // resolve before the first location arrives. Later fixes must not replay it.
     lastCenterRequestRef.current=centerOnUserRequest;
+    policeOverviewRef.current=false;
     idleFollowRef.current?.reset();
     if(followSuspendedRef.current){
       followSuspendedRef.current=false;
@@ -1203,6 +1211,22 @@ const HybridInteractiveMap: React.FC<InteractiveMapProps & {resumeViewport?:MapF
       navigationMode||(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches??false)
     );
   },[userLiveCoords,userHeadingDegrees,markerHeading,markerHeadingSpeed,vectorNavigationReady,navigationMode]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!hasMapReady || !map || !policeRoute) return;
+    const remove = addLeafletPoliceRoute(map, policeRoute);
+    const camera = createHybridCameraPort(map);
+    const height = map.getSize().y;
+    camera.stop();
+    followSuspendedRef.current = true;
+    cameraModeChangeRef.current?.('exploring');
+    camera.fitRoute([...policeRoute.routePath, policeRoute.station.coords],
+      { topLeft: [30, Math.min(112, height * 0.22)], bottomRight: [30, Math.min(212, height * 0.42)], maxZoom: 16 });
+    policeOverviewRef.current=true;
+    idleFollowRef.current?.activity();
+    return remove;
+  }, [hasMapReady, policeRoute]);
 
   // Lightweight progress overlays for raster/legacy mode. Vector mode already
   // updates its GeoJSON source independently, with the exact same GPS split.

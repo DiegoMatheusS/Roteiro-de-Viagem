@@ -64,12 +64,12 @@ export function createNavigationCameraSession(camera:CameraPort,onMode:(mode:Cam
       manualZoom=true;nearTurnZoom=false;
     },
     /** Auto-follow after seven seconds; never use a fix removed by GPS loss.
-     * Preserve MapLibre pitch and the manual zoom level. */
-    resume(){
+     * Restore the driving view only after an app-initiated overview. */
+    resume(restoreNavigationView=false){
       if(!navigating || !currentFixAvailable || !last ||
         !last.every(Number.isFinite))return false;
       mode(false);
-      camera.recenter(last,true,lastReducedMotion);
+      camera.recenter(last,true,lastReducedMotion,restoreNavigationView);
       lastCameraPoint=[...last];
       return true;
     },

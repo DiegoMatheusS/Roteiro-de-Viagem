@@ -23,6 +23,13 @@ const options={
     WEB_PROXY_SECRET:'fixture-only-cloudflare-worker-secret-123456789',TOMTOM_TRAFFIC_API_KEY:'fixture-not-a-real-key'},
   outboundService(request){
     const url=new URL(request.url);
+    if(url.hostname==='overpass-api.de') return WorkerResponse.json({elements:[
+      {lat:-23.55,lon:-46.62,tags:{amenity:'police',name:'Delegacia de teste'}}
+    ]});
+    if(url.hostname==='router.project-osrm.org') return WorkerResponse.json({code:'Ok',routes:[{
+      distance:1500,legs:[{distance:1500,duration:360}],
+      geometry:{coordinates:[[-46.63,-23.55],[-46.62,-23.55]]}
+    }]});
     trafficRequests.push(url.origin);
     assert.equal(url.origin,'https://api.tomtom.com');
     assert.equal(request.headers.get('TomTom-Api-Key'),'fixture-not-a-real-key');
@@ -48,6 +55,12 @@ try{
   await start();
   let response=await request('/api/health');
   assert.equal(response.status,200,await response.text());
+  response=await request('/api/sos/police-route',{originCoords:[-23.55,-46.63]});
+  assert.equal(response.status,200,await response.clone().text());
+  assert.deepEqual(await response.json(),{
+    station:{name:'Delegacia de teste',coords:[-23.55,-46.62]},
+    routePath:[[-23.55,-46.63],[-23.55,-46.62]],distanceKm:1.5
+  });
   response=await request('/api/android/update?channel=debug');
   assert.equal(response.headers.get('Cache-Control'),'no-store');
   assert.deepEqual(await response.json(),{update:null});
@@ -96,7 +109,7 @@ try{
   assert.deepEqual(await (await request('/api/android/update?channel=debug')).json(),{update:debugUpdate},
     'a consulta de atualização funciona durante uma falha do banco');
   assert.equal((await request('/api/android/update?channel=release')).status,503);
-  console.log('PASS: Cloudflare runtime, SQLite persistence, registration/session, CSRF, admin roles and traffic PNG delivery.');
+  console.log('PASS: Cloudflare runtime, SQLite persistence, registration/session, CSRF, admin roles, SOS route and traffic PNG delivery.');
 }finally{
   if(runtime)await runtime.dispose();
   rmSync(folder,{recursive:true,force:true});

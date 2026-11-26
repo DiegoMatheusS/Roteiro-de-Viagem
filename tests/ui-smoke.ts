@@ -229,6 +229,9 @@ try {
   const modes:string[]=[];
   guestPage.on('pageerror',error=>guestErrors.push(error.message));
   await guestPage.route('https://**',route=>route.abort());
+  await guestPage.route('https://tiles.openfreemap.org/**', route => route.fulfill({ json: {
+    version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#eaf0ef' } }]
+  } }));
   await guestPage.route('**/api/routes/tourist',async route=>{
     const body=route.request().postDataJSON() as {
       mode:string;target:number;tripType:string;
@@ -362,6 +365,40 @@ try {
     const navigationReporter=navScreen.getByRole('button',{name:'Reportar problema na estrada'});
     await navigationReporter.waitFor();
     if(choice.mode==='km'){
+      let policeRequests = 0;
+      await guestPage.route('**/api/sos/police-route', route => {
+        const { originCoords } = route.request().postDataJSON();
+        assert.deepEqual(originCoords, [-23.551, -46.629]);
+        if (++policeRequests === 1) return route.fulfill({ status: 404, json: { error: 'Nenhuma unidade na região.' } });
+        const station = { name: 'Delegacia do teste', coords: [-23.539, -46.619] };
+        return route.fulfill({ json: { station, routePath: [originCoords, [-23.541, -46.619], station.coords], distanceKm: 2.4 } });
+      });
+      await navScreen.getByRole('button', { name: 'SOS', exact: true }).click();
+      const sos = guestPage.getByRole('dialog', { name: 'SOS', exact: true });
+      const policeButton = sos.getByRole('button', { name: 'Rota até a polícia mais próxima' });
+      await policeButton.click();
+      await sos.getByRole('alert').filter({ hasText: 'Nenhuma unidade na região.' }).waitFor();
+      assert.equal(await navScreen.getAttribute('data-police-route'), 'false');
+      await policeButton.click();
+      await sos.waitFor({ state: 'hidden' });
+      await navScreen.getByText('Delegacia do teste', { exact: true }).waitFor();
+      const policeLayer = navScreen.locator('[data-police-route-visible="true"], .rdv-police-route-red');
+      await policeLayer.waitFor();
+      const originalRoute = navScreen.locator('[data-role-vector-routes], .leaflet-overlay-pane path').first();
+      await originalRoute.waitFor();
+      const canvas = navScreen.locator('[data-map-engine="maplibre-standalone"] canvas.maplibregl-canvas');
+      if (await canvas.count()) await canvas.evaluate(element =>
+        element.dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+      const raster = navScreen.locator('[data-map-engine="leaflet-fallback"]');
+      const policeDash = raster.locator('.rdv-police-route-red');
+      await policeDash.waitFor();
+      assert.equal(await policeDash.getAttribute('stroke-dasharray'), '8 8');
+      assert.equal(await raster.locator('.rdv-police-route-blue').getAttribute('stroke'), '#1d4ed8');
+      await originalRoute.waitFor();
+      await navScreen.getByRole('button', { name: 'Remover rota policial' }).click();
+      await policeLayer.waitFor({ state: 'hidden' });
+      await originalRoute.waitFor();
+      assert.equal(policeRequests, 2);
       await navigationReporter.click();
       const reportMenu=guestPage.getByRole('menu',{name:'Escolher ocorrência'});
       const menuBounds=await reportMenu.boundingBox();

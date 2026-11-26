@@ -15,6 +15,7 @@ import { RoadAlertReporter } from './RoadAlertReporter';
 import { useRoadAlerts } from '../hooks/useRoadAlerts';
 import { upcomingRoadAlert } from '../services/roadAlertDistance';
 import { UpcomingRoadAlertBanner } from './UpcomingRoadAlertBanner';
+import type { PoliceRoute } from '../types/policeRoute';
 import type { useTripTracking } from '../hooks/useTripTracking';
 import { 
   Navigation, PowerOff, ArrowUp, CornerUpLeft, CornerUpRight, RotateCcw,
@@ -30,7 +31,8 @@ import {
   Share2,
   ShieldAlert,
   ShieldCheck,
-  Award
+  Award,
+  X
 } from 'lucide-react';
 
 interface ActiveTripModalProps {
@@ -44,6 +46,8 @@ interface ActiveTripModalProps {
   onEndTrip: () => void;
   onCompleteTrip: (tripId: string, actualKm: number, verifiedGps: boolean) => { newAchievements: Achievement[]; leveledUp: boolean };
   onOpenSos: () => void;
+  policeRoute?: PoliceRoute;
+  onRemovePoliceRoute?: () => void;
   onOpenShareModal: (trip:TripPlan) => void;
   onReturnHome: () => void;
   onNavigationReroute: (next:ReroutedNavigation)=>void;
@@ -67,6 +71,8 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
   onEndTrip,
   onCompleteTrip,
   onOpenSos,
+  policeRoute,
+  onRemovePoliceRoute,
   onOpenShareModal,
   onReturnHome,
   onNavigationReroute,
@@ -225,12 +231,12 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
 
   return (
     <div className="rdv-nav-figma-root" data-role-theme={appearanceTheme}
-      data-upcoming-alert={Boolean(upcoming)} aria-label="Navegação GPS ativa">
+      data-upcoming-alert={Boolean(upcoming)} data-police-route={Boolean(policeRoute)} aria-label="Navegação GPS ativa">
       {/* O mapa continua vivo e ocupando a tela toda; a UI não intercepta os gestos. */}
       <div className="rdv-nav-figma-map rdv-flat-map">
         <InteractiveMap convoyParticipants={convoyParticipants} meetingPoints={meetingPoints}
           originCoords={rerouted?.originCoords||trip.originCoords} destinationCoords={trip.destinationCoords}
-          routePath={navigationPath} navigationMode roadStyle
+          routePath={navigationPath} policeRoute={policeRoute} navigationMode roadStyle
           maneuverMeters={nextTurn&&nextTurn.direction!=='straight'?nextTurn.meters:null}
           onCameraModeChange={setCameraMode}
           travelledDistanceKm={routeTravelledKm} totalRouteKm={routeDistanceKm}
@@ -319,6 +325,17 @@ export const ActiveTripModal: React.FC<ActiveTripModalProps> = ({
             <span>{trip.isCircular?'de volta ao início':'chegada prevista'}</span>
           </button>
         </div>
+        {policeRoute && <div className="rdv-nav-police-route">
+          <ShieldAlert size={20} aria-hidden="true"/>
+          <div role="status">
+            <strong>Rota SOS · {policeRoute.distanceKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km</strong>
+            <span>{policeRoute.station.name}</span>
+          </div>
+          <button type="button" aria-label="Remover rota policial" onClick={() => {
+            onRemovePoliceRoute?.();
+            if (isGpsActive) setCenterRequest(value => value + 1);
+          }}><X size={17} aria-hidden="true"/></button>
+        </div>}
         <div className="rdv-nav-bottom-actions">
           <button type="button" aria-label="Encerrar viagem" onClick={()=>setShowEndConfirm(true)}
             className="rdv-nav-bottom-button rdv-nav-end">

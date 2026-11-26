@@ -19,6 +19,7 @@ import {decideRouteRender,stableList,mapPixelRatio} from '../services/mapRouteRe
 import {bindManualMapZoom} from '../services/mapUserZoomGestures';
 import {bindMapResumeRefresh} from '../services/mapResumeRefresh';
 import {updateRoleVectorRoutes,queryRoleVectorAlternative,queryRoleRouteEditPoint} from '../services/mapLibreRouteLayers';
+import {updatePoliceRoute} from '../services/mapLibrePoliceRoute';
 import {updateRoleVectorMilestones} from '../services/mapLibreRouteMilestones';
 import {TILE_PROVIDERS,standaloneBaseStyle,type MapStyleType} from '../services/mapStyles';
 import {createRoleNavigationPins} from '../services/mapLibreNavigationPins';
@@ -203,6 +204,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     let course:number|null=null;
     let bearing=0;
     let lastCenterRequest=0;
+    let policeOverview=false;
     const cameraPort=createStandaloneMapLibreCameraPort(map,()=>bearing);
     let idleFollow:ReturnType<typeof createNavigationIdleFollow>|null=null;
     const camera=createNavigationCameraSession(cameraPort,mode=>{
@@ -211,12 +213,17 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     });
     idleFollow=createNavigationIdleFollow({
       active:()=>Boolean(latest.current.navigationMode),
-      resume:()=>camera.resume()
+      resume:()=>{
+        const resumed=camera.resume(policeOverview);
+        if (resumed) policeOverview=false;
+        return resumed;
+      }
     });
     let fitted:string|null=null;
     let fitInputs:unknown[]=[];
     let waitingForIdle=false;
     let lastFocus:InteractiveMapProps['focusedCoords'];
+    let lastPoliceRoute:InteractiveMapProps['policeRoute'];
     captureFallback=()=>loaded?captureMapFallbackViewport(map,{...camera.snapshot(),
       fittedRoute:fitted,focusedCoords:lastFocus},TILE_PROVIDERS[styleRef.current].maxZoom):undefined;
     // Route projection scans the road geometry. Limit repeated scans from
@@ -343,6 +350,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
       if(p.navigationMode&&(p.centerOnUserRequest??0)>lastCenterRequest){
         // Explicit GPS restores the complete driving view, including course-up.
         lastCenterRequest=p.centerOnUserRequest??0;
+        policeOverview=false;
         courseModeRef.current=true;setCourseMode(true);
       }
       try{
@@ -379,6 +387,8 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
         const featureCount=lastRouteFeatureCount;
         if(featureCount>0)container.current?.setAttribute('data-role-vector-routes',String(featureCount));
         else container.current?.removeAttribute('data-role-vector-routes');
+        updatePoliceRoute(map, p.policeRoute);
+        if (root) root.dataset.policeRouteVisible = String(Boolean(p.policeRoute));
         updateRoleVectorMilestones(map,p.routePath||[],COLORS[p.routeModality||'panoramica'],
           !p.navigationMode&&!p.roadStyle&&!p.blueRoute);
         // GPS can trigger many renders while driving. Keep the live navigation
@@ -437,6 +447,15 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
           }
         }
         updateLiveViewport();
+        if (p.policeRoute && p.policeRoute !== lastPoliceRoute) {
+          const height = map.getContainer().clientHeight;
+          camera.explore();
+          cameraPort.fitRoute([...p.policeRoute.routePath, p.policeRoute.station.coords],
+            { topLeft: [30, Math.min(112, height * 0.22)], bottomRight: [30, Math.min(212, height * 0.42)], maxZoom: 16 });
+          policeOverview=true;
+          idleFollow.activity();
+        }
+        lastPoliceRoute = p.policeRoute;
         // GPS/speed renders do not change which POIs the viewport contains.
         // moveend publishes visibility after pan/zoom; changed overlays
         // publish immediately even if the camera stays still.
@@ -647,7 +666,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     };
     map.on('dragstart',userGesture);
     const userZoomGesture=(event:{originalEvent?:unknown})=>{
-      if(event.originalEvent)camera.overrideZoom();
+      if(event.originalEvent){policeOverview=false;camera.overrideZoom();}
       userGesture(event);
     };
     map.on('zoomstart',userZoomGesture);
@@ -662,7 +681,7 @@ export default function StandaloneNavigationMap(props:InteractiveMapProps & {onU
     window.addEventListener('blur',cancelGesture);
     document.addEventListener('visibilitychange',onGestureVisibility);
     const unbindGestures=bindManualMapZoom(map.getContainer(),()=>{
-      camera.overrideZoom();camera.explore();
+      policeOverview=false;camera.overrideZoom();camera.explore();
       idleFollow?.activity();
     });
     const unbindResume=bindMapResumeRefresh(document,window,()=>{

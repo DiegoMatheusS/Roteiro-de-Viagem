@@ -17,6 +17,22 @@
   color: #263342;
 }
 .rdv-nav-figma-map {position: absolute; inset: 0; z-index: 0;}
+.rdv-nav-figma-root[data-police-route="true"] {
+  --rdv-nav-panel-height:calc(195px + env(safe-area-inset-bottom,0px));
+}
+.rdv-nav-police-route {
+  display:flex;align-items:center;gap:9px;
+  min-height:44px;padding:0 4px 0 10px;border-radius:10px;
+  border-left:4px solid #dc2626;background:#eff6ff;color:#1e3a8a;
+}
+.rdv-nav-police-route > svg {flex:none;color:#1d4ed8;}
+.rdv-nav-police-route > div {flex:1;min-width:0;}
+.rdv-nav-police-route strong,.rdv-nav-police-route span {
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;
+}
+.rdv-nav-police-route button {
+  display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:8px;
+}
 .rdv-nav-guidance {
   position: absolute;
   top: var(--rdv-nav-guidance-top);

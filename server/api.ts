@@ -24,6 +24,7 @@ import { registerConvoyRoutes } from './convoys';
 import { registerWeatherRoutes } from './weather';
 import { registerTollRoutes } from './tolls';
 import { registerRoadAlertRoutes } from './roadAlerts';
+import { registerPoliceRoute } from './policeRoute';
 import { verifyGoogleCredential, canAutoLinkGoogleIdentity } from './googleAuth';
 import { stationOpeningStatus } from './openingHours';
 import {registerTrafficRoutes,type TrafficOptions} from './trafficCore';
@@ -103,6 +104,7 @@ export function createApi(options: { db: FuelDatabase; sanitizePhoto:(buffer:Buf
   registerWeatherRoutes(app, options.weatherFetch || options.mapFetch || fetch, limit);
   registerTollRoutes(app, db, options.mapFetch || fetch, limit, sanitizePhoto);
   registerRoadAlertRoutes(app, db, limit);
+  registerPoliceRoute(app, options.mapFetch || fetch, limit);
   registerRadarRoutes(app, db, limit, options.radarSourceStore);
   registerTrafficRoutes(app,limit,options.traffic);
   const feedbackMail=createPlaceFeedbackMailQueue(db,options.feedbackMail);
