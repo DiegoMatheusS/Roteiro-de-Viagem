@@ -4,11 +4,10 @@ import { buttonClass, inputClass } from './shared';
 
 const blank = (kind: string) => ({ name: '', kind, address: '', lat: '', lng: '', phone: '', website: '', description: '', openingHours: '' });
 
-export function ManualPlaceForm({ busy, onSave, kinds, heading }: {
+export function ManualPlaceForm({ busy, onSave, kinds, heading, initialKind }: {
   busy: boolean; onSave: (body: unknown) => Promise<void>;
-  kinds: ReadonlyArray<(typeof PLACE_KINDS)[number]>; heading: string;
+  kinds: ReadonlyArray<(typeof PLACE_KINDS)[number]>; heading: string; initialKind: (typeof PLACE_KINDS)[number]['id'];
 }) {
-  const initialKind = kinds[0].id;
   const [draft, setDraft] = useState(() => blank(initialKind));
   const [error, setError] = useState(''), [confirmed, setConfirmed] = useState(false);
   const update = (key: keyof ReturnType<typeof blank>, value: string) => setDraft(current => ({ ...current, [key]: value }));
