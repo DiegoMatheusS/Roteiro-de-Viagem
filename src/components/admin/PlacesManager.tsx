@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { fuelApi } from '../../services/fuelApi';
 import { PLACE_KINDS, TOURIST_PLACE_KINDS, type Place, type PageResult, type PriceHistory } from '../../types/admin';
 import { PriceEditor } from '../PriceEditor';
@@ -6,34 +6,56 @@ import { buttonClass, inputClass, Pager, History, ConfirmAction } from './shared
 import { ManualPlaceForm } from './ManualPlaceForm';
 import { TollTariffEditor } from './TollTariffEditor';
 
+const groups = [['general', 'Estabelecimentos e serviços'], ['tourist', 'Pontos turísticos'],
+  ['police', 'Delegacias e postos policiais']] as const;
+
 export function PlacesManager({ onChange }: { onChange: () => void }) {
   const [result, setResult] = useState<PageResult<Place>>({ items: [], total: 0, page: 1, pageSize: 20 });
   const [q, setQ] = useState(''), [kind, setKind] = useState(''), [reference, setReference] = useState('');
   const [selected, setSelected] = useState<Place | null>(null), [remove, setRemove] = useState<Place | null>(null);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'manual' | 'osm'>('manual');
-  const [touristOnly, setTouristOnly] = useState(false);
-  const load = (page = 1) => fuelApi<PageResult<Place>>(`/admin/places?page=${page}&q=${encodeURIComponent(q)}&kind=${kind}&group=${touristOnly ? 'tourist' : ''}`).then(setResult);
-  useEffect(() => { load(1).catch(error => setError(error.message)); }, [touristOnly]);
+  const [group, setGroup] = useState<(typeof groups)[number][0]>('general');
+  const touristOnly = group === 'tourist', policeOnly = group === 'police';
+  const kinds = PLACE_KINDS.filter(option => policeOnly ? option.id === 'police' :
+    !touristOnly || (TOURIST_PLACE_KINDS as readonly string[]).includes(option.id));
+  const latestLoad = useRef(0);
+  const load = async (page = 1) => {
+    const request = ++latestLoad.current;
+    const next = await fuelApi<PageResult<Place>>(`/admin/places?page=${page}&q=${encodeURIComponent(q)}&kind=${policeOnly ? 'police' : kind}&group=${touristOnly ? 'tourist' : ''}`);
+    if (request === latestLoad.current) setResult(next);
+  };
+  useEffect(() => { load(1).catch(error => setError(error.message)); }, [group]);
   const act = async <T,>(path: string, body: unknown, method = 'POST'): Promise<T> => {
     setBusy(true); setError('');
     try { const value = await fuelApi<T>(path, { method, body: JSON.stringify(body) }); await load(result.page); onChange(); return value; }
     catch (error) { setError((error as Error).message); throw error; } finally { setBusy(false); }
   };
   return <div className="space-y-5"><h2 className="text-xl font-bold">Cadastro de locais</h2>
-    <p className="text-sm text-slate-500">Gerencie estabelecimentos e atrações turísticas que aparecem no mapa e podem entrar nos roteiros.</p>
-    <nav aria-label="Tipos de cadastro" className="flex flex-wrap gap-2">{([['estabelecimentos','Estabelecimentos e serviços'],['tourist','Pontos turísticos']] as const).map(([id,label]) => <button key={id} type="button" aria-pressed={touristOnly === (id === 'tourist')} onClick={() => { setTouristOnly(id === 'tourist'); setKind(''); setSelected(null); setMessage(''); setMode('manual'); }} className={`${buttonClass} ${touristOnly === (id === 'tourist') ? 'bg-emerald-700 text-white' : 'bg-white'}`}>{label}</button>)}</nav>
+    <p className="text-sm text-slate-500">{policeOnly ? 'O SOS consulta as unidades ativas com atendimento ao público.' : 'Gerencie estabelecimentos e atrações turísticas que aparecem no mapa e podem entrar nos roteiros.'}</p>
+    <nav aria-label="Tipos de cadastro" className="flex flex-wrap gap-2">{groups.map(([id,label]) => <button key={id} type="button" aria-pressed={group === id} disabled={busy} onClick={() => {
+      if (group === id) return;
+      latestLoad.current++;
+      setResult({ items: [], total: 0, page: 1, pageSize: 20 });
+      setGroup(id); setQ(''); setKind(''); setReference(''); setSelected(null); setError(''); setMessage(''); setMode('manual');
+    }} className={`${buttonClass} ${group === id ? 'bg-emerald-700 text-white' : 'bg-white'}`}>{label}</button>)}</nav>
     {error && <p role="alert" className="bg-rose-50 text-rose-700 p-3 rounded-xl text-sm">{error}</p>}{message && <p role="status" className="bg-emerald-50 text-emerald-800 p-3 rounded-xl text-sm">{message}</p>}
     <div className="flex flex-wrap gap-2"><button type="button" aria-pressed={mode === 'manual'} onClick={() => setMode('manual')} className={`${buttonClass} ${mode === 'manual' ? 'bg-slate-800 text-white' : 'bg-white'}`}>Cadastro manual</button><button type="button" aria-pressed={mode === 'osm'} onClick={() => setMode('osm')} className={`${buttonClass} ${mode === 'osm' ? 'bg-slate-800 text-white' : 'bg-white'}`}>Importar do OpenStreetMap</button></div>
-    {mode === 'manual' ? <ManualPlaceForm key={touristOnly ? 'tourist' : 'general'} touristOnly={touristOnly} busy={busy} onSave={async body => { const place = await act<Place>('/admin/places', body); setSelected(place); setMessage('Local cadastrado e publicado no mapa.'); }} /> : <form className="bg-white rounded-2xl border p-5 space-y-3" onSubmit={async event => { event.preventDefault(); try { const place = await act<Place>('/admin/places', { reference }); setReference(''); setSelected(place); setMessage('Estabelecimento verificado no mapa e cadastrado.'); } catch {} }}>
-      <h3 className="font-bold">Adicionar local real do OpenStreetMap</h3><label className="block text-xs font-semibold">Link do estabelecimento no OpenStreetMap<input required value={reference} maxLength={300} onChange={e => setReference(e.target.value)} placeholder="https://www.openstreetmap.org/node/..." className={`${inputClass} mt-1`} /></label>
+    {mode === 'manual' ? <ManualPlaceForm key={group} kinds={kinds}
+      heading={policeOnly ? 'Cadastrar unidade policial' : touristOnly ? 'Cadastrar ponto turístico' : 'Cadastrar local'}
+      busy={busy} onSave={async body => { const place = await act<Place>('/admin/places', body); setSelected(place); setMessage(place.kind === 'police' ? 'Unidade policial cadastrada e disponível para o SOS.' : 'Local cadastrado e publicado no mapa.'); }} /> : <form className="bg-white rounded-2xl border p-5 space-y-3" onSubmit={async event => { event.preventDefault(); try { const place = await act<Place>('/admin/places', { reference, expectedKind: policeOnly ? 'police' : undefined }); setReference(''); setSelected(place); setMessage(place.kind === 'police' ? 'Unidade policial cadastrada e disponível para o SOS.' : 'Estabelecimento verificado no mapa e cadastrado.'); } catch {} }}>
+      <h3 className="font-bold">{policeOnly ? 'Importar unidade policial do OpenStreetMap' : 'Adicionar local real do OpenStreetMap'}</h3><label className="block text-xs font-semibold">{policeOnly ? 'Link da unidade policial no OpenStreetMap' : 'Link do estabelecimento no OpenStreetMap'}<input required value={reference} maxLength={300} onChange={e => setReference(e.target.value)} placeholder="https://www.openstreetmap.org/node/..." className={`${inputClass} mt-1`} /></label>
       <p className="text-xs text-slate-500">Abra o ponto no <a href="https://www.openstreetmap.org" target="_blank" rel="noopener noreferrer" className="underline text-emerald-700">OpenStreetMap</a> e copie seu link. O cadastro verifica a existência e a localização.</p><button disabled={busy} className={`${buttonClass} bg-emerald-600 border-emerald-600 text-white`}>Verificar e cadastrar</button>
     </form>}
-    <form className="flex flex-wrap gap-3" onSubmit={event => { event.preventDefault(); load().catch(error => setError(error.message)); }}><input aria-label="Buscar estabelecimentos" value={q} onChange={e => setQ(e.target.value)} maxLength={100} placeholder="Buscar nome ou endereço" className={`${inputClass} flex-1 min-w-48`} /><select aria-label="Categoria do estabelecimento" value={kind} onChange={e => setKind(e.target.value)} className="border rounded-xl p-3 text-sm"><option value="">Todas as categorias</option>{PLACE_KINDS.filter(k => !touristOnly || (TOURIST_PLACE_KINDS as readonly string[]).includes(k.id)).map(k => <option key={k.id} value={k.id}>{k.label}</option>)}</select><button className={buttonClass}>Buscar</button></form>
+    <form className="flex flex-wrap gap-3" onSubmit={event => { event.preventDefault(); load().catch(error => setError(error.message)); }}><input aria-label={policeOnly ? 'Buscar unidades policiais' : 'Buscar estabelecimentos'} value={q} onChange={e => setQ(e.target.value)} maxLength={100} placeholder="Buscar nome ou endereço" className={`${inputClass} flex-1 min-w-48`} />{!policeOnly && <select aria-label="Categoria do estabelecimento" value={kind} onChange={e => setKind(e.target.value)} className="border rounded-xl p-3 text-sm"><option value="">Todas as categorias</option>{kinds.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}</select>}<button className={buttonClass}>Buscar</button></form>
     <div className="bg-white rounded-2xl border overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50"><tr><th className="p-4">Estabelecimento</th><th className="p-4">Categoria</th><th className="p-4">Estado</th><th className="p-4">Ações</th></tr></thead><tbody>{result.items.map(place => <tr key={place.id} className="border-t"><td className="p-4"><strong>{place.name}</strong><p className="text-xs text-slate-500">{place.address || 'Endereço não informado'}</p></td><td className="p-4">{PLACE_KINDS.find(k => k.id === place.kind)?.label}</td><td className="p-4">{place.active ? 'Ativo' : 'Excluído do mapa'}</td><td className="p-4 whitespace-nowrap"><button onClick={() => setSelected(place)} className="text-emerald-700 font-semibold mr-4">Editar</button>{place.active && <button onClick={() => setRemove(place)} className="text-rose-700">Excluir</button>}</td></tr>)}</tbody></table>{!result.items.length && <p className="p-4 text-sm text-slate-500">Nenhum cadastro encontrado.</p>}</div>
     <Pager result={result} onPage={page => load(page).catch(error => setError(error.message))} />
     {selected && <PlaceEditor key={selected.id} place={selected} busy={busy} onChange={onChange} onClose={() => setSelected(null)} onSave={async body => { setMessage(''); const updated = await act<Place>(`/admin/places/${encodeURIComponent(selected.id)}`, body, 'PATCH'); setSelected(updated); if (updated.kind !== (body as { kind: Place['kind'] }).kind) throw new Error('Os demais dados foram salvos, mas este servidor ainda não permite trocar a categoria.'); setMessage('Cadastro atualizado.'); }} onPrice={async (prices, observedAt) => { await act(`/admin/stations/${encodeURIComponent(selected.id)}/prices`, { prices, observedAt, confirmed: true }); setMessage('Preços atualizados; o histórico anterior foi preservado.'); }} />}
-    {remove && <ConfirmAction title="Excluir estabelecimento" description={`Excluir ${remove.name} do mapa? Os preços e o histórico serão preservados. O cadastro poderá ser reativado depois.`} onClose={() => setRemove(null)} action={async () => { await act(`/admin/places/${encodeURIComponent(remove.id)}`, { confirmed: true }, 'DELETE'); if (selected?.id === remove.id) setSelected(null); setMessage('Estabelecimento excluído do mapa.'); }} />}
+    {remove && <ConfirmAction title={remove.kind === 'police' ? 'Excluir unidade policial' : 'Excluir estabelecimento'}
+      description={remove.kind === 'police'
+        ? `Retirar o cadastro de ${remove.name} do mapa e do SOS? Você poderá reativá-lo depois.`
+        : `Excluir ${remove.name} do mapa? Os preços e o histórico serão preservados. O cadastro poderá ser reativado depois.`}
+      onClose={() => setRemove(null)} action={async () => { await act(`/admin/places/${encodeURIComponent(remove.id)}`, { confirmed: true }, 'DELETE'); if (selected?.id === remove.id) setSelected(null); setMessage(remove.kind === 'police' ? 'Cadastro policial desativado.' : 'Estabelecimento excluído do mapa.'); }} />}
   </div>;
 }
 function PlaceEditor({ place, busy, onSave, onPrice, onClose, onChange }: { place: Place; busy: boolean; onSave: (body: unknown) => Promise<void>; onPrice: (prices: any[], date: string) => Promise<void>; onClose: () => void; onChange: () => void }) {
@@ -49,7 +71,7 @@ function PlaceEditor({ place, busy, onSave, onPrice, onClose, onChange }: { plac
       <div className="grid md:grid-cols-2 gap-3">{([['name', 'Nome', 150], ['address', 'Endereço', 250], ['phone', 'Telefone do estabelecimento', 50], ['website', 'Site', 300], ['openingHours', 'Horário de funcionamento', 200]] as const).map(([key, label, max]) => <label key={key} className="block text-xs font-semibold">{label}<input required={key === 'name'} maxLength={max} value={draft[key]} onChange={e => setDraft(value => ({ ...value, [key]: e.target.value }))} className={`${inputClass} mt-1`} /></label>)}</div>
       <label className="block text-xs font-semibold">Descrição<textarea maxLength={1000} value={draft.description} onChange={e => setDraft(value => ({ ...value, description: e.target.value }))} className={`${inputClass} mt-1`} /></label>
       <div className="grid md:grid-cols-2 gap-3"><label className="text-xs font-semibold">Latitude do cadastro<input required inputMode="decimal" value={lat} onChange={event => setLat(event.target.value)} className={`${inputClass} mt-1`} /></label><label className="text-xs font-semibold">Longitude do cadastro<input required inputMode="decimal" value={lng} onChange={event => setLng(event.target.value)} className={`${inputClass} mt-1`} /></label></div>
-      <label className="flex gap-2 text-xs"><input type="checkbox" checked={draft.active} onChange={e => setDraft(value => ({ ...value, active: e.target.checked }))} />Cadastro ativo no mapa</label><label className="flex gap-2 text-xs"><input type="checkbox" checked={draft.hoursVerified} onChange={e => setDraft(value => ({ ...value, hoursVerified: e.target.checked }))} />Confirmei o horário diretamente com o estabelecimento</label><button disabled={busy} className={`${buttonClass} bg-emerald-600 border-emerald-600 text-white`}>Salvar cadastro</button>
+      <label className="flex gap-2 text-xs"><input type="checkbox" checked={draft.active} onChange={e => setDraft(value => ({ ...value, active: e.target.checked }))} />{draft.kind === 'police' ? 'Cadastro ativo no mapa e no SOS' : 'Cadastro ativo no mapa'}</label><label className="flex gap-2 text-xs"><input type="checkbox" checked={draft.hoursVerified} onChange={e => setDraft(value => ({ ...value, hoursVerified: e.target.checked }))} />Confirmei o horário diretamente com o estabelecimento</label><button disabled={busy} className={`${buttonClass} bg-emerald-600 border-emerald-600 text-white`}>Salvar cadastro</button>
     </form>
     {place.kind === 'fuel' && <><History items={history} />{place.active && <details className="border-t pt-4"><summary className="cursor-pointer font-bold text-sm">Atualizar ou corrigir preços</summary><div className="mt-3"><PriceEditor busy={busy} onSubmit={async (prices, date) => { await onPrice(prices, date); await loadHistory(); setMessage('Preços publicados.'); }} /></div></details>}</>}
     {place.kind === 'toll' && place.active && <TollTariffEditor placeId={place.id} onChange={onChange} />}

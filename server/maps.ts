@@ -26,7 +26,10 @@ export function viewportPlaceRows(db:FuelDatabase,value:unknown,includeManagedFu
     .all(south,north,west,east,(south+north)/2) as any[];
 }
 
-export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusKm: number, excludeFuel = false) {
+export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusKm: number,
+  { excludeFuel = false, kind, includeInactive = false }: {
+    excludeFuel?: boolean; kind?: Place['kind']; includeInactive?: boolean;
+  } = {}) {
   const params: number[] = [];
   const boxes = points.map(point => {
     const latDelta = radiusKm / 110, lngDelta = Math.min(180, radiusKm / (110 * Math.max(0.001, Math.cos(point[0] * Math.PI / 180))));
@@ -38,10 +41,13 @@ export function nearbyPlaceRows(db: FuelDatabase, points: Coordinates[], radiusK
   });
   // Distinct tourist search must exclude fuels BEFORE SQL LIMIT, or dense cities
   // can return only fuel stations and hide imported attractions.
-  const filter = excludeFuel ? " AND kind<>'fuel'" : '';
-  const order = excludeFuel ? 'managed DESC, ABS(lat-?) + ABS(lng-?)' : 'managed DESC';
-  const sortParams = excludeFuel ? [points[0][0], points[0][1]] : [];
-  return (db.prepare(`SELECT * FROM stations WHERE active=1${filter} AND (${boxes.join(' OR ')}) ORDER BY ${order} LIMIT 1000`).all(...params, ...sortParams) as any[])
+  const filter = kind ? ' AND kind=?' : excludeFuel ? " AND kind<>'fuel'" : '';
+  const orderByDistance = Boolean(kind) || excludeFuel;
+  const order = orderByDistance ? 'managed DESC, ABS(lat-?) + ABS(lng-?)' : 'managed DESC';
+  const sortParams = orderByDistance ? [points[0][0], points[0][1]] : [];
+  const activeFilter = includeInactive ? '1=1' : 'active=1';
+  return (db.prepare(`SELECT * FROM stations WHERE ${activeFilter}${filter} AND (${boxes.join(' OR ')}) ORDER BY ${order} LIMIT 1000`)
+    .all(...(kind ? [kind] : []), ...params, ...sortParams) as any[])
     .filter(place => points.some(point => distanceBetweenKm(point, [place.lat, place.lng]) <= radiusKm));
 }
 
@@ -72,7 +78,11 @@ export async function lookupMapPlace(reference: string, mapFetch: MapFetch = fet
   const lat = element?.lat ?? element?.center?.lat;
   const lng = element?.lon ?? element?.center?.lon;
   if (!tags || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !(tags.amenity || tags.tourism || tags.leisure || tags.shop || tags.place === 'square' || tags.waterway === 'waterfall' || tags.barrier === 'toll_booth' || tags.highway === 'toll_gantry' || tags.natural === 'beach' || tags.historic)) throw new Error('Esse ponto não identifica um estabelecimento ou atração válida.');
+  if (tags.amenity === 'police' && (tags.access === 'private' || tags.access === 'no')) {
+    throw new Error('O ponto deve ser uma unidade policial com atendimento ao público.');
+  }
   const kind: Place['kind'] = tags.amenity === 'fuel' ? 'fuel'
+    : tags.amenity === 'police' ? 'police'
     : tags.barrier === 'toll_booth' || tags.highway === 'toll_gantry' ? 'toll'
     : tags.waterway === 'waterfall' ? 'waterfall'
     : ['supermarket', 'convenience', 'grocery'].includes(tags.shop) ? 'supermarket'

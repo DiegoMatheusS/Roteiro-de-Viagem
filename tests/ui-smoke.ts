@@ -888,6 +888,23 @@ try {
   await adminAccount.getByLabel('Senha', { exact: true }).fill('admin-ui-test-password');
   await adminAccount.getByRole('button', { name: 'Entrar', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Cadastro de locais', exact: true }).waitFor();
+  await adminPage.getByRole('button', { name: 'Delegacias e postos policiais', exact: true }).click();
+  const policeForm = adminPage.getByRole('form', { name: 'Cadastrar local', exact: true });
+  await policeForm.getByRole('heading', { name: 'Cadastrar unidade policial' }).waitFor();
+  assert.equal(await policeForm.getByLabel('Tipo de local').inputValue(), 'police');
+  await policeForm.getByLabel('Nome do local').fill('Delegacia de teste do painel');
+  await policeForm.getByLabel('Endereço ou acesso').fill('Entrada de teste, São Paulo/SP');
+  await policeForm.getByLabel('Latitude').fill('-23,556');
+  await policeForm.getByLabel('Longitude').fill('-46,626');
+  await policeForm.getByRole('checkbox', { name: /Conferi o nome/ }).check();
+  await policeForm.getByRole('button', { name: 'Cadastrar e publicar no mapa' }).click();
+  await adminPage.getByRole('status').filter({ hasText: 'Unidade policial cadastrada e disponível para o SOS.' }).waitFor();
+  const registeredPolice = await fetch('http://127.0.0.1:3001/api/sos/police-route', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ originCoords: [-23.551, -46.629] })
+  });
+  assert.equal(registeredPolice.status, 200);
+  assert.equal((await registeredPolice.json() as any).station.name, 'Delegacia de teste do painel');
   await adminPage.getByRole('button', { name: 'Configurações', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Alterar senha', exact: true }).waitFor();
   await adminPage.getByRole('heading', { name: 'Alterar e-mail', exact: true }).waitFor();
