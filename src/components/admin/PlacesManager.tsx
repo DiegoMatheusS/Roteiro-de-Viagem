@@ -8,6 +8,7 @@ import { TollTariffEditor } from './TollTariffEditor';
 
 const groups = [['general', 'Estabelecimentos e serviços'], ['tourist', 'Pontos turísticos'],
   ['police', 'Delegacias e postos policiais']] as const;
+const placeKindsByLabel = [...PLACE_KINDS].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
 export function PlacesManager({ onChange }: { onChange: () => void }) {
   const [result, setResult] = useState<PageResult<Place>>({ items: [], total: 0, page: 1, pageSize: 20 });
@@ -17,7 +18,7 @@ export function PlacesManager({ onChange }: { onChange: () => void }) {
   const [mode, setMode] = useState<'manual' | 'osm'>('manual');
   const [group, setGroup] = useState<(typeof groups)[number][0]>('general');
   const touristOnly = group === 'tourist', policeOnly = group === 'police';
-  const kinds = PLACE_KINDS.filter(option => policeOnly ? option.id === 'police' :
+  const kinds = placeKindsByLabel.filter(option => policeOnly ? option.id === 'police' :
     !touristOnly || (TOURIST_PLACE_KINDS as readonly string[]).includes(option.id));
   const latestLoad = useRef(0);
   const load = async (page = 1) => {
@@ -42,6 +43,7 @@ export function PlacesManager({ onChange }: { onChange: () => void }) {
     {error && <p role="alert" className="bg-rose-50 text-rose-700 p-3 rounded-xl text-sm">{error}</p>}{message && <p role="status" className="bg-emerald-50 text-emerald-800 p-3 rounded-xl text-sm">{message}</p>}
     <div className="flex flex-wrap gap-2"><button type="button" aria-pressed={mode === 'manual'} onClick={() => setMode('manual')} className={`${buttonClass} ${mode === 'manual' ? 'bg-slate-800 text-white' : 'bg-white'}`}>Cadastro manual</button><button type="button" aria-pressed={mode === 'osm'} onClick={() => setMode('osm')} className={`${buttonClass} ${mode === 'osm' ? 'bg-slate-800 text-white' : 'bg-white'}`}>Importar do OpenStreetMap</button></div>
     {mode === 'manual' ? <ManualPlaceForm key={group} kinds={kinds}
+      initialKind={policeOnly ? 'police' : touristOnly ? 'waterfall' : 'fuel'}
       heading={policeOnly ? 'Cadastrar unidade policial' : touristOnly ? 'Cadastrar ponto turístico' : 'Cadastrar local'}
       busy={busy} onSave={async body => { const place = await act<Place>('/admin/places', body); setSelected(place); setMessage(place.kind === 'police' ? 'Unidade policial cadastrada e disponível para o SOS.' : 'Local cadastrado e publicado no mapa.'); }} /> : <form className="bg-white rounded-2xl border p-5 space-y-3" onSubmit={async event => { event.preventDefault(); try { const place = await act<Place>('/admin/places', { reference, expectedKind: policeOnly ? 'police' : undefined }); setReference(''); setSelected(place); setMessage(place.kind === 'police' ? 'Unidade policial cadastrada e disponível para o SOS.' : 'Estabelecimento verificado no mapa e cadastrado.'); } catch {} }}>
       <h3 className="font-bold">{policeOnly ? 'Importar unidade policial do OpenStreetMap' : 'Adicionar local real do OpenStreetMap'}</h3><label className="block text-xs font-semibold">{policeOnly ? 'Link da unidade policial no OpenStreetMap' : 'Link do estabelecimento no OpenStreetMap'}<input required value={reference} maxLength={300} onChange={e => setReference(e.target.value)} placeholder="https://www.openstreetmap.org/node/..." className={`${inputClass} mt-1`} /></label>
@@ -67,7 +69,7 @@ function PlaceEditor({ place, busy, onSave, onPrice, onClose, onChange }: { plac
   return <section aria-label={`Editar ${place.name}`} className="bg-white rounded-2xl border p-5 space-y-4"><div className="flex justify-between gap-3"><h3 className="font-bold">Editar: {place.name}</h3><button className="text-sm" onClick={onClose}>Fechar edição</button></div><p className="text-xs text-slate-500">{PLACE_KINDS.find(kind => kind.id === place.kind)?.label}</p><a href={place.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 underline">Ver referência e localização no mapa</a>
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}{message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
     <form className="space-y-3" onSubmit={async event => { event.preventDefault(); setError(''); setMessage(''); try { if (!lat.trim() || !lng.trim()) throw new Error('Informe a localização do local.'); await onSave({ ...draft, lat: Number(lat.replace(',', '.')), lng: Number(lng.replace(',', '.')) }); setMessage('Dados salvos.'); } catch (error) { setError((error as Error).message); } }}>
-      <label className="block text-xs font-semibold">Categoria do local<select aria-label="Categoria do local" value={draft.kind} disabled={busy} onChange={event => setDraft(value => ({ ...value, kind: event.target.value as Place['kind'] }))} className={`${inputClass} mt-1`}>{PLACE_KINDS.map(option => <option key={option.id} value={option.id}>{option.icon} {option.label}</option>)}</select></label>
+      <label className="block text-xs font-semibold">Categoria do local<select aria-label="Categoria do local" value={draft.kind} disabled={busy} onChange={event => setDraft(value => ({ ...value, kind: event.target.value as Place['kind'] }))} className={`${inputClass} mt-1`}>{placeKindsByLabel.map(option => <option key={option.id} value={option.id}>{option.icon} {option.label}</option>)}</select></label>
       <div className="grid md:grid-cols-2 gap-3">{([['name', 'Nome', 150], ['address', 'Endereço', 250], ['phone', 'Telefone do estabelecimento', 50], ['website', 'Site', 300], ['openingHours', 'Horário de funcionamento', 200]] as const).map(([key, label, max]) => <label key={key} className="block text-xs font-semibold">{label}<input required={key === 'name'} maxLength={max} value={draft[key]} onChange={e => setDraft(value => ({ ...value, [key]: e.target.value }))} className={`${inputClass} mt-1`} /></label>)}</div>
       <label className="block text-xs font-semibold">Descrição<textarea maxLength={1000} value={draft.description} onChange={e => setDraft(value => ({ ...value, description: e.target.value }))} className={`${inputClass} mt-1`} /></label>
       <div className="grid md:grid-cols-2 gap-3"><label className="text-xs font-semibold">Latitude do cadastro<input required inputMode="decimal" value={lat} onChange={event => setLat(event.target.value)} className={`${inputClass} mt-1`} /></label><label className="text-xs font-semibold">Longitude do cadastro<input required inputMode="decimal" value={lng} onChange={event => setLng(event.target.value)} className={`${inputClass} mt-1`} /></label></div>

@@ -888,6 +888,14 @@ try {
   await adminAccount.getByLabel('Senha', { exact: true }).fill('admin-ui-test-password');
   await adminAccount.getByRole('button', { name: 'Entrar', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Cadastro de locais', exact: true }).waitFor();
+  const manualKind = adminPage.getByRole('form', { name: 'Cadastrar local', exact: true }).getByLabel('Tipo de local');
+  const labels = await manualKind.getByRole('option').evaluateAll(options =>
+    options.map(option => (option.textContent || '').replace(/^\S+\s+/, '')));
+  assert.deepEqual(labels, [...labels].sort((a, b) => a.localeCompare(b, 'pt-BR')));
+  assert.ok(labels.includes('Delegacia ou posto policial'));
+  assert.equal(await manualKind.inputValue(), 'fuel');
+  const filterKinds = await adminPage.getByLabel('Categoria do estabelecimento').getByRole('option').allTextContents();
+  assert.deepEqual(filterKinds.slice(1), labels);
   await adminPage.getByRole('button', { name: 'Delegacias e postos policiais', exact: true }).click();
   const policeForm = adminPage.getByRole('form', { name: 'Cadastrar local', exact: true });
   await policeForm.getByRole('heading', { name: 'Cadastrar unidade policial' }).waitFor();
