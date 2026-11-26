@@ -35,6 +35,7 @@ import { ConvoyScreen } from './components/ConvoyScreen';
 import { ActiveTripModal } from './components/ActiveTripModal';
 import { ActiveTripResumeBanner } from './components/ActiveTripResumeBanner';
 import { SosModal } from './components/SosModal';
+import type { PoliceRoute } from './types/policeRoute';
 import { useLiveRouteConditions } from './hooks/useLiveRouteConditions';
 import { useTripTracking } from './hooks/useTripTracking';
 import {canEditStopsWhileStationary,canConfirmStopManually,remainingRerouteStops,type ReroutedNavigation} from './services/autoReroute';
@@ -76,6 +77,10 @@ export default function App() {
   const [activeConvoyId, setActiveConvoyId] = useState<string | null>(null);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [policeRoute, setPoliceRoute] = useState<{ tripId: string; route: PoliceRoute } | null>(null);
+  const sosTripId = isNavigationOpen && !activeConvoyId ? activeTrip?.id : undefined;
+  const visiblePoliceRoute = policeRoute?.tripId === sosTripId ? policeRoute?.route : undefined;
+  useEffect(() => { setPoliceRoute(null); }, [activeTrip?.id, auth.user?.id]);
   const [appError, setAppError] = useState<string | null>(null);
   const [convoyVersion, setConvoyVersion] = useState(0);
   const [joinCode, setJoinCode] = useState('');
@@ -735,6 +740,8 @@ export default function App() {
           onEndTrip={() => handleEndTrip(activeTrip)}
           onCompleteTrip={handleCompleteTrip}
           onOpenSos={() => setIsSosOpen(true)}
+          policeRoute={visiblePoliceRoute}
+          onRemovePoliceRoute={() => setPoliceRoute(null)}
           onOpenShareModal={(trip)=>setShareTripTarget(trip)}
           onReturnHome={handleReturnHome}
           onNavigationReroute={handleNavigationReroute}
@@ -749,6 +756,11 @@ export default function App() {
         emergencyContacts={profile.emergencyContacts}
         isOpen={isSosOpen}
         onClose={() => setIsSosOpen(false)}
+        policeNavigation={sosTripId ? {
+          tripId: sosTripId,
+          route: visiblePoliceRoute,
+          onRouteChange: route => setPoliceRoute(route ? { tripId: sosTripId, route } : null)
+        } : undefined}
       />
     </div>
   );
